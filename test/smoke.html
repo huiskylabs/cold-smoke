@@ -1,0 +1,84 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#000}canvas{display:block}</style></head><body>
+<canvas id="c" width="640" height="360"></canvas>
+<script src="../src/00_util.js"></script>
+<script src="../src/01_gfx.js"></script>
+<script>
+(async () => {
+  const q = new URLSearchParams(location.search), backend = q.get('backend') || 'webgl2';
+  const canvas = document.getElementById('c');
+  defineGlobals([['viewProj', 'mat4x4f'], ['shadowVP', 'mat4x4f'], ['camPos', 'vec4f'], ['sunDir', 'vec4f'], ['res', 'vec4f']]);
+  const gfx = backend === 'webgpu' ? await createGPU(canvas, { offscreen: true }) : createGL(canvas);
+  if (!gfx) { window.__result = 'no backend'; return; }
+  const W = 640, H = 360;
+  // textures of each kind
+  const n8 = new Uint8Array(64 * 64 * 4); for (let i = 0; i < 64 * 64; i++) { const v = hash2(i % 64, (i / 64) | 0) * 255; n8[i * 4] = v; n8[i * 4 + 1] = hash2(i, 7) * 255; n8[i * 4 + 2] = 128; n8[i * 4 + 3] = 255; }
+  const tN = gfx.texture({ w: 64, h: 64, format: 'rgba8', wrap: 'repeat', mips: true, data: n8 }); gfx.genMips(tN);
+  const h32 = new Float32Array(32 * 32); for (let i = 0; i < 32 * 32; i++) h32[i] = Math.sin((i % 32) * 0.4) * 0.3 + Math.cos(((i / 32) | 0) * 0.5) * 0.3;
+  const tH = gfx.texture({ w: 32, h: 32, format: 'r32f', filter: 'nearest', data: h32 });
+  const hf = new Uint16Array(16 * 16 * 4); for (let i = 0; i < 16 * 16; i++) { hf[i * 4] = toHalf((i % 16) / 15 * 3); hf[i * 4 + 1] = toHalf(((i / 16) | 0) / 15 * 0.5); hf[i * 4 + 2] = toHalf(0.2); hf[i * 4 + 3] = toHalf(1); }
+  const tF = gfx.texture({ w: 16, h: 16, format: 'rgba16f', data: hf });
+  const hdr = gfx.texture({ w: W, h: H, format: 'rgba16f' }), depth = gfx.texture({ w: W, h: H, format: 'depth', filter: 'nearest' });
+  const scene = gfx.target({ color: hdr, depth });
+  const smap = gfx.texture({ w: 512, h: 512, format: 'depth', filter: 'linear', compare: true }), shadowT = gfx.target({ depth: smap });
+  // grid mesh
+  const N = 31, verts = [], idx = [];
+  for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) verts.push(i / N, j / N);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const a = j * (N + 1) + i; idx.push(a, a + N + 1, a + 1, a + 1, a + N + 1, a + N + 2); }
+  const vb = gfx.buffer(new Float32Array(verts), 'vertex'), ib = gfx.buffer(new Uint32Array(idx), 'index');
+  const inst = new Float32Array([0, 0, 0, 1, 2.2, 0.4, 0, 0.6, -2.2, 0.2, 0.5, 0.8]), ibuf = gfx.buffer(inst, 'vertex', true);
+  const lib = `
+fn hgt(uv: vec2f) -> f32 { let p: vec2i = vec2i(uv * 31.0); return texFetch(tH, p, 0).x; }
+fn wpos(a: VIn) -> vec3f { let h: f32 = hgt(a.uv); return vec3f((a.uv.x - 0.5) * 2.0, h, (a.uv.y - 0.5) * 2.0) * a.inst.w + a.inst.xyz; }`;
+  const terr = gfx.pipeline({
+    name: 'terr', lib: [lib], buffers: [{ attrs: [['uv', 'vec2f']] }, { attrs: [['inst', 'vec4f']], instanced: true }],
+    varyings: { uv: 'vec2f', wp: 'vec3f' }, uniforms: { tint: 'vec4f', model: 'mat4x4f' }, textures: { tH: 'fetch', tN: '2d', tF: '2d', tS: 'shadow' },
+    vs: `fn vert(a: VIn) -> VOut { var v: VOut; let p: vec3f = (M.model * vec4f(wpos(a), 1.0)).xyz; v.clip = U.viewProj * vec4f(p, 1.0); v.uv = a.uv; v.wp = p; return v; }`,
+    fs: `fn frag(v: VOut) -> FOut { var o: FOut;
+      let n: vec3f = normalize(cross(dpdx(v.wp), dpdy(v.wp)));
+      let sp: vec4f = U.shadowVP * vec4f(v.wp, 1.0);
+      let suv: vec2f = vec2f(sp.x * 0.5 + 0.5, 0.5 - sp.y * 0.5);
+      let sh: f32 = texShadow(tS, suv, sp.z - 0.004);
+      let c: vec3f = tex(tN, v.uv * 3.0).rgb * 0.5 + tex(tF, v.uv).rgb * 0.5;
+      let ndl: f32 = abs(dot(n, U.sunDir.xyz));
+      o.color = vec4f(c * M.tint.rgb * (0.15 + ndl * sh * 2.0), 1.0); return o; }`,
+  });
+  const shad = gfx.pipeline({
+    name: 'shad', lib: [lib], buffers: [{ attrs: [['uv', 'vec2f']] }, { attrs: [['inst', 'vec4f']], instanced: true }], varyings: {}, uniforms: { model: 'mat4x4f' }, textures: { tH: 'fetch' }, colorFormat: null, cull: 'none', depthBias: 2,
+    vs: `fn vert(a: VIn) -> VOut { var v: VOut; let p: vec3f = (M.model * vec4f(wpos(a), 1.0)).xyz; v.clip = U.shadowVP * vec4f(p, 1.0); return v; }`, fs: null,
+  });
+  const post = gfx.pipeline({
+    name: 'post', buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f' }, textures: { tC: '2d', tD: 'depth' }, colorFormat: 'canvas', depth: false, cull: 'none', depthTest: false,
+    vs: VS_FULLSCREEN,
+    fs: `fn frag(v: VOut) -> FOut { var o: FOut;
+      let c: vec3f = tex(tC, v.uv).rgb;
+      let d: f32 = texFetchD(tD, vec2i(v.clip.xy), 0);
+      var col: vec3f = c / (1.0 + c);
+      if (v.uv.x > 0.8) { col = vec3f(pow(d, 40.0)); }
+      if (v.clip.y < 20.0) { col = vec3f(1.0, 0.0, 0.0); }      // marks the TOP rows in both backends
+      o.color = vec4f(pow(col, vec3f(1.0 / 2.2)), 1.0); return o; }`,
+  });
+  try {
+    if (gfx.finishPipelineAsync) for (const p of [terr, shad, post]) await gfx.finishPipelineAsync(p); else for (const p of [terr, shad, post]) gfx.finishPipeline(p);
+  } catch (e) { console.log(String(e.message)); if (e.vs) console.log(e.vs.slice(0, 6000)); window.__result = 'shader error'; return; }
+  const G = new Float32Array(GLOBALS_SIZE);
+  const sun = v3.norm([0.5, 0.8, 0.3]);
+  const vp = m4.mul(m4.perspective(1.0, W / H, 0.1, 100), m4.lookAt([0, 2.5, 5], [0, 0, 0], [0, 1, 0]));
+  const svp = m4.mul(m4.ortho(-4, 4, -4, 4, 0.1, 20), m4.lookAt(v3.mul(sun, 8), [0, 0, 0], [0, 1, 0]));
+  G.set(vp, GOFF.viewProj); G.set(svp, GOFF.shadowVP); G.set([0, 2.5, 5, 0], GOFF.camPos); G.set([...sun, 0], GOFF.sunDir); G.set([W, H, 1 / W, 1 / H], GOFF.res);
+  gfx.setGlobals(G);
+  gfx.beginFrame();
+  const tex = { tH, tN, tF, tS: smap }, model = m4.rotY(0.4);
+  gfx.beginPass(shadowT, { depth: 1 });
+  gfx.draw(shad, { u: { model }, tex: { tH }, vb: [vb, ibuf], ib, count: idx.length, instances: 3 });
+  gfx.endPass();
+  gfx.beginPass(scene, { color: [0.02, 0.05, 0.1, 1], depth: 1 });
+  gfx.draw(terr, { u: { tint: [1, 0.9, 0.8, 1], model }, tex, vb: [vb, ibuf], ib, count: idx.length, instances: 3 });
+  gfx.endPass();
+  gfx.beginPass(null, { color: [0, 0, 0, 1] });
+  gfx.draw(post, { u: { p: [0, 0, 0, 0] }, tex: { tC: hdr, tD: depth }, count: 3 });
+  gfx.endPass();
+  gfx.endFrame();
+  { const cap = await gfx.capture(); const c2 = document.createElement('canvas'); c2.width = cap.w; c2.height = cap.h; c2.getContext('2d').putImageData(new ImageData(cap.data, cap.w, cap.h), 0, 0); window.__png = c2.toDataURL('image/png'); }
+  window.__result = 'ok ' + gfx.caps.backend + ' ' + gfx.caps.renderer + (gfx.lastError ? ' ERR ' + gfx.lastError : '');
+})().catch(e => { console.log('EXC', e.message, e.stack); window.__result = 'exception'; });
+</script></body></html>
