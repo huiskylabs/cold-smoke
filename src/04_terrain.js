@@ -253,6 +253,28 @@ const Terrain = (() => {
     const L = T.levels[lvl], c = L.cell;
     return { tex: L.hTex, xf: [1 / c, origin[0] / c, origin[2] / c, HREF_SLOPE * origin[2] - origin[1]] };
   };
+  // ---- every level made again around a new place (another mountain: the course was re-seeded; or the skier was set down far away), a
+  // little at a time: T.rebuild starts it, T.rebuildStep(ms) carries on for about that long and says whether it is finished. Coarse levels
+  // first and each one whole before the next (the finer ones read them toward the sun): what T.update(x, z, true) does in one go, to the
+  // last texel. Until it is finished the levels are not fit to be seen (App.swap keeps the picture covered) and T.update leaves them alone;
+  // a forced T.update takes over and does it all at once.
+  let job = null;
+  T.rebuild = function (camX, camZ) { for (const L of T.levels) L.valid = false; job = { x: camX, z: camZ, l: T.LEVELS - 1, row: -1 }; };
+  T.rebuilding = () => !!job;
+  T.rebuildStep = function (ms = 1e9) {
+    const t0 = performance.now(), B = 16;       // rows at a time: first the heights of the whole level, then its slopes, shade and horizon
+    while (job) {
+      const L = T.levels[job.l], c = L.cell;
+      if (job.row < 0) { L.cx = Math.floor(job.x / (2 * c)) * 2; L.cz = Math.floor((job.z / c - T.BIAS) / 2) * 2; L.valid = true; job.row = 0; }
+      const x0 = L.cx - 128, za = L.cz - 128 + job.row % N, zb = za + B - 1;
+      if (job.row < N) genHeights(L, x0, x0 + N - 1, za, zb); else uploadRect(L, x0, x0 + N - 1, za, zb);
+      job.row += B;
+      if (job.row >= 2 * N) { job.row = -1; if (--job.l < 0) job = null; }
+      if (performance.now() - t0 >= ms) break;
+    }
+    return !job;
+  };
+  { const update = T.update; T.update = function (camX, camZ, force) { if (job) { if (!force) return 0; job = null; } return update(camX, camZ, force); }; }
   return T;
 })();
 
