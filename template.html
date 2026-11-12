@@ -108,11 +108,17 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 /* (meanwhile the hint and the toast under the card step down to make room, and come back once it has gone) */
 #app.wide.res #hint { transform: translate(-10px, var(--rh)); } #app.wide.res #hint.on { transform: translateY(var(--rh)); }
 #app.res #say { transform: translate(-10px, var(--rh)); } #app.res #say.on { transform: translateY(var(--rh)); }
-/* ---- the day card, at sunset and at sunrise: the run so far, set like a film title in the lower left, under the horizon where the sun is
-   (on a desk above the speed, held in the hands in the corner the numbers left free). Line by line it comes in, the figures run up to
+/* ---- the day card, at sunset and at sunrise: the run so far, set like a film title. On a desk in the lower left above the speed, under the
+   horizon where the sun is; held in the hands up in the left column (see below). Line by line it comes in, the figures run up to
    their values, and after five seconds it goes the way it came */
 #day { position: absolute; z-index: 0; left: var(--gl); bottom: calc(var(--gb) + var(--spd) * .9 + 40px + clamp(22px, 5vmin, 54px)); pointer-events: none; text-shadow: 0 1px 2px rgba(5, 8, 13, .3), 0 1px 18px rgba(5, 8, 13, .62); transition: opacity .3s ease; }
-#app:not(.desk) #day { bottom: calc(var(--gb) + 4px); }
+/* (held in the hands the lower corners are under the thumbs: the card stands high, where the name of a run stands, and on the right, mirrored,
+   when the sun is on the left half of the picture) */
+#app:not(.desk) #day { bottom: auto; top: calc(var(--gt) + var(--spd) * .9 + 54px); }
+#app:not(.desk) #day.r { left: auto; right: var(--gr); text-align: right; }
+#day.r .k { margin-right: -.5em; } #day.r .t { margin-right: -.42em; } #day.r .rule { margin-left: auto; transform-origin: 100% 50%; }
+#day.r .fs { justify-content: flex-end; } #day.r .fs > div { align-items: flex-end; } #day.r .fs span { margin-right: -.3em; }
+#day.r::before { left: -55%; right: calc(-1 * var(--gr)); background: radial-gradient(ellipse at 76% 56%, rgba(5, 8, 13, .36), rgba(5, 8, 13, .15) 45%, rgba(5, 8, 13, 0) 72%); }
 #day.held { opacity: 0; }
 /* (the corner it stands in is shaded a little while it is there, as a title is set where the picture is darker) */
 #day::before { content: ""; position: absolute; z-index: -1; left: calc(-1 * var(--gl)); right: -55%; top: -42%; bottom: -34%; background: radial-gradient(ellipse at 24% 56%, rgba(5, 8, 13, .36), rgba(5, 8, 13, .15) 45%, rgba(5, 8, 13, 0) 72%); opacity: 0; transition: opacity 1.4s ease; }
@@ -192,6 +198,25 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #app:not(.desk) #swp button { min-width: 44px; letter-spacing: .08em; padding: 0 7px 0 calc(7px + .08em); }
 #app:not(.desk) #swp button::after { left: calc(7px + .08em); right: calc(7px + .08em); }
 #app:not(.desk) #swp { top: calc(var(--gt) + 46px); }          /* (clear of the drop number beside the pill) */
+/* the versions the owner picks between, one row each under a small heading. The sheet never runs off the screen: the rows above keep their
+   height and this part takes what is left, scrolling by itself when that is not enough (a fade at the edge says there is more) */
+#swp { display: flex; flex-direction: column; max-height: calc(var(--ch) - var(--gt) - 34px - var(--gb)); }
+#app:not(.desk) #swp { max-height: calc(var(--ch) - var(--gt) - 46px - var(--gb)); }
+#swp > .row { flex: none; } #swp .row.two { flex-wrap: wrap; }
+#swp .vers { display: flex; flex-direction: column; min-height: 0; } #swp .vers[hidden] { display: none; }
+#swp .vhead { flex: none; display: flex; align-items: center; gap: 12px; height: 26px; box-shadow: 0 -1px 0 rgba(244, 247, 251, .08); }
+#swp .vhead .lab { min-width: 0; } #swp .vhead .rule { flex: 1; height: 1px; margin-right: 8px; background: linear-gradient(90deg, rgba(244, 247, 251, .1), transparent); }
+#swp .vbox { min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none; } #swp .vbox::-webkit-scrollbar { display: none; }
+#swp .vbox.more { -webkit-mask-image: linear-gradient(#000 calc(100% - 26px), transparent); mask-image: linear-gradient(#000 calc(100% - 26px), transparent); }
+#swp .vbox.less { -webkit-mask-image: linear-gradient(transparent, #000 26px); mask-image: linear-gradient(transparent, #000 26px); }
+#swp .vbox.more.less { -webkit-mask-image: linear-gradient(transparent, #000 26px, #000 calc(100% - 26px), transparent); mask-image: linear-gradient(transparent, #000 26px, #000 calc(100% - 26px), transparent); }
+#swp .vbox .lab { min-width: var(--vlw, 5em); letter-spacing: .2em; }
+/* (the version the team recommends: a grain of snow at its shoulder, and the same grain on the way back to all of them) */
+#swp button.rec::before, #swp .vreset::before { content: ""; position: absolute; top: calc(var(--swh) * .5 - 10px); right: 3px; width: 3px; height: 3px; border-radius: 50%; background: rgba(244, 247, 251, .62); }
+#swp .vfoot { display: flex; justify-content: flex-end; }
+#swp .vreset { font-size: var(--swl); letter-spacing: .24em; color: var(--dim); padding-left: calc(9px + 3px + .6em); transition: color .25s ease, opacity .4s ease; }
+#swp .vreset::before { top: 50%; right: auto; left: 9px; margin-top: -1.5px; }
+#swp .vreset.idle { color: var(--faint); opacity: .7; cursor: default; }          /* (everything already as recommended) */
 /* what a key just changed, said once: in the column of type on the left, clear of the sun (at the gate where the name of a run would stand, in a run under the hints) */
 #say { position: absolute; left: var(--col); top: calc(var(--gt) + 2px); display: flex; align-items: center; gap: 12px; height: 34px; padding: 0 18px; border-radius: 999px; background: rgba(5, 8, 13, .40); white-space: nowrap; pointer-events: none;
   opacity: 0; transform: translateX(-10px); transition: opacity .5s ease, transform .5s cubic-bezier(.2, .6, .2, 1); }
@@ -212,6 +237,9 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 1.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 1.5px)); }
 #jump.down::before { opacity: 1; }
 #app.desk #pad { display: none; }
+/* (under the open sheet of switches the two buttons step aside) */
+#pad button { transition: background .12s ease, color .12s ease, transform .12s ease, box-shadow .12s ease, opacity .3s ease; }
+#app.swopen #pad button { opacity: 0; pointer-events: none; }
 /* the steering finger. The drag is measured from where the finger came down, so that is drawn: a hairline from there to the finger, and a
    tick each side where the carve ends and the skid begins; past the tick the line is amber. Faint, and gone with the finger */
 #steer { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transition: opacity .3s ease; filter: drop-shadow(0 0 2px rgba(5, 8, 13, .7)); --c: 80px; }
@@ -308,13 +336,14 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
   <button id="pz" type="button" aria-label="暂停"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.4 5.2v9.6M12.6 5.2v9.6"/></svg></button>
   <button id="sw" type="button" aria-label="切换场景" aria-expanded="false" aria-controls="swp"><span><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.6"/><path class="half" d="M8 2.4a5.6 5.6 0 0 1 0 11.2z"/></svg>场景</span></button>
   <div id="swp" role="group" aria-label="切换场景">
-    <div class="row"><span class="lab">时间<kbd>T</kbd></span><div class="chips" id="sw-time"></div></div>
+    <div class="row two"><div class="grp"><span class="lab">时间<kbd>T</kbd></span><div class="chips" id="sw-time"></div></div><div class="grp" id="sw-wx" hidden><span class="lab">天气<kbd>X</kbd></span><div class="chips" id="sw-wxc"></div></div></div>
     <div class="row"><span class="lab">路段<kbd>N</kbd></span><div class="chips" id="sw-seg"></div></div>
     <div class="row"><span class="lab">偶遇<kbd>G</kbd></span><div class="chips" id="sw-ev"></div></div>
     <div class="row two" id="sw-more">
       <div class="grp" id="sw-view"><span class="lab">视角<kbd>V</kbd></span><button type="button" class="step" data-view="1"><span id="sw-vn"></span><i>›</i></button></div>
       <div class="grp" id="sw-mt"><span class="lab">山<kbd>R</kbd></span><span class="seed" id="sw-seed"></span><button type="button" data-new="1">换一座山</button></div>
     </div>
+    <div class="vers" id="sw-vers" hidden><div class="vhead"><span class="lab">版本</span><i class="rule"></i></div><div class="vbox" id="sw-vbox"><div id="sw-vrows"></div><div class="vfoot"><button type="button" class="vreset" id="sw-vreset" data-vreset="1">恢复推荐</button></div></div></div>
   </div>
   <div id="say" aria-live="polite"><small id="say-k"></small><b id="say-v"></b></div>
   <div id="pause" role="dialog" aria-label="暂停" aria-hidden="true"><div class="card">
