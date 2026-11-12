@@ -80,7 +80,8 @@ fn vert(a: VIn) -> VOut {
     if (!D.enabled) return;
     const o = off(R), ow = [((o[0] % 1024) + 1024) % 1024, ((o[1] % 1024) + 1024) % 1024, ((o[2] % 1024) + 1024) % 1024, 0];
     const sh = typeof Weather !== 'undefined' && Weather.ks > 0.001 ? Weather.share || 0 : 0;
-    if (sh > 0.001) { let id = 0; for (const L of D.heavy) { const n = Math.min(L.n, Math.ceil(L.n * (sh + 0.04))); gfx.draw(pipeF, { u: { p: [L.W, L.size, L.fall, id], q: [sh, L.shut, L.op, L.n], o: [o[0], o[1], o[2], 0] }, tex: { tDepth: R.depth, tShadow: R.shadowTex }, count: 4, instances: n }); id += L.n; } }
+    const dayK = typeof Sky !== 'undefined' ? 1 - smooth(0.2, 0.8, Sky.night || 0) : 1;
+    if (sh > 0.001) { let id = 0; for (const L of D.heavy) { const n = Math.min(L.n, Math.ceil(L.n * (sh + 0.04))); gfx.draw(pipeF, { u: { p: [L.W, L.size, L.fall, id], q: [sh, L.shut, L.op, L.n], o: [o[0], o[1], o[2], dayK] }, tex: { tDepth: R.depth, tShadow: R.shadowTex }, count: 4, instances: n }); id += L.n; } }
     let id = 0;
     for (const L of D.layers) { gfx.draw(pipe, { u: { p: [L.W, L.power, L.fall, id], o: [o[0], o[1], o[2], 0], w: ow }, tex: { tDepth: R.depth, tShadow: R.shadowTex }, count: 4, instances: L.n }); id += L.n; }
   };
@@ -113,7 +114,7 @@ fn flakeQuad(corner: vec2f, pos: vec3f, vel: vec3f, rphys: f32, shutK: f32) -> G
   let rp: f32 = rphys * U.res.y / (2.0 * U.camRight.w * zv);
   let rad: f32 = sqrt(coc * coc + rp * rp + sq(0.62 * sc));
   ml = min(ml, 0.16 * U.res.y);
-  ml = mix(ml, min(ml, 2.0 * rad), smoothstep(2.5 * sc, 7.0 * sc, rad));
+  ml = mix(min(ml, 5.0 * rad), min(ml, 2.0 * rad), smoothstep(2.5 * sc, 7.0 * sc, rad));       // (short soft streaks: never pills or confetti)
   let hl: f32 = ml * 0.5;
   let ext: vec2f = vec2f(hl + rad + 1.0, rad + 1.0);
   let lp: vec2f = corner * ext;
@@ -150,10 +151,16 @@ fn vert(a: VIn) -> VOut {
   let V: vec3f = normalize(U.camPos.xyz - pos); let mu: f32 = dot(-V, U.sunDir.xyz);
   // (a touch brighter than the snow on the ground, so a snowfall reads against the slope; brighter still close to the lens, where a flake is a soft
   // light rather than a smudge on the glass)
-  var lit: vec3f = U.ambSky.rgb * 1.9 + U.ambGnd.rgb * 0.9 + U.sunCol.rgb * (vis * (0.25 + 2.4 * hg(mu, 0.70)));
-  if (U.lamp.w > 0.0) { lit += lampLight(pos) * 1.2; }
+  // (ice scatters grey: the sun's colour is taken 40% toward white, and its forward lobe is soft. A low sun no longer turns the flakes to orange
+  // embers; a flake is lit from every side, so half the sun reaches it whichever way it faces, and the snow's own light from below)
+  let sc: vec3f = mix(U.sunCol.rgb, vec3f(luma(U.sunCol.rgb)), 0.4);
+  var lit: vec3f = U.ambSky.rgb * 1.9 + U.ambGnd.rgb * 1.5 + sc * (vis * (0.45 + 1.0 * hg(mu, 0.55)));
+  // (the lamp: flakes in its cone sparkle, but those right at the lens take less of it, or the beam is a white wall in front of the eyes)
+  if (U.lamp.w > 0.0) { lit += lampLight(pos) * (1.2 * mix(0.35, 1.0, smoothstep(0.6, 3.5, length(pos - U.lamp.xyz)))); }
   lit *= 1.0 + 0.6 * smoothstep(3.0, 0.5, g.shp.w);
-  v.col = vec4f(lit * (0.88 * cov), cov);
+  // by day a flake must never read darker than what lies behind it (dark specks on bright snow read as dirt): it covers less than it adds,
+  // so in front of the snow or the overcast it all but vanishes, as real flakes do, and in front of trees it is a white speck
+  v.col = vec4f(lit * (0.88 * cov), cov * mix(1.0, 0.55, M.o.w));
   return v;
 }`;
 // a soft disc that thins out from its middle to its rim (a tuft of crystals, or the lens's blur of one), or a streak of it with round ends
@@ -184,18 +191,21 @@ fn frag(v: VOut) -> FOut {
   // it builds with distance and levels off (a snowfall is so many kilometres across, and the cloud it falls from is near overhead: looking up
   // there is less of it in the way)
   var tau: f32 = M.a.x * M.a.y * (1.0 - exp(-r / M.a.y));
+  // (thinner in the first fifteen metres: the near trees and the skier keep their darks, and the snow stands in layers in front of the far ones)
+  tau -= 0.3 * M.a.x * min(r, 15.0);
   tau = mix(tau, M.a.z * (1.0 - 0.45 * smoothstep(0.0, 0.5, d.y)), sky);
   // it does not fall evenly: denser sheets drift across on the wind, settling with the snow (read where the line of sight crosses two shells
   // round the eye, 14 and 34 m out, so they pass with the right parallax as you go)
   let w: vec3f = U.origin.xyz - M.e.xyz + vec3f(0.0, M.e.w, 0.0);
   let s1: f32 = tnoise3((U.camPos.xyz + d * 14.0 + w) * 0.25);
   let s2: f32 = tnoise3((U.camPos.xyz + d * 34.0 + w) * 0.25 + vec3f(91.0, 17.0, 53.0));
-  tau *= 1.0 + 0.5 * (s1 - 0.5) * smoothstep(12.0, 18.0, r) + 0.4 * (s2 - 0.5) * smoothstep(30.0, 40.0, r);
+  let s3: f32 = tnoise3((U.camPos.xyz + d * 75.0 + w) * 0.12 + vec3f(37.0, 71.0, 13.0));
+  tau *= 1.0 + 0.8 * (s1 - 0.5) * smoothstep(12.0, 18.0, r) + 0.7 * (s2 - 0.5) * smoothstep(30.0, 40.0, r) + 0.6 * (s3 - 0.5) * smoothstep(65.0, 90.0, r) * (1.0 - sky);
   let T: f32 = exp(-tau);
   let mu: f32 = dot(d, U.sunDir.xyz);
-  var c: vec3f = M.b.rgb + U.sunCol.rgb * (0.05 + 0.45 * hg(mu, 0.78));
+  var c: vec3f = M.b.rgb + mix(U.sunCol.rgb, vec3f(luma(U.sunCol.rgb)), 0.3) * (0.05 + 0.45 * hg(mu, 0.78));
   var az: f32 = atan2(d.x, -d.z) - ${(+ca).toFixed(5)}; az = atan2(sin(az), cos(az));
-  c += M.c.rgb * ((0.35 + 1.6 * exp(-abs(az) / 0.35)) * smoothstep(0.6, -0.05, d.y));
+  c += M.c.rgb * ((0.08 + 1.6 * exp(-abs(az) / 0.35)) * smoothstep(0.3, -0.05, d.y));
   c += vec3f(0.78, 0.86, 1.0) * (M.d.w * (0.9 + 2.0 * exp(-sq(acos(clamp(dot(d, M.d.xyz), -1.0, 1.0))) / 0.15)));
   o.color = vec4f(c * (1.0 - T), T);
   return o;

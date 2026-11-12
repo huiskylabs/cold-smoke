@@ -112,7 +112,15 @@ const Weather = (() => {
       }; f.wx = true; Vista.drawLights = f;
     }
     // the headlamp's beam stands out in the falling snow
-    if (typeof Shafts !== 'undefined') { if (W.lampAir0 == null) W.lampAir0 = Shafts.lampAir; Shafts.lampAir = W.lampAir0 * (1 + 3.5 * W.ks); }
+    // (15_shafts.js thins the beam's air for the first metres when the lamp is at the lens: from the skier's own eyes it is a cone reaching out
+    // ahead, not a lit ball in front of the face)
+    // and when the sun comes out through a break, its light stands in the falling snow as shafts between the trees' and ridges' shadows
+    if (typeof Shafts !== 'undefined') {
+      if (W.lampAir0 == null) { W.lampAir0 = Shafts.lampAir; W.shOn0 = Shafts.enabled; W.shGain0 = Shafts.gain; }
+      Shafts.lampAir = W.lampAir0 * (1 + 3.0 * W.ks);
+      const so = W.ks * (1 - W.v) * (1 - (typeof Sky !== 'undefined' ? Sky.night || 0 : 0));
+      if (W.shOn0) Shafts.gain = W.shGain0 * (1 + 2 * so); else { Shafts.enabled = so > 0.01; Shafts.gain = so > 0.01 ? W.shGain0 * 3.0 * so : W.shGain0; }
+    }
     // lightning, once the snow is heavy: the first soon after it has come, then every half minute or so
     if (W.ks > 0.6) {
       if (W.flashAt < 0) W.flashAt = t + 5 + 7 * hash1(W.flashes * 31 + 7);
@@ -137,14 +145,16 @@ const Weather = (() => {
     // the overcast's own light: what falls on its top (the sun, and the sky above it), let through and spread out, and greyed as cloud greys it
     const se = Math.max(Math.sin(e), 0.03), top = [0, 1, 2].map(i => sf[i] * se * 0.9 + as[i] * 1.1), tl = lum(top);
     const ov = top.map((c, i) => 0.56 * lerp(c, tl, 0.75) * [0.95, 1.0, 1.07][i]);
-    // after dark the city's lights glow on its underside, and the falling snow takes that up
+    // a night snowstorm is cold blue-grey: the moonlit overcast is pulled toward a cool grey. The far city's sodium glow only warms the cloud
+    // low on its own bearing (overcast() and the veil, M.wf / c); over the skier it adds no more than a trace, else the whole storm goes sepia
+    { const n = Sky.night || 0, l = lum(ov); for (let i = 0; i < 3; i++) ov[i] = lerp(ov[i], l * [0.80, 0.92, 1.14][i], 0.7 * n); }
     const cg = Sky.lights * W.cityK;
-    ov[0] += 0.0055 * cg; ov[1] += 0.0040 * cg; ov[2] += 0.0026 * cg;
+    ov[0] += 0.0014 * cg; ov[1] += 0.0011 * cg; ov[2] += 0.0009 * cg;
     const amb = as.map((c, i) => lerp(c, ov[i] * 0.5, kc)), twi = tw.map(c => c * (1 - 0.85 * kc));
     const up = Math.max(0, Math.sin(e)), gnd = [0, 1, 2].map(i => 0.5 * (sun[i] * (up * 0.9 + 0.2 * smooth(-0.05, 0.15, Math.sin(e))) + amb[i] * 0.8));
     // the eye opens as the light goes flat (by the law the sky uses for the time of day, a little less of it at night), over a second or so
     const L0 = lum(sc) * 0.33 + lum(as) * 1.9 + lum(tw) * 0.5, L1 = lum(sun) * 0.33 + lum(amb) * 1.9 + lum(twi) * 0.5;
-    const tgt = Math.pow(L0 / Math.max(L1, 1e-6), lerp(0.65, 0.35, Sky.night));
+    const tgt = Math.pow(L0 / Math.max(L1, 1e-6), lerp(0.78, 0.35, Sky.night));       // (by day a snowfall is bright white-grey, not dim)
     W.ex = W.ex == null ? tgt : damp(W.ex, tgt, 0.85, Render.dt || 1 / 60);
     const ex = Post.exposure * W.ex; Post.exposure = ex;
     // lightning: the cloud round the flash lights up, and the slope takes blue-white light from it, less than the sky shows (the eye cannot follow it)
@@ -162,7 +172,7 @@ const Weather = (() => {
     W.sky = { wa: [ov[0], ov[1], ov[2], kc], wb: [saz + H[0] / Math.max(Math.cos(sel), 0.2), sel + H[1], H[2], H[3]], wc: [sc[0], sc[1], sc[2], E],
       wd: [fd[0], fd[1], fd[2], Ef], we: f ? [f.az, f.top, f.seed, bl] : ZERO, wf: [0.050 * cg * kc, 0.036 * cg * kc, 0.024 * cg * kc, W.cityOut], wg: [W.cloud[0] / 1500, W.cloud[1] / 1500, 1.3 * ks, 0] };
     W.veilU = ks < 0.002 ? null : { a: [P.sig * ks * den, P.D, P.sky * ks * den, ks], b: [ov[0] * 1.12 + gnd[0] * 0.08, ov[1] * 1.12 + gnd[1] * 0.08, ov[2] * 1.12 + gnd[2] * 0.08, 0],
-      c: [0.034 * cg * ks, 0.024 * cg * ks, 0.015 * cg * ks, 0], d: [fd[0], fd[1], fd[2], Ef * ks],
+      c: [0.030 * cg * ks, 0.021 * cg * ks, 0.014 * cg * ks, 0], d: [fd[0], fd[1], fd[2], Ef * ks],
       e: [((W.off[0] % 1024) + 1024) % 1024, 0, ((W.off[2] % 1024) + 1024) % 1024, App.t % 1024] };
     W.share = ks * (P.flakes / 1.35) * lerp(0.8, 1, v);          // (11_dust.js holds the blizzard's count of flakes)
   };
@@ -248,7 +258,8 @@ fn overcast(d: vec3f, mu: f32, colIn: vec3f) -> vec3f {
   // the clouds come in from their thickest parts (the switch from a clear sky), and the break drifts past the sun with a ragged edge
   // (kept true right at the sun, so the disc goes in and out with the light on the snow)
   let kc: f32 = M.wa.w;
-  let cov: f32 = smoothstep(1.05 - 1.35 * kc, 1.30 - 1.35 * kc, n + 0.35 * kc);
+  // (the edge is wide while the cloud is coming in, so the first of it arrives as soft torn stratus, never a slab with a hard rim)
+  let cov: f32 = smoothstep(1.05 - 1.35 * kc, 1.05 - 1.35 * kc + mix(0.75, 0.25, kc), n + 0.35 * kc);
   let toSun: f32 = acos(clamp(mu, -1.0, 1.0));
   // (a tear, not a porthole: three times longer along the drift than across it, its edge torn at the scale of the cloud's own lumps)
   let el: f32 = asin(clamp(d.y, -1.0, 1.0));
@@ -265,9 +276,13 @@ fn overcast(d: vec3f, mu: f32, colIn: vec3f) -> vec3f {
   // its light: the overcast's, darker where it is thicker; the sun soaking through the thin parts round it (brightest just at the edge of a break,
   // the silver lining) and a pale glow round it however thick the cloud; the city's glow underneath at night; a flash lighting it from inside
   var c: vec3f = M.wa.rgb * (1.42 - 0.5 * n) * (0.88 + 0.12 * smoothstep(0.0, 0.4, d.y));
+  // (thin cloud is bright, lit through: it only greys as it thickens. While it comes in, before the light below has followed it, it takes the
+  // sky's own light, so a new patch is pale and never darker than the sky it crosses)
+  c *= mix(1.6, 1.0, saturate(tau / 4.0));
+  c = mix(max(c, luma(colIn) * vec3f(0.97, 0.99, 1.03) * 0.92), c, smoothstep(0.35, 0.85, kc));
   c += M.wc.rgb * (hg(mu, 0.75) * (0.03 + 0.28 * (1.0 - smoothstep(0.0, 7.0, tau))) + 0.008);
   let az: f32 = atan2(d.x, -d.z) - ${f(ca)};
-  c += M.wf.rgb * ((0.3 + exp(-abs(atan2(sin(az), cos(az))) / 0.45)) * (0.5 + smoothstep(0.35, 0.0, d.y)));
+  c += M.wf.rgb * ((0.06 + exp(-abs(atan2(sin(az), cos(az))) / 0.45)) * (0.15 + smoothstep(0.35, 0.0, d.y)));
   c += vec3f(0.78, 0.86, 1.0) * (M.wd.w * (0.7 + 2.6 * exp(-sq(wxAng(d, M.wd.xyz)) / 0.10)) * (0.6 + 0.8 * n));
   return colIn * T + c * (1.0 - T);
 }
