@@ -24,8 +24,8 @@ const TREE_CELL = 4.5;
 
 const Course = ((vn1, vn2, h2U) => {
   const C = { seed: 261111, segs: [], feats: new Map(), mogK: 1 };
-  const CH = 2048, NF = 15;       // metres per cache chunk, fields per metre
-  const F = { baseY: 0, cx: 1, hw: 2, dish: 3, shoulder: 4, gul: 5, gw: 6, goff: 7, roll: 8, mog: 9, forest: 10, glade: 11, powder: 12, ridge: 13, wall: 14 };
+  const CH = 2048, NF = 16;       // metres per cache chunk, fields per metre
+  const F = { baseY: 0, cx: 1, hw: 2, dish: 3, shoulder: 4, gul: 5, gw: 6, goff: 7, roll: 8, mog: 9, forest: 10, glade: 11, powder: 12, ridge: 13, wall: 14, rtail: 15 };
   const chunks = new Map();
   let rng = RNG(C.seed), planned = 0, lastTypes = [], deck = [], pairs = [];
   // running integrals carried across chunks
@@ -147,6 +147,15 @@ const Course = ((vn1, vn2, h2U) => {
     return 1 - 0.72 * a / wt;
   }
   const _pw = {};
+  // the land well off a ridge (the flank and the side valley below it) does not end where the crest does: it goes on falling away for some
+  // nine hundred metres below, rising back to the banks of the run that follows only as fast as the mountain falls. So the side valley
+  // drains back toward the run instead of ending in a closed basin, and a skier who has gone down into it is led back by the land
+  // (rtail: the ridge as it was up to that far above, fading with the distance)
+  function tailAt(s) {
+    let r = 0;
+    for (let k = 0; k <= 36; k++) r = Math.max(r, paramsAt(s - k * 25, _pw).ridge * (1 - smooth(0, 900, k * 25)));
+    return r;
+  }
   function chunk(ci) {
     let c = chunks.get(ci); if (c) return c;
     // integrate from the previous chunk (build sequentially so running sums stay continuous)
@@ -157,12 +166,14 @@ const Course = ((vn1, vn2, h2U) => {
     c = new Float32Array((CH + 1) * NF); const base64 = new Float64Array(CH + 1);
     if (ci < 0) {   // above the start: a plain constant slope so there is something behind the camera
       const p = paramsAt(0, _pp);
-      for (let i = 0; i <= CH; i++) { const s = ci * CH + i, o = i * NF; base64[i] = -p.slope * s; c[o + F.cx] = centre(0, p.mean); c[o + F.hw] = p.hw; c[o + F.dish] = p.dish; c[o + F.shoulder] = p.shoulder; c[o + F.gw] = p.gw; c[o + F.forest] = p.forest; c[o + F.powder] = p.powder; c[o + F.wall] = wallAt(Math.max(0, s)); }
+      for (let i = 0; i <= CH; i++) { const s = ci * CH + i, o = i * NF; base64[i] = -p.slope * s; c[o + F.cx] = centre(0, p.mean); c[o + F.hw] = p.hw; c[o + F.dish] = p.dish; c[o + F.shoulder] = p.shoulder; c[o + F.gw] = p.gw; c[o + F.forest] = p.forest; c[o + F.powder] = p.powder; c[o + F.wall] = wallAt(Math.max(0, s)); c[o + F.rtail] = 0; }
     } else {
       let y = st.baseY, rph = st.rollPh, gph = st.gPh;
       // how tall the valley's walls stand: worked out every 32 m, the metres between are filled in below
       const W32 = new Float32Array(CH / 32 + 1); for (let j = 0; j <= CH / 32; j++) W32[j] = wallAt(ci * CH + j * 32);
       for (let i = 0; i <= CH; i++) { const j = Math.min(CH / 32 - 1, i >> 5), f = (i - j * 32) / 32; c[i * NF + F.wall] = W32[j] + (W32[j + 1] - W32[j]) * f; }
+      const T32 = new Float32Array(CH / 32 + 1); for (let j = 0; j <= CH / 32; j++) T32[j] = tailAt(ci * CH + j * 32);
+      for (let i = 0; i <= CH; i++) { const j = Math.min(CH / 32 - 1, i >> 5), f = (i - j * 32) / 32; c[i * NF + F.rtail] = T32[j] + (T32[j + 1] - T32[j]) * f; }
       for (let i = 0; i <= CH; i++) {
         const s = ci * CH + i, o = i * NF, p = paramsAt(s, _pp);
         base64[i] = y; c[o + F.cx] = centre(s, p.mean); c[o + F.hw] = p.hw; c[o + F.dish] = p.dish; c[o + F.shoulder] = p.shoulder; c[o + F.gul] = p.gul; c[o + F.gw] = p.gw;
@@ -183,7 +194,7 @@ const Course = ((vn1, vn2, h2U) => {
   const _py = {};
   C.yawAt = function (s) { const a = at(s - 5, _py).cx; return Math.atan2(at(s + 35, _py).cx - a, 40); };
 
-  const cur = { baseY: 0, cx: 0, hw: 40, dish: 0, shoulder: 0.3, gul: 0, gw: 10, goff: 0, roll: 0, mog: 0, forest: 0, glade: 0, powder: 0, ridge: 0, wall: 1, s: 0 };
+  const cur = { baseY: 0, cx: 0, hw: 40, dish: 0, shoulder: 0.3, gul: 0, gw: 10, goff: 0, roll: 0, mog: 0, forest: 0, glade: 0, powder: 0, ridge: 0, wall: 1, rtail: 0, s: 0 };
   function at(s, out) {
     out = out || cur;
     const ci = Math.floor(s / CH), c = chunk(ci), fs = s - ci * CH, i = Math.min(CH - 1, Math.floor(fs)), f = fs - i, o = i * NF, o2 = o + NF;
@@ -192,7 +203,7 @@ const Course = ((vn1, vn2, h2U) => {
     out.shoulder = c[o + 4] + (c[o2 + 4] - c[o + 4]) * f; out.gul = c[o + 5] + (c[o2 + 5] - c[o + 5]) * f; out.gw = c[o + 6] + (c[o2 + 6] - c[o + 6]) * f;
     out.goff = c[o + 7] + (c[o2 + 7] - c[o + 7]) * f; out.roll = c[o + 8] + (c[o2 + 8] - c[o + 8]) * f; out.mog = c[o + 9] + (c[o2 + 9] - c[o + 9]) * f;
     out.forest = c[o + 10] + (c[o2 + 10] - c[o + 10]) * f; out.glade = c[o + 11] + (c[o2 + 11] - c[o + 11]) * f; out.powder = c[o + 12] + (c[o2 + 12] - c[o + 12]) * f; out.ridge = c[o + 13] + (c[o2 + 13] - c[o + 13]) * f;
-    out.wall = c[o + 14] + (c[o2 + 14] - c[o + 14]) * f;
+    out.wall = c[o + 14] + (c[o2 + 14] - c[o + 14]) * f; out.rtail = c[o + 15] + (c[o2 + 15] - c[o + 15]) * f;
     out.s = s; return out;
   }
   C.at = at;
@@ -228,9 +239,20 @@ const Course = ((vn1, vn2, h2U) => {
     h += c.dish * Math.min(1.6, (u * u) / (hw * hw));
     // forested banks either side of the run, each stretch of the run with its own; on a ridge they fall away instead. Farther out they
     // level off into the valley's own walls, which do not care what the run below is doing
+    // (from fifteen metres out the land answers less to the ridge here and more to the ridge above: c.rtail)
+    const rf = e > 15 ? c.ridge + (c.rtail - c.ridge) * smooth(15, 60, e) : c.ridge;
     if (e > 0) {
       const t = e / 55, rise = 55 * (t * t / (1 + t)), near = 150 * (1 - Math.exp(-rise / 150));
-      h += near * c.shoulder * (1 - c.ridge) - c.ridge * (0.62 * Math.exp(-e / 260) * rise + 11 * (1 - Math.exp(-e * e / 400))) + 0.36 * c.wall * (rise - near);
+      // a ridge: beside the crest the snow falls away steeply into hollows some twenty metres down, and rises again to a rim a hundred and
+      // seventy metres out, still well below the crest (the view goes on over it); beyond the rim the mountainside falls away for good. The
+      // hollows lie one below another down the mountain: each one's floor climbs, more slowly than the mountain falls, to a shoulder level
+      // with the crest, and the next drops away below it. Whoever leaves the crest goes down into a hollow, as gravity says; the rim holds
+      // the skier, and the shoulder at its end, never more than two hundred and forty metres on, carries the skier back up level with the
+      // run without a climb. The last hollow runs on past the end of the ridge, growing shallower, until it meets the run below
+      // (rh: the ridge, and for three hundred metres below it a fading memory of it; q: where in its hollow, 0 at the shoulder)
+      const ph = (s / 240) % 1, q = ph < 0.8 ? 0.5 + 0.5 * Math.cos(PI * ph / 0.8) : 0.5 - 0.5 * Math.cos(PI * (ph - 0.8) / 0.2);
+      const rh = Math.max(c.ridge, sat((c.rtail - 0.74) / 0.26)) * q, ef = Math.max(0, e - 170), tf = ef / 55, riseF = 55 * (tf * tf / (1 + tf));
+      h += near * c.shoulder * (1 - rf) - rh * (20 * (1 - Math.exp(-e * e / 1300)) - 9 * smooth(100, 170, e)) - rf * (0.62 * Math.exp(-ef / 260) * riseF + 11 * (1 - Math.exp(-ef * ef / 400))) + 0.36 * c.wall * (rise - near);
     }
     // big mountain relief far from the run (side walls, peaks)
     if (e > 30) {
@@ -240,7 +262,7 @@ const Course = ((vn1, vn2, h2U) => {
       // gullies and the ribs between them, cut straight down the fall line of the large shapes
       if (w > 0.01) {
         const sg = u > 0 ? 1 : -1, D = 24;
-        const gx = (relief(x + D, z, e + sg * D, cell) - hm) / D + sg * lerp(c.shoulder * (1 - c.ridge), 0.36 * c.wall, smooth(60, 300, e)), gz = (relief(x, z + D, e, cell) - hm) / D + 0.36;
+        const gx = (relief(x + D, z, e + sg * D, cell) - hm) / D + sg * lerp(c.shoulder * (1 - rf), 0.36 * c.wall, smooth(60, 300, e)), gz = (relief(x, z + D, e, cell) - hm) / D + 0.36;
         const sl = Math.hypot(gx, gz), K = 1.7 * Math.min(1, 1.4 / (sl + 1e-6)), dx = gz * K, dz = -gx * K;
         // four sizes, each bent by the ones before it: buttresses and the great couloirs between them, then gullies, then runnels
         gullies(x / 700 + 3.9, z / 700 + 8.2, dx, dz, 1213);
