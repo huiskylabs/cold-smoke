@@ -197,7 +197,7 @@ fn plumeAt(j: u32, i: u32, salt: u32) -> Plume {
   let cy: f32 = tm / T + ph; let n: f32 = floor(cy); let s: f32 = cy - n;
   let h: vec3f = hashu3(sd * 104729u + i * 31u + u32(n) * 7u + salt); let h2: vec3f = hashu3(sd * 15485863u + i * 17u + u32(n) * 3u + salt * 5u);
   let tb: f32 = tm - s * T;
-  // how much the crest let go when it left: as the gust was at that moment (so a gust goes down the plume as a thicker puff)
+  // how much snow the crest gave up at birth: as the gust was at that moment (so a gust goes down the plume as a thicker puff)
   P.em = 0.18 + 0.82 * smoothstep(0.30, 0.82, gustAt(tb, A2.x));
   let d3: vec3f = vec3f(A1.x, 0.0, A1.y); let tg: vec3f = vec3f(-A1.y, 0.0, A1.x);
   let L: f32 = A1.w; let Hh: f32 = A2.w; let Wc: f32 = A3.x;
