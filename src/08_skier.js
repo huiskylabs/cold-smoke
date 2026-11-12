@@ -581,6 +581,11 @@ const Skier = (() => {
       const x = mesh.verts[v * 10], y = mesh.verts[v * 10 + 1], z = mesh.verts[v * 10 + 2], id = Math.round(mesh.verts[v * 10 + 6]), t = T[x < 0 ? 0 : 1], o = v * 4; nc = 0;
       // (what hangs on a leg lets go of it toward the middle of the body, where the two legs would pull it apart)
       const px = (x - Fp[12]) * Fp[0] + (y - Fp[13]) * Fp[1] + (z - Fp[14]) * Fp[2], a = (x - t.hip[0]) * t.td[0] + (y - t.hip[1]) * t.td[1] + (z - t.hip[2]) * t.td[2], fade = lerp(smooth(0, 0.05, Math.abs(px)), 1, smooth(0.06, 0.15, a));
+      // (new body: across the middle (the cleft of the seat, the crotch, the fly) the cloth hangs on BOTH hips' seat bones, half and half at the middle,
+      // going over to its own side's across 11 cm; the thigh takes hold only clear of the middle or down the leg. With pelvis-only at the middle and the
+      // legs' bones from 5 cm out, legs flung apart (the spread eagle) sheared that strip until it turned over: the seat opened down both sides of the cleft)
+      const to = T[x < 0 ? 1 : 0], cx = smooth(0, 0.11, Math.abs(px)), dn = smooth(0.04, 0.22, a);
+      const pzv = (x - Fp[12]) * Fp[8] + (y - Fp[13]) * Fp[9] + (z - Fp[14]) * Fp[10], bkv = smooth(-0.03, 0.05, pzv); const mOwn = lerp(lerp(smooth(0, 0.11, Math.abs(px)), 0.5 + 0.5 * cx, lerp(0.5, 1, bkv)), 1, dn), mOth = 0.5 * (1 - cx) * (1 - dn) * lerp(0.5, 1, bkv), mTh = lerp(lerp(smooth(0, 0.15, Math.abs(px)), smooth(0.06, 0.15, Math.abs(px)), bkv), 1, dn);
       if (id === 0 || id === 8) {     // (the pack is soft and strapped on: it goes with the cloth it lies against, so the two never tear apart, and bends with the back)
         const pt = body.parts(x, y, z), as = pt.armSide, aa = (x - t.sh[0]) * t.ud[0] + (y - t.sh[1]) * t.ud[1] + (z - t.sh[2]) * t.ud[2], pk = id === 8;
         const mT = as < 0 && !pk ? (1 - smooth(0.004, 0.05, -as)) * (1 - smooth(0.05, 0.15, aa)) : 1, mA = (as >= 0 ? 1 - smooth(0.004, 0.045, as) : 1) * (pk ? 1 - smooth(0, 0.03, pt.jacket) : 1);
@@ -593,9 +598,13 @@ const Skier = (() => {
         add(B.chest, Math.min(dS(x, y, z, chest, 0.15), dS(x, y, z, shl, 0.085)), mT); add(B.neck, dP(x, y, z, nk, 0.07), mT);
         if (nb) sg = 0.032; add(t.shd, dP(x, y, z, t.sh, 0.078), mA); add(t.uarm, dS(x, y, z, t.ua, 0.062), mA); add(t.elbow, dP(x, y, z, t.el, 0.06), mA); add(t.farm, dS(x, y, z, t.fa, 0.052), mA); sg = SG;
         // in front and at the sides the skirt of the jacket lies on the tops of the thighs and goes with them (held by the pelvis alone, a deep bend at the hip pushes the thighs out through it)
-        add(t.seat, dP(x, y, z, t.hip, 0.120), fade * mT * (1 - bk)); add(t.thigh, dS(x, y, z, t.th, 0.100), fade * mT * (1 - bk));
+        if (nb) { add(t.seat, dP(x, y, z, t.hip, 0.120), mOwn * mT * (1 - bk)); if (mOth > 0) add(to.seat, dP(x, y, z, to.hip, 0.120), mOth * mT * (1 - bk)); add(t.thigh, dS(x, y, z, t.th, 0.100), mTh * mT * (1 - bk)); }
+        else { add(t.seat, dP(x, y, z, t.hip, 0.120), fade * mT * (1 - bk)); add(t.thigh, dS(x, y, z, t.th, 0.100), fade * mT * (1 - bk)); }
       } else if (id === 1) {
-        add(B.pelvis, dS(x, y, z, hips, 0.125), 1); add(t.seat, dP(x, y, z, t.hip, 0.105), fade); add(t.thigh, dS(x, y, z, t.th, 0.085), fade); add(t.knee, dP(x, y, z, t.kn, 0.072), fade); add(t.shin, dS(x, y, z, t.sn, 0.08), fade);
+        add(B.pelvis, dS(x, y, z, hips, 0.125), 1);
+        if (nb) { add(t.seat, dP(x, y, z, t.hip, 0.140), mOwn); if (mOth > 0) add(to.seat, dP(x, y, z, to.hip, 0.140), mOth); add(t.thigh, dS(x, y, z, t.th, 0.085), mTh); }
+        else { add(t.seat, dP(x, y, z, t.hip, 0.105), fade); add(t.thigh, dS(x, y, z, t.th, 0.085), fade); }
+        add(t.knee, dP(x, y, z, t.kn, 0.072), fade); add(t.shin, dS(x, y, z, t.sn, 0.08), fade);
       } else if (id === 2) { add(t.hand, 0, smooth(-0.075, -0.015, ly(t.mH, x, y, z))); add(t.farm, 0, 1 - smooth(-0.075, -0.015, ly(t.mH, x, y, z))); }
       else if (id === 3) { const w = smooth(0.33, 0.41, ly(t.mS, x, y, z)); add(t.foot, 0, w); add(t.shin, 0, 1 - w); }
       else if (id === 11) add(t.foot, 0, 1);
