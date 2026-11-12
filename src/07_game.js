@@ -99,7 +99,7 @@ const Game = (() => {
   // lower in the frame (+, the horizon with it), and a swing round the skier (rad; its side alternates from one section to the next) that
   // carries the sun and the city across the picture. Steeps: high and long, down the fall line. Ridge: low, the horizon low, swung out over
   // one of the two drops. Gully: low between the walls. Glade: close, as it was. The open runs between are swung wide, three-quarter views
-  const SHOTS = { steeps: [0.35, -0.16, 0.02, 0.06], ridge: [-0.35, 0.03, 0.12, 0.32], gully: [-0.3, 0.05, 0.03, 0], glade: [0, 0, 0, 0], bowl: [0.15, -0.05, 0, 0.34], powder: [0.3, -0.02, 0.05, 0.24], rollers: [-0.2, 0.03, 0.08, 0.2], moguls: [0.25, -0.03, -0.02, 0.14], kickers: [0, 0, 0, 0.12] }, SH0 = [0, 0, 0, 0];
+  const SHOTS = { steeps: [-0.2, -0.08, 0, 0.06], ridge: [-0.35, 0.03, 0.12, 0.32], gully: [-0.3, 0.05, 0.03, 0], glade: [0, 0, 0, 0], bowl: [0.15, -0.05, 0, 0.34], powder: [0.3, -0.02, 0.05, 0.24], rollers: [-0.2, 0.03, 0.08, 0.2], moguls: [0.25, -0.03, -0.02, 0.14], kickers: [0, 0, 0, 0.12] }, SH0 = [0, 0, 0, 0];
   if (typeof Variants !== 'undefined') Variants.def('shots', '分段机位', [['a', '现在的'], ['b', '按路段变化']], 'b');
   // on the title page, with no sun ahead, the lens looks a little to the left of the valley (and the skier stands on the right third, see updateCamera)
   G.titleYaw = -0.05;
@@ -713,9 +713,11 @@ const Game = (() => {
       if (!portrait && sp > 11) for (let b = Math.floor(s0 / 32), e = Math.floor((s0 + 84) / 32); b <= e; b++) for (const f of Course.feats.get(b) || []) {
         if (!f.mark) continue; const ds = f.s + f.len - s0, du = Math.abs(p[0] - Course.at(f.s + f.len, _ca).cx - f.u);
         to = Math.max(to, smooth(105, 70, ds) * smooth(-1, 3, ds) * smooth(f.wid * 0.5 + 5, f.wid * 0.5 + 1, du) * smooth(12, 16, sp)); }
-      const air = fl.on && !S.contact ? smooth(0.85, 1.05, fl.pred || 0) : 0; to = Math.max(to, air);
+      // (a kicker air of 0.6 to 1 s gets the same at half strength, and swings out quicker: the lip and the drop beside the figure, not a
+      // hop seen from behind. Only off the kickers of a kicker run: the hops of a mogul field stay as they were)
+      const pr = fl.pred || 0, kick = Course.segAt(s0).type === 'kickers', air = fl.on && !S.contact ? Math.max(smooth(0.85, 1.05, pr), kick ? 0.5 * smooth(0.55, 0.75, pr) : 0) : 0, quick = air > 0 && air < 0.55; to = Math.max(to, air);
       if ((cam.jw || 0) < 0.01 && to > 0) { const c = Course.at(s0, _cb); cam.jSide = p[0] > c.cx ? -1 : 1; }
-      spring(cam, 'jw', to, to > (cam.jw || 0) ? 1.8 : 1.4, dt * q); spring(cam, 'ja', air, air > (cam.ja || 0) ? 4 : 1.6, dt * q); }
+      spring(cam, 'jw', to, to > (cam.jw || 0) ? (quick ? 3.6 : 1.8) : 1.4, dt * q); spring(cam, 'ja', air, air > (cam.ja || 0) ? (quick ? 6 : 4) : 1.6, dt * q); }
     // the title page: the lens looks toward the sun or the moon, whichever lights the scene (when it is up and somewhere ahead; else a little left of the valley), and is swung
     // round the figure until the skier stands on the right third, across the picture from the words. tLook: where it looks, tPsi: the
     // way from the lens to the skier. Both glide (the sun moves; the window can change shape)
@@ -825,6 +827,9 @@ const Game = (() => {
       pT = lerp(pitchT, el - Math.atan(0.47 * th * Math.cos(da)), cam.idle * smooth(-0.03, 0.03, el) * smooth(hh + 0.15, hh - 0.1, Math.abs(da)));
     }
     cam.pitch = damp(cam.pitch, pT, 4.5, dt * q);
+    // (looking down a steep pitch the far edge of the world must not leave by the top: the level line, and the city on it, stays at
+    // least a fifth of the frame below the top edge. Not on the title page, which is pitched by the sun; the skis still win, below)
+    if (!portrait) { const ph = -Math.atan(0.62 * th); cam.pitch = lerp(cam.pitch, smax(cam.pitch, ph, 0.03), 1 - idl); }
     // ...and whatever the snow does (a drop off a crest, a landing) the skis never leave by the lower edge, nor the head by the upper
     // (the limits are rounded where they take hold: the lens is turned by them, not struck)
     { const pMax = eFeet + Math.atan((0.90 - 0.2 * cam.idle) * th), pMin = eHead - Math.atan(0.74 * th); cam.pitch = smin(smax(cam.pitch, Math.min(pMin, pMax), 0.03), pMax, 0.03); }

@@ -8,14 +8,15 @@
   const G = Game, S = G.s, root = G.root;
   // az: where the lens stands (0 = behind the skier, + = to the skier's right, PI = in front); d: how far off, on the map; h: how high above the snow it
   // stands over; tf, th: the point it looks at (metres ahead of the skier, metres above the skier's feet); fov; rk: how far it banks with the skier's lean;
-  // buzz: how much it rattles at speed (m); mg: the least it keeps above the snow
+  // buzz: how much it rattles at speed (m); mg: the least it keeps above the snow; al: how much of the skier's height over the snow it rises
+  // by in the air (and it stands back by up to a third as far again: a lens left on the snow loses a figure 3 m up in a quarter of a second)
   const VD = G.viewDefs = {
-    low: { az: 0.82, d: 2.0, h: 0.27, tf: 3.2, th: 0.80, fov: 1.22, rk: 0.12, buzz: 0.006, mg: 0.20 },
-    high: { az: 0, d: 8.6, h: 5.6, tf: 8.5, th: 0.5, fov: 0.98, rk: 0.05, buzz: 0, mg: 0.5 },
-    left: { az: -1.36, d: 6.2, h: 1.05, tf: 1.6, th: 0.95, fov: 0.92, rk: 0, buzz: 0.002, mg: 0.4 },
-    right: { az: 1.36, d: 6.2, h: 1.05, tf: 1.6, th: 0.95, fov: 0.92, rk: 0, buzz: 0.002, mg: 0.4 },
-    front: { az: PI, d: 6.6, h: 0.9, tf: -0.4, th: 1.0, fov: 0.92, rk: -0.08, buzz: 0.002, mg: 0.4 },
-    far: { az: 2.6, d: 25, h: 1.8, tf: -0.6, th: 1.0, fov: 0.235, rk: 0, buzz: 0, mg: 0.8 },
+    low: { az: 0.82, d: 2.0, h: 0.27, tf: 3.2, th: 0.80, fov: 1.22, rk: 0.12, buzz: 0.006, mg: 0.20, al: 0.7 },
+    high: { az: 0, d: 8.6, h: 5.6, tf: 8.5, th: 0.5, fov: 0.98, rk: 0.05, buzz: 0, mg: 0.5, al: 0.2 },
+    left: { az: -1.36, d: 6.2, h: 1.05, tf: 1.6, th: 0.95, fov: 0.92, rk: 0, buzz: 0.002, mg: 0.4, al: 0.3 },
+    right: { az: 1.36, d: 6.2, h: 1.05, tf: 1.6, th: 0.95, fov: 0.92, rk: 0, buzz: 0.002, mg: 0.4, al: 0.3 },
+    front: { az: PI, d: 6.6, h: 0.9, tf: -0.4, th: 1.0, fov: 0.92, rk: -0.08, buzz: 0.002, mg: 0.4, al: 0.3 },
+    far: { az: 2.6, d: 25, h: 1.8, tf: -0.6, th: 1.0, fov: 0.235, rk: 0, buzz: 0, mg: 0.8, al: 0.2 },
     // first person: the lens sits at the centre of the head (the helmet is only ever seen from inside, where it is not drawn). tilt: how far below
     // the snow ahead the eyes rest; tips: where the ski tips are held at the lowest (0 = middle of the picture, 1 = its bottom edge); sky: where the horizon may
     // climb to at the most (1 = the top edge); fovK: how much the lens opens with speed; rollK: how much of the body's lean tips the horizon; follow: how far the eyes go
@@ -52,9 +53,9 @@
 
   const wrap = a => a - TAU * Math.round(a / TAU);
   const W = 12.5;                                             // every number of the rig is a critically damped spring: all but there in 0.4 s
-  const KEYS = ['az', 'ld', 'h', 'tf', 'ts', 'th', 'fov', 'rk', 'ra', 'buzz', 'mg'];      // ld: log of d; ts: the looked-at point's sideways offset; ra: a bank carried over as it is
+  const KEYS = ['az', 'ld', 'h', 'tf', 'ts', 'th', 'fov', 'rk', 'ra', 'buzz', 'mg', 'al'];      // ld: log of d; ts: the looked-at point's sideways offset; ra: a bank carried over as it is
   const cur = {}, vel = {}, to = {}, tg = {}; for (const k of KEYS) cur[k] = vel[k] = to[k] = tg[k] = 0;
-  const B = { init: false, px: 0, pz: 0, yaw: 0, cyaw: 0, lean: 0, kick: 0, gy: 0, gv: 0, gPrev: 0, gInit: true, pit: 0, pInit: true, res: [0, 0, 0], focus: 7.5, near0: 0, shk: 0 };
+  const B = { init: false, px: 0, pz: 0, yaw: 0, cyaw: 0, lean: 0, kick: 0, gy: 0, gv: 0, gPrev: 0, gInit: true, pit: 0, pInit: true, res: [0, 0, 0], focus: 7.5, near0: 0, shk: 0, ak: 0, eA: 0, fl: 0, flV: 0, flOK: false };
   const look = G.look = { yaw: 0, pit: 0, ty: 0, tp: 0, idle: 9, hold: false, keys: {}, drag: null, touch: new Map(), two: false, on: false };
   // what is wanted, and where the rig has got to: tp = the third-person view underneath ('chase' = the chase camera itself once rigOn is false),
   // tw = seconds since the rig was sent back to the chase camera, fpc = how far the lens is into the helmet (0..1), tpc = how far it has gone on
@@ -147,31 +148,35 @@
     o.az = Math.atan2(ox * cy + oz * sy, -ox * sy + oz * cy); o.ld = Math.log(Math.max(d, 0.3)); o.h = a.p[1] - base(a.p[0], a.p[2]);
     const L = d + 3, tx = a.p[0] + a.f[0] * L - p[0], tz = a.p[2] + a.f[2] * L - p[2];
     o.tf = tx * sy - tz * cy; o.ts = tx * cy + tz * sy; o.th = a.p[1] + a.f[1] * L - p[1];
-    o.fov = a.fov - B.kick; o.rk = 0; o.ra = a.roll; o.buzz = 0; o.mg = 0;
+    o.fov = a.fov - B.kick; o.rk = 0; o.ra = a.roll; o.buzz = 0; o.mg = 0; o.al = 0;
   }
-  function rigXZ(o) { const sy = Math.sin(B.yaw), cy = Math.cos(B.yaw), d = Math.exp(cur.ld), ca = Math.cos(cur.az), sa = Math.sin(cur.az); o[0] = root.pos[0] + (-sy * ca + cy * sa) * d; o[2] = root.pos[2] + (cy * ca + sy * sa) * d; }
+  function rigXZ(o) { const sy = Math.sin(B.yaw), cy = Math.cos(B.yaw), d = Math.exp(cur.ld) * (1 + 0.55 * cur.al * B.ak), ca = Math.cos(cur.az), sa = Math.sin(cur.az); o[0] = root.pos[0] + (-sy * ca + cy * sa) * d; o[2] = root.pos[2] + (cy * ca + sy * sa) * d; }
   // where the rig stands and what it looks at, from its numbers as they are (nothing is advanced here)
   function rigPose(o) {
     rigXZ(o.p); const x = o.p[0], z = o.p[2], sy = Math.sin(B.yaw), cy = Math.cos(B.yaw), p = root.pos;
     // (on its way from one view to another it arcs up a little, the more the faster it travels: skimming bumps at that pace it would be knocked about by them)
     const lift = 1.5 * (1 - Math.exp(-Math.exp(cur.ld) * Math.hypot(vel.az, vel.ld) / 30));
-    o.p[1] = over(B.gy + cur.h + lift, snow(x, z) + cur.mg, 0.15);
+    o.p[1] = over(B.gy + cur.h + lift + cur.al * B.eA, (B.flOK ? B.fl : snow(x, z)) + cur.mg, 0.15);
     const tx = p[0] + sy * cur.tf + cy * cur.ts - x, tz = p[2] - cy * cur.tf + sy * cur.ts - z, ty = p[1] + cur.th - o.p[1];
     o.yawRaw = Math.atan2(tx, -tz); o.pitRaw = Math.atan2(ty, Math.hypot(tx, tz) || 1e-3);
-    o.fov = cur.fov + B.kick; o.roll = cur.ra - B.lean * cur.rk;
+    o.fov = cur.fov + B.kick; o.roll = cur.ra - B.lean * cur.rk * (1 - B.ak);       // (no banking with the body in the air: a horizon that rolls with a lean nobody can see reads as the camera falling over)
   }
   // take the rig to pose a as it stands (so that whatever happens next starts from the picture on the screen)
   function adopt(a) {
-    eqv(a, cur); for (const k of KEYS) { vel[k] = 0; tg[k] = cur[k]; }
+    eqv(a, cur); for (const k of KEYS) { vel[k] = 0; tg[k] = cur[k]; } B.flOK = false;
     B.gy = base(a.p[0], a.p[2]); B.gv = 0; B.gPrev = B.gy; B.gInit = false; B.pit = Math.asin(clamp(a.f[1], -1, 1)); B.pInit = false;
     rigPose(R); for (let i = 0; i < 3; i++) B.res[i] = a.p[i] - R.p[i];       // (what the snow limit moved, if anything, is let go of over a quarter of a second)
   }
   function target(o) {
-    const v = VD[tp]; o.az = v.az; o.ld = Math.log(v.d); o.h = v.h; o.tf = v.tf; o.ts = 0; o.th = v.th; o.fov = v.fov; o.rk = v.rk; o.ra = 0; o.buzz = v.buzz; o.mg = v.mg;
+    const v = VD[tp]; o.az = v.az; o.ld = Math.log(v.d); o.h = v.h; o.tf = v.tf; o.ts = 0; o.th = v.th; o.fov = v.fov; o.rk = v.rk; o.ra = 0; o.buzz = v.buzz; o.mg = v.mg; o.al = v.al || 0;
   }
   const _xz = [0, 0, 0];
   function rigStep(dt, rdt, o) {
     if (tp === 'chase') eqv(CH, to); else target(to);
+    // in the air: how airborne (eased: it stands back over the takeoff and comes in again after the landing over about a second), and the
+    // skier's height over the snow (the snow as the flight takes it: it falls away behind a lip like a thing dropped, never in a step)
+    { const fl = G.flight || {}, ak = S.airK || 0; B.ak = dt > 0 ? damp(B.ak, ak, ak > B.ak ? 5 : 2.2, dt) : ak;
+      const eT = Math.max(0, (fl.fr || 0) - (fl.sg || 0)) * sat(2 * ak); B.eA = dt > 0 ? damp(B.eA, eT, 9, dt) : eT; }
     const e = Math.exp(-W * rdt), el = Math.exp(-26 * rdt);
     for (const k of KEYS) {
       // (what it is sent to arrives over a few frames: a spring let go all at once starts with a jolt)
@@ -182,17 +187,34 @@
     cur.az = wrap(cur.az);
     // height: the snow under the lens, followed by a spring that tracks a steady descent exactly and rounds the bumps off
     rigXZ(_xz); const g = base(_xz[0], _xz[2]);
-    if (B.gInit || dt <= 0) { B.gy = g; B.gv = 0; B.gInit = false; }
-    else { const vT = clamp((g - B.gPrev) / dt, -40, 40), w = 7.5; B.gv += (w * w * (g - B.gy) + 2 * w * (vT - B.gv)) * dt; B.gy += B.gv * dt; }
+    if (B.gInit || dt <= 0) { B.gy = g; B.gv = 0; B.vT = null; B.gInit = false; }
+    else {
+      // (the rate the snow is falling at is let change by no more than 4 g: over a lip, or the side wall of a kicker, the snow under the lens
+      // drops half a metre between two frames, and taken as a rate that kicked the lens down a quarter of a metre in one frame)
+      const vR = clamp((g - B.gPrev) / dt, -40, 40), w = 7.5; B.vT = (B.vT == null ? vR : B.vT + clamp(vR - B.vT, -40 * dt, 40 * dt)); const vT = B.vT;
+      B.gv += (w * w * (g - B.gy) + 2 * w * (vT - B.gv)) * dt; B.gy += B.gv * dt; }
     B.gPrev = g;
+    // (the least height over the snow is kept from a floor that rises with the snow at once but, where the snow drops from under the lens
+    // - the side wall of a kicker, the lip itself - comes down after it like a thing dropped: that floor fell a quarter metre in one frame at takeoff)
+    { const fT = snow(_xz[0], _xz[2]); if (!B.flOK || dt <= 0) { B.fl = fT; B.flV = 0; B.flOK = true; } else { const n = B.fl + (B.flV - 20 * dt) * dt; if (n <= fT) { B.flV = clamp((fT - B.fl) / dt, -40, 40); B.fl = fT; } else { B.flV -= 20 * dt; B.fl = n; } } }
     rigPose(o);
     { const e = Math.exp(-9 * rdt); for (let i = 0; i < 3; i++) { B.res[i] *= e; o.p[i] += B.res[i]; } }
     // it looks at a point that rides with the skier: the tilt that takes is eased (the feet chatter over bumps; the frame should not)
     if (B.pInit) { B.pit = o.pitRaw; B.pInit = false; } else B.pit = damp(B.pit, o.pitRaw, 5, dt);
+    // ...but in the air the body rises faster than that tilt follows: there the frame holds the skier, boots and head both inside the
+    // middle three quarters of its height, and short of that the lens tips up no further than leaves the horizon in the lower part of the
+    // picture. The limits are rounded where they take hold, and what they did is let go of at the tilt's own pace after the landing
+    if (Math.max(B.ak, S.airK || 0) > 1e-3) {
+      const fl = G.flight || {}, p = root.pos, fy = fl.fr != null ? fl.fr : p[1], hd = Math.hypot(p[0] - o.p[0], p[2] - o.p[2]) || 1, th = Math.tan(o.fov / 2), a = Math.atan(0.72 * th);
+      const sm = (u, v, r) => 0.5 * (u + v + Math.sqrt((u - v) * (u - v) + r * r)), sn = (u, v, r) => 0.5 * (u + v - Math.sqrt((u - v) * (u - v) + r * r));
+      const pMax = Math.atan2(fy - 0.15 - o.p[1], hd) + a, pMin = Math.atan2(fy + 1.75 - o.p[1], hd) - a;
+      const q = sm(sn(B.pit, Math.atan(0.72 * th), 0.04), Math.min(pMin, pMax), 0.03), g = sn(q, pMax, 0.03);
+      B.pit += (g - B.pit) * smooth(0, 0.25, Math.max(B.ak, S.airK || 0));
+    }
     setF(o, o.yawRaw, B.pit);
   }
   // put the rig straight where its view wants it (only ever done while none of it shows)
-  function place() { target(to); for (const k of KEYS) { cur[k] = tg[k] = to[k]; vel[k] = 0; } cur.az = wrap(cur.az); B.gInit = true; B.pInit = true; B.res[0] = B.res[1] = B.res[2] = 0; }
+  function place() { target(to); for (const k of KEYS) { cur[k] = tg[k] = to[k]; vel[k] = 0; } cur.az = wrap(cur.az); B.gInit = true; B.pInit = true; B.flOK = false; B.res[0] = B.res[1] = B.res[2] = 0; }
 
   // ---- first person
   const F = { init: true, yaw: 0, pit: 0, roll: 0, hy: 0, hv: 0, hPrev: 0 }, pz = {}, HEAD0 = [0, 1.45, -0.2];
@@ -268,7 +290,7 @@
     armsOn = w > 0;
   }
 
-  function reinit() { B.init = true; B.cyaw = B.yaw = Course.yawAt(-S.p[2]); B.lean = S.lean; B.kick = G.fovKick; B.gInit = true; B.pInit = true; B.res[0] = B.res[1] = B.res[2] = 0; F.init = true; relOK = false; if (rigOn && tp !== 'chase') place(); else { rigOn = false; tw = 9; } }
+  function reinit() { B.init = true; B.cyaw = B.yaw = Course.yawAt(-S.p[2]); B.lean = S.lean; B.kick = G.fovKick; B.gInit = true; B.pInit = true; B.flOK = false; B.res[0] = B.res[1] = B.res[2] = 0; F.init = true; relOK = false; if (rigOn && tp !== 'chase') place(); else { rigOn = false; tw = 9; } }
 
   G.viewCam = function (dt, cam, pos, f) {
     const p = root.pos, sp = S.speed, k = smooth(6, 30, sp), rdt = Math.min(dt / (G.timeScale > 0.02 ? G.timeScale : 1), 0.1);
@@ -334,7 +356,7 @@
     // ---- never under the snow, never in the figure
     { const lk = rigOn ? 1 : Math.min(1, 6 * (Math.abs(look.yaw) + Math.abs(look.pit))), mg = rigOn ? cur.mg : 0.35;
       if (lk > 0) {
-        const y = over(D.p[1], snow(D.p[0], D.p[2]) + mg, 0.15); D.p[1] += (y - D.p[1]) * lk;
+        const y = over(D.p[1], (rigOn && B.flOK ? B.fl : snow(D.p[0], D.p[2])) + mg, 0.15);       // (the rig's floor, which falls after a lip like a weight: see rigStep) D.p[1] += (y - D.p[1]) * lk;
         const hx = D.p[0] - p[0], hz = D.p[2] - p[2], hd = Math.hypot(hx, hz) || 1e-3, need = over(hd, 1.0 * smooth(2.6, 2.0, D.p[1] - p[1]), 0.2);
         if (need > hd) { D.p[0] = p[0] + hx / hd * (hd + (need - hd) * lk); D.p[2] = p[2] + hz / hd * (hd + (need - hd) * lk); }
       }
