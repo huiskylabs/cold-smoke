@@ -362,7 +362,8 @@ const Course = ((vn1, vn2, h2U) => {
       const d = Math.hypot(t.x - x, t.z - z); if (d < best) { best = d; out.ok = true; out.x = t.x; out.z = t.z; out.h = t.h; out.r = t.r; out.d = d; out.soft = false; }
     }
     // (the saplings that mark a jump: they bend and shed their snow, they do not stop anyone. soft = brushed, never hit)
-    C.markers(-z - 8, -z + 8, (mx, mz, mh) => { const d = Math.hypot(mx - x, mz - z); if (d < best) { best = d; out.ok = true; out.x = mx; out.z = mz; out.h = mh; out.r = mh * 0.17; out.d = d; out.soft = true; } });
+    // (once flags stand at those places instead of saplings, there is nothing there to brush: Gates bends its own flags)
+    if (!(typeof Gates !== 'undefined' && Gates.enabled)) C.markers(-z - 8, -z + 8, (mx, mz, mh) => { const d = Math.hypot(mx - x, mz - z); if (d < best) { best = d; out.ok = true; out.x = mx; out.z = mz; out.h = mh; out.r = mh * 0.17; out.d = d; out.soft = true; } });
     return out;
   };
   // the spruce saplings that mark a jump, the way a line is marked on a mountain: a pair where the run-in begins and a pair beside the lip,
