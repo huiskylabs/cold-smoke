@@ -111,7 +111,7 @@ fn snowFly(p0: vec3f, v0: vec3f, t: f32, L: f32, tb: f32, vs: f32, wk: f32) -> F
 `;
 
 const Spray = (() => {
-  const P = { NP: 8192, NG: 16384, PF: 16, GF: 12, gain: 1, reach: 1.0, clots: 0.22, lens: 1.3, bump: 1.0, tear: 1.0, speck: 1.0, keyhole: 1.0, nearBlur: 0.75, shutter: true, streakMax: 0.06, crumb: 1.0, grainShutter: 4.0, face: 0, grainy: true, shadows: true, enabled: true, moonMix: 0, night: null, nt: 0, stats: { puffs: 0, grains: 0 } };
+  const P = { NP: 12288, NG: 16384, PF: 16, GF: 12, gain: 1, reach: 1.0, clots: 0.22, lens: 1.3, bump: 1.0, tear: 1.0, speck: 1.0, keyhole: 1.0, nearBlur: 0.75, shutter: true, streakMax: 0.06, crumb: 1.0, grainShutter: 4.0, face: 0, grainy: true, shadows: true, enabled: true, moonMix: 0, night: null, nt: 0, stats: { puffs: 0, grains: 0 } };
   // the owner's choice: how much the moon shows of the snow in the air by night (the headlamp's share is the same in both). a: thin and dark blue,
   // the lamp carries it; b: the moon lights the curtain too, silver-blue. (P.night: null = by the sun's height; a number holds it, for tests)
   if (typeof Variants !== 'undefined') Variants.def('nspray', '夜间雪雾', [['a', '暗蓝头灯'], ['b', '月光亮些']], 'a');
@@ -283,7 +283,7 @@ const Spray = (() => {
     // that hang over the whole arc for seconds), and the many small ones ran together into one smooth wall instead of billows
     const pwS = smooth(0.25, 0.9, S.powder || 0), pwN = 1 / (1 + 1.6 * pwS), pwR = 1 + 0.6 * pwS;
     const ch = vnoise1(t * 3.1, 71) * 0.5 + 0.5, chunk = 1.25 * (0.32 + 1.3 * ch * ch);
-    accP = Math.min(accP + (70 + 160 * smooth(8, 22, sp) * (1 - soft) * (1 - OK) + 1700 * Math.pow(Ie, 0.9) * chunk * pwN + 13 * sp * tailP * smooth(5, 12, sp)) * H * P.gain, 60); accG = Math.min(accG + (90 + 4600 * Math.pow(Ie, 0.85) * (0.4 + 0.6 * chunk)) * H * P.gain, 160);
+    accP = Math.min(accP + (70 + 160 * smooth(8, 22, sp) * (1 - soft) + 1700 * Math.pow(Ie, 0.9) * chunk * pwN + 13 * sp * tailP * smooth(5, 12, sp)) * H * P.gain, 60); accG = Math.min(accG + (90 + 4600 * Math.pow(Ie, 0.85) * (0.4 + 0.6 * chunk)) * H * P.gain, 160);
     // a thick sheet has the mass to push further through the air before it is braked: the harder the turn, the taller the curtain it leaves.
     // How tall also goes with the snow: hard snow comes off as a low fan of grains, deep powder as a wall (P.curtainK)
     const CK = P.curtainK(S.powder || 0), hk = CK[0], lk = CK[1];
@@ -322,7 +322,7 @@ const Spray = (() => {
       const px = S.p[0] + lx, pz = S.p[2] + lz, py = base - (n[0] * lx + n[2] * lz) / n[1] + 0.04;
       if (tail) {
         const up = (0.5 + 0.085 * sp) * (0.45 + u4), c = 0.08 + 0.2 * rnd(), sw = (u2 - 0.5) * 0.9;
-        P.puff(t - jt, px, py, pz, v[0] * c + n[0] * up + ox * sw, v[1] * c + n[1] * up + oy * sw, v[2] * c + n[2] * up + oz * sw, 0.7 + 0.3 * rnd(), lerp(0.05, 0.09, rnd()), (0.3 + 0.6 * smooth(8, 26, sp) + 2.0 * X) * Math.max(fogK, 0.6 * (1 - OK) + fogK * OK), 1, 1, 0.8);
+        P.puff(t - jt, px, py, pz, v[0] * c + n[0] * up + ox * sw, v[1] * c + n[1] * up + oy * sw, v[2] * c + n[2] * up + oz * sw, 0.7 + 0.3 * rnd(), lerp(0.05, 0.09, rnd()), (0.3 + 0.6 * smooth(8, 26, sp) + 2.0 * X) * Math.max(fogK, 0.6), 1, 1, 0.8);
         continue;
       }
       // the sheet here and now: the angle it leaves at and the speed of its rim

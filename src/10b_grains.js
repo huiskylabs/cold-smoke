@@ -128,7 +128,8 @@ fn vert(a: VIn) -> VOut {
   let hp: vec2i = clamp(vec2i((vec2f(ndc.x, -ndc.y) * 0.5 + 0.5) * U.res.xy * 0.5), vec2i(0, 0), vec2i(M.kq.xy));
   let oc: vec4f = clamp(texFetch(tOcc, hp, 0), vec4f(-30000.0), vec4f(30000.0));
   var Tv: f32 = 1.0;
-  if (oc.x > 0.001 && oc.w > 1e-7) { let zn: f32 = oc.z / oc.w + U.dof.x; Tv = exp(-oc.x * smoothstep(zn - 0.3, zn + 0.8, zv)); }
+  // (a lump is solid: in the photos the ones in the near face of a powder cloud show as specks on it, only those deep inside are lost)
+  if (oc.x > 0.001 && oc.w > 1e-7) { let zn: f32 = oc.z / oc.w + U.dof.x; Tv = exp(-0.45 * oc.x * smoothstep(zn - 0.1, zn + 1.2, zv)); }
   let ts: f32 = sprayTau(pos, 0.05);
   let vis: f32 = shadowFast(pos, 0.002) * (0.58 * exp(-0.85 * ts) + 0.42 * exp(-0.16 * ts));
   // a smeared or blurred lump covers less of each pixel it is spread over
@@ -394,7 +395,7 @@ const Grains = (() => {
       accC += Math.pow(rate, 0.9) * 12000 * (0.7 + 0.6 * pw) * dt;
       const sk = k === 'skid' ? 1 : 0, hard = Math.max(0, rate - 0.35);
       // (deep snow comes away in lumps: the owner's photo of a powder turn is full of them)
-      accK += Math.pow(hard, 1.3) * 26 * (0.5 + 2.6 * pw * pw + 0.5 * sk) * dt;
+      accK += Math.pow(hard, 1.3) * 26 * (0.9 + 2.6 * pw * pw + 0.5 * sk) * dt;
       // the granules: the sugar the edge scrapes off the surface, a few millimetres to a centimetre and a half, thrown in a sheet that
       // leads the cloud and outlines it. Most of what a camera close to a fast turn sees as 'particles' is these (the owner: the spray at
       // speed was all fog, no grain). Small solid specks, lit and shaded, smeared over the shutter; they fall back without a mark
