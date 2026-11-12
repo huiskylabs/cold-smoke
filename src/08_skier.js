@@ -1149,8 +1149,17 @@ fn frag(v: VOut) -> FOut {
     topc = mix(topc, ${V(L.skiMark.alb)}, step(0.5, fz) * rear);
     topc = mix(topc, vec3f(0.85, 0.87, 0.86), smoothstep(0.03, 0.02, abs(fz - 0.5)) * rear);
     topc = mix(topc, orange, smoothstep(0.55, 0.60, z));
-    alb = mix(vec3f(0.30, 0.32, 0.34), topc, top); alb = mix(alb, vec3f(0.0, 0.62, 0.50), base);
-    specS = mix(1.2, 0.5, top); specP = 90.0; gloss = mix(0.25, 0.10, top);
+    // the sides: a black sidewall, with the steel edge a thin bright line along its foot and a narrower one where it turns into the topsheet;
+    // the base: black sintered (a saturated base turned the pair teal whenever it was edged toward the lens), with the topsheet's lemon in two
+    // thin bars by the tip and the maker's block by the tail, so the pair reads as one in every view
+    let wv: f32 = v.mat.w;
+    let steel: f32 = smoothstep(-0.70, -0.60, wv) * smoothstep(-0.38, -0.50, wv); let bev: f32 = smoothstep(0.38, 0.46, wv) * smoothstep(0.62, 0.52, wv);
+    var sideC: vec3f = mix(vec3f(0.035, 0.037, 0.042), vec3f(0.62, 0.63, 0.65), steel); sideC = mix(sideC, vec3f(0.42, 0.43, 0.45), bev);
+    let bz: f32 = min(min(abs(z + 0.700), abs(z + 0.672)), abs(z - 0.400) * 0.35);
+    let baseC: vec3f = mix(vec3f(0.030, 0.032, 0.036), ${V(L.ski.alb)} * 0.75, smoothstep(0.0075, 0.0055, bz));
+    alb = mix(sideC, topc, top); alb = mix(alb, baseC, base);
+    specS = mix(mix(1.0, 2.4, max(steel, bev)), 0.5, top); specS = mix(specS, 0.7, base); specP = mix(90.0, 140.0, steel);
+    gloss = mix(mix(0.18, 0.55, max(steel, bev)), 0.10, top); gloss = mix(gloss, 0.14, base);
   } else if (id < 10.5) {    // poles
     alb = mix(${V(L.pole.alb)}, ${V(L.poleGrip.alb)}, step(-0.105, v.mat.z));
     alb = mix(alb, ${V(L.poleBasket.alb)}, step(v.mat.z, -1.025) * step(-1.06, v.mat.z));   // baskets: dark (in a tuck they point straight back at the lens, and pale ones read as a pair of eyes)
