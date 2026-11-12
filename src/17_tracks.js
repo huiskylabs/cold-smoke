@@ -314,7 +314,7 @@ const Tracks = (() => {
       B[3] = 0; K0[3] = 0;
       if (!R || !f) continue;
       // (the ski's frame in model space: rolled onto its edge, pitched if a foot is lifted; -z is where it points)
-      const e = P.edge || 0, pt = -((k ? P.pitchR : P.pitchL) || 0), cr = Math.cos(e), sr = Math.sin(e), cp = Math.cos(pt), sp = Math.sin(pt);
+      const e = P.edge || 0, pt = -(((k ? P.pitchR : P.pitchL) || 0) + ((k ? P.tipR : P.tipL) || 0)), cr = Math.cos(e), sr = Math.sin(e), cp = Math.cos(pt), sp = Math.sin(pt);
       const c = m4.tp(R, f), a = m4.td(R, [-sp * sr, -sp * cr, -cp]), b = m4.td(R, [cr, -sr, 0]);
       C[0] = c[0]; C[1] = c[1]; C[2] = c[2]; C[3] = T.ski.hw; A[0] = a[0]; A[1] = a[1]; A[2] = a[2]; A[3] = T.ski.tail; B[0] = b[0]; B[1] = b[1]; B[2] = b[2]; B[3] = T.ski.tip + 0.03;
       const kn = k ? J.kneeR : J.kneeL, hp = k ? J.hipR : J.hipL;

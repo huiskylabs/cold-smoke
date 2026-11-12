@@ -165,7 +165,12 @@ const Skier = (() => {
       if (w <= 0) return b; const sh = v3.norm(v3.sub(kn, an)), fl = Math.atan2(-v3.dot(sh, b.Z), v3.dot(sh, b.Y)), e = (fl - clamp(fl, 0.10, 0.58)) * w; if (Math.abs(e) < 1e-5) return b;
       const ce = Math.cos(e), se = Math.sin(e); return { X: b.X, Y: v3.sub(v3.mul(b.Y, ce), v3.mul(b.Z, se)), Z: v3.add(v3.mul(b.Z, ce), v3.mul(b.Y, se)) };
     };
-    const fbl = boot(fbL, J.kneeRawL, J.ankleL, Math.max(sat(liftL / 0.06), air, sat(Math.abs(p.pitchL || 0) / 0.08))), fbr = boot(fbR, J.kneeRawR, J.ankleR, Math.max(sat(liftR / 0.06), air, sat(Math.abs(p.pitchR || 0) / 0.08)));
+    let fbl = boot(fbL, J.kneeRawL, J.ankleL, Math.max(sat(liftL / 0.06), air, sat(Math.abs(p.pitchL || 0) / 0.08)));
+    let fbr = boot(fbR, J.kneeRawR, J.ankleR, Math.max(sat(liftR / 0.06), air, sat(Math.abs(p.pitchR || 0) / 0.08)));
+    // (tipL/R: the ski pitched up at the boot over and above all that, so that its shovel rides up out of the snow: powder, a hollow, a
+    // mogul's face. Not the boot's to undo: in real snow the ski bends there, and the shin a few degrees more against the tongue reads the same)
+    const tipUp = (b, a) => { if (!a) return b; const ce = Math.cos(-a), se = Math.sin(-a); return { X: b.X, Y: v3.sub(v3.mul(b.Y, ce), v3.mul(b.Z, se)), Z: v3.add(v3.mul(b.Z, ce), v3.mul(b.Y, se)) }; };
+    fbl = tipUp(fbl, p.tipL || 0); fbr = tipUp(fbr, p.tipR || 0);
     J.footL = v3.mad(J.ankleL, fbl.Y, -LEN.ankle); J.footR = v3.mad(J.ankleR, fbr.Y, -LEN.ankle);
     // torso: hinged forward at the hips, more upright sideways than the legs, rotated toward the fall line (separation)
     // (a turn begins with the whole body tipping in; only as it tightens do the hips drop inside while the shoulders stay nearer level)

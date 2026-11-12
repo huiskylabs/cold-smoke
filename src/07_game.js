@@ -546,6 +546,22 @@ const Game = (() => {
     G.timeScale = clamp(spring(fl, 'ts', tsT, 20, dt / G.timeScale), 0.15, 1);          // (eased on the real clock, so a crash or an early landing brings time back without a jolt)
   }
 
+  function tipClear(fl, pose, dt) {
+    fl.tcL = fl.tcL || 0; fl.tcR = fl.tcR || 0;
+    const W = typeof Skier !== 'undefined' && Skier.world, o = Render.origin;
+    if (!W || !W.seg || !o || dt <= 0) return;
+    const ce = Math.max(Math.cos(pose.edge || 0), 0.35);
+    for (let k = 0; k < 2; k++) {
+      const tip = W.seg[k][1], sf = (x, z) => Course.height(x, z, 0.5) + (typeof Tracks !== 'undefined' && Tracks.lift ? Tracks.lift(x, z) : 0);
+      // (and where the tip will be in the next few hundredths of a second, carried on at the speed it goes: at 80 km/h a mogul's face comes at it
+      // faster than it could be seen and answered after the fact)
+      let pen = -1;
+      for (const a of [0, 0.04, 0.08]) { const x = tip[0] + o[0] + S.v[0] * a, z = tip[2] + o[2] + S.v[2] * a; pen = Math.max(pen, sf(x, z) - (tip[1] + o[1] + S.v[1] * a)); }
+      pen += 0.02; const key = k ? 'tcR' : 'tcL', cur = fl[key];
+      const want = clamp(cur + pen / (0.94 * ce), 0, 0.5);
+      fl[key] = want > cur ? cur + (want - cur) * (1 - Math.exp(-dt / 0.03)) : cur + (want - cur) * (1 - Math.exp(-dt / 0.25));
+    }
+  }
   function updatePose(dt) {
     const first = !pose.init, k = first ? 1e6 : 1, kd = dt * k; pose.init = true;
     // (speeds are the body's own: S.speed, the speed along the snow under the skis, collapses for a few steps over a lip)
@@ -658,7 +674,12 @@ const Game = (() => {
     pose.fore = damp(pose.fore, clamp(-0.25 * w * (1 - q.own) + q.fore - 0.5 * fl.soak, -1, 1), 8, kd);
     pose.liftL = q.lL; pose.liftR = q.lR; fl.tipUp = damp(fl.tipUp || 0, S.contact && typeof Tracks !== 'undefined' ? (Tracks.deep || 0) * lerp(0.17, 0.09, smooth(5, 18, sp)) * (1 - w) : 0, 5, dt);
     // (in deep powder the skis ride tips up, planing: the shovels come up out of the snow and the tails run low in it, more so when slow)
-    pose.pitchL = q.pL + fl.tipUp; pose.pitchR = q.pR + fl.tipUp; pose.rollL = q.rL; pose.rollR = q.rR; pose.grabL = q.gL; pose.grabR = q.gR;
+    // and whatever else: a ski's shovel never digs into the snow (the owner: '任何情况下雪橇的头都不应该扎到雪里面'). A real ski bends and its tip
+    // rides up over a hollow, a mogul's face, the lip of the run-out, the powder; this one is stiff, so where its tip would be under the
+    // snow as drawn (the ground, and round the skier the powder standing above it: Tracks.lift) it is pitched up at the boot until the
+    // shovel stands 2 cm clear. Measured on last step's skis, raised within a few hundredths of a second, let down over a few tenths
+    tipClear(fl, pose, dt);
+    pose.pitchL = q.pL; pose.pitchR = q.pR; pose.tipL = fl.tipUp + fl.tcL; pose.tipR = fl.tipUp + fl.tcR; pose.rollL = q.rL; pose.rollR = q.rR; pose.grabL = q.gL; pose.grabR = q.gR;
     // the pole plant: as one turn is let go the new inside pole swings forward, and its basket touches the snow beside the ski tip at the
     // moment the edges change; then it is left behind. (A gentle change of direction gets half a swing and no touch.)
     const quiet = (Variants.val.poles === 'a' ? 1 - sat(pose.tuck * 3) : 1 - sat((pose.tuck - 0.25) * 2.5)) * smooth(3, 7, sp) * (1 - fl.aK) * (1 - sat(S.crash * 5)) * (1 - dpK) * (1 - sat(Math.abs(q.yaw) * 3));
