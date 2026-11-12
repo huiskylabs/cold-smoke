@@ -9,7 +9,8 @@ const Input = (() => {
   Variants.def('keys', '键盘转弯', [['a', '按半秒就搓'], ['b', '按两秒才搓'], ['c', '横过来才搓']], 'b');
   const I = { u: 0, btn: { jump: false, tuck: false }, jump: false, tuck: false, mode: 'touch', tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
   I.init = function (el) {
-    addEventListener('keydown', e => { I.keys[e.code] = true; }); addEventListener('keyup', e => { I.keys[e.code] = false; });
+    addEventListener('keydown', e => { if (e.code !== I.mute) I.keys[e.code] = true; }); addEventListener('keyup', e => { I.keys[e.code] = false; if (e.code === I.mute) I.mute = null; });
+    // (I.mute: a key the interface has used, held down still: a space that confirmed a menu or started the run is not also a jump)
     el.addEventListener('pointerdown', e => { const x = View.x(e); I.drag = { id: e.pointerId, x0: x, x }; try { el.setPointerCapture(e.pointerId); } catch (_) { } });
     el.addEventListener('pointermove', e => { if (I.drag && e.pointerId === I.drag.id) I.drag.x = View.x(e); });
     const up = e => { if (I.drag && e.pointerId === I.drag.id) I.drag = null; };

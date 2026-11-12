@@ -29,13 +29,13 @@ const UI = (() => {
       if (/^Arrow/.test(e.code) || e.code === 'Space') e.preventDefault();          // these would scroll a page; here they ski
       if (e.repeat) return;
       const on = sel => e.target && e.target.closest && e.target.closest(sel);      // (a control reached with the tab key takes its own Enter)
-      if (U.gone) { if (e.code === 'Enter') location.reload(); return; }
+      if (U.gone) { if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); location.reload(); } return; }
       // the menu open: Esc puts it away (and the run goes on); Enter and space belong to the button that has the focus
       const mine = (e.code === 'Enter' || e.code === 'Space') && on('#menu button, #bar button, #more button');
       if (U.open && e.code === 'Escape') { e.preventDefault(); U.menu(false); return; }
-      if (mine) return;
-      if (U.open && e.code === 'Enter') { e.preventDefault(); el.mGo.click(); return; }          // (nothing in the menu has the focus: Enter is the top line, 继续滑 or 出发)
-      if ((e.code === 'Enter' || e.code === 'Space') && U.state === 'title' && !U.open) { e.preventDefault(); U.go(); }
+      if (mine) { muteKey(e.code); return; }
+      if (U.open && (e.code === 'Enter' || e.code === 'Space')) { e.preventDefault(); muteKey(e.code); el.mGo.click(); return; }          // (nothing in the menu has the focus: Enter, or space as the owner asked, is the top line, 继续滑 or 出发)
+      if ((e.code === 'Enter' || e.code === 'Space') && U.state === 'title' && !U.open) { e.preventDefault(); muteKey(e.code); U.go(); }
       else if (e.code === 'KeyM') { U.sound(!Sound.on); if (U.open) paint(); }
       else if (e.code === 'KeyF') U.fullscreen();
       else if (U.state === 'title' || U.state === 'run') {
@@ -45,6 +45,7 @@ const UI = (() => {
         else if (e.code === 'KeyH') U.menu('keys'); else if (e.code === 'Backquote') U.menu('vers');
       }
     });
+    function muteKey(c) { try { if (typeof Input !== 'undefined' && Input.keys) { Input.mute = c; Input.keys[c] = false; } } catch (err) { } }
     el.snd.addEventListener('click', e => { e.stopPropagation(); U.sound(!Sound.on); if (e.detail) el.snd.blur(); });
     el.fs.addEventListener('click', e => { e.stopPropagation(); U.fullscreen(); });
     document.addEventListener('fullscreenchange', () => {
