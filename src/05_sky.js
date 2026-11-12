@@ -70,6 +70,7 @@ const Sky = (() => {
         if (U.skyP.w > 0.003) { col += stars(d) * (U.skyP.w * smoothstep(-0.01, 0.10, d.y) / (1.0 + 2.5 * luma(nb.rgb) * M.nu.w)); }
         col += nbc * (M.p.x * skyL + M.p.y) * smoothstep(-0.01, 0.15, d.y) * smoothstep(0.04, mix(0.12, 0.26, U.sunDir.w), ang) * U.fx.z * M.nu.w;
         col += moonDisc(d);
+        col += meteor(d);
         // high thin cloud in front of all that, and whatever is flying up there
         let ci: vec4f = cirrus(d, mu);
         col = col * (1.0 - ci.a) + ci.rgb;
@@ -93,6 +94,30 @@ const Sky = (() => {
   S.sunDir = function () { return dirOf(S.elev); };
   S.trueSun = function () { return dirOf(S.sunElev); };
   S.moonDir = function () { return dirOf(S.moonElev); };
+  // ---- the moon's journey. It keeps the sun's bearing (everything the key light touches is built for that one bearing: the snow's own small
+  // shadows, the far ranges, the city's shadows, the sky table that is mirrored about it), so it travels in height only: a young moon following
+  // the sun down, a moon's width and a half each minute, from high over the valley at dusk to low over the far range by dawn. Where it hangs
+  // the stars sink at the same pace (see stars() below), so the moon and the stars round it go down together.
+  // Its height is one smooth wave of a phase. The phase moves with the day's clock; while the clock is held (a time of day chosen and kept, a
+  // test) it moves with game time instead, so the moon is never nailed to the sky: it sinks to the low end, turns round softly and climbs again.
+  // By day, unseen, it goes back to where the evening will find it. Sky.moonRate 0 makes it stand still under a held clock.
+  const MW = S.moonWay = { lo: 0.105, hi: 0.42, v: 1.0e-3, k: 0.985, at: 0.27, drift: 0, t: null, clock: 0, lut: -9 };
+  S.moonRate = 1;
+  S.moonStep = function () {
+    const A = 0.5 * (MW.hi - MW.lo), ak = Math.asin(MW.k), t = Render.time, dC = MW.t === null ? 0 : S.clock - MW.clock, dT = MW.t === null ? 0 : t - MW.t;
+    MW.t = t; MW.clock = S.clock;
+    // (a clock wound by hand, far faster than time runs, takes the moon to where that hour has it: what the held hours added melts away with
+    // the distance wound, the same at any frame rate, so the moon glides there with the hours and never jumps)
+    if (S.sunElev > 0.115) MW.drift = 0; else if (Math.abs(dC) > 3 * Math.abs(dT)) MW.drift *= Math.exp(-Math.abs(dC) / 30); else if (dC === 0) MW.drift += dT * S.moonRate;
+    // `at` is its height at nightfall (Sky.times.night), on the way down; in between the wave is all but a straight line of slope v
+    const ph0 = PI - Math.asin(Math.sin(ak * (MW.at - MW.lo - A) / A) / MW.k), c = ((S.clock % S.cycle) + S.cycle) % S.cycle;
+    S.moonElev = MW.lo + A + A * Math.asin(MW.k * Math.sin(ph0 + (c - S.times.night + MW.drift) * MW.v * ak / (A * MW.k))) / ak;
+    // what it lights follows: its direction every frame, the colours of its light in steps too small to see (as the sun's do), the sky's
+    // table when it has gone a little further
+    if (S.isMoon) S.elev = S.moonElev;
+    if (S.sunElev < 0.06 && Math.abs(S.moonElev - S.lightMoon) > 0.0004) S.lightElev = undefined;
+    if (S.moonSky > 1e-5 && Math.abs(S.moonElev - MW.lut) > 0.002) { MW.lut = S.moonElev; S.lutSun = -99; }
+  };
   const lum3 = c => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
   // moonlight as film shows it: silver-blue
   const MT = [0.635, 0.795, 1.128], NIGHT = [0.0041, 0.0052, 0.0087];
@@ -136,7 +161,7 @@ const Sky = (() => {
   };
   S.sunsetStop = 0.30; S.nightStop = 0.20; S.nightGrey = 0.36; S.twiK = 0.5; S.expDay = 0.145; S.keyL = 2.46; S.expGamma = 0.65; S.ndGamma = 0.42;
   // call before the frame's globals are built: refreshes light colours when the sun has moved
-  S.update = function () { if (S.lightElev === undefined || Math.abs(S.lightElev - S.sunElev) > 0.0004 || S.lightAz !== S.az) { S.lightElev = S.sunElev; S.lightAz = S.az; S.moonT = S.lightMoon === S.moonElev ? S.moonT : null; S.lightMoon = S.moonElev; S.computeLight(); } };
+  S.update = function () { S.moonStep(); if (S.lightElev === undefined || Math.abs(S.lightElev - S.sunElev) > 0.0004 || S.lightAz !== S.az) { S.lightElev = S.sunElev; S.lightAz = S.az; S.moonT = S.lightMoon === S.moonElev ? S.moonT : null; S.lightMoon = S.moonElev; S.computeLight(); } };
   S.bakeLut = function () {
     if (Math.abs(S.lutSun - S.sunElev) < 0.002 && Math.abs(S.lutMoon - S.moonSky) < 0.0006) return false;
     S.lutSun = S.sunElev; S.lutMoon = S.moonSky;
@@ -182,43 +207,100 @@ const Sky = (() => {
   return S;
 })();
 
-// ---- what the night adds: stars, and the moon (a young crescent with the rest of its disc faintly lit by the earth)
+// ---- what the night adds: the stars (turning, and twinkling through the air), a shooting star now and then, and the moon (a young crescent
+// with the rest of its disc faintly lit by the earth, and a halo of thin haze round it)
 const NIGHT_SSL = `
-fn stars(d: vec3f) -> vec3f {
+// one star's own row of random numbers, read off at its own pace and smoothed from each to the next: an irregular flutter, never a sine
+fn starFlick(t: f32, id: f32) -> f32 { let i: f32 = floor(t); let f: f32 = t - i; return mix(hash21(vec2f(i, id)), hash21(vec2f(i + 1.0, id)), f * f * (3.0 - 2.0 * f)); }
+fn stars(dw: vec3f) -> vec3f {
+  // the whole field turns about the heart of the nebula, which so keeps its place: anticlockwise as you face it (the way the northern sky
+  // turns about its pole), once round in just under an hour. What stands to the left of it is going down, at the moon's pace where the moon hangs
+  let ax: vec3f = M.nf.xyz; let ra: f32 = U.camPos.w * 0.00181; let rc: f32 = cos(ra); let rs: f32 = sin(ra);
+  let d: vec3f = dw * rc + cross(ax, dw) * rs + ax * (dot(ax, dw) * (1.0 - rc));
   let p: vec3f = d * 150.0; let i: vec3f = floor(p); let h: vec3f = hash33(i + vec3f(31.0, 57.0, 11.0));
-  // one star in a cell at most, kept clear of its walls and close to the sphere the cells are cut from; most cells have none worth drawing
-  let cr: vec3f = i + 0.25 + 0.5 * h; let rr: f32 = length(cr);
+  // one star in a cell at most, kept clear of its walls (a star is drawn only by its own cell, and the walls would cut its glow square) and
+  // close to the sphere the cells are cut from; most cells have none worth drawing
+  let cr: vec3f = i + 0.30 + 0.40 * h; let rr: f32 = length(cr);
   if (abs(rr - 150.0) > 0.22) { return vec3f(0.0); }
   let c: vec3f = cr / rr;
   let h2: vec3f = hash33(i + vec3f(7.0, 3.0, 91.0));
   let mag: f32 = h2.x * h2.x; let b: f32 = mag * mag * mag * mag;         // a few bright ones, a great many faint
   if (b < 0.42) { return vec3f(0.0); }
   let s: f32 = (b - 0.42) / 0.58;
+  let planet: f32 = step(0.9965, s);                                       // the very brightest few are planets
   let px: f32 = 2.0 * U.camRight.w * U.res.w;                              // one pixel, in radians
-  let sz: f32 = px * (0.58 + 0.50 * s * s);
+  // (never much smaller than a pixel: the field moves now, and a finer point would flash as it crossed from one pixel to the next)
+  let sz: f32 = px * (0.68 + 0.44 * s * s + 0.2 * planet);
   let a: vec3f = d - c; let g: f32 = exp(-dot(a, a) / (sz * sz));
-  // the air makes them tremble, most of all low down
-  let tw: f32 = 1.0 + (0.18 + 0.5 * smoothstep(0.5, 0.05, d.y)) * sin(U.camPos.w * (2.0 + 5.0 * h2.y) + h2.z * 40.0) * sin(U.camPos.w * (1.3 + 2.7 * h2.z) + h.x * 17.0);
-  let tint: vec3f = mix(vec3f(1.0, 0.80, 0.62), vec3f(0.70, 0.84, 1.0), smoothstep(0.15, 0.75, h2.y));
-  return tint * (g * tw * (0.022 + 0.10 * s + 1.6 * s * s * s * s));
+  if (g < 0.004) { return vec3f(0.0); }
+  // ---- they twinkle because of the air in between. Overhead the light crosses one thickness of it and arrives nearly calm; toward the
+  // horizon it crosses many (am), and each star flutters at its own pace: a quick irregular flicker of several hertz riding on slower swells,
+  // steeper the lower it stands. The air bends blue more than red, so for a bright star low down the colours arrive a moment apart and it
+  // flashes faintly red and blue. A planet is a disc, not a point: its flutter averages out and it shines steadily.
+  let am: f32 = 1.0 / (max(dw.y, 0.0) + 0.025);
+  let tq: f32 = 1.0 - exp((1.0 - am) * 0.25);
+  let tt: f32 = U.camPos.w - 512.0 * floor(U.camPos.w / 512.0); let id: f32 = floor(h2.z * 4096.0);
+  let t1: f32 = tt * (7.5 + 6.0 * h.y) + h.x * 97.0;
+  let dl: f32 = 0.07 * tq * tq * smoothstep(0.25, 0.70, s) * (1.0 - planet);
+  let slow: f32 = starFlick(tt * (1.3 + 1.6 * h2.y) + h.z * 53.0, id + 4096.0) - 0.5;
+  let fl: vec3f = vec3f(starFlick(t1 - dl, id), starFlick(t1, id), starFlick(t1 + dl, id)) - 0.5;
+  let amp: f32 = mix(0.06, 2.0, tq) * (0.6 + 0.4 * smoothstep(0.0, 0.3, s)) * mix(1.0, 0.12, planet);
+  // (log-normal, as the real thing is: brief flashes well above the mean, longer spells below it; the last term keeps the mean where it was)
+  let tw: vec3f = min(exp((fl * 1.5 + slow) * amp - 0.09 * amp * amp), vec3f(4.0));
+  let tint: vec3f = mix(mix(vec3f(1.0, 0.80, 0.62), vec3f(0.70, 0.84, 1.0), smoothstep(0.15, 0.75, h2.y)), vec3f(1.0, 0.93, 0.80), planet);
+  return tint * tw * (g * (0.018 + 0.08 * s + 1.3 * s * s * s * s) * (1.0 + 0.7 * planet));
+}
+// ---- a shooting star now and then. The night is cut into spans of eight seconds, and in one span out of seven a grain of dust comes in over
+// the valley ahead: a head that kindles, brightens as it falls and flares just before it goes out, and the trail it leaves, which cools from
+// white to ember and outlives it by a second. All of it follows from the number of the span, so nothing is remembered between frames.
+fn meteorLight(u: f32) -> f32 { return smoothstep(0.0, 0.15, u) * (0.45 + 0.55 * smoothstep(0.2, 0.8, u) + 0.9 * exp(-sq((u - 0.88) / 0.06))) * smoothstep(1.0, 0.96, u); }
+fn meteor(d: vec3f) -> vec3f {
+  let tm: f32 = U.camPos.w; let sl: f32 = floor(tm / 8.0); let n: u32 = u32(i32(sl)) * 3u;
+  let h: vec3f = hashu3(n + 77u);
+  if (U.skyP.w < 0.25 || h.x > 0.14) { return vec3f(0.0); }
+  let g: vec3f = hashu3(n + 78u); let k: vec3f = hashu3(n + 79u);
+  let dur: f32 = 0.5 + 0.6 * g.x; let age: f32 = tm - sl * 8.0 - 5.3 * g.y;
+  if (age < 0.0 || age > dur + 1.2) { return vec3f(0.0); }
+  // E: where it goes out. hd: which way it was heading there (downward, on a slant to one side or the other)
+  let az: f32 = (h.y * 2.0 - 1.0) * 0.8; let el: f32 = 0.10 + 0.16 * h.z; let ce: f32 = cos(el);
+  let E: vec3f = vec3f(sin(az) * ce, sin(el), -cos(az) * ce); let rt: vec3f = vec3f(cos(az), 0.0, sin(az)); let th: f32 = (g.z * 2.0 - 1.0) * 1.05;
+  let hd: vec3f = rt * sin(th) - cross(rt, E) * cos(th);
+  let w: f32 = 0.26 + 0.16 * k.x; let L: f32 = w * dur;                     // its speed across the sky (rad/s), and so the length of its path
+  let x: f32 = atan2(dot(d, hd), dot(d, E)); let y: f32 = dot(d, cross(E, hd));   // along the path (0 where it goes out), and off to the side of it
+  let xh: f32 = min(age, dur) * w - L;                                      // where the head is
+  if (x > xh + 0.012 || x < -L - 0.012 || abs(y) > 0.012) { return vec3f(0.0); }
+  let px: f32 = 2.0 * U.camRight.w * U.res.w; let wd: f32 = max(0.8 * px, 0.0007);
+  let since: f32 = max(age - (x + L) / w, 0.0);                             // how long since the head went by this place
+  let tr: f32 = meteorLight(saturate((x + L) / L)) * (0.8 * exp(-since / 0.14) + 0.2 * exp(-since / 0.5)) * exp(-sq(y / wd)) * smoothstep(xh + 0.6 * wd, xh - 0.6 * wd, x);
+  let hb: f32 = meteorLight(min(age / dur, 1.0)) * exp(-(sq(x - xh) + y * y) / sq(1.7 * wd));
+  let col: vec3f = vec3f(0.85, 1.0, 0.95) * (hb * 4.0) + mix(vec3f(0.70, 0.95, 1.0), vec3f(1.0, 0.62, 0.36), saturate(since / 0.45)) * (tr * 1.6);
+  return col * ((0.7 + 0.6 * k.y) * U.skyP.w * smoothstep(0.04, 0.10, d.y));
 }
 fn moonDisc(d: vec3f) -> vec3f {
   let md: vec3f = M.mo.xyz; let RM: f32 = 0.019;
   let c: f32 = dot(d, md);
-  if (M.mo.w <= 0.001 || c < 0.9986) { return vec3f(0.0); }
+  if (M.mo.w <= 0.001 || c < 0.9854) { return vec3f(0.0); }
   let mr: vec3f = normalize(cross(md, vec3f(0.0, 1.0, 0.0))); let mup: vec3f = cross(mr, md);
-  let q: vec2f = vec2f(dot(d, mr), dot(d, mup)) / RM; let r2: f32 = dot(q, q);
+  let q: vec2f = vec2f(dot(d, mr), dot(d, mup)) / RM; let r2: f32 = dot(q, q); let r: f32 = sqrt(r2);
   let px: f32 = 2.0 * U.camRight.w * U.res.w / RM;
-  let edge: f32 = smoothstep(1.0 + px, 1.0 - px, sqrt(r2));
-  // a faint glow of the thin air round it
-  var col: vec3f = vec3f(0.60, 0.75, 1.0) * (0.035 * exp(-max(sqrt(r2) - 1.0, 0.0) * 1.6));
+  let edge: f32 = smoothstep(1.0 + px, 1.0 - px, r);
+  // ---- its halo. Thin haze drifts across it on two winds (a layer of wisps, a broader one behind: both read from the shared noise where
+  // the line of sight meets them, so the moon also travels through them); the haze scatters a soft aureole close round the disc and, further
+  // out, one faint ring, bluish within and rusty at its rim. Both swell and fade as the haze thickens and thins: the halo breathes.
+  let tm: f32 = U.camPos.w; let hp: vec2f = d.xz / (d.y + 0.30);
+  let hv: f32 = 0.45 * texLod(tDetail, hp * 1.3 + tm * vec2f(0.0052, 0.0019), 3.0).z + 0.55 * texLod(tDetail, hp * 0.45 + vec2f(0.37, 0.81) + tm * vec2f(-0.0041, 0.0046), 4.0).z;
+  let hz: f32 = clamp(1.0 + 2.6 * (hv - 0.47), 0.35, 1.8);                  // how much haze, against the usual
+  let ro: f32 = max(r - 1.0, 0.0);
+  var col: vec3f = vec3f(0.62, 0.77, 1.0) * (hz * (0.10 * exp(-ro / (0.5 + 0.45 * hz)) + 0.028 * exp(-ro / (2.0 + hz))));
+  col += mix(vec3f(0.60, 0.80, 1.0), vec3f(1.0, 0.66, 0.42), smoothstep(3.8, 5.1, r)) * (0.006 * hz * exp(-sq((r - 4.4) / 0.7)));
+  col *= smoothstep(9.0, 6.0, r);
   if (edge > 0.0) {
     let z: f32 = sqrt(max(1.0 - r2, 0.0)); let n: vec3f = vec3f(q.x, q.y, z);
     // the sun is below and beyond it: only the lower limb is lit
     let lit: f32 = smoothstep(-0.02, 0.10, dot(n, normalize(vec3f(0.10, -0.80, -0.59))));
     let seas: f32 = texLod(tDetail, q * 0.11 + vec2f(0.31, 0.72), 0.0).z; let fine: f32 = texLod(tDetail, q * 0.45 + vec2f(0.6, 0.1), 0.0).w;
     let alb: f32 = (0.55 + 0.45 * smoothstep(0.35, 0.60, seas)) * (0.85 + 0.3 * fine);
-    col += (vec3f(1.0, 0.96, 0.88) * (lit * 11.0 * (0.55 + 0.45 * z)) + vec3f(0.50, 0.62, 0.90) * 0.085) * (alb * edge);
+    col += (vec3f(1.0, 0.96, 0.88) * (lit * 11.0 * (0.55 + 0.45 * z)) + vec3f(0.50, 0.62, 0.90) * 0.085) * (alb * edge * (1.06 - 0.06 * hz));
   }
   return col * M.mo.w;
 }
