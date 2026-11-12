@@ -302,7 +302,8 @@ fn wetBeads(p: vec2f, n: f32, seed: f32, dens: f32, life: vec2f, sd: vec2f) -> W
   // each bead has its own moment to go, and shrinks as it dries
   let s: f32 = smoothstep(0.0, 0.28, M.w.x - mix(life.x, life.y, k.x));
   if (s <= 0.0 || h.z > dens * wetDens((id + 0.5) / n)) { return wetNone(); }
-  let r0: f32 = mix(0.07, 0.19, k.y * k.y);
+  // (smaller by night: under the dark sky a big bead is a hole in the picture, not a drop of water)
+  let r0: f32 = mix(0.07, 0.19, k.y * k.y) * mix(1.0, 0.6, U.skyP.w);
   let q: vec2f = f - (vec2f(1.5 * r0) + h.xy * (1.0 - 3.0 * r0));
   // (not round: melt keeps the outline of the crumb of snow it was)
   let th: f32 = atan2(q.y, q.x + 1e-6);
@@ -325,7 +326,8 @@ fn wetRun(p: vec2f, seed: f32, dens: f32, sd: vec2f) -> Wet {
   let px: f32 = a.x + (pc.x / U.camUp.w - 0.5) * 0.24 * run * t + 0.0035 * sin(f.y * 80.0 + h.y * 31.0) * t;
   let rr: f32 = rh * mix(0.28, 1.0, t * t * t);
   var w: Wet = wetLens((f - vec2f(px, a.y + run * t)) / rr, rr, mix(0.4, 1.0, t * t) * s, sd);
-  w.gl *= t * t * t;
+  // (the film it leaves is a soft wet streak: little refraction and no meniscus along it, only the bead at its foot has an edge)
+  w.gl *= t * t * t; w.e *= t * t; w.m *= mix(0.45, 1.0, t); w.d *= t * t;
   return w;
 }
 fn lensWet(uv: vec2f) -> Wet {
@@ -357,7 +359,9 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   }
   let bloom: vec3f = texLod(tBloom, uvb, 0.0).rgb * M.p.y;
   // (slow motion blooms a touch more; water on the glass is far out of focus, and what it shows is mostly glow)
-  col = mix(col, bloom, min(0.06 + 0.04 * M.r.z + 0.72 * wt.m, 1.0));
+  // (a bead shows nothing sharp: the scene here is already streaked by the shutter, and a hard tree edge refracted through it read as a
+  // speckled dark shard. Its whole inside is the glow, only its rim reads the picture behind it)
+  col = mix(col, bloom, min(0.06 + 0.04 * M.r.z + 4.0 * wt.m, 1.0));
   if (wt.m > 0.0) {
     // snow that has only just landed is still white (lit through from in front when the lens looks at the sun); melted, it holds the sun's
     // light. (It only ever adds light: against anything brighter than itself, the nebula say, a crumb does not show)
