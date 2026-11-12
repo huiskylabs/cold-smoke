@@ -331,6 +331,12 @@
     // nothing of ours showing: the chase camera goes on as it was
     const rc = Render.cam; if (!B.near0) B.near0 = rc.near || 0.25;
     if (armsOn || fpc > 0) fpArms(smooth(0, 1, fpc));
+    // (the lens is where the head is but goes on looking down the valley: should the figure be turned or tipped well away from that (a spin or a
+    // somersault already under way when this view was taken up, or riding switch after it; this view itself only gets tricks that keep the body
+    // upright and facing forward, see pickTrick), it would look out through the back of its own hood. Then the figure and these arms are left out and only
+    // the skis of this view are drawn (they turn under the lens: that is the spin), until it has come round again. G.fpIn, read by 07d_fpv.js; with a margin either way, so it does not flicker)
+    { const fq = G.flight && G.flight.q, yw = fq ? Math.abs(Math.atan2(Math.sin(fq.yaw || 0), Math.cos(fq.yaw || 0))) : 0, fp = fq ? Math.abs(Math.atan2(Math.sin(fq.flip || 0), Math.cos(fq.flip || 0))) : 0, sw = G.flight && G.flight.sw ? 1 : 0;
+      const r = Math.max(yw / 0.6, fp / 0.35, sw); G.fpIn = fpc > 0 && (G.fpIn ? r > 0.65 : r > 1); }
     if (typeof Fpv !== 'undefined') Fpv.tick(dt, fpc, tk);       // (the arms, poles and skis made for these two views: 07d_fpv.js)
     if (!rigOn && fpc <= 0 && !look.on) { if (typeof App !== 'undefined') App.state.focus = 0; B.focus = 7.5; relOK = false; rc.near = B.near0; return false; }
     // ---- third person: the chase camera, the rig, or (on the way home) the rig handing over to the chase camera

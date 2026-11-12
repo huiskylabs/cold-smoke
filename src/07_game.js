@@ -425,6 +425,9 @@ const Game = (() => {
   // there is one trick at most every HOP_GAP seconds of the game's time. Spun on every bump, landing backwards and pivoting round on the snow,
   // the figure turned round every few seconds and read as a glitch, not as style. Off a marked jump anything goes, as before)
   const HOP = { grab: 1, scratch: 1, spread: 1, tuck: 1, daffy: 1 }, HOP_GAP = 6, _kc = {};
+  // (seen from inside the helmet, first person or the ski tips: only shapes that keep the body upright and facing the way the lens looks. A spin or a
+  // somersault would turn the figure away under a lens that keeps looking down the valley; a helmet camera that spun with it is no way to ride)
+  const FPOK = { grab: 1, scratch: 1, spread: 1, tuck: 1, daffy: 1, eagle: 1 }, fpView = () => G.view === 'fp' || G.view === 'tips', fpOK = id => !fpView() || String(id).split('+').every(k => FPOK[k]);
   const offKicker = () => { const s0 = -fl.P[2]; for (let b = Math.floor((s0 - 40) / 32), e = Math.floor((s0 + 16) / 32); b <= e; b++) for (const f of Course.feats.get(b) || []) {
     if (!f.mark || f.kind !== 'kicker') continue; const ds = s0 - f.s; if (ds < -14 || ds > f.len + 8) continue; if (Math.abs(fl.P[0] - Course.at(f.s + f.len, _kc).cx - f.u) < f.wid * 0.5 + 2.5) return true; } return false; };
   const bigAir = pred => offKicker() ? 2 : pred >= 0.8 ? 1 : 0, ODD = id => /^(180|540)/.test(id);
@@ -435,12 +438,12 @@ const Game = (() => {
     const mk = id => { const n = parseInt(id) / 180 || 0; return { id, n, spin: n > 0, base: 0, dir: n && Math.abs(S.lean) > 0.12 ? sign(S.lean) : rnd() < 0.5 ? -1 : 1, amp: 0.72 + 0.33 * rnd(), min: TRICKS[id] ? TRICKS[id][0] : 0 }; };
     if (G.forceTrick) { const ids = String(G.forceTrick).split('+').filter(id => SHAPES[id]); if (ids.length === 2) { const t = mk(ids[0]); t.id = ids.join('+'); t.seq = ids; t.spin = false; t.n = 0; t.min = 0; return t; } if (ids.length) { const t = mk(ids[0]); t.min = 0; return t; } }
     if (big && U >= 1.1 && rnd() < 0.35) {            // two shapes, one after the other
-      const ok = PAIRS.filter(id => TRICKS[id][0] * 0.9 <= U / 2), a = ok[Math.floor(rnd() * ok.length)], rest = ok.filter(id => id !== a), b = rest[Math.floor(rnd() * rest.length)];
+      const ok = PAIRS.filter(id => TRICKS[id][0] * 0.9 <= U / 2 && fpOK(id)), a = ok[Math.floor(rnd() * ok.length)], rest = ok.filter(id => id !== a), b = rest[Math.floor(rnd() * rest.length)];
       if (a && b && a + '+' + b !== fl.last) { const t = mk(a); t.id = a + '+' + b; t.seq = [a, b]; t.min = 1.0; return t; }
     }
     let tot = 0; const c = [];
     for (const id in TRICKS) {
-      const m = TRICKS[id][0]; if (m > U || (!big && !HOP[id]) || (big < 2 && ODD(id))) continue;
+      const m = TRICKS[id][0]; if (m > U || (!big && !HOP[id]) || (big < 2 && ODD(id)) || !fpOK(id)) continue;
       // (wanted most when the air is a little more than it needs: not rushed, and fading out as the air outgrows it)
       const wt = TRICKS[id][1] * sat((U - m) / 0.15 + 0.35) * Math.exp(-Math.max(0, U - m - 0.15) / TRICKS[id][2]) * (id === fl.last ? 0.04 : id === fl.last2 ? 0.4 : 1);
       c.push(id, wt); tot += wt;
@@ -450,7 +453,7 @@ const Game = (() => {
   }
   // (what was planned on the way in stands while it suits the air there is: with too little for it, or a good deal more than it was
   // chosen to fill, something else is picked; a turn keeps the side it has been wound up to)
-  const planFor = (U, old, pred) => { const big = bigAir(pred); if (old && old.min <= U && U - old.U < 0.25 && (big === 2 || (big && !ODD(old.id)) || HOP[old.id] || G.forceTrick) && (!G.forceTrick || old.id === String(G.forceTrick))) return old; const t = pickTrick(U, big); if (t) { t.U = U; t.big = big; t.k = /\d|flip|grab/.test(t.id) ? 1 : clamp((t.seq ? U / 2 : U) / 0.62, 0.5, 1); if (old && old.spin && t.spin) t.dir = old.dir; } return t; };
+  const planFor = (U, old, pred) => { const big = bigAir(pred); if (old && old.min <= U && U - old.U < 0.25 && (big === 2 || (big && !ODD(old.id)) || HOP[old.id] || G.forceTrick) && (fpOK(old.id) || G.forceTrick) && (!G.forceTrick || old.id === String(G.forceTrick))) return old; const t = pickTrick(U, big); if (t) { t.U = U; t.big = big; t.k = /\d|flip|grab/.test(t.id) ? 1 : clamp((t.seq ? U / 2 : U) / 0.62, 0.5, 1); if (old && old.spin && t.spin) t.dir = old.dir; } return t; };
   function startTrick(tr) { fl.tr = tr; fl.ph = 0; fl.swT = 0; if (tr.id !== 'pivot' && !tr.base) { fl.last2 = fl.last; fl.last = tr.id; G.events.push({ type: 'trick', id: tr.id, dir: tr.dir }); } }
   function flightReset() {
     Object.assign(fl, { air: false, on: false, t: 0, rem: 0, pred: 0, big: 0, w: 0, wV: 0, wu: 0, wuV: 0, plL: 0, plLV: 0, plR: 0, plRV: 0, kc: 0, kcV: 0, lipT: 9, lipAir: 0, lipAge: 9, prepL: 0, prepLV: 0, prep: 0, aK: 0, mL: 0, reach: 0, reachV: 0, soak: 0, soakV: 0, hit: 0, ph: 1, tr: null, plan: null, took: false,
