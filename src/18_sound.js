@@ -103,6 +103,21 @@ const Sound = (() => {
       squeal(d, Math.round(tc * sr), 0.11 + 0.05 * v, lerp(1600, 2200, rnd()), lerp(480, 700, rnd()), 0.34);
       norm(d, 1); for (let i = 0; i < n; i++) d[i] = Math.tanh(d[i] * 2.6) * 0.8; M.chirps.push(b);
     }
+    // a pole's basket punched into cold snow: the crust breaks with a tick, the grains under it crunch for a few hundredths of a second and the
+    // packed snow gives one dull knock. Nothing is pressed slowly, so nothing squeals, and nothing about it has a pitch
+    M.poles = [];
+    for (let v = 0; v < 4; v++) {
+      const n = Math.round(sr * 0.1), b = ctx.createBuffer(1, n, sr), d = b.getChannelData(0), i0 = Math.round(sr * 0.002);
+      click(d, i0, 0.5 + 0.3 * rnd());
+      const dec = Math.exp(-1 / (sr * 0.0006)), aH = Math.exp(-TAU * 700 / sr), kG = 1 - Math.exp(-TAU * 4200 / sr), kL = 1 - Math.exp(-TAU * lerp(230, 330, rnd()) / sr); let e = 0, hp = 0, xp = 0, gl = 0, lp = 0, lp2 = 0;
+      for (let i = i0; i < n; i++) {
+        const tt = (i - i0) / sr; if (rnd() < (2600 * Math.exp(-tt / 0.016) + 100) / sr) { const a = rnd(); e += a * a * 1.3; } e *= dec;
+        const w = gauss() * e * Math.exp(-tt / 0.03); hp = aH * (hp + w - xp); xp = w; gl += kG * (hp - gl);       // the grains (dry snow crunches, it does not hiss: the top is taken off)
+        lp += kL * (gauss() - lp); lp2 += kL * (lp - lp2);                                                       // the knock
+        d[i] += gl * 1.5 + lp2 * 3.6 * Math.exp(-tt / 0.011) * Math.min(1, tt / 0.0015);
+      }
+      norm(d, 1); const f = Math.round(sr * 0.012); for (let i = 0; i < f; i++) d[n - 1 - i] *= i / f; M.poles.push(b);
+    }
     return M;
   }
 
@@ -125,7 +140,7 @@ const Sound = (() => {
     for (let i = 0; i < 1025; i++) { const x = (i - 512) / 512 * 1.6, a = Math.abs(x); cv[i] = sign(x) * (a < 0.7 ? a : 0.7 + 0.29 * Math.tanh((a - 0.7) / 0.29)); }      // straight to 0.7, then bends over under 1
     ceil.curve = cv; const pre = gain(1 / 1.6);
     chain(bus, comp, out, pre, ceil, ctx.destination);
-    const tap = name => { const g = gain(opt.solo && opt.solo !== name ? 0 : 1); g.connect(bus); return g; };
+    const tap = name => { const g = gain((opt.solo && opt.solo !== name) || opt.off === name ? 0 : 1); g.connect(bus); return g; };       // (tests: solo one tap, or leave one out)
 
     // ---------------- wind
     const wT = tap('wind'), pink = loop(M.pink, 1, 0.2), white = loop(M.white, 1, 0.4);
@@ -163,13 +178,16 @@ const Sound = (() => {
     for (let k = 0; k < 2; k++) { chain(pink, psF[k], psG[k], psP[k], fT); if (psP[k].pan) psP[k].pan.value = k ? 0.8 : -0.8; }
 
     const h = {
-      wL1: H(wL1.frequency), wL2: H(wL2.frequency), wG: H(wG.gain), wGd: H(wGd.gain), wD0: H(wDep[0].gain), wD1: H(wDep[1].gain), wBal: H(wBal.pan), hF: H(hBP.frequency), hG: H(hG.gain), mG: H(mG.gain),
+      wL1: H(wL1.frequency), wL2: H(wL2.frequency), wG: H(wG.gain), wGd: H(wGd.gain), wD0: H(wDep[0].gain), wD1: H(wDep[1].gain), wBal: H(wBal.pan), hF: H(hBP.frequency), hG: H(hG.gain), mG: H(mG.gain), wRate: H(wLfo.playbackRate),
       gG: H(gG.gain), gHP: H(gHP.frequency), gLP: H(gLP.frequency), gRate: H(sand.playbackRate),
       eG: H(eG.gain), eBP: H(eBP.frequency), ePk: H(ePk.frequency), eLP: H(eLP.frequency), eLoG: H(eLoG.gain), eAirG: H(eAirG.gain), ePan: H(ePan.pan), rD: H(rD.gain),
       aG: H(aG.gain), aPan: H(aPan.pan), pG: H(pG.gain), pPan: H(pPan.pan), pLP: H(pLP.frequency), aPk: H(aPk.frequency),
       qG: H(qG.gain), qRate: H(creak.playbackRate), qPk: H(qPk.frequency), qPan: H(qPan.pan), out: H(out.gain),
     };
     let Islow = 0, Ifall = 0, con = 0, latPrev = 0, loadPrev = 1, chirpT = -1, nChirp = 0, loadS = 1;
+    // ---------------- the score (18b_music.js) plays into the same bus: the mute, the taps and the offline test cover it, and the compressor
+    // lets a loud scrape or a landing push it down
+    const mus = R.music = typeof Music !== 'undefined' && opt.music !== false ? Music.build(ctx, tap('music'), opt, { gain, biq, pan, chain, H, set }) : null;
 
     R.fade = (v, t, tau = 0.25) => { h.out.v = NaN; set(h.out, v, t, tau); };
     R.chirp = (t, amp, pn, rate = 1) => {
@@ -186,8 +204,15 @@ const Sound = (() => {
     R.brush = (t, side, hard) => {         // boughs: a swish, twigs ticking, then the snow they held sifting down
       if (brPan.pan) { brPan.pan.setTargetAtTime(side * 0.6, t, 0.01); spPan.pan.setTargetAtTime(side * 0.5, t, 0.01); }
       hit(brG, t, hard ? 0.6 : 0.25, 0.012, 0.07, 0.11); hit(spG, t + 0.05, hard ? 0.4 : 0.18, 0.03, 0.22, 0.32);
-      if (hard) { th.frequency.cancelScheduledValues(t); th.frequency.setValueAtTime(70, t); th.frequency.exponentialRampToValueAtTime(38, t + 0.2); hit(thG, t, 0.4, 0.004, 0.03, 0.09); hit(crG, t, 1.4, 0.002, 0.04, 0.08); }
+      if (hard) { th.frequency.cancelScheduledValues(t); th.frequency.setValueAtTime(70, t); th.frequency.exponentialRampToValueAtTime(38, t + 0.2); hit(thG, t, 0.4, 0.004, 0.03, 0.09); hit(crG, t, 1.4, 0.002, 0.04, 0.08); if (mus) mus.crash(t); }
     };
+    R.pole = (t) => {                      // both baskets go into the snow, never quite together: quiet, dry, the same at any speed
+      R.poles = (R.poles || 0) + 1; const lead = hash1(R.poles * 13 + 5) < 0.5 ? -1 : 1, gap = 0.006 + 0.01 * hash1(R.poles * 29 + 1);
+      for (let k = 0; k < 2; k++) { const s = ctx.createBufferSource(), g = gain(k ? 0.13 : 0.16), p = pan(); s.buffer = M.poles[(R.poles * 2 + k) % M.poles.length]; if (p.pan) p.pan.value = (k ? -lead : lead) * 0.34; chain(s, g, p, fT); s.start(t + k * gap); }
+    };
+    // leaving the ground (fly: how long the flight is going to last) and coming back to it: the score's business
+    R.takeoff = (t, fly) => { if (mus) mus.takeoff(t, fly); };
+    R.down = (t, v, airT) => { if (mus) mus.down(t, v, airT); };
     R.hoof = (t, amp, pn) => {             // a pair of hooves driving into the snow: a soft thump and the crust giving
       if (hfP.pan) hfP.pan.setTargetAtTime(pn, t, 0.02); R.hoofs = (R.hoofs || 0) + 1;
       hit(hfG, t, 1.5 * amp, 0.004, 0.018, 0.05); hit(hcG, t + 0.004, 0.36 * amp, 0.004, 0.022, 0.06);
@@ -200,15 +225,15 @@ const Sound = (() => {
 
     // s: { run, speed, contact, lat (signed, g), skid, load (g), powder, I, tuck, lean, ridge, forest }
     R.update = function (s, t) {
-      const dt = clamp(t - R.t, 0, 0.1); R.t = t;
+      const dt = clamp(t - R.t, 0, 0.1), ts = clamp(s.ts || 1, 0.05, 1); R.t = t;          // ts: time running slow (the air), which the wind follows
       const v = s.run ? s.speed : 0, vk = sat(v / 34), al = Math.abs(s.lat), turn = s.lat >= 0 ? 1 : -1, pw = s.powder;
       con = damp(con, s.run && s.contact ? 1 : 0, s.contact ? 40 : 28, dt);
       // ---- wind: level and upper edge climb with speed; among trees the mountain's own wind is shut out, on a ridge it is doubled
-      const expo = 1 + 1.4 * s.ridge - 0.55 * s.forest, fw = (300 + 830 * Math.pow(vk, 1.1)) * (1 + 0.12 * s.tuck);
+      const expo = 1 + 1.4 * s.ridge - 0.55 * s.forest, fw = (300 + 830 * Math.pow(vk, 1.1)) * (1 + 0.12 * s.tuck) * lerp(0.6, 1, ts);
       set(h.wL1, fw, t, 0.12); set(h.wL2, fw * 1.12, t, 0.12);
       const wl = (0.14 * expo + 2.0 * Math.pow(vk, 1.9)) * (1 - 0.22 * s.tuck) * (s.run && !s.contact ? 1.15 : 1);
       set(h.wG, wl, t, 0.12); set(h.wGd, wl * 0.28, t, 0.2);
-      const dep = 0.22 + 0.2 * vk; set(h.wD0, dep, t, 0.2); set(h.wD1, dep, t, 0.2);
+      const dep = 0.22 + 0.2 * vk; set(h.wD0, dep, t, 0.2); set(h.wD1, dep, t, 0.2); set(h.wRate, 150 / sr * lerp(0.4, 1, ts), t, 0.1);
       set(h.wBal, clamp(-s.lean * 0.22, -0.3, 0.3), t, 0.15); set(h.mG, 0.55 * expo * lerp(1, 0.5, vk), t, 0.4);
       set(h.hF, 760 + 950 * vk, t, 0.2); set(h.hG, 1.5 * smooth(13, 30, v) * (1 - 0.5 * s.forest), t, 0.3);
       // ---- how hard the edges are moving snow. The same recipe that feeds the spray, but from what the body is doing (lean, skid) and the
@@ -242,6 +267,7 @@ const Sound = (() => {
         if ((rise > 2.2 && al > 0.35) || lr > 16) R.chirp(t, (0.36 + 0.5 * sat(press)) * lerp(1, 0.5, smooth(8, 24, v)), side * 0.35, 0.95 + 0.4 * vk);
       }
       latPrev = al; loadPrev = s.load;
+      if (mus) mus.update(s, t, E, side);
     };
     return R;
   };
@@ -250,7 +276,13 @@ const Sound = (() => {
   A.init = function () {
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     try { A.ctx = new AC({ latencyHint: 'interactive' }); A.rig = A.build(A.ctx); } catch (e) { console.warn('audio unavailable', e); A.ctx = null; A.rig = null; return; }
-    document.addEventListener('visibilitychange', () => { if (!A.ctx) return; if (document.hidden) A.ctx.suspend(); else if (A.unlocked) A.ctx.resume(); });
+    // going to the background: fade first (a clock stopped dead leaves a click, and a chord cut off in mid-air sounds like a fault), then stop;
+    // coming back: start the clock, then come up again
+    document.addEventListener('visibilitychange', () => {
+      if (!A.ctx) return; clearTimeout(A.hideT);
+      if (document.hidden) { if (A.unlocked) A.rig.fade(0, A.ctx.currentTime, 0.03); A.hideT = setTimeout(() => { if (document.hidden) A.ctx.suspend(); }, 160); }
+      else if (A.unlocked) { A.ctx.resume(); A.rig.fade(A.on ? A.level : 0, A.ctx.currentTime, 0.25); }
+    });
   };
   // from a tap: browsers only let sound begin there
   A.unlock = function () {
@@ -259,13 +291,21 @@ const Sound = (() => {
     if (A.ctx.state !== 'running') A.ctx.resume();
     A.rig.fade(A.on ? A.level : 0, A.ctx.currentTime, 0.5);
   };
-  A.kick = function () { if (!A.rig) return; const t = A.now(); A.rig.chirp(t + 0.06, 0.5, -0.25, 0.9); setTimeout(() => { if (A.rig) A.rig.chirp(A.now(), 0.42, 0.25, 1.0); }, 430); };      // pushing off: two strides
+  A.kick = function () { if (!A.rig || Game.s.dp !== undefined) return; const t = A.now(); A.rig.chirp(t + 0.06, 0.5, -0.25, 0.9); setTimeout(() => { if (A.rig) A.rig.chirp(A.now(), 0.42, 0.25, 1.0); }, 430); };      // pushing off: two strides (a start made with the poles is heard through its `pole` events instead)
   A.setOn = function (on) { A.on = on; if (A.rig && A.unlocked) A.rig.fade(on ? A.level : 0, A.ctx.currentTime, 0.12); };
   A.now = () => A.ctx.currentTime + 0.012;
   A.snapshot = function () {
-    const S = Game.s, c = Course.at(-S.p[2], A.pc);
+    const S = Game.s, c = Course.at(-S.p[2], A.pc), sg = Course.segAt(-S.p[2]);
     return { run: Game.mode === 'run', speed: Math.hypot(S.v[0], S.v[1], S.v[2]), contact: S.contact, lat: S.aReac / 9.81, skid: Math.abs(Math.sin(S.beta)), load: S.load / 9.81, powder: S.powder, I: Spray.intensity, tuck: S.tuck, lean: S.lean,
-      ridge: c.ridge || 0, forest: Math.max(c.forest || 0, c.glade || 0) };
+      ridge: c.ridge || 0, forest: Math.max(c.forest || 0, c.glade || 0),
+      air: S.air, airT: S.airT, ts: Game.timeScale || 1, kind: sg.type, slope: sg.p.slope, sun: Sky.sunElev };       // (for the score)
+  };
+  // how long the flight that has just begun will last: the body's path against the snow ahead, as the contact test will see it. This is what
+  // tells a hop off a bump from a jump at the instant of takeoff
+  A.flight = function () {
+    const S = Game.s, p = S.p, v = S.v, k = Course.mogK; let T = 3; Course.mogK = 0.34;
+    for (let t = 1 / 30; t < 3; t += 1 / 30) if (p[1] + v[1] * t - 4.905 * t * t - Course.height(p[0] + v[0] * t, p[2] + v[2] * t, 0.5) < 0.22) { T = t; break; }
+    Course.mogK = k; return T + S.airT;
   };
   A.frame = function () {
     if (!A.rig) return; const t = A.now(), S = Game.s;
@@ -287,7 +327,9 @@ const Sound = (() => {
   };
   A.event = function (ev) {
     if (!A.rig) return; const t = A.now(), S = Game.s;
-    if (ev.type === 'land') { if (ev.airT > 0.14 || ev.v > 1.6) A.rig.land(ev.v * (ev.airT > 0.14 ? 1 : 0.5), t); }
+    if (ev.type === 'land') { A.rig.down(t, ev.v, ev.airT); if (ev.airT > 0.14 || ev.v > 1.6) A.rig.land(ev.v * (ev.airT > 0.14 ? 1 : 0.5), t); }
+    else if (ev.type === 'takeoff') A.rig.takeoff(t, A.flight());
+    else if (ev.type === 'pole') A.rig.pole(t);
     else if (ev.type === 'brush' || ev.type === 'crash') A.rig.brush(t, sign((ev.x - S.p[0]) * S.r[0] + (ev.z - S.p[2]) * S.r[2]) || 1, ev.type === 'crash');
     else if (ev.type === 'hoof') A.rig.hoof(t, ev.k * Math.pow(sat(1 - ev.d / 34), 1.6), ev.side * sat(ev.d / 6) * 0.75);
   };
