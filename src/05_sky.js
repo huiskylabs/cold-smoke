@@ -87,7 +87,7 @@ const Sky = (() => {
         // beyond the mountain, nearest last: ranges on the horizon, the cloud deck, the city standing in it
         col = farRanges(d, col);
         col = mix(col, cloudSea(d, mu, col), smoothstep(0.0, -0.006, d.y));
-        col = cityLayer(d, col);
+        { let cb: vec3f = col; col = mix(cityLayer(d, col), cb, M.wf.w); }      // (behind heavy snow only a shape of it: 05b_weather.js)
         // ...and nearer than all of it, a bolt of lightning
         col += bolt(d);
         o.color = vec4f(col, 0.0); return o; }`,

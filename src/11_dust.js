@@ -16,9 +16,9 @@ const Dust = (() => {
   // the flakes of heavy snow (boxes must divide 1024 m, the floating origin's step): size = radius (m), fall (m/s), op = opacity, shut = how far
   // they streak (the dust's shutter times this). The counts are the blizzard's; the snow showers draw three quarters of them
   heavy: [
-    { W: 32, n: 14000, size: 0.016, fall: 1.15, op: 1.0, shut: 3.5 },
-    { W: 16, n: 14000, size: 0.019, fall: 1.05, op: 1.0, shut: 3.5 },
-    { W: 4, n: 160, size: 0.022, fall: 0.9, op: 0.6, shut: 1.6 },
+    { W: 32, n: 14000, size: 0.015, fall: 1.15, op: 1.0, shut: 3.5 },
+    { W: 16, n: 14000, size: 0.018, fall: 1.05, op: 1.0, shut: 3.5 },
+    { W: 4, n: 160, size: 0.021, fall: 0.9, op: 0.6, shut: 1.6 },
   ] };
   let gfx, pipe, pipeF, pipeV;
   D.init = function (g) {
@@ -93,6 +93,35 @@ fn vert(a: VIn) -> VOut {
 // snowfall glows), by the lamp after dark and by a flash. M.p = (box, flake radius, fall speed, first id); M.q = (how much of the snowfall is
 // falling now 0..1, streak, opacity, flakes in this box); M.o = how far the wind has carried the air
 const FLAKE_VS = `
+// a flake on screen: drawn at its own size (rp, px) blurred by the lens, a streak along its motion over the shutter; a big soft one near the
+// lens streaks no longer than twice its disc (it is smeared already, and a long soft streak reads as a capsule, not as snow)
+fn flakeQuad(corner: vec2f, pos: vec3f, vel: vec3f, rphys: f32, shutK: f32) -> GlintV {
+  var g: GlintV = glintCull();
+  let rel: vec3f = pos - U.camPos.xyz; let zv: f32 = dot(rel, U.camFwd.xyz);
+  if (zv < 0.12) { return g; }
+  let cp: vec4f = U.viewProj * vec4f(pos, 1.0); let ndc: vec2f = cp.xy / cp.w;
+  if (abs(ndc.x) > 1.3 || abs(ndc.y) > 1.3) { return g; }
+  let pix: vec2f = clamp((vec2f(ndc.x, -ndc.y) * 0.5 + 0.5) * U.res.xy, vec2f(0.0), U.res.xy - 1.0);
+  if (zv > linDepth(texFetchD(tDepth, vec2i(pix), 0)) + 0.03) { return g; }
+  let pp: vec4f = U.prevViewProj * vec4f(pos - vel * U.misc.z, 1.0);
+  var mv: vec2f = vec2f(0.0);
+  if (pp.w > 0.05) { mv = (ndc - pp.xy / pp.w) * vec2f(0.5, -0.5) * U.res.xy * (U.dof.w * shutK / max(U.misc.z, 0.004)); }
+  var ml: f32 = length(mv); var ax: vec2f = vec2f(1.0, 0.0);
+  if (ml > 0.25) { ax = mv / ml; }
+  let sc: f32 = U.res.y / 1170.0;
+  let coc: f32 = min(U.dof.y * abs(1.0 / U.dof.x - 1.0 / zv), U.dof.z) * sc;
+  let rp: f32 = rphys * U.res.y / (2.0 * U.camRight.w * zv);
+  let rad: f32 = sqrt(coc * coc + rp * rp + sq(0.62 * sc));
+  ml = min(ml, 0.16 * U.res.y);
+  ml = mix(ml, min(ml, 2.0 * rad), smoothstep(2.5 * sc, 7.0 * sc, rad));
+  let hl: f32 = ml * 0.5;
+  let ext: vec2f = vec2f(hl + rad + 1.0, rad + 1.0);
+  let lp: vec2f = corner * ext;
+  let opx: vec2f = ax * lp.x + vec2f(-ax.y, ax.x) * lp.y;
+  g.clip = vec4f((ndc + opx * vec2f(2.0, -2.0) * U.res.zw) * cp.w, cp.z, cp.w);
+  g.uv = lp; g.shp = vec4f(hl, rad, rp, zv);
+  return g;
+}
 fn vert(a: VIn) -> VOut {
   var v: VOut;
   let corner: vec2f = vec2f(f32(a.vid & 1u), f32((a.vid >> 1u) & 1u)) * 2.0 - 1.0;
@@ -112,13 +141,12 @@ fn vert(a: VIn) -> VOut {
   // (as the snowfall comes on it thickens flake by flake, each fading in, none popping)
   let fade: f32 = smoothstep(0.5, 0.40, edge) * smoothstep(0.0, 0.04, M.q.x - f32(a.iid) / M.q.w);
   let vis: f32 = shadowFast(pos, 0.0015);
-  let g: GlintV = glintQuad(corner, pos, vel, h.y, fade, vis, 0.0, M.q.y);
+  let g: GlintV = flakeQuad(corner, pos, vel, M.p.y * (0.6 + 0.8 * h.z), M.q.y);
   v.clip = g.clip; v.uv = g.uv; v.shp = g.shp;
-  // how much of what is drawn the flake really covers: its own size on screen against the disc (or streak) it is drawn as
-  let fpx: f32 = U.res.y / (2.0 * U.camRight.w);
-  let rp: f32 = M.p.y * (0.6 + 0.8 * h.z) * fpx / max(g.shp.w, 0.05);
-  let r: f32 = max(g.shp.y, 0.7);
-  let cov: f32 = min(1.0, rp * rp / (r * r + 1.27 * r * g.shp.x)) * fade * M.q.z;
+  // how much of what is drawn the flake really covers: its own area on screen against the soft disc (or streak) it is drawn as (the soft
+  // profile below holds a third of a full disc's area, and 1.07 r per pixel of streak)
+  let rp: f32 = g.shp.z; let r: f32 = max(g.shp.y, 0.7);
+  let cov: f32 = min(0.65, rp * rp / (0.333 * r * r + 0.68 * r * g.shp.x)) * fade * M.q.z;      // (a tuft is lacy: never quite opaque)
   let V: vec3f = normalize(U.camPos.xyz - pos); let mu: f32 = dot(-V, U.sunDir.xyz);
   // (a touch brighter than the snow on the ground, so a snowfall reads against the slope; brighter still close to the lens, where a flake is a soft
   // light rather than a smudge on the glass)
@@ -128,14 +156,14 @@ fn vert(a: VIn) -> VOut {
   v.col = vec4f(lit * (0.88 * cov), cov);
   return v;
 }`;
-// a soft-edged disc, or a streak with round ends; the lens blur's discs are softer still
+// a soft disc that thins out from its middle to its rim (a tuft of crystals, or the lens's blur of one), or a streak of it with round ends
 const FLAKE_FS = `
 fn frag(v: VOut) -> FOut {
   var o: FOut;
   let d: f32 = length(vec2f(max(abs(v.uv.x) - v.shp.x, 0.0), v.uv.y));
-  let r: f32 = max(v.shp.y, 0.7);
-  let e: f32 = 0.5 + 0.3 * r * saturate(v.shp.z);
-  o.color = v.col * smoothstep(r + e, r - e, d);
+  let x: f32 = d / (max(v.shp.y, 0.7) + 0.6);
+  let a: f32 = saturate(1.0 - x * x);
+  o.color = v.col * (a * a);
   return o;
 }`;
 // ---- the veil: how much falling snow lies between the eye and what the scene shows there, and the light it scatters toward the eye: the
