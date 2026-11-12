@@ -136,6 +136,7 @@ const Spray = (() => {
   //       rate (how much snow this step, 0..2), powder (0..1), r:[x,z] right axis, f:[x,z] forward axis }   (world space)
   // A listener that throws is dropped from that one call, never from the game.
   P.onEmit = [];
+  P.fogMul = 1;
   const LF0 = [0, 0, 0, 0], LF1 = [0, 0, 0, 0], liftU = () => { if (typeof Tracks === 'undefined' || !Tracks.liftU) return LF0; const u = Tracks.liftU(), o = (typeof Render !== 'undefined' && Render.origin) || LF0; LF1[0] = u[0] - o[0]; LF1[1] = u[1] - o[2]; LF1[2] = u[2]; LF1[3] = u[3]; return LF1; };
   function emit(kind, t, p, v, spread, rate, powder, r, f) {
     if (!P.onEmit.length) return;
@@ -272,6 +273,9 @@ const Spray = (() => {
     // a thick sheet has the mass to push further through the air before it is braked: the harder the turn, the taller the curtain it leaves.
     // How tall also goes with the snow: hard snow comes off as a low fan of grains, deep powder as a wall (P.curtainK)
     const CK = P.curtainK(S.powder || 0), hk = CK[0], lk = CK[1];
+    // fast on packed snow, what the edges throw is mostly grains (10b_grains.js), and the smoke is a thin veil over them: at 90 km/h and more,
+    // half the fine part and half the trail behind the tails (the owner: at speed the spray read as nothing but a bank of fog)
+    const fogK = P.fogMul * lerp(1, 0.5, smooth(10, 25, Math.hypot(S.v[0], S.v[1], S.v[2])) * (1 - smooth(0.25, 0.9, S.powder || 0)));
     const Ls = P.reach * (0.75 + 1.95 * Math.pow(sat(Ie / 2.6), 0.7)) * hk;
     // (it leaves the edge low and across the ski, steeper where the skis are thrown sideways and the snow piles against the bases;
     // a skidding ski ploughs along its whole length, a carving one sheds from under the foot back)
@@ -302,7 +306,7 @@ const Spray = (() => {
       const px = S.p[0] + lx, pz = S.p[2] + lz, py = base - (n[0] * lx + n[2] * lz) / n[1] + 0.04;
       if (tail) {
         const up = (0.5 + 0.085 * sp) * (0.45 + u4), c = 0.08 + 0.2 * rnd(), sw = (u2 - 0.5) * 0.9;
-        P.puff(t - jt, px, py, pz, v[0] * c + n[0] * up + ox * sw, v[1] * c + n[1] * up + oy * sw, v[2] * c + n[2] * up + oz * sw, 0.7 + 0.3 * rnd(), lerp(0.05, 0.09, rnd()), 0.3 + 0.6 * smooth(8, 26, sp) + 2.0 * X, 1, 1, 0.8);
+        P.puff(t - jt, px, py, pz, v[0] * c + n[0] * up + ox * sw, v[1] * c + n[1] * up + oy * sw, v[2] * c + n[2] * up + oz * sw, 0.7 + 0.3 * rnd(), lerp(0.05, 0.09, rnd()), (0.3 + 0.6 * smooth(8, 26, sp) + 2.0 * X) * fogK, 1, 1, 0.8);
         continue;
       }
       // the sheet here and now: the angle it leaves at and the speed of its rim
@@ -311,22 +315,22 @@ const Spray = (() => {
       if (u2 < 0.13) {
         // loose mist torn off the sheet: slow, any direction, soon stopped
         f = 0.8 + 0.2 * rnd(); el = lerp(0.3, 1.3, u3); sv = vr * (0.15 + 0.4 * u4); carry = 0.10 + 0.25 * rnd();
-        dens = 1.5 * X; r0 = lerp(0.07, 0.12, rnd()); jit = 1.2; brake = Ls * 0.6;
+        dens = 1.5 * X * fogK; r0 = lerp(0.07, 0.12, rnd()); jit = 1.2; brake = Ls * 0.6;
       } else if (u2 < 0.13 + P.clots * hard) {
         // the dense heart of the sheet: clots that fly true arcs, lead its rim and break up within the second (the crisp edge, then the streaks)
         f = 0.4 * Math.pow(rnd(), 0.9); el = elS + (u3 - 0.5) * 0.16; sv = vr * (0.5 + 0.5 * Math.pow(u4, 0.45));
         carry = 0.07 + 0.18 * fg * rnd() + 0.2 * skid * rnd();
-        dens = lerp(7.6, 4.6, f / 0.4) * X; r0 = lerp(0.04, 0.075, rnd()) * (0.75 + 0.55 * sat(Iq)); jit = 0.35; lifeK = 0.7;
+        dens = lerp(7.6, 4.6, f / 0.4) * X * (0.4 + 0.6 * fogK); r0 = lerp(0.04, 0.075, rnd()) * (0.75 + 0.55 * sat(Iq)); jit = 0.35; lifeK = 0.7;
       } else {
         // its fine part, which is most of what is seen: thrown with the rest, braked by the air within a metre or two, and left hanging: the curtain
         // (not a membrane: most of the snow goes out with the crest, the rest at every speed below it, and that fills the wall under it)
         f = Math.max(0.62 + 0.38 * rnd(), 1 - hard); el = elS + (u3 - 0.5) * 0.30; sv = vr * (0.42 + 0.58 * Math.pow(u4, 0.6));
         carry = 0.07 + 0.18 * fg * rnd() + 0.2 * skid * rnd();
-        dens = lerp(4.2, 2.6, sat((f - 0.62) / 0.38)) * X; r0 = lerp(0.05, 0.09, rnd()) * (0.75 + 0.55 * sat(Iq)); jit = 0.5; brake = Ls * (0.75 + 0.5 * rnd());
+        dens = lerp(4.2, 2.6, sat((f - 0.62) / 0.38)) * X * fogK; r0 = lerp(0.05, 0.09, rnd()) * (0.75 + 0.55 * sat(Iq)); jit = 0.5; brake = Ls * (0.75 + 0.5 * rnd());
       }
       const ce = Math.cos(el), se = Math.sin(el);
       const vx = v[0] * carry + (ox * ce + n[0] * se) * sv + (rnd() - 0.5) * jit, vy = v[1] * carry + (oy * ce + n[1] * se) * sv + rnd() * 0.4 * jit, vz = v[2] * carry + (oz * ce + n[2] * se) * sv + (rnd() - 0.5) * jit;
-      P.puff(t - jt, px, py, pz, vx, vy, vz, f, r0, dens, 1, lifeK * (f > 0.5 ? lk : 1), brake);
+      P.puff(t - jt, px, py, pz, vx, vy, vz, f, r0, dens, 1, lifeK * (f > 0.5 ? lk * (0.4 + 0.6 * fogK) : 1), brake);
     }
     while (accG >= 1) {
       accG -= 1;

@@ -656,7 +656,9 @@ const Game = (() => {
     // (the inside ski draws ahead as the edges come up: hardly at all in a shallow turn)
     pose.lead = 0.19 * sL * Math.abs(sL) + q.lead; pose.stance = 0.31 + 0.16 * Math.abs(sL) + 0.04 * w + q.st;
     pose.fore = damp(pose.fore, clamp(-0.25 * w * (1 - q.own) + q.fore - 0.5 * fl.soak, -1, 1), 8, kd);
-    pose.liftL = q.lL; pose.liftR = q.lR; pose.pitchL = q.pL; pose.pitchR = q.pR; pose.rollL = q.rL; pose.rollR = q.rR; pose.grabL = q.gL; pose.grabR = q.gR;
+    pose.liftL = q.lL; pose.liftR = q.lR; fl.tipUp = damp(fl.tipUp || 0, S.contact && typeof Tracks !== 'undefined' ? (Tracks.deep || 0) * lerp(0.17, 0.09, smooth(5, 18, sp)) * (1 - w) : 0, 5, dt);
+    // (in deep powder the skis ride tips up, planing: the shovels come up out of the snow and the tails run low in it, more so when slow)
+    pose.pitchL = q.pL + fl.tipUp; pose.pitchR = q.pR + fl.tipUp; pose.rollL = q.rL; pose.rollR = q.rR; pose.grabL = q.gL; pose.grabR = q.gR;
     // the pole plant: as one turn is let go the new inside pole swings forward, and its basket touches the snow beside the ski tip at the
     // moment the edges change; then it is left behind. (A gentle change of direction gets half a swing and no touch.)
     const quiet = (Variants.val.poles === 'a' ? 1 - sat(pose.tuck * 3) : 1 - sat((pose.tuck - 0.25) * 2.5)) * smooth(3, 7, sp) * (1 - fl.aK) * (1 - sat(S.crash * 5)) * (1 - dpK) * (1 - sat(Math.abs(q.yaw) * 3));

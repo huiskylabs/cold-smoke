@@ -64,6 +64,9 @@ fn vert(a: VIn) -> VOut {
           if (h1 < pf) { fl = str * env; e = M.cp.y * fl * (0.25 + 1.2 * fres + 1.5 * back); }
           // between flashes: what a crystal scatters forward. Against the sun every one of them is a point of light; away from it, nothing
           e += M.cq.z * min(hg(mu, 0.8) * 12.566, 12.0) * (0.3 + 0.7 * fract(seed * 3.37));
+          // and what any grain does in sunlight whichever way it is seen: a speck of white, lit on the side toward the sun. So thrown snow
+          // reads as grit and not only as smoke, front-lit and side-lit too (the owner: '主动摩擦起来的雪' has to show its particles)
+          e += M.cr.y * (0.4 + 1.2 * fract(seed * 5.13)) * (0.45 + 0.55 * saturate(-mu * 0.5 + 0.5));
           var gc: vec3f = U.sunCol.rgb * (e * vis * M.cp.z);
           // the headlamp: crystals in its beam flash back at it, and the lens is just behind it
           if (U.lamp.w > 0.0) {
@@ -185,10 +188,13 @@ fn frag(v: VOut) -> FOut {
 }`;
 
 const Grains = (() => {
-  const G = { NC: 49152, CF: 12, NK: 384, KF: 16, enabled: true,
+  const G = { NC: 49152, CF: 12, NK: 4096, KF: 16, enabled: true,
     // the crystals' light: how many of them flash in a slice of time (toward the sun), how bright a flash is, how bright the forward glow between
     flashP: 0.16, flashK: 70, glowK: 0.05, lampK: 9, shutK: 0.5, clumpShut: 1.5,
-    // (occK: how much of the cloud's optical depth in front of a crystal hides it; rmin: the smallest drawn radius, px at 1170 lines) occK: 0.6, rmin: 0.75,
+    // (occK: how much of the cloud's optical depth in front of a crystal hides it; rmin: the smallest drawn radius, px at 1170 lines)
+    occK: 0.6, rmin: 0.75,
+    // (gritK: how bright a grain is just for being white snow in the sun, between its flashes)
+    gritK: 0.25,
     stats: { crystals: 0, clumps: 0, impacts: 0, deposits: 0, ms: 0 } };
   // the owner's choices. sparkle: a = none of this (the spray's own grains only), b = as real backlit spray measures, c = a little more.
   // clumps: a = none, b = as many as real turns and landings throw, c = more
@@ -196,7 +202,8 @@ const Grains = (() => {
     Variants.def('sparkle', '闪光', [['a', '没有冰晶群'], ['b', '真实'], ['c', '再多一点']], 'b');
     Variants.def('clumps', '雪团', [['a', '没有'], ['b', '真实'], ['c', '多一些']], 'b');
   }
-  const SPK = { a: 0, b: 1, c: 1.7 }, CLK = { a: 0, b: 1, c: 2.2 };
+  const GRK = { a: 0, b: 1, c: 1.6 }, SPK = { a: 0, b: 1, c: 1.7 }, CLK = { a: 0, b: 1, c: 2.2 };
+  const GNK = { a: 0, b: 1, c: 1.8 }, gritN = () => typeof Variants !== 'undefined' ? GNK[Variants.val.sparkle] ?? 1 : 1;
   const sparkK = () => typeof Variants !== 'undefined' ? SPK[Variants.val.sparkle] ?? 1 : 1;
   const clumpK = () => typeof Variants !== 'undefined' ? CLK[Variants.val.clumps] ?? 1 : 1;
   let gfx, cBuf, kBuf, cCPU, kCPU, pipeC, pipeK, ch = 0, kh = 0, poolK = 1;
@@ -335,7 +342,7 @@ const Grains = (() => {
         clump(t0 + T, [ip[0], ip[1] + 0.03, ip[2]], [vx, vy, vz], size * (0.35 + 0.25 * rnd()), { trail: false, burst: 0.5, split: false, powder: pow });
       }
     }
-    impacts.push({ t: t0 + T, p: ip, d: [vi[0], vi[2]], s: size, pow });
+    if (!o.nodep) impacts.push({ t: t0 + T, p: ip, d: [vi[0], vi[2]], s: size, pow });
     return T;
   }
   // Grains.clumps(t, p, v, n, size, opts): n clumps of about `size` (m across) thrown from about p at about v (world space).
@@ -366,7 +373,7 @@ const Grains = (() => {
   };
 
   // ---- fed by the spray. e = { kind, t, p, v (mean throw velocity), spread, rate 0..2, powder 0..1, r: [x, z] right, f: [x, z] forward }
-  let lastT = -9, accC = 0, accK = 0;
+  let lastT = -9, accC = 0, accK = 0, accG = 0;
   G.onEmit = function (e) {
     if (!G.enabled || !e || !e.p) return;
     const t0 = performance.now();
@@ -379,6 +386,19 @@ const Grains = (() => {
       accC += Math.pow(rate, 0.9) * 12000 * (0.7 + 0.6 * pw) * dt;
       const sk = k === 'skid' ? 1 : 0, hard = Math.max(0, rate - 0.35);
       accK += Math.pow(hard, 1.3) * 26 * (0.5 + 0.9 * pw + 0.5 * sk) * dt;
+      // the granules: the sugar the edge scrapes off the surface, a few millimetres to a centimetre and a half, thrown in a sheet that
+      // leads the cloud and outlines it. Most of what a camera close to a fast turn sees as 'particles' is these (the owner: the spray at
+      // speed was all fog, no grain). Small solid specks, lit and shaded, smeared over the shutter; they fall back without a mark
+      accG += Math.pow(rate, 1.1) * 900 * (0.6 + 0.6 * pw) * smooth(2, 8, sp) * gritN() * dt;
+      if (accG >= 1) {
+        const n = Math.min(Math.floor(accG), 160); accG -= Math.floor(accG);
+        for (let j = 0; j < n; j++) {
+          const al = lerp(-0.8, 0.5, rnd()), g = 0.7 + 0.7 * Math.pow(rnd(), 0.8), el = (rnd() - 0.25) * (e.spread || 0.5);
+          const sz = 0.006 + 0.018 * rnd() * rnd();
+          clump(e.t - rnd() / 120, [e.p[0] + f[0] * al, e.p[1] + 0.03, e.p[2] + f[1] * al],
+            [v[0] * g + (rnd() - 0.5) * 1.6, v[1] * g + el * sp * 0.7 + 0.6 * rnd(), v[2] * g + (rnd() - 0.5) * 1.6], sz, { trail: false, burst: 0, split: false, nodep: true, powder: pw });
+        }
+      }
       if (accC >= 1) {
         const n = Math.floor(accC); accC -= n;
         for (let j = 0; j < n; j++) {
@@ -452,7 +472,7 @@ const Grains = (() => {
     const nt = Spray.nt || 0, wk = typeof Weather !== 'undefined' ? Weather.k || 0 : 0;
     // (under the snow cloud of heavy weather the light is spread: even in a break the sun is through haze, and the glitter goes with it)
     const sunK = (1 - 0.97 * nt) * (1 - 0.6 * wk);
-    if (sparkK() > 0) gfx.draw(pipeC, { u: { hx: hb.xf, cp: [G.flashP, G.flashK, sunK, G.shutK], cq: [ow, oh, G.glowK, G.lampK], cr: [G.occK, 0, G.rmin * Math.max(1, Render.H / 1170), 0] }, tex: { tH: hb.tex, tDepth: R.depth, tShadow: R.shadowTex, tSunTau: Spray.sunTex, tOcc: occ }, vb: [cBuf], count: 4, instances: G.NC });
+    if (sparkK() > 0) gfx.draw(pipeC, { u: { hx: hb.xf, cp: [G.flashP, G.flashK, sunK, G.shutK], cq: [ow, oh, G.glowK, G.lampK], cr: [G.occK, G.gritK * (GRK[typeof Variants !== 'undefined' ? Variants.val.sparkle : 'b'] ?? 1), G.rmin * Math.max(1, Render.H / 1170), 0] }, tex: { tH: hb.tex, tDepth: R.depth, tShadow: R.shadowTex, tSunTau: Spray.sunTex, tOcc: occ }, vb: [cBuf], count: 4, instances: G.NC });
     gfx.draw(pipeK, { u: { kp: [G.clumpShut, 0, 1, nt], kq: [ow, oh, 0, 0] }, tex: { tDepth: R.depth, tShadow: R.shadowTex, tSunTau: Spray.sunTex, tOcc: occ }, vb: [kBuf], count: 4, instances: G.NK });
   };
   return G;
