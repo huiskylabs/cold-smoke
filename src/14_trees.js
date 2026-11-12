@@ -20,7 +20,7 @@
 //         a b c (snow: height above its bough, -, 1 on the coarse level; sheets: metres along, metres across or down, 0..1 toward the ragged
 //         edge) | lever (metres out from the stem)
 const TreeModel = (() => {
-  const M = { NV: 7, FL: 14, names: ['spruce', 'broad spruce', 'fir', 'giant', 'young', 'broken top', 'snag'], protoMs: 0, buildMs: 0 };
+  const M = { NV: 8, FL: 14, names: ['spruce', 'broad spruce', 'fir', 'giant', 'young', 'broken top', 'snag', 'flagged'], protoMs: 0, buildMs: 0 };
   const CL = [2.0, 1.25, 0.6], CW = [0.52, 0.36, 0.20], CT = [0.17, 0.155, 0.13];      // the three sizes of pillow: length, half-width, depth of snow
   const env = t => Math.sqrt(Math.max(0, 5.07 * t * (1 - t) * (1 - 0.45 * t)));        // outline of a bough seen from above (0 at the trunk and the tip, 1 at its widest)
 
@@ -114,6 +114,9 @@ const TreeModel = (() => {
     { K: 9, y0: 0.70, y1: 9.00, R0: 2.55, pw: 0.92, m0: 5.4, m1: 3.2, d0: 0.42, d1: 0.20, load: 1.00, bare: 0.00, lean: 0.50 },
     { K: 14, y0: 0.85, y1: 7.35, R0: 2.35, pw: 0.80, m0: 6.2, m1: 4.2, d0: 0.58, d1: 0.30, load: 0.85, bare: 0.12, lean: 0.30, broken: 7.75 },
     { K: 9, y0: 2.4, y1: 7.6, R0: 1.0, pw: 0.5, m0: 2.2, m1: 1.6, d0: 0.25, d1: 0.10, load: 0.8, bare: 0.25, lean: 0.6, snag: true, broken: 8.3 },
+    // a spruce up on the ridge, shaped by the wind: a dense skirt where the snowpack sheltered it, above that bare stem and boughs on the lee
+    // side only (+x, turned downwind where it stands), tiers of any length, and a leader the wind has bent over and broken
+    { K: 14, y0: 0.45, y1: 8.7, R0: 2.4, pw: 0.66, m0: 9.0, m1: 5.6, d0: 0.40, d1: 0.16, load: 0.95, bare: 0.05, lean: 0.12, flag: true, broken: 9.1 },
   ];
   M.KIND = KIND;
   // the boughs of one tree (the same list serves both levels of detail, the cards, and the snow that slides off)
@@ -122,17 +125,27 @@ const TreeModel = (() => {
     // the stem leans a little and bends back toward the light: x(y), z(y)
     const la = rnd() * TAU, lk = Q.lean * (0.5 + 0.5 * rnd()), lx = Math.cos(la) * lk, lz = Math.sin(la) * lk, ka = la + 2 + rnd() * 2, kx = Math.cos(ka) * lk * 0.6, kz = Math.sin(ka) * lk * 0.6;
     const top = Q.broken || 9.95;
-    const axis = y => { const q = clamp(y, 0, 10) / 10, s = Math.sin(q * PI); return [lx * q * q + kx * s * q, lz * q * q + kz * s * q]; };
+    const axis = Q.flag ? y => { const q = clamp(y, 0, 10) / 10, b = smooth(6.2, 9.4, y); return [lx * q * q + 1.2 * b * b + 0.08 * Math.sin(y * 1.7), lz * q * q + 0.10 * Math.sin(y * 1.3 + 1)]; }
+      : y => { const q = clamp(y, 0, 10) / 10, s = Math.sin(q * PI); return [lx * q * q + kx * s * q, lz * q * q + kz * s * q]; };
     const crown = y => Q.R0 * Math.pow(Math.max(0.02, 1 - y / (Q.broken ? 9.6 : 10.15)), Q.pw) + 0.14;
     for (let k = 0; k < Q.K; k++) {
       const u = k / (Q.K - 1), y = Q.y0 + (Q.y1 - Q.y0) * Math.pow(u, 0.92) + (k > 0 && k < Q.K - 1 ? (rnd() - 0.5) * 0.16 : 0);
       const R = crown(y) * (0.92 + 0.16 * rnd()), Mn = Math.max(2, Math.round(lerp(Q.m0, Q.m1, u) + (rnd() - 0.5) * 0.9)), ph = k * 2.4 + rnd() * 0.8;
+      // (flagged: the skirt below 1.6 m, then the stretch the blown snow has sand-blasted bare, then the flag; each tier its own length)
+      const sk = Q.flag ? 1 - smooth(0.9, 1.6, y) : 0, blast = Q.flag ? smooth(1.2, 1.9, y) * (1 - smooth(3.2, 4.4, y)) : 0, tl = Q.flag ? 0.55 + 0.75 * rnd() : 1;
       for (let j = 0; j < Mn; j++) {
         const r1 = rnd(), r2 = rnd(), r3 = rnd(), r4 = rnd(), r5 = rnd(), r6 = rnd(), r7 = rnd(), r8 = rnd();
         if (r7 < Q.bare) continue;
-        const a = ph + (j + (r1 - 0.5) * 0.6) * TAU / Mn;
+        let a = ph + (j + (r1 - 0.5) * 0.6) * TAU / Mn;
         let L = R * (0.60 + 0.50 * r2); if (r8 < 0.08) L = Math.min(L * 1.22, Q.R0 * 1.2); else if (r8 > 0.93) L *= 0.6;
         if (Q.snag) L = 0.35 + 0.75 * r2;
+        if (Q.flag) {
+          // on the lee side boughs grow full length and swing round toward it; to windward the buds are killed, the side ones are stubs
+          const lee = Math.cos(a), keep = lerp(smooth(-0.35, 0.5, lee), 1, sk);
+          if (r7 > 0.05 + 0.95 * keep * (1 - 0.65 * blast)) continue;
+          a = Math.atan2(Math.sin(a), lee + (1 - sk) * 1.8 * (1 + lee));
+          L *= tl * lerp(0.2 + 0.95 * smooth(0.0, 0.9, Math.cos(a)), 0.55 + 0.25 * r2, sk);
+        }
         const y0 = y + (r3 - 0.5) * 0.24, rise = 0.12 + 0.16 * r4;
         let droop = lerp(Q.d0, Q.d1, u) * (0.8 + 0.45 * r5); droop = Math.min(droop, (y0 + 0.28) / L);      // (the lowest boughs rest in the snow, they do not dive under it)
         const W = Math.max(0.15, L * (0.26 + 0.08 * r6)), cls = L >= 1.5 ? 0 : L >= 0.82 ? 1 : 2;
@@ -143,7 +156,7 @@ const TreeModel = (() => {
     }
     // the leader: a tuft of short boughs standing round the tip (a tree that lost its top has a ring of them turned up round the break)
     if (!Q.snag) for (let j = 0; j < (Q.broken ? 4 : 3); j++) {
-      const a = rnd() * TAU, L = Q.broken ? 0.75 + 0.4 * rnd() : 0.26 + 0.16 * rnd(), y0 = Q.broken ? Q.broken - 0.5 - 0.3 * rnd() : 9.42 + 0.14 * j;
+      const a = Q.flag ? (rnd() - 0.5) * 1.6 : rnd() * TAU, L = Q.flag ? 0.4 + 0.5 * rnd() : Q.broken ? 0.75 + 0.4 * rnd() : 0.26 + 0.16 * rnd(), y0 = Q.broken ? Q.broken - 0.5 - 0.3 * rnd() : 9.42 + 0.14 * j;
       B.push({ id: B.length, a, ca: Math.cos(a), sa: Math.sin(a), L, W: Math.max(0.15, L * 0.34), y0, rise: Q.broken ? 0.55 : 0.2, k2: Q.broken ? 0.25 / L : 0.5 / L, cls: Q.broken ? 2 : 2, pw: Math.floor(rnd() * 3), flip: 1, th: 0.9, u: 1, tier: Q.K, cur: 0.3 });
     }
     return { B, axis, crown, top, Q };
@@ -475,6 +488,8 @@ const Trees = (() => {
   // ---- placement: chunks of the course's tree grid, cached. One tree = x y z height cos sin kind seed leanX leanZ girth load.
   // Where a tree stands, how tall it is and which way it is turned are the course's; what kind it is and how it grew follow from those.
   const CH = 8, CS = CH * TREE_CELL, NF = 12, chunks = new Map(), _at = {};
+  // the stunted spruce up on a ridge: a as they were (young trees in even tiers), b flagged by the wind. (A change re-places the trees.)
+  Variants.def('rtree', '山脊树', [['a', '现在的'], ['b', '风旗云杉']], 'b'); Variants.on(n => { if (n === 'rtree') chunks.clear(); });
   function describe(out, o, x, z, h, rot, hint, seed, kind) {
     const q = hash2U(Math.floor(x * 8), Math.floor(z * 8)) & 0xffff, r1 = hash2(q, 71), r2 = hash2(q, 72), r3 = hash2(q, 73), r4 = hash2(q, 74);
     const ca = Course.at(-z, _at), ridge = ca.ridge || 0, off = Math.abs(x - ca.cx) - ca.hw;
@@ -484,9 +499,14 @@ const Trees = (() => {
       // the short ones are young trees, the tallest old giants; here and there one that lost its top, or a dead one still standing (those
       // only back in the forest, off the run: to the skier every tree of the course has boughs to brush, and so it must have them)
       if (h < 7.6) v = 4; else if (h > 15.2 && r1 < 0.8) v = 3; else if (r2 < 0.04 && off > 9) v = 6; else if (r2 < 0.10) v = 5;
+      // up on the ridge: wind-flagged. The wind comes over the crest, across the run (toward +x, the way the cumulus and the deck drift), so
+      // the flags stand out sideways as the skier sees them
+      if (ridge > 0.45 && r4 < smooth(0.45, 0.8, ridge) * 0.92 && Variants.val.rtree !== 'a') {
+        const cx0 = ca.cx, g = (Course.at(-z + 6, _at).cx - cx0) / 6, l = Math.hypot(1, g); v = 7; rot = Math.atan2(-g / l, 1 / l) + 0.25 * (r3 - 0.5);
+      }
     }
     // none grew quite straight (and all lean a little down the hill, as the creeping snow has pushed them); on the ridge the wind has had its way
-    const la = r3 * TAU, lk = 0.012 + 0.05 * r4 * r4 + 0.03 * ridge;
+    const la = v === 7 ? 0.32 : r3 * TAU, lk = 0.012 + 0.05 * r4 * r4 + 0.03 * ridge;
     out[o] = x; out[o + 1] = Course.height(x, z, 0.5); out[o + 2] = z; out[o + 3] = h; out[o + 4] = Math.cos(rot); out[o + 5] = Math.sin(rot); out[o + 6] = v; out[o + 7] = seed;
     out[o + 8] = Math.cos(la) * lk; out[o + 9] = Math.sin(la) * lk - 0.012; out[o + 10] = 0.9 + 0.22 * r1;
     // how much snow it carries: by the lie of the land in patches (shelter, wind), a little by the tree; up on the ridge everything is plastered
