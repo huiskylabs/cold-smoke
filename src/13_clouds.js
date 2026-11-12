@@ -130,8 +130,10 @@ const Clouds = (() => {
   C.draw = function (R) {
     if (!C.enabled || !C.baked) return;
     C.time = R.time || 0;
+    // (in heavy snow the fair-weather cumulus are lost in the overcast that rolls in over them: 05b_weather.js)
+    const wx = typeof Weather !== 'undefined' ? 1 - Weather.kc : 1; if (wx < 0.003) return;
     for (const i of order) {
-      const c = C.list[i], az = azAt(c, C.time), q = rect(i), fade = smooth(1.45, 1.2, Math.abs(az)), ru = C.rise * C.K / (2 * c.asp);
+      const c = C.list[i], az = azAt(c, C.time), q = rect(i), fade = smooth(1.45, 1.2, Math.abs(az)) * wx, ru = C.rise * C.K / (2 * c.asp);
       gfx.draw(pipeDraw, { u: { a: [az, c.el, c.tw, c.asp], t: [q[0], q[1], q[2] - q[0], q[3] - q[1]], k: [C.ksun, C.ksky, C.kgnd, c.haze], f: [fade, p, ru * C.oA, ru * C.oB], s: [Sky.sunFar[0], Sky.sunFar[1], Sky.sunFar[2], C.ktwi] },
         tex: { tCloudA: cu.tex[iA], tCloudB: cu.tex[iB], tSky: Sky.lut }, count: 4 });
     }

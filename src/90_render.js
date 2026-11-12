@@ -72,6 +72,7 @@ const Render = (() => {
     { const lp = state.lampPos, ld = state.lampDir, lk = (state.lamp != null ? state.lamp : 1) * Sky.lampK * R.lampPower;
       if (lp && ld && lk > 0.001) { G.set([lp[0] - o[0], lp[1] - o[1], lp[2] - o[2], lk], GOFF.lamp); G.set([ld[0], ld[1], ld[2], 0], GOFF.lampDir); } else { G.set([0, 0, 0, 0], GOFF.lamp); G.set([0, -1, 0, 0], GOFF.lampDir); } }
     const cwd = R.cloudWind; G.set([(time * cwd[0]) % 1024, (time * cwd[1]) % 1024, R.cloudShade, R.cloudCover], GOFF.cloudP);
+    if (typeof Weather !== 'undefined') Weather.globals(G);            // heavy snow: the sun under cloud, the overcast's flat light, the eye opening for it, a flash
     // shadow frustum: orthographic box along the sun, centred ahead of the camera, snapped to texels
     const fh = v3.norm([c.fwd[0], 0, c.fwd[2]]), ctr = v3.add(e, v3.mul(fh, R.shadowRange * 0.62));
     const lz = sun, lx = v3.norm(v3.cross([0, 1, 0], lz)), ly = v3.cross(lz, lx), rng = R.shadowRange, tex = 2 * rng / R.shadowRes;
@@ -99,7 +100,7 @@ const Render = (() => {
   // offscreen: own render passes that may sample scene depth. fx: drawn over the finished scene (no depth attachment, depth is sampled).
   R.passes = { shadow: [], pre: [], opaque: [], transparent: [], offscreen: [], fx: [] };
   R.sprayRange = 16; R.sprayRes = 512;
-  R.cloudWind = [5.5, 2.5]; R.cloudShade = 0.86; R.cloudCover = 0.60; R.exposureBias = 1; R.lampPower = 37;
+  R.cloudWind = [-5.5, -2.5]; R.cloudShade = 0.86; R.cloudCover = 0.60; R.exposureBias = 1; R.lampPower = 37;   // (the shadows are read at the point plus cloudWind * time, so it points upwind: they drift with the wind and the cumulus, toward +x)
   R.onResize = [];
   R.render = function () {
     gfx.beginFrame();
