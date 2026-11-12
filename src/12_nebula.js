@@ -8,7 +8,7 @@
 // tp = how far the nebula's teal threads are pulled toward a grey violet, ns = the nebula's saturation, cs = the city's lights' saturation
 // (night only), bd = the share of searchlights still burning (half of them go), bk = the rest's strength. Eased, so a switch never snaps.
 const NSKY = (() => {
-  const T = { a: [0, 1, 1, 1, 1], b: [0.45, 0.85, 0.62, 0, 1], c: [0.80, 0.70, 0.42, 0, 0.7] };
+  const T = { a: [0, 1, 1, 1, 1], b: [0.62, 0.85, 0.62, 0, 1], c: [0.80, 0.70, 0.42, 0, 0.7] };
   const VN = typeof Variants !== 'undefined' ? Variants : { val: {}, def() { } };
   VN.def('nsky', '夜空颜色', [['a', '原来'], ['b', '收'], ['c', '更收']], 'b');
   const K = { v: (T[VN.val.nsky] || T.b).slice(), t: null };
