@@ -990,12 +990,15 @@ const Game = (() => {
       G.runT += dt; acc += dt;
       // (in slow motion the step shrinks with the clock: as many steps to a frame as at full speed, so the skier moves on every frame. With the
       // step held at 1/120 s of game time, at a third of the speed a frame got one step or none by turns and the flight juddered)
-      const Hs = H * clamp(G.timeScale || 1, 0.15, 1); G.hs = Hs;
-      while (acc >= Hs - 1e-9 && n < 10) { step(Hs, Input.u); acc -= Hs; n++; G.stepT = G.t - acc; if (G.onStep) G.onStep(S, Hs); }
+      // (and each frame's time is cut into equal steps of at most 1/120 s and spent whole: nothing carried over to the next frame. With a
+      // remainder carried, a frame got one step, the next three, as the clock eased: the owner still saw the flight stutter)
+      const ns = Math.min(Math.max(Math.ceil(acc / H - 1e-6), 1), 10), Hs = acc / ns; G.hs = Hs;
+      if (acc > 1e-7) for (let k = 0; k < ns; k++) { step(Hs, Input.u); acc -= Hs; n++; G.stepT = G.t - Math.max(acc, 0); if (G.onStep) G.onStep(S, Hs); }
+      acc = 0;
       if (n === 10) acc = 0;
       G.dist = -S.p[2]; G.drop = G.y0 - S.p[1]; if (S.speed > G.topSpeed) G.topSpeed = S.speed;
     }
-    updateFlight(dt, n); updatePose(dt); updateCamera(dt);
+    G.nSteps = n; updateFlight(dt, n); updatePose(dt); updateCamera(dt);
   };
   G.step = step;
   return G;

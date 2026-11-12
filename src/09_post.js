@@ -193,7 +193,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   P.motionBlur = function (sceneTex, depthTex, dt) {
     const sg = typeof Skier !== 'undefined' && Skier.world && Skier.world.seg, K = [];
     for (let i = 0; i < 4; i++) { const q = sg && sg[i]; if (q) { K.push([q[0][0], q[0][1], q[0][2], i < 2 ? 0.13 : 0.06], [q[1][0], q[1][1], q[1][2], 0]); } else K.push([0, 0, 0, 0], [0, 0, 0, 0]); }
-    gfx.draw(pMB, { u: { p: [P.shutter / Math.max(dt, 1 / 240), P.blurMax, P.blurFar, 0], d0: P.riders[0], d1: P.riders[1], rd: [P.radC[0], P.radC[1], P.radial, P.radIn], k0: K[0], k1: K[1], k2: K[2], k3: K[3], k4: K[4], k5: K[5], k6: K[6], k7: K[7] }, tex: { tA: sceneTex, tDepth: depthTex }, count: 3 });
+    gfx.draw(pMB, { u: { p: [P.shutter / Math.max(dt, 1e-4), P.blurMax, P.blurFar, 0], d0: P.riders[0], d1: P.riders[1], rd: [P.radC[0], P.radC[1], P.radial, P.radIn], k0: K[0], k1: K[1], k2: K[2], k3: K[3], k4: K[4], k5: K[5], k6: K[6], k7: K[7] }, tex: { tA: sceneTex, tDepth: depthTex }, count: 3 });
   };
   P.run = function (sceneTex, depthTex) {
     const m = P.mips;
