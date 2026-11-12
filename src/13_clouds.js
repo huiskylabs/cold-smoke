@@ -26,7 +26,7 @@ const Clouds = (() => {
   VCU.def('cu', '小云', [['a', '现在的'], ['b', '碎云'], ['c', '去掉小云']], 'c');
   const small = c => smooth(0.27, 0.16, c.w);
   let lastU = -1;
-  let gfx, volTex, volT, pipeVol, pipeBake, pipeDraw, pipeSea, order;
+  let gfx, volTex, volT, pipeVol, pipeBake, pipeDraw, pipeSea, pipeSun, sunT, order;
   // the three keys of each: iA the one fading out, iB the one fading in, iC the one being baked; p = how far both the fade and the bake have got
   const cu = { tex: [], tgt: [] }, se = { tex: [], tgt: [], w: 0, h: 0 };
   let iA = 0, iB = 0, iC = 1, p = 0, lastT = -1e9, volDone = false, jobC = null;
@@ -50,7 +50,12 @@ const Clouds = (() => {
       textures: { tVol: '2d' }, colorFormat: 'rgba16f', depth: false, depthTest: false, cull: 'none', vs: CLOUD_RECT_VS, fs: SEA_BAKE_FS });
     pipeDraw = gfx.pipeline({ name: 'cloudDraw', lib: [SL.common, SL.fog], topology: 'strip', buffers: [], varyings: { uv: 'vec2f', dir: 'vec3f' }, uniforms: v4('a t k f s'),
       textures: { tCloudA: '2d', tCloudB: '2d', tSky: '2d' }, depthFunc: 'lequal', depthWrite: false, cull: 'none', blend: 'premul', vs: CLOUD_DRAW_VS, fs: CLOUD_DRAW_FS });
-    C.pipes = [pipeVol, pipeBake, pipeSea, pipeDraw];
+    // how much of the sun's disc the cumulus let through (1 = all): one texel, read by the lens (09_post.js sunVis) so that a cloud in front of
+    // the sun hides its starburst, glare and ghosts the way it hides the disc
+    C.sunTex = gfx.texture({ w: 1, h: 1, format: 'rgba8', filter: 'linear', wrap: 'clamp' }); sunT = gfx.target({ color: C.sunTex });
+    pipeSun = gfx.pipeline({ name: 'cloudSun', lib: [SL.common], buffers: [], varyings: { uv: 'vec2f' }, uniforms: v4('a t f s'), textures: { tCloudA: '2d', tCloudB: '2d' },
+      colorFormat: 'rgba8', depth: false, depthTest: false, cull: 'none', blend: 'mul', vs: VS_FULLSCREEN, fs: CLOUD_SUN_FS });
+    C.pipes = [pipeVol, pipeBake, pipeSea, pipeDraw, pipeSun];
     for (const c of C.list) {
       const tw = Math.tan(c.w / 2), ce = Math.cos(c.el), sn = Math.sin(c.el), e = 0.93 * c.asp;
       c.tw = tw; c.D = 1 / tw;
@@ -136,6 +141,16 @@ const Clouds = (() => {
     // (while there is only one key, just after a bake of everything, it is shown drifting up to its place)
     C.oA = iA === iB ? p - 1 : p; C.oB = p - 1;
     C.sea.A = se.tex[iA]; C.sea.B = se.tex[iB]; C.sea.f = p; C.sea.oA = C.oA; C.sea.oB = C.oB; C.atlas = cu.tex[iB];
+    // the sun seen through them: each cloud whose tile the sun is in multiplies its transmittance into the one texel
+    const Ls = Sky.sunDir(), wx = typeof Weather !== 'undefined' ? 1 - Weather.kc : 1;
+    gfx.beginPass(sunT, { color: [1, 1, 1, 1] });
+    if (C.enabled && wx > 0.003) for (const i of order) {
+      const c = C.list[i], az = azAt(c, t), fade = smooth(1.45, 1.2, Math.abs(az)) * wx * (c.keep === undefined ? 1 : c.keep), q = rect(i), ru = C.rise * C.K / (2 * c.asp);
+      if (fade < 0.002 || Math.abs(az - Math.atan2(Ls[0], -Ls[2])) > c.w + 0.05 && Math.abs(az - Math.atan2(Ls[0], -Ls[2])) < 6.2 - c.w) continue;
+      gfx.draw(pipeSun, { u: { a: [az, c.el, c.tw, c.asp], t: [q[0], q[1], q[2] - q[0], q[3] - q[1]], f: [fade, p, ru * C.oA, ru * C.oB], s: [Ls[0], Ls[1], Ls[2], 0] },
+        tex: { tCloudA: cu.tex[iA], tCloudB: cu.tex[iB] }, count: 3 });
+    }
+    gfx.endPass();
   };
   // (for timing: all of a key of the cumulus ('cu'), of the deck ('sea'), or of both, now)
   C.bakeNow = function (which) { const jb = job(Render.time); if (which !== 'sea') bakeCu(cu.tgt[iC], jb, 0, 1, true); if (which !== 'cu') bakeSea(se.tgt[iC], jb, 0, 1, true); p = 0; };
@@ -320,7 +335,8 @@ fn frag(v: VOut) -> FOut { var o: FOut;
       }
       let tau: f32 = tl * sg;
       // ...and how much hangs overhead, between here and the open sky
-      let tu: f32 = cuDensLo(p + vec3f(0.0, 0.10, 0.0)) * 0.25 * sg;
+      // (two looks up: just over this spot, and further: a crease between two towers and the core under a turret see little of the sky)
+      let tu: f32 = (cuDensLo(p + vec3f(0.0, 0.08, 0.0)) * 0.16 + cuDensLo(p + vec3f(0.0, 0.26, 0.0)) * 0.30) * sg;
       // light that has been scattered many times needs cloud all round to be scattered in: a thin shred has next to none of it, and seen
       // with the sun behind you it is greyer than the heart of the cloud (seen against the sun it blazes: the first term below)
       let pw: f32 = (1.0 - 0.7 * dn.y) * (0.45 + 0.55 * saturate(dn.x * 2.0));
@@ -330,19 +346,48 @@ fn frag(v: VOut) -> FOut { var o: FOut;
       let hN: f32 = saturate((p.y - yb) / (yt - yb));
       // (the far rim of the base, seen from below, is no silver lining: the gleam is kept to the flanks and the top; and thin air between
       // the bulges is greyer than the bulges)
-      let lsun: f32 = M.l.w * mix(0.3, 1.0, smoothstep(0.0, 0.25, hN)) * PI * (ph0 * exp(-tau) + 0.5 * ph1 * exp(-0.5 * tau) + 0.25 * ph2 * exp(-0.25 * tau))
-        + M.k.z * pw / (1.0 + 0.22 * tau + 0.008 * tau * tau);
+      // Powder: right at a sunlit skin little light has yet been scattered sideways into the eye, so with the sun beside or behind you the
+      // outermost skin of each bulge is a touch darker than just inside it: every bulge stands out against the one behind it. Seen against
+      // the sun it is the other way round (the silver lining), so it fades out there
+      let pdr: f32 = 1.0 - 0.5 * exp(-4.0 * tau) * saturate(0.6 - 0.8 * c);
+      let lsun: f32 = M.l.w * mix(0.3, 1.0, smoothstep(0.0, 0.25, hN)) * PI * (ph0 * exp(-tau) * pdr + 0.6 * ph1 * exp(-0.6 * tau) + 0.3 * ph2 * exp(-0.3 * tau))
+        + M.k.z * pw / (1.0 + 0.40 * tau + 0.025 * tau * tau);
       // the sky fills in from above and the snowfields and the deck from below (the base stays the darkest part of a big one); a shred is open to all of it (it is never darker than
       // the sky behind it), the body only where it faces them
-      let asky: f32 = exp(-0.55 * tu) * mix(1.0, 0.55 + 0.45 * hN, pw);
+      let asky: f32 = exp(-0.45 * tu) * mix(1.0, 0.45 + 0.55 * hN, pw);
       let agnd: f32 = mix(1.3, 0.55 * exp(-3.0 * hN) + 0.15, pw);
       let dT: f32 = exp(-dn.x * sg * ds);
       S += (T * (1.0 - dT)) * vec3f(lsun, asky, agnd);
       T *= dT;
-      if (T < 0.03) { break; }
+      // (what little would still get through is taken as stopped here: else the sun's disc behind the thick of a cloud shines through it)
+      if (T < 0.03) { S += T * vec3f(lsun, asky, agnd); T = 0.0; break; }
     }
   }
   o.color = vec4f(S, 1.0 - T); return o; }
+`;
+// the sun's disc through one cumulus: its direction put into the cloud's tile (as CLOUD_DRAW_VS lays the tile out), five taps over the disc
+const CLOUD_SUN_FS = `
+fn frag(v: VOut) -> FOut { var o: FOut;
+  let ce: f32 = cos(M.a.y); let f: vec3f = vec3f(sin(M.a.x) * ce, sin(M.a.y), -cos(M.a.x) * ce);
+  let r: vec3f = normalize(cross(f, vec3f(0.0, 1.0, 0.0))); let u: vec3f = cross(r, f);
+  var a: f32 = 0.0;
+  for (var i: i32 = 0; i < 5; i++) {
+    let an: f32 = f32(i) * 1.2566; let rr: f32 = select(0.0045, 0.0, i == 0);
+    let s: vec3f = normalize(M.s.xyz + (r * cos(an) + u * sin(an)) * rr);
+    let k: f32 = dot(s, f);
+    if (k > 0.05) {
+      let x: f32 = dot(s, r) / (k * M.a.z); let y: f32 = dot(s, u) / (k * M.a.z * M.a.w);
+      let uv: vec2f = vec2f(x * 0.5 + 0.5, 0.5 - y * 0.5);
+      if (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) {
+        let ua: vec2f = M.t.xy + clamp(vec2f(uv.x, uv.y + M.f.z), vec2f(0.004), vec2f(0.996)) * M.t.zw;
+        let ub: vec2f = M.t.xy + clamp(vec2f(uv.x, uv.y + M.f.w), vec2f(0.004), vec2f(0.996)) * M.t.zw;
+        let e: vec2f = min(uv, 1.0 - uv);
+        a += mix(texLod(tCloudA, ua, 0.0).a, texLod(tCloudB, ub, 0.0).a, M.f.y) * smoothstep(0.0, 0.03, min(e.x, e.y));
+      }
+    }
+  }
+  let T: f32 = 1.0 - saturate(a / 5.0 * M.f.x);
+  o.color = vec4f(T, T, T, 1.0); return o; }
 `;
 const CLOUD_DRAW_VS = `
 fn vert(a: VIn) -> VOut { var v: VOut;
