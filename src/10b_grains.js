@@ -133,10 +133,11 @@ fn vert(a: VIn) -> VOut {
   let vis: f32 = shadowFast(pos, 0.002) * (0.58 * exp(-0.85 * ts) + 0.42 * exp(-0.16 * ts));
   // a smeared or blurred lump covers less of each pixel it is spread over
   let cov: f32 = min(1.0, (rp * rp + 0.3 * sc * sc) / (R * R)) / (1.0 + 0.9 * hl / R);
-  let fade: f32 = smoothstep(0.0, 0.025, t) * smoothstep(0.45, 1.2, zv) * M.kp.z;
+  // (one within a stride or two of the lens is a blur crossing the picture in a frame: left in, a near one is a flat chip as big as a hand)
+  let fade: f32 = smoothstep(0.0, 0.025, t) * smoothstep(0.9, 2.4, zv) * M.kp.z;
   v.k0 = vec4f(hl, R, rp, zv);
   v.k1 = vec4f(ax, a.a1.w * 6.2832 + t * a.a3.z, cov * fade * Tv);
-  v.k2 = vec4f(vis, a.a1.w, dot(normalize(rel), U.sunDir.xyz), 0.0);
+  v.k2 = vec4f(vis, a.a1.w, dot(normalize(rel), U.sunDir.xyz), size);
   var ll: vec3f = vec3f(0.0); var Ld: vec3f = vec3f(0.0, 1.0, 0.0);
   if (U.lamp.w > 0.0) { ll = lampLight(pos); Ld = normalize(U.lamp.xyz - pos); }
   v.k3 = vec4f(ll, 0.0); v.k4 = vec4f(Ld, 0.0);
@@ -181,6 +182,12 @@ fn frag(v: VOut) -> FOut {
   // a little from inside (with the sun behind it, a pure diffuse ball read as a grey pebble lying on the bright snow)
   let mu: f32 = v.k2.z;
   col += U.sunCol.rgb * (v.k2.x * (0.18 + 0.55 * saturate(mu) * pow(1.0 - nz, 2.0) + 0.25 * hg(mu, 0.5) * 12.566 * 0.12));
+  // (and a crumb a centimetre across is thin enough that the sun comes through it whole: against the sun the small ones glow, they are not
+  // grey chips. The bigger the lump, the more of it is its own shade)
+  let thin: f32 = 1.0 - 0.7 * smoothstep(0.012, 0.07, v.k2.w);
+  col += U.sunCol.rgb * (v.k2.x * thin * 2.6 * pow(saturate(mu), 2.0));
+  // (no two alike: some catch more of the light than others)
+  col *= 0.7 + 0.6 * fract(v.k2.y * 23.7);
   // (by night a clump is as faint as the veil it flies in unless the lamp has it: a dark fleck on the moonlit snow reads as dirt)
   al *= v.k1.w * mix(1.0, saturate(0.25 + luma(v.k3.rgb) * 8.0), M.kp.w);
   o.color = vec4f(col * al, al);
@@ -188,7 +195,7 @@ fn frag(v: VOut) -> FOut {
 }`;
 
 const Grains = (() => {
-  const G = { NC: 49152, CF: 12, NK: 4096, KF: 16, enabled: true,
+  const G = { NC: 49152, CF: 12, NK: 8192, KF: 16, enabled: true,
     // the crystals' light: how many of them flash in a slice of time (toward the sun), how bright a flash is, how bright the forward glow between
     flashP: 0.16, flashK: 70, glowK: 0.05, lampK: 9, shutK: 0.5, clumpShut: 1.5,
     // (occK: how much of the cloud's optical depth in front of a crystal hides it; rmin: the smallest drawn radius, px at 1170 lines)
@@ -292,15 +299,16 @@ const Grains = (() => {
   }
   const q0 = [0, 0, 0], q1 = [0, 0, 0];
   // when it comes down: march its arc against the snow, then close in on the crossing
-  function impactT(p, v, vT, tau) {
-    let ta = 0, tb = 0;
-    for (let t = 0.03; t < 3.5; t += 0.03) {
+  // (dt: the march step. A granule, gone without a mark where it lands, takes a coarser one: there are thousands of them a second)
+  function impactT(p, v, vT, tau, dt, nb) {
+    let ta = 0, tb = 0; dt = dt || 0.03;
+    for (let t = dt; t < 3.5; t += dt) {
       kpos(q0, p, v, vT, tau, t);
       if (q0[1] <= Course.height(q0[0], q0[2], 0.5)) { tb = t; break; }
       ta = t;
     }
     if (!tb) return 3.5;
-    for (let k = 0; k < 6; k++) { const tm = 0.5 * (ta + tb); kpos(q1, p, v, vT, tau, tm); if (q1[1] <= Course.height(q1[0], q1[2], 0.5)) tb = tm; else ta = tm; }
+    for (let k = 0; k < (nb || 6); k++) { const tm = 0.5 * (ta + tb); kpos(q1, p, v, vT, tau, tm); if (q1[1] <= Course.height(q1[0], q1[2], 0.5)) tb = tm; else ta = tm; }
     return tb;
   }
   function wind() { const w = App.state && App.state.wind; return w ? [w[0], w[2]] : [1.2, 0.4]; }
@@ -309,7 +317,7 @@ const Grains = (() => {
   function clump(t0, p, v, size, o) {
     sync();
     const vt = 7 + 5 * Math.sqrt(Math.min(size / 0.08, 1)) * (0.8 + 0.4 * rnd()), tau = vt / GR, w = wind(), wk = 0.12;
-    const vT = [w[0] * wk, -vt, w[1] * wk], T = impactT(p, v, vT, tau);
+    const vT = [w[0] * wk, -vt, w[1] * wk], T = o.nodep ? impactT(p, v, vT, tau, 0.08, 4) : impactT(p, v, vT, tau);
     const i = kh * G.KF, c = kCPU;
     c[i] = p[0] - org[0]; c[i + 1] = p[1] - org[1]; c[i + 2] = p[2] - org[2]; c[i + 3] = t0;
     c[i + 4] = v[0]; c[i + 5] = v[1]; c[i + 6] = v[2]; c[i + 7] = rnd();
@@ -389,12 +397,13 @@ const Grains = (() => {
       // the granules: the sugar the edge scrapes off the surface, a few millimetres to a centimetre and a half, thrown in a sheet that
       // leads the cloud and outlines it. Most of what a camera close to a fast turn sees as 'particles' is these (the owner: the spray at
       // speed was all fog, no grain). Small solid specks, lit and shaded, smeared over the shutter; they fall back without a mark
-      accG += Math.pow(rate, 1.1) * 900 * (0.6 + 0.6 * pw) * smooth(2, 8, sp) * gritN() * dt;
+      // (on packed snow nearly all of what the edge throws is this sugar: the spray's own puffs leave it to these)
+      accG += Math.pow(rate, 1.1) * 1800 * (0.6 + 0.6 * pw + 0.6 * (1 - smooth(0.25, 0.9, pw))) * smooth(2, 8, sp) * gritN() * dt;
       if (accG >= 1) {
-        const n = Math.min(Math.floor(accG), 160); accG -= Math.floor(accG);
+        const n = Math.min(Math.floor(accG), 320); accG -= Math.floor(accG);
         for (let j = 0; j < n; j++) {
           const al = lerp(-0.8, 0.5, rnd()), g = 0.7 + 0.7 * Math.pow(rnd(), 0.8), el = (rnd() - 0.25) * (e.spread || 0.5);
-          const sz = 0.006 + 0.018 * rnd() * rnd();
+          const sz = 0.004 + 0.018 * Math.pow(rnd(), 3);
           clump(e.t - rnd() / 120, [e.p[0] + f[0] * al, e.p[1] + 0.03, e.p[2] + f[1] * al],
             [v[0] * g + (rnd() - 0.5) * 1.6, v[1] * g + el * sp * 0.7 + 0.6 * rnd(), v[2] * g + (rnd() - 0.5) * 1.6], sz, { trail: false, burst: 0, split: false, nodep: true, powder: pw });
         }
