@@ -291,8 +291,24 @@ const UI = (() => {
     high: '<path d="M15 2v6M12 5l3 3 3-3"/><circle cx="15" cy="15" r="2.4"/><path d="M8 20h14"/>', left: '<path d="M3 11h6M6 8l3 3-3 3"/><circle cx="19" cy="7" r="2.2"/><path d="M19 9v7M15 19h8"/>',
     right: '<path d="M27 11h-6M24 8l-3 3 3 3"/><circle cx="11" cy="7" r="2.2"/><path d="M11 9v7M7 19h8"/>', front: '<circle cx="15" cy="7" r="2.6"/><path d="M15 10v6M10 12l5-2 5 2M11 19h8"/>',
     far: '<circle cx="15" cy="11" r="7"/><path d="M15 2v4M15 16v4M6 11h4M20 11h4"/>' };
+  // and for each hour (where the sun stands over the horizon) and each weather (how much snow is in the air)
+  const AUTO_ICON = '<path d="M23 8.5A8.5 8.5 0 1 0 24.5 14"/><path d="M23.5 3.5V9H18"/>';
+  const TIME_ICON = {
+    auto: AUTO_ICON + '<circle cx="15" cy="12" r="2.2"/>',
+    day: '<path d="M3 20h24"/><circle cx="15" cy="9" r="3.4"/><path d="M15 2.5v1.6M15 14v1.6M8.5 9h1.6M19.9 9h1.6M10.4 4.4l1.1 1.1M18.5 12.5l1.1 1.1M10.4 13.6l1.1-1.1M18.5 5.5l1.1-1.1"/>',
+    golden: '<path d="M3 20h24"/><circle cx="15" cy="14" r="3.4"/><path d="M8 14h1.6M20.4 14h1.6M10.4 9.4l1.1 1.1M18.5 10.5l1.1-1.1M15 7.5v1.6"/>',
+    sunset: '<path d="M3 20h24"/><path d="M9.5 20a5.5 5.5 0 0 1 11 0"/><path d="M15 10.5v2M8.2 13.2l1.4 1.4M21.8 13.2l-1.4 1.4"/>',
+    dusk: '<path d="M3 16h24"/><path d="M7 20h16" stroke-dasharray="1.5 2.5"/><path d="M21.5 5.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6z"/>',
+    night: '<path d="M17.5 3.8a8 8 0 1 0 6.6 12.4A6.6 6.6 0 0 1 17.5 3.8z"/><path d="M6.5 5.5l.5 1.1 1.1.5-1.1.5-.5 1.1-.5-1.1-1.1-.5 1.1-.5z"/>',
+    dawn: '<path d="M3 20h24"/><path d="M10 20a5 5 0 0 1 10 0"/><path d="M15 6v6M12.5 8.5L15 6l2.5 2.5"/>' };
+  const WX_ICON = {
+    auto: AUTO_ICON + '<path d="M15 9v6M12.4 10.5l5.2 3M12.4 13.5l5.2-3"/>',
+    light: '<path d="M9 7v5M6.8 8.2l4.4 2.6M6.8 10.8l4.4-2.6M21 10v5M18.8 11.2l4.4 2.6M18.8 13.8l4.4-2.6M15 16v4M13.3 17l3.4 2M13.3 19l3.4-2"/>',
+    heavy: '<path d="M3 6h9M5 10h6"/><path d="M17 3.5v4M15.3 4.5l3.4 2M15.3 6.5l3.4-2M24 8v4M22.3 9l3.4 2M22.3 11l3.4-2M12 13v4M10.3 14l3.4 2M10.3 16l3.4-2M20 16v4M18.3 17l3.4 2M18.3 19l3.4-2M6 17v3M4.7 17.8l2.6 1.4M4.7 19.2l2.6-1.4"/>' };
+  // a tile: the drawing over its name (the name is the last child, so it can be written again in another language)
+  const iconBtn = (key, val, icon, label) => { const b = mkBtn('', key, val); b.innerHTML = '<svg viewBox="0 0 30 22" aria-hidden="true">' + icon + '</svg>'; const t = document.createElement('span'); t.textContent = label; b.appendChild(t); return b; };
   function initSwitch() {
-    el.time.appendChild(mkBtn(T('自动'), 'time', 'auto')); for (const [id, name] of TIMES) el.time.appendChild(mkBtn(T(name), 'time', id));
+    el.time.appendChild(iconBtn('time', 'auto', TIME_ICON.auto, T('自动'))); for (const [id, name] of TIMES) el.time.appendChild(iconBtn('time', id, TIME_ICON[id] || TIME_ICON.day, T(name)));
     for (const k of Object.keys(SEG_TYPES)) el.kinds.appendChild(mkBtn(T(SEG_NAMES[k] || k), 'seg', k));
     el.mn.addEventListener('click', e => { e.stopPropagation(); U.menu(); if (e.detail) el.mn.blur(); });
     el.more.addEventListener('click', e => { e.stopPropagation(); const b = e.target.closest('button'); if (b) U.menu(b.dataset.sec); });
@@ -403,7 +419,7 @@ const UI = (() => {
   }
   // the language changed (the menu's own switch): the page's fixed words are I18N's; everything written from here is written again
   function relang() {
-    for (const b of el.time.children) b.textContent = T(b.dataset.time === 'auto' ? '自动' : (TIMES.find(q => q[0] === b.dataset.time) || [, b.dataset.time])[1]);
+    for (const b of el.time.children) b.lastChild.textContent = T(b.dataset.time === 'auto' ? '自动' : (TIMES.find(q => q[0] === b.dataset.time) || [, b.dataset.time])[1]);
     for (const b of el.kinds.children) b.textContent = T(SEG_NAMES[b.dataset.seg] || b.dataset.seg);
     evSig = vwSig = vSig = wxSig = null;
     U.layout();
@@ -472,7 +488,7 @@ const UI = (() => {
     for (const b of el.vrows.querySelectorAll('button')) { const on = !!V && V.val[b.dataset.vn] === b.dataset.vid; b.classList.toggle('on', on); if (on && !b.classList.contains('rec')) all = false; }
     el.vreset.classList.toggle('idle', all);
     const W = wxMod(), ls = W ? W.levels : [], ws = ls.map(l => l[0] + ':' + l[1]).join();
-    if (ws !== wxSig) { wxSig = ws; el.wxc.textContent = ''; if (W && W.setAuto) el.wxc.appendChild(mkBtn(T('自动'), 'wx', 'auto')); for (const [id, name] of ls) el.wxc.appendChild(mkBtn(T(name), 'wx', id)); el.wx.hidden = !W; }
+    if (ws !== wxSig) { wxSig = ws; el.wxc.textContent = ''; if (W && W.setAuto) el.wxc.appendChild(iconBtn('wx', 'auto', WX_ICON.auto, T('自动'))); for (const [id, name] of ls) el.wxc.appendChild(iconBtn('wx', id, WX_ICON[id] || WX_ICON.light, T(name))); el.wx.hidden = !W; }
     if (W) for (const b of el.wxc.children) b.classList.toggle('on', W.auto ? b.dataset.wx === 'auto' : b.dataset.wx === W.level);
   }
 
