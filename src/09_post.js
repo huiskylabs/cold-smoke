@@ -53,7 +53,7 @@ fn frag(v: VOut) -> FOut { var o: FOut; let t: vec2f = M.p.xy; let uv: vec2f = v
     // how much of the sun's disc reaches the lens (terrain, trees, the skier and the spray can all cover it): drives every lens effect.
     // One pixel, eased over a few frames so flares swell and die instead of popping.
     visTex = gfx.texture({ w: 1, h: 1, format: 'rgba16f', filter: 'nearest' }); visT = gfx.target({ color: visTex });
-    pVis = gfx.pipeline({ name: 'sunVis', lib: [SL.common], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f' }, textures: { tDepth: 'depth', tOcc: '2d' }, depth: false, depthTest: false, cull: 'none', blend: 'alpha', vs: VS_FULLSCREEN, fs: `
+    pVis = gfx.pipeline({ name: 'sunVis', lib: [SL.common], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f' }, textures: { tDepth: 'depth', tOcc: '2d', tCl: '2d' }, depth: false, depthTest: false, cull: 'none', blend: 'alpha', vs: VS_FULLSCREEN, fs: `
 fn frag(v: VOut) -> FOut { var o: FOut;
   let c: vec2f = U.sunScr.xy; var s: f32 = 0.0;
   for (var i: i32 = 0; i < 16; i++) {
@@ -66,6 +66,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   let e: f32 = min(min(c.x, 1.0 - c.x), min(c.y, 1.0 - c.y));
   vis *= smoothstep(-0.22, 0.03, e);                      // a sun just outside the frame still flares a little
   vis *= exp(-texLod(tOcc, clamp(c, vec2f(0.0), vec2f(1.0)), 0.0).x * 0.9);
+  vis *= texLod(tCl, vec2f(0.5), 0.0).x;                  // a cumulus in front of the sun (13_clouds.js Clouds.sunTex)
   // the same question asked of the sky all round the disc: how much stands in front of the glare (this is what makes beams)
   var w: f32 = 0.0;
   for (var i: i32 = 0; i < 24; i++) {
@@ -187,7 +188,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   P.run = function (sceneTex, depthTex) {
     const m = P.mips;
     gfx.beginPass(visT, visInit ? {} : { color: [0, 0, 0, 1] });
-    gfx.draw(pVis, { u: { p: [visInit ? 0.3 : 1, 0, 0, 0] }, tex: { tDepth: depthTex, tOcc: P.occTex || Tex.black }, count: 3 }); gfx.endPass(); visInit = true;
+    gfx.draw(pVis, { u: { p: [visInit ? 0.3 : 1, 0, 0, 0] }, tex: { tDepth: depthTex, tOcc: P.occTex || Tex.black, tCl: Clouds.sunTex }, count: 3 }); gfx.endPass(); visInit = true;
     gfx.beginPass(rayAT, { color: [0, 0, 0, 1] }); gfx.draw(pMask, { u: { p: [0, 0, 0, 0] }, tex: { tDepth: depthTex, tOcc: P.occTex || Tex.black }, count: 3 }); gfx.endPass();
     gfx.beginPass(rayBT, { color: [0, 0, 0, 1] }); gfx.draw(pRad, { u: { p: [1, P.rayCore, 1, 0] }, tex: { tA: rayA }, count: 3 }); gfx.endPass();
     gfx.beginPass(rayAT, { color: [0, 0, 0, 1] }); gfx.draw(pRad, { u: { p: [1 / 12, P.rayCore, 0, 0] }, tex: { tA: rayB }, count: 3 }); gfx.endPass();
