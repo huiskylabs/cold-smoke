@@ -491,10 +491,10 @@ fn frag(v: VOut) -> FOut {
     if (zone < 0.5) {
       // the shell: the figure's jacket (orange, navy forearms, the pale band round the upper arm)
       let fore: f32 = smoothstep(${n(L1 + 0.035)}, ${n(L1 + 0.065)}, s) * (1.0 - M.ski.w);      // (the new body, Variants 'body' b: orange to the cuff, the navy storm cuff over the glove is all that is left of it)
-      alb = mix(ORANGE, NAVY, fore); alb = mix(alb, PALE, smoothstep(0.016, 0.011, abs(s - 0.150)) * (1.0 - fore));
+      alb = mix(ORANGE * (1.0 - 0.2 * M.ski.w), NAVY, fore); alb = mix(alb, PALE, smoothstep(0.016, 0.011, abs(s - 0.150)) * (1.0 - fore));
       // ripstop: a heavier thread every few millimetres, both ways
-      let g: vec2f = abs(fract(vec2f(s, th * r) / 0.0042) - 0.5); let rip: f32 = smoothstep(0.38, 0.47, max(g.x, g.y)) * fine;
-      alb *= 1.0 - 0.14 * rip; hgt += 0.00012 * rip;
+      let g: vec2f = abs(fract(vec2f(s, th * r) / 0.0042) - 0.5); let rip: f32 = smoothstep(0.38, 0.47, max(g.x, g.y)) * fine * mix(1.0, smoothstep(0.0014, 0.0007, px), M.ski.w);
+      alb *= 1.0 - mix(0.14, 0.04, M.ski.w) * rip; hgt += mix(0.00012, 0.00005, M.ski.w) * rip;     // (new body: a faint grid, gone before it is under three pixels)
       // the seam along the top of the arm, piped in the band's pale cloth so that it catches the light, a row of stitches either side
       let sa: f32 = abs(fract((th - 1.25) / 6.28319 + 0.5) - 0.5) * 6.28319 * r; let along: f32 = smoothstep(0.02, 0.05, s) * smoothstep(${n(SL_HEM - 0.004)}, ${n(SL_HEM - 0.012)}, s);
       let pipg: f32 = smoothstep(0.0020 + px, 0.0020 - px, sa) * along;
@@ -647,6 +647,10 @@ fn frag(v: VOut) -> FOut {
   // ---- light: the figure's own (sun through the shadow map, sky and snow light, sheen and rim of cloth, a gloss that sees the sky), then the lamp
   let ndl: f32 = dot(N, L); let ndv: f32 = saturate(dot(N, V));
   let sh: f32 = shadowAt(v.wp + N * 0.035, 0.0016);
+  // (new body: by moonlight the eye sees little colour and the sleeves are no lamp of their own: what the moon and the sky light is seen greyer and
+  // darker, as on the figure seen from outside; the headlamp, below, keeps the colour where its cone falls)
+  let nkF: f32 = (1.0 - M.ski.z) * M.ski.w; let albL: vec3f = alb;
+  alb = mix(alb, vec3f(dot(alb, vec3f(0.30, 0.55, 0.15))), 0.45 * nkF) * (1.0 - 0.35 * nkF);
   let wrapD: f32 = saturate((ndl + 0.25 * cloth) / (1.0 + 0.25 * cloth));
   let amb: vec3f = U.ambSky.rgb * (0.5 + 0.5 * N.y) + U.ambGnd.rgb * (0.5 - 0.5 * N.y) * 1.25 + twiLight(N);
   var col: vec3f = alb * (U.sunCol.rgb * wrapD * sh + amb * ao);
@@ -657,7 +661,7 @@ fn frag(v: VOut) -> FOut {
   // (fluorescent ink gives the sky's blue and what the eye cannot see back as its own colour: it is as bright as the snow it lies on, in the
   // shade brighter than any paint, which is why it is worn there. So it is lit the way the snow is, from all round: as long as there is
   // daylight to do it with. By night it is paint like any other)
-  col = mix(col, alb * (U.sunCol.rgb * ((0.25 + 0.75 * saturate((ndl + 0.55) / 1.55)) * (0.35 + 0.65 * sh) * 1.05) + amb * 1.35), flu * (1.0 - clump) * day);
+  col = mix(col, alb * (U.sunCol.rgb * ((0.25 + 0.75 * saturate((ndl + 0.55) / 1.55)) * (0.35 + 0.65 * sh) * 1.05) + amb * 1.35), flu * (1.0 - clump) * day * mix(1.0, 0.35, M.ski.w));     // (new body: only a little of it: the sleeves keep a lit side and a shaded side like everything else)
   // (a crust of snow is thin: with the sun behind it, the sun comes through)
   col += vec3f(0.90, 0.93, 0.98) * U.sunCol.rgb * (clump * 0.25 * saturate(0.55 - 0.45 * ndl) * (0.3 + 0.7 * sh));
   let fr: f32 = pow(1.0 - ndv, 3.0); let back: f32 = saturate(dot(-V, L) * 0.5 + 0.5);
@@ -687,7 +691,10 @@ fn frag(v: VOut) -> FOut {
     let dl: vec3f = v.wp - U.lamp.xyz; let r2l: f32 = dot(dl, dl); let Ld: vec3f = -dl / sqrt(max(r2l, 1e-4));
     let ll: vec3f = lampLight(v.wp) + vec3f(1.0, 0.85, 0.64) * (U.lamp.w * M.fx.y * smoothstep(-0.35, 0.45, dot(-Ld, U.lampDir.xyz)) * smoothstep(1.7, 0.6, r2l) / (r2l + 30.0));
     let nl2: f32 = saturate((dot(N, Ld) + 0.35) / 1.35);
-    col += ll * (alb * nl2 * (0.6 + 0.4 * ao) + (specS * 1.5 + 0.2 * sheen * fr) * pow(max(dot(N, normalize(V + Ld)), 0.0), specP) + cry * 8.0 * pow(saturate(dot(reflect(-V, Ng), Ld)), 50.0));
+    // (new body: the lamp is a cone: the hands and forearms out in front are in its edge, the arm falls off into the dark toward the elbow, and the
+    // upper arm beside the head is outside it altogether)
+    let coneA: f32 = mix(1.0, 0.5 * smoothstep(0.35, 0.85, dot(-Ld, U.lampDir.xyz)), M.ski.w);
+    col += ll * coneA * (albL * nl2 * (0.6 + 0.4 * ao) + (specS * 1.5 + 0.2 * sheen * fr) * pow(max(dot(N, normalize(V + Ld)), 0.0), specP) + cry * 8.0 * pow(saturate(dot(reflect(-V, Ng), Ld)), 50.0));
   }
   // (the upper arm close under the lens is in its own shade and half lost to the eye: darker and greyer, so it does not read as a flat orange card)
   let nearL: f32 = smoothstep(0.36, 0.14, length(U.camPos.xyz - v.wp));
