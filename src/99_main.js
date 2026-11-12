@@ -83,6 +83,7 @@ function tick(dt, draw) {
   // the day moves on while you ski (the title page stays in the afternoon)
   if (Game.mode === 'run' && Sky.rate !== 0) Sky.setClock(Sky.clock + dt * (Sky.rate || 1));
   Sky.updatePlane(App.t, dt, cp, Render.cam.fwd);
+  Feel.update(dt);                                                      // speed in the lens, snow on the glass, the air of this run (reads Game.events: keep above the loop that clears them)
   Render.computeGlobals(App.t, dt, st);
   for (const ev of Game.events) {
     Sound.event(ev);
