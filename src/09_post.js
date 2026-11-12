@@ -287,7 +287,9 @@ fn wetLens(nn: vec2f, r: f32, s: f32, sd: vec2f) -> Wet {
   var w: Wet = wetNone(); let l: f32 = length(nn);
   if (l >= 1.0) { return w; }
   w.m = smoothstep(1.0, 0.5, l) * s; w.d = nn * (-2.4 * r * w.m); w.f = nn * -0.42;
-  w.e = -dot(nn, sd) * l * smoothstep(1.0, 0.75, l) * s;
+  // (the meniscus: a thin bright line just inside the edge, brightest on the side away from the sun. Never a dark rim: on the night
+  // snow that read as a stain, a grey decal with an outline)
+  w.e = (0.35 + 0.65 * max(-dot(nn, sd), 0.0)) * smoothstep(0.55, 0.85, l) * smoothstep(1.0, 0.86, l) * s;
   let gp: vec2f = nn + sd * 0.45; w.gl = exp(-dot(gp, gp) * 24.0) * s;
   return w;
 }
@@ -299,11 +301,11 @@ fn wetBeads(p: vec2f, n: f32, seed: f32, dens: f32, life: vec2f, sd: vec2f) -> W
   // each bead has its own moment to go, and shrinks as it dries
   let s: f32 = smoothstep(0.0, 0.28, M.w.x - mix(life.x, life.y, k.x));
   if (s <= 0.0 || h.z > dens * wetDens((id + 0.5) / n)) { return wetNone(); }
-  let r0: f32 = mix(0.07, 0.25, k.y * k.y);
+  let r0: f32 = mix(0.07, 0.19, k.y * k.y);
   let q: vec2f = f - (vec2f(1.5 * r0) + h.xy * (1.0 - 3.0 * r0));
   // (not round: melt keeps the outline of the crumb of snow it was)
   let th: f32 = atan2(q.y, q.x + 1e-6);
-  let r: f32 = r0 * (0.4 + 0.6 * s) * (1.0 + 0.17 * sin(2.0 * th + k.z * 6.28) + 0.11 * sin(3.0 * th + h.x * 6.28) + 0.07 * sin(5.0 * th + h.y * 6.28));
+  let r: f32 = r0 * (0.4 + 0.6 * s) * (1.0 + 0.08 * sin(2.0 * th + k.z * 6.28) + 0.07 * sin(3.0 * th + h.x * 6.28) + 0.04 * sin(5.0 * th + h.y * 6.28));
   return wetLens(q / r, r / n, s, sd);
 }
 // the beads heavy enough to run: each slides down the glass, a little outward as the wind over the lens pushes it, and leaves a thinning
@@ -335,7 +337,9 @@ fn lensWet(uv: vec2f) -> Wet {
   return w;
 }
 fn frag(v: VOut) -> FOut { var o: FOut;
-  let vv: vec2f = texLod(tVis, vec2f(0.5), 0.0).xy;
+  // (the sun's visibility is eased over a few frames; once the sun is behind the lens its projected point is a mirror image in the frame,
+  // so what is left of that easing must not light a starburst and ghosts there: after a cut to a view facing away, a star lay on the snow)
+  let vv: vec2f = texLod(tVis, vec2f(0.5), 0.0).xy * vec2f(U.sunScr.z, 1.0);
   let c: vec2f = v.uv - 0.5; let asp: f32 = U.camUp.w;
   // the skis rubbing on the snow shake the camera, not the glass: the scene is read a whole pixel or so aside (07c_feel.js; never a part
   // of one, which would soften it) and turned by a hair about the middle of the frame. Beads, flare and the dark corners stay where they are
@@ -358,6 +362,8 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     // light. (It only ever adds light: against anything brighter than itself, the nebula say, a crumb does not show)
     let rs: f32 = length((U.sunScr.xy - v.uv) * vec2f(asp, 1.0));
     col = mix(col, max(col, U.ambSky.rgb * 1.2 + U.sunCol.rgb * (0.35 * vv.x)), M.wb.z * wt.m);
+    // (water gathers light, it does not stand in front of it: a bead is never darker than the picture it sits on)
+    let lo: f32 = luma(texLod(tScene, v.uv + sk, 0.0).rgb); col *= mix(1.0, max(1.0, lo / max(luma(col), 1e-5)), wt.m);
     col = col * (1.0 + 0.45 * wt.e * (1.0 - M.wb.z) * (0.4 + 0.6 * vv.x)) + U.sunCol.rgb * (vv.x * M.q.z * (0.6 * wt.gl + wt.m * (0.015 + 0.14 * exp(-rs * 2.4))));
   }
   col += lensFlare(v.uv, vv) * M.q.z;
