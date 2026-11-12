@@ -97,7 +97,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #hint.tilt i::before { content: ""; position: absolute; left: 50%; top: 50%; width: 17px; height: 28px; margin: -14px 0 0 -8.5px; border: 1.5px solid var(--snow); border-radius: 4.5px; box-sizing: border-box; animation: rock 2.4s ease-in-out infinite; }
 #hint.drag i::before { content: ""; position: absolute; left: 2px; right: 2px; top: 50%; height: 1px; background: var(--faint); }
 #hint.drag i::after { content: ""; position: absolute; left: 50%; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border-radius: 50%; background: var(--snow); animation: slide 2.4s ease-in-out infinite; }
-#hint.keys, #hint.pace { padding-left: 22px; } #hint.keys i, #hint.pace i { display: none; }
+#hint.keys, #hint.pace, #hint.moves { padding-left: 22px; } #hint.keys i, #hint.pace i, #hint.moves i { display: none; }
 @keyframes rock { 0%, 100% { transform: rotate(-19deg); } 50% { transform: rotate(19deg); } }
 @keyframes slide { 0%, 100% { transform: translateX(-15px); } 50% { transform: translateX(15px); } }
 /* sound */
@@ -105,12 +105,98 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #snd.on { opacity: .82; visibility: visible; transition: opacity .8s ease, visibility 0s; }
 #snd svg { width: 20px; height: 20px; display: block; margin: auto; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 #snd .off { display: none; } #snd.mute .off { display: inline; } #snd.mute .wave { display: none; } #snd.mute { color: var(--dim); }
-#snd:focus-visible, #fs:focus-visible { outline: 2px solid var(--sun); outline-offset: -6px; border-radius: 50%; }
+#snd:focus-visible, #fs:focus-visible, #pz:focus-visible { outline: 2px solid var(--sun); outline-offset: -6px; border-radius: 50%; }
 #fs { position: absolute; right: calc(var(--gr) + 30px); top: calc(var(--gt) - 10px); width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--snow); cursor: pointer; opacity: 0; visibility: hidden; transition: opacity .8s ease, visibility 0s linear .8s; filter: drop-shadow(0 1px 8px rgba(5, 8, 13, .6)); }
 #fs.on { opacity: .82; visibility: visible; transition: opacity .8s ease, visibility 0s; }
 #fs svg { width: 18px; height: 18px; display: block; margin: auto; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 #fs .in { display: none; } #fs.full .in { display: inline; } #fs.full .out { display: none; }
-#app.bare .layer, #app.bare #veil, #app.bare #shade, #app.bare #snd, #app.bare #fs { display: none; }
+/* setting the run down for a moment: there only while there is a run */
+#pz { position: absolute; right: calc(var(--gr) + 30px); top: calc(var(--gt) - 10px); width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--snow); cursor: pointer; opacity: 0; visibility: hidden; transition: opacity .5s ease, visibility 0s linear .5s; filter: drop-shadow(0 1px 8px rgba(5, 8, 13, .6)); }
+#app.hasfs #pz { right: calc(var(--gr) + 70px); }
+#app.run #pz { opacity: .82; visibility: visible; transition: opacity .8s ease .35s, visibility 0s; }
+#pz svg { width: 18px; height: 18px; display: block; margin: auto; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+/* ---- the scene switch: one small button beside the other two, and the sheet it opens. Time of day, kind of run, the things otherwise
+   only met by chance, the view, the mountain: each a row of words; what is chosen stands on the amber hairline the page uses everywhere */
+#app { --swf: 13px; --swl: 11px; --swh: 44px; } #app.desk { --swf: clamp(13px, 1.75vmin, 15px); --swl: clamp(11px, 1.45vmin, 12px); --swh: clamp(36px, 4.6vmin, 40px); }
+#sw { position: absolute; right: calc(var(--gr) + 32px); top: calc(var(--gt) - 10px); height: 44px; margin: 0; padding: 0 4px; border: 0; background: none; color: var(--snow); font-family: var(--f-ui); cursor: pointer; opacity: 0; visibility: hidden; transition: opacity .8s ease, visibility 0s linear .8s; }
+#app.hasfs #sw, #app.run #sw { right: calc(var(--gr) + 72px); } #app.hasfs.run #sw { right: calc(var(--gr) + 112px); }
+#sw.on { opacity: 1; visibility: visible; transition: opacity .8s ease, visibility 0s, right .6s cubic-bezier(.2, .6, .2, 1); }
+#sw span { display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 9px; border-radius: 999px; background: rgba(5, 8, 13, .34); box-shadow: inset 0 0 0 1px var(--hair); font-size: calc(var(--swf) - 1px); letter-spacing: .22em; white-space: nowrap; transition: background .3s ease, box-shadow .3s ease; }
+#sw svg { display: block; flex: none; width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.3; transition: color .3s ease; } #sw svg .half { fill: currentColor; stroke: none; }
+#sw.open span { background: rgba(5, 8, 13, .62); box-shadow: inset 0 0 0 1px rgba(255, 208, 138, .7); } #sw.open svg { color: var(--sun); }
+#sw:focus-visible { outline: none; } #sw:focus-visible span { outline: 2px solid var(--sun); outline-offset: 2px; }
+#swp { position: absolute; right: calc(var(--gr) - 4px); top: calc(var(--gt) + 34px); box-sizing: border-box; max-width: calc(var(--cw) - var(--gl) - var(--gr) + 8px); padding: 3px 8px 3px 16px; border-radius: 14px; background: rgba(5, 8, 13, .62); box-shadow: inset 0 0 0 1px rgba(244, 247, 251, .09); font-family: var(--f-ui); pointer-events: none;
+  opacity: 0; visibility: hidden; transform: translateY(-6px); transition: opacity .3s ease, transform .3s cubic-bezier(.2, .6, .2, 1), visibility 0s linear .3s; }
+#swp.on { opacity: 1; visibility: visible; pointer-events: auto; transform: none; transition: opacity .35s ease, transform .45s cubic-bezier(.2, .6, .2, 1), visibility 0s; }
+#swp .row { display: flex; align-items: center; min-height: var(--swh); } #swp .row + .row { box-shadow: 0 -1px 0 rgba(244, 247, 251, .08); }
+#swp .row[hidden], #swp .grp[hidden] { display: none; }
+#swp .two { justify-content: space-between; } #swp .grp { display: flex; align-items: center; } #swp .grp + .grp { margin-left: 22px; }
+#swp .lab { flex: none; min-width: 5em; font-size: var(--swl); letter-spacing: .34em; color: var(--dim); white-space: nowrap; } #swp .grp + .grp .lab { min-width: 0; margin-right: .5em; }
+#swp kbd { margin-left: .1em; font-family: var(--f-lat); font-size: calc(var(--swl) - 1px); font-weight: 500; letter-spacing: .08em; color: var(--faint); } #swp button kbd { margin-left: .45em; }
+#app:not(.desk) #swp kbd { display: none; } #app:not(.desk) #swp .lab { min-width: 3.7em; }
+#swp .chips { display: flex; flex-wrap: wrap; align-items: center; }
+#swp button { position: relative; appearance: none; -webkit-appearance: none; margin: 0; border: 0; background: none; height: var(--swh); min-width: 40px; padding: 0 9px 0 calc(9px + .14em); font: inherit; font-size: var(--swf); letter-spacing: .14em; color: var(--dim); white-space: nowrap; cursor: pointer; transition: color .25s ease; }
+#swp button::after { content: ""; position: absolute; left: calc(9px + .14em); right: calc(9px + .14em); bottom: calc(var(--swh) * .5 - 13px); height: 1px; background: var(--sun); transform: scaleX(0); transform-origin: 0 50%; transition: transform .4s cubic-bezier(.2, .6, .2, 1); }
+#swp button.on, #swp button.hit { color: var(--snow); } #swp button.on::after, #swp button.hit::after { transform: none; }
+/* (while the clock runs by itself: a grain of amber under the hour it has reached) */
+#swp button.now::before { content: ""; position: absolute; left: 50%; bottom: calc(var(--swh) * .5 - 14px); width: 3px; height: 3px; margin-left: -1.5px; border-radius: 50%; background: var(--sun); }
+@media (hover: hover) { #swp button:hover { color: var(--snow); } }
+#swp button:active { color: var(--sun); }
+#swp button:focus-visible { outline: 2px solid var(--sun); outline-offset: -5px; border-radius: 8px; }
+#swp .sep { flex: none; width: 1px; height: 13px; margin: 0 7px; background: var(--hair); }
+#swp .seed { font-family: var(--f-lat); font-size: var(--swf); letter-spacing: .1em; font-variant-numeric: tabular-nums; color: var(--snow); }
+#swp .step i { font-style: normal; font-family: var(--f-lat); margin-left: .45em; color: var(--dim); }
+#app:not(.desk) #swp button { min-width: 44px; letter-spacing: .08em; padding: 0 7px 0 calc(7px + .08em); }
+#app:not(.desk) #swp button::after { left: calc(7px + .08em); right: calc(7px + .08em); }
+#app:not(.desk) #swp { top: calc(var(--gt) + 46px); }          /* (clear of the drop number beside the pill) */
+/* what a key just changed, said once: in the column of type on the left, clear of the sun (at the gate where the name of a run would stand, in a run under the hints) */
+#say { position: absolute; left: var(--col); top: calc(var(--gt) + 2px); display: flex; align-items: center; gap: 12px; height: 34px; padding: 0 18px; border-radius: 999px; background: rgba(5, 8, 13, .40); white-space: nowrap; pointer-events: none;
+  opacity: 0; transform: translateX(-10px); transition: opacity .5s ease, transform .5s cubic-bezier(.2, .6, .2, 1); }
+#say.on { opacity: 1; transform: none; }
+#app.run #say { left: var(--gl); top: calc(var(--ht) + 56px); }
+#say small { font-size: 11px; letter-spacing: .34em; margin-right: -.34em; color: var(--dim); } #say b { font-weight: 400; font-size: 13px; letter-spacing: .2em; margin-right: -.2em; } #say b:empty { display: none; }
+#app.wide.short #say { height: 32px; } #app.wide.short.run #say { top: calc(var(--ht) + 48px); }
+/* a change of place is a cut: the picture dips to black over it, the words stay */
+#cut { position: absolute; inset: 0; background: var(--ink); opacity: 0; pointer-events: none; } #cut.slow { transition: opacity .26s ease; }
+/* held in the hands: the two moves, under the right thumb (the left one steers). Jump in the corner where the thumb lies, accelerate a reach inward */
+#pad button { position: absolute; appearance: none; -webkit-appearance: none; margin: 0; padding: 0; border: 0; border-radius: 50%; background: rgba(5, 8, 13, .30); box-shadow: inset 0 0 0 1px rgba(244, 247, 251, .36); color: var(--snow); font-family: var(--f-ui); text-shadow: 0 1px 8px rgba(5, 8, 13, .5);
+  pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: background .12s ease, color .12s ease, transform .12s ease, box-shadow .12s ease; }
+#jump { right: calc(var(--gr) + 8px); bottom: calc(var(--gb) + 38px); width: 72px; height: 72px; font-size: 20px; }
+#tuck { right: calc(var(--gr) + 94px); bottom: calc(var(--gb) + 2px); width: 60px; height: 60px; font-size: 13px; letter-spacing: .12em; text-indent: .12em; }
+#pad button.down { background: rgba(255, 208, 138, .92); box-shadow: none; color: #1b1408; text-shadow: none; transform: scale(.95); }
+/* (held, the jump loads: the ring round it closes as the legs fold) */
+#jump::before { content: ""; position: absolute; inset: -6px; border-radius: 50%; background: conic-gradient(var(--sun) calc(var(--k, 0) * 1turn), rgba(244, 247, 251, 0) 0); opacity: 0; transition: opacity .2s ease;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 1.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 1.5px)); }
+#jump.down::before { opacity: 1; }
+#app.desk #pad { display: none; }
+/* the steering finger. The drag is measured from where the finger came down, so that is drawn: a hairline from there to the finger, and a
+   tick each side where the carve ends and the skid begins; past the tick the line is amber. Faint, and gone with the finger */
+#steer { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transition: opacity .3s ease; filter: drop-shadow(0 0 2px rgba(5, 8, 13, .7)); --c: 80px; }
+#steer.on { opacity: 1; transition: opacity .12s ease; }
+#steer i { position: absolute; display: block; background: rgba(244, 247, 251, .62); transition: background .18s ease; }
+#steer .l { left: 0; top: -.5px; width: 1px; height: 1px; transform-origin: 0 50%; }
+#steer .o { left: -2.5px; top: -2.5px; width: 5px; height: 5px; border-radius: 50%; }
+#steer .a, #steer .b { top: -7px; width: 1px; height: 14px; } #steer .a { left: calc(var(--c) * -1); } #steer .b { left: var(--c); }
+#steer.over .l, #steer.over.neg .a, #steer.over:not(.neg) .b { background: var(--sun); }
+/* ---- a run set down (the pause key or glyph, a call, another window): the picture waits under a shade and the way back is a word.
+   The same page says so when the picture itself is lost (the graphics device taken away): then the whole of it is the button */
+#pause { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(5, 8, 13, .5); opacity: 0; visibility: hidden; transition: opacity .3s ease, visibility 0s linear .3s; }
+#pause.on { opacity: 1; visibility: visible; transition: opacity .35s ease, visibility 0s; }
+#pause .card { display: flex; flex-direction: column; align-items: center; text-align: center; transform: translateY(8px); transition: transform .45s cubic-bezier(.2, .6, .2, 1); text-shadow: 0 1px 14px rgba(5, 8, 13, .5); }
+#pause.on .card { transform: none; }
+#pause small { font-size: clamp(11px, 1.5vmin, 12px); font-weight: 500; letter-spacing: .5em; margin-right: -.5em; color: var(--dim); }
+#pause b { margin-top: clamp(8px, 2vmin, 14px); font-weight: 400; font-size: clamp(20px, 4.4vmin, 36px); line-height: 1.2; letter-spacing: .5em; margin-right: -.5em; }
+#pause .rule { width: 26px; height: 1px; background: var(--sun); margin: clamp(12px, 3.4vmin, 22px) 0 clamp(14px, 4vmin, 26px); }
+#pause button { appearance: none; -webkit-appearance: none; margin: 0; border: 0; border-radius: 999px; min-width: clamp(172px, 26vmin, 212px); font-family: var(--f-ui); cursor: pointer; text-shadow: none; }
+#pz-go { height: clamp(48px, 7vmin, 58px); padding: 0 30px; background: linear-gradient(180deg, #f7d6a2, #eeb25c); color: #1b1408; font-size: clamp(16px, 2.4vmin, 19px); letter-spacing: .7em; text-indent: .7em; box-shadow: 0 6px 22px rgba(255, 186, 96, .20), 0 1px 0 rgba(255, 255, 255, .5) inset; transition: filter .25s ease, transform .25s ease; }
+#pz-go:active { filter: brightness(.92); transform: scale(.98); }
+#pause #pz-top { margin-top: 12px; height: clamp(44px, 5.8vmin, 48px); padding: 0 24px; background: rgba(5, 8, 13, .3); color: var(--snow); font-size: clamp(13px, 1.8vmin, 15px); letter-spacing: .34em; text-indent: .34em; box-shadow: inset 0 0 0 1px var(--hair); transition: box-shadow .25s ease, color .25s ease; }
+#pause #pz-top:active { color: var(--sun); box-shadow: inset 0 0 0 1px rgba(255, 208, 138, .7); }
+@media (hover: hover) { #pz-go:hover { filter: brightness(1.06); } #pause #pz-top:hover { box-shadow: inset 0 0 0 1px rgba(255, 208, 138, .7); } }
+#pause button:focus-visible { outline: 2px solid var(--sun); outline-offset: 4px; }
+#pause .keys { margin: 16px 0 0; font-size: 11px; letter-spacing: .2em; color: var(--faint); } #pause .keys b { margin: 0 .5em 0 0; font-family: var(--f-lat); font-size: 11px; font-weight: 500; letter-spacing: .08em; color: var(--dim); } #app:not(.desk) #pause .keys { display: none; }
+#pause.lost { background: rgba(5, 8, 13, .84); cursor: pointer; } #pause.lost button, #pause.lost .keys { display: none; }
+#app.bare .layer, #app.bare #veil, #app.bare #shade, #app.bare #snd, #app.bare #fs, #app.bare #pz, #app.bare #sw, #app.bare #swp, #app.bare #say, #app.bare #cut, #app.bare #pause { display: none; }
 /* ---- wide (a browser window, a phone on its side): the way it is meant to be seen */
 #app.wide #title { align-items: flex-start; justify-content: center; gap: clamp(18px, calc(var(--ch) * .07), 58px); padding: var(--gt) var(--gr) calc(var(--gb) + var(--ch) * .07) var(--col); }
 #app.wide #title .mark { align-items: flex-start; text-align: left; }
@@ -125,15 +211,18 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #app.wide .cta .keys { position: absolute; right: var(--gr); bottom: var(--gb); margin: 0; font-size: clamp(10px, 1.75vmin, 13px); letter-spacing: .2em; color: var(--dim); text-shadow: 0 1px 10px rgba(5, 8, 13, .6); }
 #app.wide .cta .keys b { font-weight: 500; color: var(--snow); margin-right: .5em; } #app.wide .cta .keys b:not(:first-child) { margin-left: 1.6em; }
 .cta .keys { display: none; } #app.wide.desk .cta .keys { display: block; }
-/* (the hint stands at the top, over the sky: the bottom of the picture belongs to the skier and the snow going by) */
-#app.wide #hint { bottom: auto; top: calc(var(--gt) + 4px); background: rgba(5, 8, 13, .36); }
-#app.wide.short #hint { height: 38px; padding: 0 18px 0 12px; gap: 9px; } #app.wide.short #hint span { font-size: 12px; } #app.wide.short #hint.keys, #app.wide.short #hint.pace { padding-left: 18px; }
+/* (the hint stands in the column of type on the left, under the name of the run: the middle of the sky is the sun's, and the bottom of the
+   picture belongs to the skier and the snow going by) */
+#app { --ht: calc(var(--gt) + clamp(24px, 6.2vmin, 46px) * 1.1 + clamp(9px, 1.7vmin, 13px) * 1.45 + 27px); }
+#app:not(.desk) { --ht: calc(var(--gt) + var(--spd) * .9 + clamp(24px, 6.2vmin, 46px) * 1.1 + clamp(9px, 1.7vmin, 13px) * 1.45 + 74px); }
+#app.wide #hint { left: var(--gl); bottom: auto; top: var(--ht); background: rgba(5, 8, 13, .36); transform: translateX(-10px); } #app.wide #hint.on { transform: none; }
+#app.wide.short #hint { height: 38px; padding: 0 18px 0 12px; gap: 9px; } #app.wide.short #hint span { font-size: 12px; } #app.wide.short #hint.keys, #app.wide.short #hint.pace, #app.wide.short #hint.moves { padding-left: 18px; }
 #app.wide #hint.tilt i::before { width: 28px; height: 17px; margin: -8.5px 0 0 -14px; }
 #app.wide #hud .drop b { font-size: clamp(22px, 5.6vmin, 44px); }
 #app.wide #hud .unit { font-size: clamp(9px, 1.7vmin, 13px); } #app.wide #seg b { font-size: clamp(24px, 6.2vmin, 46px); } #app.wide #seg small { font-size: clamp(9px, 1.7vmin, 13px); }
 /* held in the hands: the bottom corners are where the thumbs lie (and where a steering finger drags), so the numbers stand at the top */
 #app:not(.desk) #hud .spd { bottom: auto; top: var(--gt); }
-#app:not(.desk) #hud .drop { bottom: auto; top: calc(var(--gt) + 1px); right: calc(var(--gr) + 46px); }
+#app:not(.desk) #hud .drop { bottom: auto; top: calc(var(--gt) + 1px); right: calc(var(--gr) + 160px); }
 #app:not(.desk) #seg { top: calc(var(--gt) + var(--spd) * .9 + 54px); }
 #app.wide.short #title { gap: clamp(14px, calc(var(--ch) * .055), 30px); padding-bottom: calc(var(--gb) + var(--ch) * .09); }
 @media (prefers-reduced-motion: reduce) { #go::after, #hint i::before, #hint i::after { animation: none; } }
@@ -142,6 +231,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 <div id="app">
   <canvas id="view"></canvas>
   <div id="veil"></div>
+  <div id="cut"></div>
   <div id="shade"></div>
   <section id="load" class="layer on" aria-live="polite">
     <div class="mark"><div class="cn">冷烟</div><div class="rule"></div><div class="en">COLD SMOKE</div></div>
@@ -162,6 +252,8 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
     <div id="hint"><i></i><span id="hint-t"></span></div>
     <div class="spd"><b id="spd">0</b><span class="unit">KM/H</span><span class="tach"><i id="tach"></i></span></div>
     <div class="drop"><b id="drop">0</b><span class="unit">落差 M</span></div>
+    <div id="steer"><i class="l"></i><i class="a"></i><i class="b"></i><i class="o"></i></div>
+    <div id="pad"><button id="tuck" type="button" aria-label="加速">加速</button><button id="jump" type="button" aria-label="跳">跳</button></div>
   </section>
   <button id="snd" type="button" aria-label="声音开关" aria-pressed="true">
     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7.6h2.6L9.4 4.4v11.2L5.6 12.4H3z"/><path class="wave" d="M12.4 7.4a3.6 3.6 0 0 1 0 5.2M14.6 5.2a6.6 6.6 0 0 1 0 9.6"/><path class="off" d="M12.6 7.6l4.4 4.8M17 7.6l-4.4 4.8"/></svg>
@@ -169,6 +261,23 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
   <button id="fs" type="button" aria-label="全屏" aria-pressed="false">
     <svg viewBox="0 0 20 20" aria-hidden="true"><path class="out" d="M3.5 7.5v-4h4M12.5 3.5h4v4M16.5 12.5v4h-4M7.5 16.5h-4v-4"/><path class="in" d="M7.5 3.5v4h-4M16.5 7.5h-4v-4M12.5 16.5v-4h4M3.5 12.5h4v4"/></svg>
   </button>
+  <button id="pz" type="button" aria-label="暂停"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.4 5.2v9.6M12.6 5.2v9.6"/></svg></button>
+  <button id="sw" type="button" aria-label="切换场景" aria-expanded="false" aria-controls="swp"><span><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.6"/><path class="half" d="M8 2.4a5.6 5.6 0 0 1 0 11.2z"/></svg>场景</span></button>
+  <div id="swp" role="group" aria-label="切换场景">
+    <div class="row"><span class="lab">时间<kbd>T</kbd></span><div class="chips" id="sw-time"></div></div>
+    <div class="row"><span class="lab">路段<kbd>N</kbd></span><div class="chips" id="sw-seg"></div></div>
+    <div class="row"><span class="lab">偶遇<kbd>G</kbd></span><div class="chips" id="sw-ev"></div></div>
+    <div class="row two" id="sw-more">
+      <div class="grp" id="sw-view"><span class="lab">视角<kbd>V</kbd></span><button type="button" class="step" data-view="1"><span id="sw-vn"></span><i>›</i></button></div>
+      <div class="grp" id="sw-mt"><span class="lab">山<kbd>R</kbd></span><span class="seed" id="sw-seed"></span><button type="button" data-new="1">换一座山</button></div>
+    </div>
+  </div>
+  <div id="say" aria-live="polite"><small id="say-k"></small><b id="say-v"></b></div>
+  <div id="pause" role="dialog" aria-label="暂停" aria-hidden="true"><div class="card">
+    <small id="pause-s">PAUSED</small><b id="pause-t">暂停</b><i class="rule"></i>
+    <button id="pz-go" type="button">继续</button><button id="pz-top" type="button">回到山顶</button>
+    <p class="keys"><b>Esc</b>继续</p>
+  </div></div>
   <div id="fatal" hidden></div>
 </div>
 <script>

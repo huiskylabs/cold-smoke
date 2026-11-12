@@ -100,12 +100,16 @@ function tick(dt, draw) {
   if (draw !== false) Render.render();
 }
 App.onTick = [];
+// (interface) App.paused: the run is set down, nothing steps or draws. App.resumeK: the world's speed as it is taken up again (0.3 up to 1,
+// eased by the interface); it scales the time handed to the step, where the slow motion of a jump (Game.timeScale) scales it again
+App.resumeK = 1;
 let lastT = 0;
 function loop(now) {
   requestAnimationFrame(loop);
+  if (App.gfx && App.gfx.lost) { UI.lost(); return; }                    // the graphics device was taken away: the interface says so, and offers to start over
   if (!App.ready || App.paused) { lastT = now; return; }
   const raw = (now - lastT) / 1000, dt = clamp(raw, 1 / 240, 1 / 20); lastT = now;
-  try { tick(dt, true); UI.frame(dt); govern(now, raw); } catch (e) { App.ready = false; reportError(e); }
+  try { tick(dt * App.resumeK, true); UI.frame(dt); govern(now, raw); } catch (e) { App.ready = false; reportError(e); }
 }
 function fit() {
   View.measure(); let k = Math.min(devicePixelRatio || 1, 2) * Render.scale;
@@ -196,6 +200,12 @@ window.__ski = {
 };
 App.fit = fit;
 addEventListener('resize', () => { if (typeof UI !== 'undefined' && UI.layout) UI.layout(); if (App.ready && !QS.get('w')) fit(); });
+// (interface) a run set down keeps its last picture on the canvas; when the frame changes shape meanwhile that picture is drawn once more to fit
+App.redraw = () => {
+  if (!App.ready || !App.paused || (App.gfx && App.gfx.lost)) return;
+  try { Render.computeGlobals(App.t, 1 / 60, App.state); for (const f of App.onTick) f(0, true); Render.render(); } catch (e) { }
+};
+addEventListener('resize', () => App.redraw());
 if (QS.has('manual') && !QS.has('ui')) document.getElementById('app').classList.add('bare');
 else {
   UI.init();
