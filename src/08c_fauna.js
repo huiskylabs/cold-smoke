@@ -756,13 +756,13 @@ const Fauna = (() => {
     F.stats.ms = Math.round(performance.now() - t0);
     boneTex = gfx.texture({ w: 4, h: ROWS, format: 'rgba32f', filter: 'nearest' });
     const buffers = [{ attrs: [['pos', 'vec3f'], ['nrm', 'vec3f'], ['mat', 'vec4f']] }, { attrs: [['bw', 'vec4f']] }, { attrs: [['col', 'vec4f']] }];
-    // (the snow asks for a metre and a half of clear air before it will take a shadow, which a hare never has under it: so into the shadow
-    // map each animal is drawn that much nearer the sun. Its shadow falls where it would have, and now starts at its feet)
+    // (into the sun's map each animal goes where it stands: the snow takes a shadow from its feet up. Its own coat keeps 37 cm of clear air
+    // toward the sun (the bias of its shadowAt below), as it had when it was drawn a metre and a half nearer the sun here)
     // p = (first row of this animal's bones, how much of it is there 0..1, snow on its back, snow on its face);
     // q = (how fine its hair, how strongly it streaks the coat, how rough it makes it, where in the model its face begins)
     const VS = shadow => `fn vert(a: VIn) -> VOut { var v: VOut;
       let s: SkinV = skinVertex(a.pos, a.nrm, vec4f(a.bw.x + M.p.x, a.bw.y + M.p.x, a.bw.z, 0.0));
-      ${shadow ? 'v.clip = U.shadowVP * vec4f(s.wp + U.sunDir.xyz * 1.55, 1.0);' : 'v.wp = s.wp; v.nrm = s.n; v.bp = a.pos; v.bn = a.nrm; v.mat = a.mat; v.col = a.col; v.clip = U.viewProj * vec4f(s.wp, 1.0);'}
+      ${shadow ? 'v.clip = U.shadowVP * vec4f(s.wp, 1.0);' :'v.wp = s.wp; v.nrm = s.n; v.bp = a.pos; v.bn = a.nrm; v.mat = a.mat; v.col = a.col; v.clip = U.viewProj * vec4f(s.wp, 1.0);'}
       return v; }`;
     pipe = gfx.pipeline({
       name: 'fauna', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SKIN_SSL], buffers,
@@ -1201,7 +1201,7 @@ fn frag(v: VOut) -> FOut {
   // the lie of the hair roughens the surface
   N = normalize(N + ((vec3f(hair.x, hair.y, hair.z) - 0.5) + (vec3f(lock.x, lock.y, lock.z) - 0.5) * 0.7) * M.q.z * fur);
   let ndl: f32 = dot(N, L); let ndv: f32 = saturate(dot(N, V));
-  let sh: f32 = shadowAt(v.wp + N * 0.04, 0.0016);
+  let sh: f32 = shadowAt(v.wp + N * 0.04, 0.00031);
   let ao: f32 = v.mat.y;
   let wrapD: f32 = saturate((ndl + 0.3 * fur) / (1.0 + 0.3 * fur));
   let amb: vec3f = U.ambSky.rgb * (0.5 + 0.5 * N.y) + U.ambGnd.rgb * (0.5 - 0.5 * N.y) * 1.25 + twiLight(N);

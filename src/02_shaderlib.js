@@ -170,6 +170,36 @@ fn shadowFast(wp: vec3f, bias: f32) -> f32 {
   if (max(e.x, e.y) > 0.97 || sp.z > 1.0 || sp.z < 0.0) { return 1.0; }
   return texShadow(tShadow, uv, sp.z - bias);
 }
+// the snow's own lookup. The sun is half a degree wide, so an edge blurs with the distance to what casts it: a boot's is sharp, a spruce
+// tip's twenty metres off is soft. And a low sun stretches each 6 cm texel along its light into metre-long steps that only a wider
+// kernel hides. So: four taps ask whether the caster stands more than 3 m up the ray; where it does, eight taps on a disc turned
+// per point (5 texels across at sunset, 1 at noon) soften the edge; where it does not, the old tight kernel keeps the foot sharp
+fn shadowSoft(wp: vec3f, bias: f32) -> f32 {
+  let sp: vec4f = U.shadowVP * vec4f(wp, 1.0);
+  let uv: vec2f = vec2f(sp.x * 0.5 + 0.5, 0.5 - sp.y * 0.5);
+  let e: vec2f = abs(sp.xy);
+  let fade: f32 = smoothstep(0.86, 0.98, max(e.x, e.y));
+  if (fade >= 1.0 || sp.z > 1.0 || sp.z < 0.0) { return cloudShade(wp); }
+  let ts: f32 = 1.0 / texSize(tShadow).x; let z: f32 = sp.z - bias;
+  let rm: f32 = clamp(0.25 / max(U.sunDir.y, 0.04), 1.0, 5.0) * ts; let zf: f32 = z - 0.0025;
+  let far: f32 = 1.0 - 0.25 * (texShadow(tShadow, uv + vec2f(-0.7, -0.7) * rm, zf) + texShadow(tShadow, uv + vec2f(0.7, -0.7) * rm, zf)
+             + texShadow(tShadow, uv + vec2f(0.7, 0.7) * rm, zf) + texShadow(tShadow, uv + vec2f(-0.7, 0.7) * rm, zf));
+  var s: f32 = 0.0;
+  if (far <= 0.0) {
+    s = 0.25 * (texShadow(tShadow, uv + vec2f(-0.75, -0.25) * ts, z) + texShadow(tShadow, uv + vec2f(0.25, -0.75) * ts, z)
+             + texShadow(tShadow, uv + vec2f(0.75, 0.25) * ts, z) + texShadow(tShadow, uv + vec2f(-0.25, 0.75) * ts, z));
+  } else {
+    let r: f32 = mix(0.75 * ts, rm, far);
+    let a: f32 = 6.2832 * fract(52.9829 * fract(dot(wp.xz * 97.0, vec2f(0.06711056, 0.00583715))));
+    let c: f32 = cos(a) * r; let sn: f32 = sin(a) * r;
+    let m: mat2x2f = mat2x2f(vec2f(c, sn), vec2f(-sn, c));
+    s = 0.125 * (texShadow(tShadow, uv + m * vec2f(-0.326, -0.406), z) + texShadow(tShadow, uv + m * vec2f(-0.840, -0.074), z)
+             + texShadow(tShadow, uv + m * vec2f(-0.696, 0.457), z) + texShadow(tShadow, uv + m * vec2f(-0.203, 0.621), z)
+             + texShadow(tShadow, uv + m * vec2f(0.962, -0.195), z) + texShadow(tShadow, uv + m * vec2f(0.473, -0.480), z)
+             + texShadow(tShadow, uv + m * vec2f(0.519, 0.767), z) + texShadow(tShadow, uv + m * vec2f(0.185, -0.893), z));
+  }
+  return mix(s, 1.0, fade) * cloudShade(wp);
+}
 `;
 
 // how much thrown snow lies between a point and the sun. The snow cloud is drawn from the sun's side into a small map of

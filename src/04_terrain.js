@@ -141,10 +141,13 @@ const Terrain = (() => {
       fs: TERRAIN_FS.replace(/SUNK/g, (Math.round(9 * sunX / (sunZ || -1)) / 9).toFixed(6)),
     };
     pipe = gfx.pipeline(desc);
+    // (into the sun's map the snow goes a little further from the sun than it is: 10 cm, and four texels' worth of its own tilt to the light,
+    // which is what a low sun on 6 cm texels needs to keep it from shadowing itself. So the snow asks nothing of what it RECEIVES, and a boot,
+    // a hoof, a trunk or a pole shadows it from the point where it stands on it)
     pipeShadow = gfx.pipeline({
       name: 'terrainShadow', lib: [SL.common, TERRAIN_SSL], buffers: [{ attrs: [['ij', 'vec2f']] }], varyings: {}, uniforms: { lv: 'vec4f', tc: 'vec4f', p: 'vec4f' },
-      textures: { tH: 'fetch', tHc: 'fetch' }, colorFormat: null, cull: 'none', depthBias: 2, depthBiasSlope: 2.5,
-      vs: `fn vert(a: VIn) -> VOut { var v: VOut; let t: TerrV = terrainVertex(a.ij); v.clip = U.shadowVP * vec4f(t.wp, 1.0); return v; }`, fs: null,
+      textures: { tH: 'fetch', tHc: 'fetch' }, colorFormat: null, cull: 'none', depthBias: 2, depthBiasSlope: 4.0,
+      vs: `fn vert(a: VIn) -> VOut { var v: VOut; let t: TerrV = terrainVertex(a.ij); v.clip = U.shadowVP * vec4f(t.wp - U.sunDir.xyz * 0.10, 1.0); return v; }`, fs: null,
     });
     T.pipes = [pipe, pipeShadow];
   };
@@ -429,7 +432,7 @@ fn frag(v: VOut) -> FOut {
     let gust: f32 = drift * smoothstep(0.40, 0.60, texLod(tDetail, vec2f(3.0 * wxz.x + zg, 3.0 * zg - wxz.x) / 1024.0, 2.0).z);
     if (gust > 0.003) { dView = gust * driftRho(dpar, tm, lod); dSun = gust * driftRho(wxz + sdir * (0.16 / tanE), tm, lod); }
   }
-  var sh: f32 = shadowAt(wp + Nm * 0.06, 0.0012) * mix(1.0, msh, U.fx.w) * far * exp(-0.9 * sprayTau(wp, 0.0)) * trSh * (1.0 - 0.30 * (1.0 - exp(-dSun * 2.4)));
+  var sh: f32 = shadowSoft(wp, 0.00001) * mix(1.0, msh, U.fx.w) * far * exp(-0.9 * sprayTau(wp, 0.0)) * trSh * (1.0 - 0.30 * (1.0 - exp(-dSun * 2.4)));
   // beyond the reach of the shadow map the forest shades its own floor. With the sun this low a tree throws a shadow four times its
   // height, so the snow between the trunks sees the sun only in streaks: how many depends on how much forest stands toward the sun.
   let cover: f32 = shadowCover(wp);

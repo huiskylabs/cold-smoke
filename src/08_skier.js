@@ -658,7 +658,7 @@ const Skier = (() => {
       fs: SKIER_FS.replace('/*MARKS*/', marks),
     });
     pipeShadow = gfx.pipeline({
-      name: 'skierShadow', lib: [SL.common, SKIN_SSL], buffers, varyings: {}, uniforms: { p: 'vec4f' }, textures: { tBones: 'fetch' }, colorFormat: null, cull: 'none', depthBias: 2, depthBiasSlope: 2.0,
+      name: 'skierShadow', lib: [SL.common, SKIN_SSL], buffers, varyings: {}, uniforms: { p: 'vec4f' }, textures: { tBones: 'fetch' }, colorFormat: null, cull: 'none', depthBias: 0, depthBiasSlope: 0,
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let s: SkinV = skinVertex(a.pos, a.nrm, a.bw); v.clip = U.shadowVP * vec4f(s.wp, 1.0); return v; }`, fs: null,
     });
     K.pipes = [pipe, pipeShadow]; K.ready = true;
