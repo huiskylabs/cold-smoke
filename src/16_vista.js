@@ -437,7 +437,7 @@ const Vista = (() => {
     V.faceBuf = gfx.buffer(L.faces, 'vertex'); V.nFace = L.faces.length / 24;
     V.spotBuf = gfx.buffer(L.spots, 'vertex'); V.nSpot = L.spots.length / 16;
     V.beamBuf = gfx.buffer(L.beams, 'vertex'); V.nBeam = L.beams.length / 16;
-    pipeFace = gfx.pipeline(Object.assign({ name: 'cityFace', lib: [SL.common, S.air, S.lit], buffers: i4(6), varyings: { st: 'vec4f', ab: 'vec4f', py: 'vec4f', ca: 'vec4f', cb: 'vec4f', mi: 'vec4f', ex: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f' }, textures: { tDetail: '2d', tCityZ: '2d' }, vs: S.faceVS, fs: S.faceFS }, base));
+    pipeFace = gfx.pipeline(Object.assign({ name: 'cityFace', lib: [SL.common, S.air, S.lit], buffers: i4(6), varyings: { st: 'vec4f', ab: 'vec4f', py: 'vec4f', ca: 'vec4f', cb: 'vec4f', mi: 'vec4f', ex: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', s: 'vec4f' }, textures: { tDetail: '2d', tCityZ: '2d' }, vs: S.faceVS, fs: S.faceFS }, base));
     pipeSpot = gfx.pipeline(Object.assign({ name: 'citySpot', lib: [SL.common, S.air, S.lit], buffers: i4(4), varyings: { uv: 'vec2f', col: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f' }, textures: { tDetail: '2d', tCityZ: '2d' }, vs: S.spotVS, fs: S.spotFS }, base));
     pipeBeam = gfx.pipeline(Object.assign({ name: 'cityBeam', lib: [SL.common, S.air, S.lit], buffers: i4(4), varyings: { ab: 'vec4f', pos: 'vec4f', col: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f' }, textures: { tDetail: '2d', tCityZ: '2d' }, vs: S.beamVS, fs: S.beamFS }, base));
     pipeGlow = gfx.pipeline(Object.assign({ name: 'cityGlow', lib: [SL.common, S.air, S.lit], buffers: [], varyings: { dir: 'vec3f' }, uniforms: { p: 'vec4f', q: 'vec4f', c0: 'vec4f', c1: 'vec4f', c2: 'vec4f', c3: 'vec4f', c4: 'vec4f' }, textures: { tDetail: '2d', tCityZ: '2d', tCityA: '2d', tCityB: '2d', tGlow: '2d' }, vs: S.glowVS, fs: S.glowFS }, base));
@@ -459,11 +459,13 @@ const Vista = (() => {
     const e = Sky.sunElev, dk = sat((1 / Sky.exposure - 1 / 1.2) / (1 / Sky.expDay - 1 / 1.2)), ek = Math.min(1, 1.2 / Sky.exposure), t = R.time, p = [e, dk, ek, Sky.isMoon ? 1 : 0], tex = { tDetail: Tex.detail, tCityZ: V.cityZ };
     // the glow of the streets is there before the windows are: it gathers through the last of the afternoon and is at its full by dusk
     const gl = (0.25 * smooth(0.14, 0.03, e) + 0.75 * smooth(0.04, -0.085, e)) * (1 + (L.dayGlow - 1) * dk) * ek;
-    const dome = i => { const k = 0.5 + 0.5 * Math.sin(t * (0.09 + 0.017 * i) + i * 2.1), a = DOME[i][0], b = DOME[i][1], s = 0.3 * CORES[i][3] / 1000; return [lerp(a[0], b[0], k) * s, lerp(a[1], b[1], k) * s, lerp(a[2], b[2], k) * s, 0]; };
+    // (the night's colour, 12_nebula.js NSKY: the lights calmer by night, half the searchlights out)
+    const nk = NSKY.step(R.time), cs = lerp(1, nk[2], Sky.lights);
+    const dome = i => { const k = 0.5 + 0.5 * Math.sin(t * (0.09 + 0.017 * i) + i * 2.1), a = DOME[i][0], b = DOME[i][1], s = 0.3 * CORES[i][3] / 1000; const r = [lerp(a[0], b[0], k) * s, lerp(a[1], b[1], k) * s, lerp(a[2], b[2], k) * s], l = 0.2126 * r[0] + 0.7152 * r[1] + 0.0722 * r[2]; return [l + (r[0] - l) * cs, l + (r[1] - l) * cs, l + (r[2] - l) * cs, 0]; };
     if (gl > 0.001) gfx.draw(pipeGlow, { u: { p: [e, dk, gl, t], q: [0, V.glowEnc / 1.2 * L.deck, L.dome, 0], c0: dome(0), c1: dome(1), c2: dome(2), c3: dome(3), c4: dome(4) }, tex: { tDetail: Tex.detail, tCityZ: V.cityZ, tCityA: V.cityA, tCityB: V.cityB, tGlow: V.glowTex }, count: 4 });
-    if (V.nBeam && e < 0 && L.beam > 0) gfx.draw(pipeBeam, { u: { p, q: [L.beam, 0, 0, 0] }, tex, vb: [V.beamBuf], count: 4, instances: V.nBeam });
-    gfx.draw(pipeFace, { u: { p, q: [L.win, L.screen, L.strip, L.flood], r: [L.sign, L.dayWin, L.dayLed, L.dayFlood] }, tex, vb: [V.faceBuf], count: 4, instances: V.nFace });
-    gfx.draw(pipeSpot, { u: { p, q: [L.spot, L.glint, 0, 0] }, tex, vb: [V.spotBuf], count: 4, instances: V.nSpot });
+    if (V.nBeam && e < 0 && L.beam > 0) gfx.draw(pipeBeam, { u: { p, q: [L.beam * nk[4], cs, nk[3], 0] }, tex, vb: [V.beamBuf], count: 4, instances: V.nBeam });
+    gfx.draw(pipeFace, { u: { p, q: [L.win, L.screen, L.strip, L.flood], r: [L.sign, L.dayWin, L.dayLed, L.dayFlood], s: [cs, 0, 0, 0] }, tex, vb: [V.faceBuf], count: 4, instances: V.nFace });
+    gfx.draw(pipeSpot, { u: { p, q: [L.spot, L.glint, 1 - cs, 0] }, tex, vb: [V.spotBuf], count: 4, instances: V.nSpot });
   };
 
   V.init = function (g, opt = {}) {
@@ -750,7 +752,7 @@ fn frag(v: VOut) -> FOut { var o: FOut; o.color = vec4f(0.0);
     if (v.cb.w > 1.5) { c3 *= 0.2 + 0.8 * smoothstep(-0.3, 0.1, w2); } else if (v.cb.w > 0.5) { c3 = mix(v.ca.rgb, v.cb.rgb, smoothstep(-0.2, 0.2, w2)); }
     col = c3 * (pow(wpx, -0.42) * v.ca.w * M.r.x * (1.0 + (M.r.z - 1.0) * dk) * lvl);
   }
-  o.color = vec4f(col * (air * M.p.z), 0.0); return o; }`;
+  o.color = vec4f(mix(vec3f(luma(col)), col, M.s.x) * (air * M.p.z), 0.0); return o; }`;
   const spotVS = `
 fn vert(a: VIn) -> VOut {
   var v: VOut;
@@ -778,7 +780,7 @@ fn vert(a: VIn) -> VOut {
   return v;
 }`;
   const spotFS = `
-fn frag(v: VOut) -> FOut { var o: FOut; let r2: f32 = dot(v.uv, v.uv); o.color = vec4f(v.col.rgb * (exp(-r2) + 0.06 * exp(-r2 / 9.0)), 0.0); return o; }`;
+fn frag(v: VOut) -> FOut { var o: FOut; let r2: f32 = dot(v.uv, v.uv); o.color = vec4f(mix(v.col.rgb, vec3f(luma(v.col.rgb)), M.q.z) * (exp(-r2) + 0.06 * exp(-r2 / 9.0)), 0.0); return o; }`;
   const beamVS = `
 fn vert(a: VIn) -> VOut {
   var v: VOut;
@@ -802,7 +804,9 @@ fn vert(a: VIn) -> VOut {
   let ph: f32 = (0.7 + 1.6 * pow(saturate(cs), 3.0)) / max(sn, 0.35);
   v.ab = vec4f(cx, side * hw / sg, pow(min(rpx / 0.9, 1.0), 0.7), a.i3.w);
   v.pos = vec4f(P, Lb);
-  v.col = vec4f(a.i1.rgb * (a.i1.w * ph * smoothstep(a.i3.z + 0.012, a.i3.z - 0.012, M.p.x) * M.q.x * M.p.z), 0.0);
+  // (the night's colour: the lights less saturated; every other searchlight fades out with M.q.z)
+  let keep: f32 = select(M.q.z, 1.0, (a.iid & 1u) == 0u);
+  v.col = vec4f(mix(vec3f(luma(a.i1.rgb)), a.i1.rgb, M.q.y) * (keep * a.i1.w * ph * smoothstep(a.i3.z + 0.012, a.i3.z - 0.012, M.p.x) * M.q.x * M.p.z), 0.0);
   return v;
 }`;
   const beamFS = `

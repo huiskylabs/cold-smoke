@@ -4,9 +4,21 @@
 // (so its form changes, and never comes round again), light streams down its threads along a flow field (two lives a place, started at
 // different moments in different places, so it never pulses as one), lanes of dark dust ride a different current from the glow they hide,
 // and light travels through it: fronts running outward from the stars, waves running along the arms, knots that come up and die away.
+// ---- how much colour the night sky carries (the owner: "收"). One colour statement at night, the nebula's rose; the rest calmer:
+// tp = how far the nebula's teal threads are pulled toward a grey violet, ns = the nebula's saturation, cs = the city's lights' saturation
+// (night only), bd = the share of searchlights still burning (half of them go), bk = the rest's strength. Eased, so a switch never snaps.
+const NSKY = (() => {
+  const T = { a: [0, 1, 1, 1, 1], b: [0.45, 0.85, 0.62, 0, 1], c: [0.80, 0.70, 0.42, 0, 0.7] };
+  const VN = typeof Variants !== 'undefined' ? Variants : { val: {}, def() { } };
+  VN.def('nsky', '夜空颜色', [['a', '原来'], ['b', '收'], ['c', '更收']], 'b');
+  const K = { v: (T[VN.val.nsky] || T.b).slice(), t: null };
+  K.step = function (t) { const g = T[VN.val.nsky] || T.b, f = K.t === null ? 1 : 1 - Math.exp(-Math.max(0, Math.abs(t - K.t)) * 3); K.t = t; for (let i = 0; i < 5; i++) K.v[i] += (g[i] - K.v[i]) * f; return K.v; };
+  return K;
+})();
 const NEB_TILE = 512;      // side of one tile of the second texture (two tiles side by side: flow | dust, veil and the arms' phase)
 const Nebula = (() => {
   const N = { res: 768, az: 0.17, el: 0.31, half: 0.50, roll: -0.20, gain: 1, stars: 0.45 };
+  N.nsky = NSKY;                                               // (tests: Nebula.nsky.t = null lands a switch at once)
   let gfx, texA, texB, tA, tB, pipeA, pipeB;
   N.init = function (g, res) {
     gfx = g; if (res) N.res = res;
@@ -199,7 +211,7 @@ fn nebula(d: vec3f, tm: f32) -> vec4f {
   let pulse: f32 = min(0.80 + 1.6 * w1 + 1.0 * w2 + 0.45 * w3 + 0.25 * w4 + 0.5 * knot, 2.8);
   // ---- colour: which gas glows where drifts too
   let hue: f32 = saturate(a.z + ((e1.z - 0.5) * 0.40 + 0.08 * arm) * k);
-  let rose: vec3f = vec3f(1.00, 0.26, 0.44); let violet: vec3f = vec3f(0.46, 0.32, 1.00); let teal: vec3f = vec3f(0.14, 0.95, 0.84); let gold: vec3f = vec3f(1.00, 0.76, 0.46);
+  let rose: vec3f = vec3f(1.00, 0.26, 0.44); let violet: vec3f = vec3f(0.46, 0.32, 1.00); let teal: vec3f = mix(vec3f(0.14, 0.95, 0.84), vec3f(0.56, 0.52, 0.84), M.ns.x); let gold: vec3f = vec3f(1.00, 0.76, 0.46);
   var col: vec3f = mix(rose, violet, smoothstep(0.30, 0.90, hue)) * a.x * (0.7 + 0.3 * pulse) * (0.51 + 0.08 * strm);
   let thr: vec3f = mix(mix(gold, rose, 0.5), teal, smoothstep(0.30, 0.62, hue));
   col += thr * a.y * pulse * (0.62 + 0.86 * strm);
@@ -209,6 +221,7 @@ fn nebula(d: vec3f, tm: f32) -> vec4f {
   col *= 1.0 - 0.60 * smoothstep(0.56, 0.70, dl);
   col += mix(gold, rose, 0.35) * (exp(-sq((dl - 0.545) / 0.022)) * (a.x * 0.9 + a.y * 0.5) * (0.5 + 0.5 * pulse) * 0.35);
   col += vec3f(1.0, 0.86, 0.80) * fb.w * (1.5 + 0.25 * w3 + 0.2 * knot);
+  col = mix(vec3f(luma(col)), col, M.ns.y);
   // the stars are not carried along (sampled without the folding or the flow) and scintillate a little
   let st: f32 = texLod(tNebA, vec2f(p.x, -p.y) * 0.5 + 0.5, lod).w;
   col += vec3f(0.90, 0.95, 1.0) * st * (0.8 + 0.2 * sin(tm * 3.3 + p.x * 57.0 + p.y * 31.0)) * 2.0 * M.nf.w;
