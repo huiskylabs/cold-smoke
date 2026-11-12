@@ -294,6 +294,8 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 /* held in the hands: the bottom corners are where the thumbs lie (and where a steering finger drags), so the numbers stand at the top */
 #app:not(.desk) #hud .spd { bottom: auto; top: var(--gt); }
 #app:not(.desk) #hud .drop { bottom: auto; top: calc(var(--gt) + 1px); right: calc(var(--gr) + 160px); }
+/* (on a short screen that put the drop a few pixels off the 场景 pill, number and button reading as one lump: a clear gap of about 28 px) */
+#app.short:not(.desk) #hud .drop { right: calc(var(--gr) + 186px); } #app.short.hasfs:not(.desk) #hud .drop { right: calc(var(--gr) + 226px); }
 #app:not(.desk) #seg { top: calc(var(--gt) + var(--spd) * .9 + 54px); }
 /* (a short screen held in the hands: under the speed is the horizon and the city, the one place the eye goes. The name of the run stands
    beside the speed instead, up in the sky, its foot level with the speed's) */
