@@ -113,6 +113,12 @@ fn relAt(uv: vec2f, z: f32) -> vec3f {
 }
 // anything else that keeps pace with the lens (a deer running alongside): 0 on it, 1 away from it
 fn rider(wp: vec3f, c: vec4f) -> f32 { if (c.w <= 0.0) { return 1.0; } return smoothstep(1.35 * c.w, 2.0 * c.w, length((wp - c.xyz) * vec3f(1.0, 0.8, 1.0))); }
+// a tap held to cap (exposed luminance) and greyed above it, by k (0: as it is)
+fn tame(s: vec3f, ex: f32, k: f32, cap: f32) -> vec3f {
+  let le: f32 = luma(s) * ex; if (le <= cap || k <= 0.0) { return s; }
+  let g: vec3f = mix(s, vec3f(luma(s)), k * smoothstep(cap, 3.0 * cap, le));
+  return g * mix(1.0, cap / le, k);
+}
 fn frag(v: VOut) -> FOut { var o: FOut;
   let c0: vec3f = texLod(tA, v.uv, 0.0).rgb;
   let z: f32 = linDepth(texFetchD(tDepth, vec2i(v.clip.xy), 0));
@@ -136,7 +142,10 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   // (white noise, not the interleaved-gradient pattern: that one repeats every third row, and beats with the ripples of the snow)
   let fr: f32 = U.origin.w - 64.0 * floor(U.origin.w / 64.0);
   let n: f32 = fract(sin(dot(v.clip.xy + vec2f(fr * 7.31, fr * 3.17), vec2f(12.9898, 78.233))) * 43758.5453);
-  var acc: vec3f = c0 * 0.25; var ws: f32 = 0.25;
+  // (cap: a little over sunlit white snow (sun plus sky: a glint is some 30 times the sun), or over this pixel's own level where that is
+  // brighter (the sky): nothing that the snow itself would smear is held back, dark edges do not grow dark streaks)
+  let ex: f32 = U.ambSky.w; let kk: f32 = smoothstep(5.0, 16.0, lp); let cap: f32 = max(1.15 * luma(c0), 1.2 * luma(U.sunCol.rgb + U.ambSky.rgb)) * ex;
+  var acc: vec3f = tame(c0, ex, kk, cap) * 0.25; var ws: f32 = 0.25;
   // (one look every three pixels or so along the streak, 9 to 16 of them: a long streak in a corner stays a line, not a row of beads)
   let nt: i32 = i32(clamp(ceil(lp / 3.0), 9.0, 16.0)); let nf: f32 = f32(nt);
   for (var i: i32 = 0; i < nt; i++) {
@@ -145,7 +154,11 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     let zq: f32 = linDepth(texFetchD(tDepth, vec2i(q * U.res.xy), 0));
     let wq: vec3f = U.camPos.xyz + relAt(q, zq);
     let w: f32 = smoothstep(1.05, 1.6, length(wq - sc)) * rider(wq, M.d0) * rider(wq, M.d1);
-    acc += texLod(tA, q, 0.0).rgb * w; ws += w;
+    // a glint is a point of ice 20 to 50 times the snow: averaged in as it is, one of them still burns a white (or prism-coloured) dash
+    // through every pixel of its path, like rain on the glass. Once the streak is a few pixels long (kk) a tap is held to a little over the
+    // level of sunlit snow (cap) and loses its prism colour: the sparkle trails off as a faint soft streak. A still frame is not touched
+    let s: vec3f = tame(texLod(tA, q, 0.0).rgb, ex, kk, cap);
+    acc += s * w; ws += w;
   }
   o.color = vec4f(acc / ws, 1.0); return o; }` });
     P.pipes = [pDown0, pDown, pUp, pComp, pVis, pMask, pRad, pMB];
