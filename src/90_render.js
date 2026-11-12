@@ -66,7 +66,9 @@ const Render = (() => {
     const sx = (vp[0] * sp[0] + vp[4] * sp[1] + vp[8] * sp[2]) / cw, sy = (vp[1] * sp[0] + vp[5] * sp[1] + vp[9] * sp[2]) / cw;
     G.set([sx * 0.5 + 0.5, 0.5 - sy * 0.5, cw > 0 ? 1 : 0, Sky.elev], GOFF.sunScr);
     G.set([(state.dust != null ? state.dust : 1) * (1 - 0.6 * Sky.night), 1, 1, state.microShadow != null ? state.microShadow : 1], GOFF.fx); G.set([Sky.E * Sky.nd, time * 0.004, Sky.lights, Sky.stars], GOFF.skyP); G.set([Sky.twi[0], Sky.twi[1], Sky.twi[2], 0], GOFF.twi);
-    G.set([state.focus || 7.5, 9, 44, 1 / 800], GOFF.dof);
+    // (w, the shutter the crystals streak by, thrown snow and the dust in the air alike: as much shorter as time runs slower, like the
+    // picture's own (07c_feel.js). Left at full length in a jump's slow motion, every grain kept its streak while its motion shrank)
+    G.set([state.focus || 7.5, 9, 44, (typeof Feel !== 'undefined' ? Feel.timeK : 1) / 800], GOFF.dof);
     { const lp = state.lampPos, ld = state.lampDir, lk = (state.lamp != null ? state.lamp : 1) * Sky.lampK * R.lampPower;
       if (lp && ld && lk > 0.001) { G.set([lp[0] - o[0], lp[1] - o[1], lp[2] - o[2], lk], GOFF.lamp); G.set([ld[0], ld[1], ld[2], 0], GOFF.lampDir); } else { G.set([0, 0, 0, 0], GOFF.lamp); G.set([0, -1, 0, 0], GOFF.lampDir); } }
     const cwd = R.cloudWind; G.set([(time * cwd[0]) % 1024, (time * cwd[1]) % 1024, R.cloudShade, R.cloudCover], GOFF.cloudP);
