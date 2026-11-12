@@ -419,14 +419,16 @@ fn cirrus(d: vec3f, mu: f32) -> vec4f {
   let wv: vec2f = tex(tDetail, q * vec2f(0.045, 0.09) + vec2f(0.21, 0.63)).xy - 0.5;
   let n1: f32 = tex(tDetail, vec2f(q.x * 0.022, q.y * 0.26) + wv * 0.055).z;
   let n2: f32 = tex(tDetail, vec2f(q.x * 0.075, q.y * 0.80) + wv * 0.10 + vec2f(0.37, 0.11)).z;
-  let cov: f32 = smoothstep(0.40, 0.60, tex(tDetail, q * vec2f(0.012, 0.030) + vec2f(0.55, 0.20)).z);
+  let sw: f32 = smoothstep(-0.55, 0.75, mu);
+  let cv: f32 = tex(tDetail, q * vec2f(0.012, 0.030) + vec2f(0.55, 0.20)).z;
+  let cov: f32 = smoothstep(mix(0.36, 0.40, sw), mix(0.78, 0.60, sw), cv);
   // toward the sun it glows as a veil; away from it the same ice is only seen where it is thickest, so there it is drawn as fibres (combed
   // threads, sharper and sparser), never as a lid over the blue
-  let sw: f32 = smoothstep(-0.55, 0.75, mu);
   let fib: f32 = n1 * 0.62 + n2 * 0.38 + 0.10 * cov;
   let n3: f32 = tex(tDetail, vec2f(q.x * 0.16, q.y * 2.1) + wv * 0.16 + vec2f(0.71, 0.43)).z;
-  let thr: f32 = mix(smoothstep(0.50, 0.66, n3), 1.0, sw);
-  let a: f32 = cov * smoothstep(mix(0.46, 0.36, sw), mix(0.68, 0.72, sw), fib) * thr * smoothstep(0.015, 0.14, d.y) * U.cloudP.z * mix(0.34, 0.62, sw);
+  // (away from the sun every edge is soft at every scale: the fine streaks only modulate the veil, the veil fades in and out over a wide range)
+  let thr: f32 = mix(mix(0.25, 1.0, smoothstep(0.30, 0.85, n3)), 1.0, sw);
+  let a: f32 = cov * sq(smoothstep(mix(0.34, 0.36, sw), mix(0.86, 0.72, sw), fib)) * thr * smoothstep(0.015, 0.14, d.y) * U.cloudP.z * mix(0.30, 0.62, sw);
   // ice scatters the sunlight it is in toward the eye even opposite the sun (a weak back lobe): high up it keeps the sun after the land has
   // lost it, so at sundown the threads glow gold over the sun and pink over the band opposite. Little sky light, so it never reads grey
   let lit: vec3f = M.hi.rgb * (0.55 + 3.2 * hg(mu, 0.75) + 0.6 * hg(mu, 0.25) + (1.0 + 2.2 * M.ab.y) * hg(-mu, 0.35)) + U.ambSky.rgb * 0.45;
@@ -450,7 +452,9 @@ fn antiSolar(d: vec3f, c0: vec3f) -> vec3f {
   let el: f32 = asin(clamp(d.y, -1.0, 1.0));
   // the pale horizon, carried up
   let hzc: vec3f = skyLut0(vec3f(d.x, 0.035, d.z));
-  col = mix(col, max(hzc, col), pow(smoothstep(1.2, 0.0, el), 1.4) * mix(0.22, 0.66, w));
+  // (toward a pale clean blue of the horizon's brightness: the table's own horizon is a greenish white, which mixed into the blue reads teal)
+  let hzb: vec3f = vec3f(0.80, 0.92, 1.12) * luma(hzc);
+  col = mix(col, max(hzb, col), pow(smoothstep(1.2, 0.0, el), 1.4) * mix(0.22, 0.66, w));
   let L: f32 = M.ab.w * U.skyP.x;
   // the earth's shadow: slate blue below its soft edge
   let r: f32 = el - M.ab.x;
