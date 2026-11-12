@@ -163,8 +163,8 @@ const Gates = (() => {
       vs: sheetVS('v.nrm = a.nrm; v.lp = vec4f(a.lp.xyz + M.off.xyz, a.lp.w);'), fs: POOL_FS,
     });
     pipeDye = gfx.pipeline({
-      name: 'gateDye', lib: [SL.common, SL.hash, SL.fog], buffers: [{ attrs: [['pos', 'vec3f'], ['st', 'vec4f'], ['sd', 'vec4f']] }], cull: 'none', blend: 'mul', depthWrite: false, depthFunc: 'lequal',
-      varyings: { wp: 'vec3f', st: 'vec4f', sd: 'vec4f' }, uniforms: { off: 'vec4f', p: 'vec4f' }, textures: { tDetail: '2d', tSky: '2d' },
+      name: 'gateDye', lib: [SL.common, SL.hash, SL.fog, GATE_SSL], buffers: [{ attrs: [['pos', 'vec3f'], ['st', 'vec4f'], ['sd', 'vec4f']] }], cull: 'none', blend: 'mul', depthWrite: false, depthFunc: 'lequal',
+      varyings: { wp: 'vec3f', st: 'vec4f', sd: 'vec4f' }, uniforms: { off: 'vec4f', p: 'vec4f', l0: 'vec4f', l1: 'vec4f', l2: 'vec4f', l3: 'vec4f' }, textures: { tDetail: '2d', tSky: '2d' },
       vs: sheetVS('v.st = a.st; v.sd = a.sd;'), fs: DYE_FS,
     });
     pipeGlare = gfx.pipeline({
@@ -342,7 +342,11 @@ const Gates = (() => {
     if (!live.length) return;
     const o = R.origin, e = Sky.sunElev;
     for (const g of live) if (g.lit && g.poolN && g.fade > 0) gfx.draw(pipePool, { u: { off: [g.an[0] - o[0], g.an[1] - o[1], g.an[2] - o[2], g.fade], p: [e, G.lanterns, 0, 0] }, tex: { tSnow: Tex.snow, tSnowF: Tex.snowFine, tNoise: Tex.noise, tSky: Sky.lut }, vb: [poolVB], ib: poolIB, count: g.poolN, first: g.slot * PIX });
-    if (G.dye > 0) for (const g of live) if (g.dyeN && g.fade > 0) gfx.draw(pipeDye, { u: { off: [g.an[0] - o[0], g.an[1] - o[1], g.an[2] - o[2], g.fade * G.dye], p: [0, 0, 0, 0] }, tex: { tDetail: Tex.detail, tSky: Sky.lut }, vb: [dyeVB], ib: dyeIB, count: g.dyeN, first: g.slot * DI });
+    // (the dye is told how dark the night is and where the four lanterns nearest it burn: it is pigment, and shows its blue only where
+    // there is light enough to see colour by)
+    const nf = smooth(0.0, -0.09, e);
+    const lant = (g, i) => { const f = g.flags[i]; return f ? [f.lx - o[0], f.ly + LFY - o[1], f.lz - o[2], lantOn(f.sd, e) * G.lanterns] : [0, -1e4, 0, 0]; };
+    if (G.dye > 0) for (const g of live) if (g.dyeN && g.fade > 0) gfx.draw(pipeDye, { u: { off: [g.an[0] - o[0], g.an[1] - o[1], g.an[2] - o[2], g.fade * G.dye], p: [nf, 0, 0, 0], l0: lant(g, 0), l1: lant(g, 1), l2: lant(g, 2), l3: lant(g, 3) }, tex: { tDetail: Tex.detail, tSky: Sky.lut }, vb: [dyeVB], ib: dyeIB, count: g.dyeN, first: g.slot * DI });
     if (nP) gfx.draw(pipeDrift, { u: { p: [0, 0, 0, 0] }, tex: { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, vb: [propVB, instP], ib: propIB, first: 0, count: driftN, instances: nP });
     if (nS) gfx.draw(pipeGlare, { u: { p: [0, 0, 0, 0] }, tex: { tSky: Sky.lut }, vb: [instS], count: 4, instances: nS });
   };
@@ -615,6 +619,7 @@ fn frag(v: VOut) -> FOut {
 // dye sprayed on snow by somebody walking with a tank on their back: st = (along the stroke, across it, its length, its width) in metres,
 // sd = (which stroke, 1 = a line down the hill that thins toward its upper end, strength). The sheet multiplies the snow under it.
 const DYE_FS = `
+fn lantE(l: vec4f, wp: vec3f) -> f32 { let d: vec3f = l.xyz - wp; return l.w * ${LANT_I} * 0.62 / (dot(d, d) + 0.03); }
 fn frag(v: VOut) -> FOut {
   var o: FOut;
   let p: f32 = v.st.x; let q: f32 = v.st.y; let len: f32 = v.st.z; let sd: f32 = v.sd.x;
@@ -672,7 +677,16 @@ fn frag(v: VOut) -> FOut {
   // (a dye takes its share of the light at every grain it passes: thin, it is a pale cyan; thick, a deep blue. Marking dye on snow is
   // never the blue of the bottle: wet into the grains and lit through them it is greyed toward the snow, and the deepest of it is a
   // dense slate blue, not ink)
-  o.color = vec4f(pow(vec3f(0.13, 0.32, 0.74), vec3f(saturate(rho) * 1.05)), 1.0);
+  let Td: vec3f = pow(vec3f(0.13, 0.32, 0.74), vec3f(saturate(rho) * 1.05));
+  // (by night it is pigment in the dark: a blue dye under a blue moon is a dull navy stain that only just reads, the snow round it
+  // already lit in the moon's own colour. Where the headlamp or a lantern falls on it, the light is warm and bright enough to show
+  // the colour, and there it is blue again. So: how much of the light here is lamp or lantern, against the moon and the sky)
+  var El: f32 = dot(lampLight(v.wp), vec3f(0.3, 0.55, 0.15));
+  El += lantE(M.l0, v.wp) + lantE(M.l1, v.wp) + lantE(M.l2, v.wp) + lantE(M.l3, v.wp);
+  let Dn: f32 = dot(U.sunCol.rgb, vec3f(0.3, 0.55, 0.15)) * max(U.sunDir.y, 0.0) + dot(U.ambSky.rgb, vec3f(0.3, 0.55, 0.15)) * 1.6;
+  let lit: f32 = smoothstep(0.15, 0.75, El / (El + Dn + 1e-5));
+  let Tn: vec3f = pow(vec3f(0.30, 0.33, 0.42), vec3f(saturate(rho) * 1.05));
+  o.color = vec4f(mix(Td, Tn, M.p.x * (1.0 - lit)), 1.0);
   return o;
 }
 `;
