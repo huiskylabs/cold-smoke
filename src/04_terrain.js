@@ -232,7 +232,13 @@ const Terrain = (() => {
   T.update = function (camX, camZ, force) { let n = 0; for (let l = T.LEVELS - 1; l >= 0; l--) n += updateLevel(T.levels[l], camX, camZ, force); T.lastGen = n; return n; };
   T.updateOne = function (l, camX, camZ) { return updateLevel(T.levels[l], camX, camZ, true); };
 
+  // the rock on the walls is the owner's to choose: a, spots where the face is steepest (as delivered); b, bands along the beds of the strata
+  // with snow on every bench; c, the same with more of each wall bare. [blend toward bands, extra rock]
+  const RockV = { a: [0, 0], b: [1, 0], c: [1, 0.06] };
+  if (typeof Variants !== 'undefined') Variants.def('rock', '岩壁', [['a', '斑块'], ['b', '岩带'], ['c', '多岩']], 'b');
   const uni = { lv: [0, 0, 0, 0], tc: [0, 0, 0, 0], p: [0, 0, 0, 0], pt: [0, 0, 0, 0], pk: [0, 0, 0, 0] }, uniS = { lv: uni.lv, tc: uni.tc, p: uni.p, pt: [0, 0, 0, 0], pk: [0, 0, 0, 0] };   // (uniS: for the shadow map, which knows no patch)
+  const rockV = () => RockV[typeof Variants !== 'undefined' && Variants.val.rock] || RockV.a;
+  T.rockNow = () => { const rv = rockV(); uni.pt[0] = rv[0]; uni.pt[1] = rv[1]; }; T.rockNow();      // (at load, and for tests: no easing)
   function setLevelUniforms(L, origin) {
     const c = L.cell, Lc = T.levels[Math.min(T.LEVELS - 1, L.l + 1)], last = L.l === T.LEVELS - 1;
     uni.lv[0] = c; uni.lv[1] = L.cx - origin[0] / c; uni.lv[2] = L.cz - origin[2] / c; uni.lv[3] = last ? 0 : 1;
@@ -253,6 +259,8 @@ const Terrain = (() => {
       X0 = Math.round(Tu.pc[0] / 0.5) - pc / 2; Z0 = Math.round(Tu.pc[1] / 0.5) - pc / 2;
       amp = smooth(43, 37, Math.max(Math.abs(X0 - L0.cx), Math.abs(X0 + pc - L0.cx), Math.abs(Z0 - L0.cz), Math.abs(Z0 + pc - L0.cz)));
     }
+    // (Variants 'rock': how far toward the banded rock, and how much of it; eased over a few frames so a switch dissolves rather than jumps)
+    const rv = rockV(); uni.pt[0] += clamp(rv[0] - uni.pt[0], -0.08, 0.08); uni.pt[1] += clamp(rv[1] - uni.pt[1], -0.01, 0.01);
     uni.pt[2] = X0 * 0.5 - origin[0]; uni.pt[3] = Z0 * 0.5 - origin[2]; uni.pk[0] = Tu.pc[0] - origin[0]; uni.pk[1] = Tu.pc[1] - origin[2]; uni.pk[2] = Tu.D; uni.pk[3] = amp;
     uni.tk = Tu.tk; uni.tb = Tu.tb; uni.sa0 = Tu.sa0; uni.sa1 = Tu.sa1; uni.sa2 = Tu.sa2; uni.sb0 = Tu.sb0; uni.sb1 = Tu.sb1; uni.sb2 = Tu.sb2; uni.la0 = Tu.la0; uni.la1 = Tu.la1; uni.lb0 = Tu.lb0; uni.lb1 = Tu.lb1;
     const tex = (L, Lc) => ({ tH: L.hTex, tHc: Lc.hTex, tN: L.nTex, tNc: Lc.nTex, tS: L.sTex, tSc: Lc.sTex, tSnow: Tex.snow, tSnowF: Tex.snowFine, tNoise: Tex.noise, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex, tSunTau: sunTau || Tex.black, tTrk: Tracks.near, tTrkL: Tracks.light, tTrkF: Tracks.far });
@@ -493,15 +501,16 @@ fn frag(v: VOut) -> FOut {
   // what holds snow on a wall: the ledge at the top of each bed of rock, a gully, and relief too small for the mesh to carry
   // (lenses along the beds, runnels down the face)
   var tau: f32 = 0.0; var bench: f32 = 0.0; var hold: f32 = 0.0; var sa: vec4f = vec4f(0.5);
+  var lb: f32 = 0.5; var e3: vec4f = vec4f(0.5);
   let conc: f32 = (1.0 - sm.z) * 2.0;
   if (mnt > 0.001) {
     tau = strataAt(wxz, wp.y + U.origin.y);
     // how good a ledge a bed makes changes along its length; some beds hardly make one at all
-    let lb: f32 = texLod(tDetail, vec2f((wxz.x + wxz.y) / 1024.0, (floor(tau + 0.5) + 0.5) / 16.0), 1.0).z;
+    lb = texLod(tDetail, vec2f((wxz.x + wxz.y) / 1024.0, (floor(tau + 0.5) + 0.5) / 16.0), 1.0).z;
     bench = smoothstep(0.30, 0.44, abs(fract(tau) - 0.5) + (lb - 0.5) * 0.5);
     sa = tex(tDetail, vec2f((wxz.x + wxz.y) / 1024.0, tau));
     // (and the edge of a patch of bare rock is ragged at the size of a boulder, not drawn with a compass)
-    let e3: vec4f = tex(tDetail, wxz / 73.0 + vec2f(0.41, 0.07));
+    e3 = tex(tDetail, wxz / 73.0 + vec2f(0.41, 0.07));
     // (the small relief can bare a face that is nearly steep enough anyway; it cannot open a hole in a gentle snowfield)
     hold = bench * 0.16 + conc * 0.40 + max((sa.z - 0.5) * 0.10 + (e1.z - 0.5) * 0.22 + (e2.z - 0.5) * 0.12 + (e3.z - 0.5) * 0.28, -0.20);
   }
@@ -509,12 +518,40 @@ fn frag(v: VOut) -> FOut {
   // bare rock belongs to the walls above the forest. Toward the run, under the trees and close to the lens the snow closes over it:
   // the bar a face has to clear rises, so a patch shrinks to its steepest core and is gone, instead of fading like a stain
   let rgate: f32 = saturate((mnt - 0.07) * 9.0) * (1.0 - smoothstep(0.04, 0.25, sm.w));
-  let rock: f32 = smoothstep(0.612, 0.548, Nc.y + (d1.z - 0.5) * 0.16 + hold + 0.30 * smoothstep(120.0, 45.0, dist) + 0.5 * (1.0 - rgate)) * step(0.001, rgate);
+  let shut: f32 = 0.30 * smoothstep(120.0, 45.0, dist) + 0.5 * (1.0 - rgate);
+  var rock: f32 = smoothstep(0.612, 0.548, Nc.y + (d1.z - 0.5) * 0.16 + hold + shut) * step(0.001, rgate);
+  // (Variants 'rock' b/c, M.pt.x the blend toward them, M.pt.y how much rock: the rock comes out in BANDS, the riser of each bed of the
+  // strata, the same beds the mesh cuts its benches along. Seen from afar a wall is then a stack of long dark lines with snow on every
+  // bench between them, broken where a couloir runs down or a bed makes no cliff, not a scatter of spots. How tall the cliff of a bed is
+  // grows with the steepness of the face: past about 45 degrees snow cannot hold and only the benches stay white)
+  var rk: vec3f = vec3f(0.0, 0.5, 0.0);       // (x: top of the band in the bed, y: its height, z: in the band)
+  if (M.pt.x > 0.001 && mnt > 0.001) {
+    let fr: f32 = fract(tau); let bed: f32 = floor(tau);
+    // (whether a bed makes a cliff at all, and how tall, changes slowly along it: many beds hardly break the snow, a few stand out for a
+    // kilometre; a strong bed next to a strong bed makes one great face)
+    let bn: f32 = texLod(tDetail, vec2f((wxz.x + wxz.y) / 2900.0 + bed * 0.37, (wxz.x - wxz.y) / 4100.0 + bed * 0.213), 0.0).z;
+    let cl: f32 = saturate((0.86 + M.pt.y - Nc.y - shut) * 3.4 + (bn - 0.5) * 4.0 + (lb - 0.5) * 0.8 - conc * 1.1 - smoothstep(0.04, 0.25, sm.w) * 2.0);
+    let hw: f32 = cl * (0.42 + 0.5 * M.pt.y);
+    // the top of a band is the lip of the bench above: a hard, nearly level line. Its foot is ragged: snow runs up into the rock in
+    // fingers down every runnel (noise in xz, on a steep face, is drawn out down the fall line)
+    let ctr: f32 = 0.47 + (sa.x - 0.5) * 0.08;
+    let top: f32 = ctr + hw + (sa.x - 0.5) * 0.05 + (e1.z - 0.5) * 0.03;
+    let bot: f32 = ctr - hw + (e3.z - 0.5) * 0.40 * hw + (e2.z - 0.5) * 0.30 * hw + max(conc - 0.15, 0.0) * 0.8;
+    let ew: f32 = 0.02 + dist * 0.00003;
+    var rb: f32 = saturate((top - fr) / ew) * saturate((fr - bot) / (ew * 2.5)) * smoothstep(0.05, 0.12, hw);
+    // (on the steepest faces only a good bench (lb: the ledge this bed makes, here) still holds a line of snow; a poor one is rock too, and
+    // the bands either side of it run together into one great face)
+    rb = max(rb, saturate(cl * 2.0 - 0.95) * smoothstep(0.56, 0.44, lb + (sa.x - 0.5) * 0.3)) * step(0.001, rgate);
+    rk = vec3f(top, max(top - bot, 0.05), rb);
+    rock = mix(rock, rb, M.pt.x);
+  }
   let g1: vec2f = snowSlope(d1) * (0.81 * f1); let g2: vec2f = snowSlope(d2) * (0.81 * f2); let g3: vec2f = snowSlope(d3) * (0.5 * f3);
   var slope: vec2f = sm.xy + cs + g1 + g2 + g3;
   slope += snowSlope(d1) * rock * 1.2;
   // a ledge is flatter than the face it sits on
-  slope *= 1.0 - 0.45 * bench * (1.0 - rock) * smoothstep(0.80, 0.62, Nc.y) * saturate(mnt * 5.0);
+  // (bands, b/c: the snow lying on the bench just above each band is a ledge too, turned up to the sun and the sky)
+  let cap: f32 = smoothstep(rk.x, rk.x + 0.015, fract(tau)) * (1.0 - smoothstep(rk.x + 0.07, rk.x + 0.14, fract(tau))) * step(0.001, rk.y - 0.051) * M.pt.x;
+  slope *= 1.0 - 0.45 * max(bench, cap) * (1.0 - rock) * smoothstep(0.80, 0.62, Nc.y) * saturate(mnt * 5.0);
   let sdir: vec2f = normalize(L.xz + vec2f(1e-4, 0.0)); let tanE: f32 = L.y / max(length(L.xz), 1e-3);
   // the sun's height above the lie of the slope here (a slope that falls away toward a low sun sees it a good deal higher than level ground does)
   let t3: f32 = max(tanE - dot(sm.xy, sdir), 0.03);
@@ -666,7 +703,13 @@ fn frag(v: VOut) -> FOut {
     ra = mix(ra, vec3f(0.085, 0.082, 0.09), smoothstep(0.36, 0.22, sb.z) * 0.6) * (0.80 + 0.40 * e1.z);
     // each bed weathers back a little further than its neighbour: steps across the face that catch the low sun
     let tdir: vec3f = vec3f(0.0, 1.0, 0.0) - N * N.y;
-    let Nr: vec3f = normalize(N - tdir * ((sa.y - 0.5) * 1.6 + (sb.y - 0.5) * 1.2));
+    // (bands, b/c: every thin bed in a band is a step, its top weathered round and turned up to the sky and the sun, its foot cut back
+    // into shade: a sawtooth across the band in place of the random tilt; and right under the bench above, where the snow and the
+    // top bed hang out over the face, an overhang that neither sun nor sky reaches into)
+    let fr: f32 = fract(tau); let fs: f32 = fract(tau * 7.0 + (sa.x - 0.5) * 0.9);
+    let saw: f32 = (smoothstep(0.0, 0.85, fs) - smoothstep(0.85, 1.0, fs)) * 2.0 - 1.0;
+    let ov: f32 = smoothstep(rk.x - 0.10 * rk.y - 0.045, rk.x - 0.015, fr) * (1.0 - smoothstep(rk.x - 0.012, rk.x + 0.01, fr)) * M.pt.x;
+    let Nr: vec3f = normalize(N - tdir * mix((sa.y - 0.5) * 1.6 + (sb.y - 0.5) * 1.2, -0.9 * saw + (sa.y - 0.5) * 0.6 - 1.4 * ov, M.pt.x));
     // a face is not one dark stain: snow lies along the lip of every thin bed (white lines across it, broken where the bed is poor), the
     // rock under each lip is in its shadow, and cracks run down through the beds
     let near: f32 = smoothstep(1100.0, 420.0, dist);
@@ -675,7 +718,8 @@ fn frag(v: VOut) -> FOut {
     let under: f32 = smoothstep(0.52, 0.72, fb) * (1.0 - smoothstep(0.80, 0.86, fb)) * near;
     let ck: f32 = tex(tDetail, vec2f((wxz.x + wxz.y) / 43.0, tau * 0.55 + 0.19)).z;
     ra *= (1.0 - 0.42 * under) * (1.0 - 0.45 * smoothstep(0.36, 0.27, ck) * near);
-    let rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao);
+    ra *= (1.0 + 0.25 * M.pt.x) * (1.0 - 0.6 * ov);
+    let rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
     col = mix(col, rc, rock * (1.0 - 0.9 * lip));
   }
   // distant forest reads as a dark speckled carpet with long shadows
