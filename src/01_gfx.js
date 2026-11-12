@@ -6,7 +6,7 @@ const SSL_TYPES = { f32: 'float', i32: 'int', u32: 'uint', vec2f: 'vec2', vec3f:
 const SSL_SIZE = { f32: 1, vec2f: 2, vec3f: 3, vec4f: 4, mat4x4f: 16 };
 
 function sslToGlsl(src) {
-  let s = src;
+  let s = src.replace(/\/\/[^\n]*/g, "");                                   // comments go first: their words ("let", commas in a struct) are not code
   s = s.replace(/struct\s+(\w+)\s*\{([^}]*)\}/g, (m, name, body) => {
     const fields = body.split(',').map(f => f.trim()).filter(Boolean).map(f => { const i = f.indexOf(':'); return '  ' + f.slice(i + 1).trim() + ' ' + f.slice(0, i).trim() + ';'; });
     return 'struct ' + name + ' {\n' + fields.join('\n') + '\n};';

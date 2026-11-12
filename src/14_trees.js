@@ -581,7 +581,111 @@ const Trees = (() => {
     if (!b) return;
     shed.set(key, { id: b.id, t: 0, seen: tick });
     puff(c, o, b, b.cls ? 100 : 150, SHED, 1);
+    bomb(c, o, b, low ? 0.8 : 1);
   }
+  // ---- the load itself, handed to the thrown snow (10_spray.js), which lights it as a cloud and casts its shadow. What a bough lets go is
+  // not a veil: it is a lump the size of the pillow that slides off the tip, drops, and bursts on every tier below it that it hits (each
+  // time a little of it goes out sideways as powder and the rest goes on down, looser), lands, and leaves a cloud of the finest dust two to
+  // five metres across hanging round the tree for three to six seconds, going off with the wind (S5 tree bomb, branch dump). The thrown snow
+  // keeps nothing but launch records, so each of those bursts is written now with the moment it will happen. power: 1 a load, less for a
+  // bough the skier only touched.
+  const _bh = [], _sp = [0, 0, 0];
+  // how long something with the fall speed vs (and the time constant ts with which the air reaches it) takes to drop d metres (snowFly)
+  const dropT = (d, vs) => { const ts = Math.max(vs / 9.81, 0.03); let t = Math.sqrt(2 * d / 9.81); for (let i = 0; i < 6; i++) { const e = Math.exp(-t / ts), y = vs * (t - ts * (1 - e)) - d, dy = vs * (1 - e); t = Math.max(0.01, t - y / Math.max(dy, 0.2)); } return t; };
+  const vsOf = f => 0.28 + 6.9 * Math.pow(1 - f, 2.6);
+  T.bombs = 0;
+  function bomb(c, o, b, power) {
+    if (typeof Spray === 'undefined' || !Spray.puff || typeof App === 'undefined') return;
+    const cp = Render.cam.pos, dc = Math.hypot(c[o] - cp[0], c[o + 2] - cp[2]);
+    if (dc > 110) return;                         // (beyond that it is a speck: the tree's own glitter says it)
+    T.bombs++;
+    const t = App.t, s = c[o + 3] / 10, rr = b.L * (0.62 + 0.25 * rnd());
+    const P0 = boughPoint(c, o, b, rr, 0), px = P0[0], py = P0[1] + 0.08 * s, pz = P0[2], ox = P0[3], oz = P0[4];
+    const gy = c[o + 1] + 0.02, G = ground(c, o), gnd = gy + G[0] * (px - c[o]) + G[1] * (pz - c[o + 2]);
+    // fewer and bigger far off (the same cover for less of the shared ring), all of it at full count close by
+    const k = power * (dc < 30 ? 1 : lerp(1, 0.45, sat((dc - 30) / 80))), big = 1 / Math.sqrt(Math.max(k / power, 0.3)), load = (b.cls === 0 ? 1 : b.cls === 1 ? 0.7 : 0.45) * c[o + 11];
+    // the tiers below that the load comes down on: boughs lower down, turned the same way and long enough to reach out to where it falls
+    _bh.length = 0;
+    for (const e of TM.kinds[c[o + 6]].B) {
+      if (e.y0 > b.y0 - 0.5 || e.L < rr * 0.7) continue;
+      let da = e.a - b.a; da -= TAU * Math.round(da / TAU);
+      if (Math.abs(da) > Math.max(0.3, Math.atan2(e.W, rr))) continue;
+      _bh.push(boughPoint(c, o, e, Math.min(rr, e.L * 0.95), 0)[1] + 0.12 * s);
+    }
+    _bh.sort((a, b) => b - a);
+    const tiers = []; for (const y of _bh) if (y < py - 0.8 && y > gnd + 0.5 && (!tiers.length || tiers[tiers.length - 1] - y > 0.9) && tiers.length < 3) tiers.push(y);
+    const emit = (kind, tt, p, v, rate) => { if (Spray.onEmit && Spray.onEmit.length) { const e = { kind, t: tt, p, v, spread: 1.2, rate, powder: 1, r: [-oz, ox], f: [ox, oz] }; for (const f of Spray.onEmit) f(e); } };
+    // 1. the lump: it leaves the tip of the bough over a third of a second (the bough's own snow sinks away in the same time), the solid
+    // core first and the loose rim after it, falling at once and drawn out into a column by the ones that the air holds back more
+    const fc = 0.12, vc = vsOf(fc), tG = dropT(py - gnd, vc), nB = Math.round(34 * k * load + 6);
+    for (let i = 0; i < nB; i++) {
+      const f = i < nB * 0.45 ? 0.04 + 0.16 * rnd() : 0.2 + 0.32 * rnd(), lag = 0.04 + 0.32 * Math.pow(rnd(), 1.4), a = rnd() * TAU, w = Math.sqrt(rnd()) * 0.35 * s * load;
+      const life = (dropT(py - gnd, vsOf(f)) + 0.2) * 1.5, out = 0.25 + 0.5 * rnd();
+      Spray.puff(t + lag, px + Math.cos(a) * w, py - 0.1 * rnd(), pz + Math.sin(a) * w, ox * out + (rnd() - 0.5) * 0.3, -0.3 - 0.6 * rnd(), oz * out + (rnd() - 0.5) * 0.3,
+        f, lerp(0.10, 0.20, rnd()) * s * big * (0.6 + 0.5 * load), lerp(8.5, 4.5, f / 0.52), 1.3, life / lerp(0.8, 3.3, f), 0.5);
+    }
+    if (typeof Grains !== 'undefined' && Grains.clumps) Grains.clumps(t + 0.08, [px, py, pz], [ox * 0.5, -0.5, oz * 0.5], Math.round(10 * k * load + 2), 0.07 * s, { from: 'tree' });
+    emit('sift', t, [px, py, pz], [ox * 0.5, -1, oz * 0.5], 1.2 * k);
+    // 2. every tier it comes down on: a burst out sideways and up a little (what the bough catches and flicks off), grains, and clumps that go on
+    const burst = (y, tb, n, spd, dens, f0) => {
+      const bx = px + ox * 0.1, bz = pz + oz * 0.1;
+      for (let i = 0; i < n; i++) {
+        const a = rnd() * TAU, sp = spd * (0.4 + 0.8 * rnd()), up = 0.2 + 0.9 * rnd(), f = f0 + (1 - f0) * rnd(), w = 0.25 * s * rnd(), dl = 0.06 * rnd();
+        Spray.puff(t + tb + dl, bx + Math.cos(a) * w, y + 0.1 * rnd(), bz + Math.sin(a) * w, Math.cos(a) * sp + ox * 0.6, up, Math.sin(a) * sp + oz * 0.6,
+          f, lerp(0.10, 0.22, rnd()) * s * big, dens * (1.1 - 0.5 * f), 1.6, f > 0.8 ? 1.25 : 1, 0.6 + 0.6 * f);
+      }
+      for (let i = 0; i < Math.round(n * 3); i++) { const a = rnd() * TAU, sp = spd * (0.3 + 1.1 * rnd()); Spray.grain(t + tb + 0.05 * rnd(), bx, y, bz, Math.cos(a) * sp, 0.3 + 1.4 * rnd(), Math.sin(a) * sp, rnd(), 0.5 + 1.5 * rnd() * rnd(), 1.4, 0.8); }
+      emit('sift', t + tb, [bx, y, bz], [0, 0.4, 0], 0.8 * k);
+    };
+    for (let j = 0; j < tiers.length; j++) {
+      const y = tiers[j], tt = dropT(py - y, vc) + 0.12;
+      burst(y, tt, Math.round(14 * k * load + 3), 1.4 + 0.5 * j, 3.6, 0.45);
+      // (what goes on down from here is looser: a second, smaller column, a little out from the first)
+      for (let i = 0, n = Math.round(8 * k * load + 2); i < n; i++) {
+        const f = 0.12 + 0.35 * rnd(), a = rnd() * TAU, w = 0.3 * s * Math.sqrt(rnd());
+        Spray.puff(t + tt + 0.05 * rnd(), px + Math.cos(a) * w, y - 0.05, pz + Math.sin(a) * w, ox * 0.4, -0.8 - rnd(), oz * 0.4, f, lerp(0.09, 0.16, rnd()) * s * big, lerp(6.5, 4.0, f / 0.47), 1.3, (dropT(y - gnd, vsOf(f)) + 0.2) * 1.5 / lerp(0.8, 3.3, f), 0.5);
+      }
+    }
+    // 3. it lands: a low ring of powder thrown out along the snow
+    const tl = dropT(py - gnd, vc) + 0.1;
+    { const n = Math.round(18 * k * load + 4), bx = px, bz = pz;
+      for (let i = 0; i < n; i++) {
+        const a = rnd() * TAU, sp = 1.0 + 2.2 * rnd(), f = 0.5 + 0.5 * rnd();
+        Spray.puff(t + tl + 0.08 * rnd(), bx + Math.cos(a) * 0.3 * s, gnd + 0.08, bz + Math.sin(a) * 0.3 * s, Math.cos(a) * sp, 0.3 + 0.9 * rnd(), Math.sin(a) * sp, f, lerp(0.12, 0.24, rnd()) * s * big, 3.4 * (1.1 - 0.5 * f), 1.4, 1.2, 0.9);
+      }
+      emit('land', t + tl, [bx, gnd, bz], [0, 0.6, 0], 0.7 * k);
+    }
+    // 4. what is left in the air: the finest of it, through the whole height it fell, thickest low down where the bursts and the landing
+    // threw it; it hangs three to six seconds and goes off with the wind (fineness 1: it rides the wind as the air does)
+    // (born small in the wake of what went past, a moment after it: grown at once to its full size it was a row of round white balls)
+    { const n = Math.round(34 * k * load + 6);
+      for (let i = 0; i < n; i++) {
+        const q = Math.pow(rnd(), 1.6), y = gnd + 0.3 + (py - gnd) * q, tb = dropT(Math.max(py - y, 0.01), vc) + 0.12 + 0.4 * rnd(), a = rnd() * TAU, w = (0.15 + 0.8 * rnd()) * s;
+        Spray.puff(t + tb, px + Math.cos(a) * w, y, pz + Math.sin(a) * w, Math.cos(a) * 0.4, 0.15 * rnd(), Math.sin(a) * 0.4, 0.9 + 0.1 * rnd(), lerp(0.10, 0.22, rnd()) * s * big, lerp(0.8, 1.4, rnd()), 1, lerp(1.15, 1.75, rnd()), 0.5);
+        if (i % 2 === 0) Spray.grain(t + tb + 0.3 * rnd(), px + Math.cos(a) * w, y, pz + Math.sin(a) * w, Math.cos(a) * 0.3, 0.2 * rnd(), Math.sin(a) * 0.3, 1, 0.4 + 1.6 * rnd() * rnd(), 1.6, 0.6);
+      }
+    }
+  }
+  // snow shaken off a bough onto the skier who brushes it (99_main.js, on a brush or a crash): not one soft round veil but six to twelve
+  // small loose clumps coming apart as they fall, each eroded at its edges by the noise of the thrown snow, a little of the finest left
+  // hanging between them, and the glittering grains. p: about head height, beside the tree; v: the skier's velocity; power: 0.8 brush .. 1.6 crash
+  T.sift = function (t, p, v, power) {
+    if (typeof Spray === 'undefined') return;
+    const nc = Math.round(clamp(7.5 * power, 6, 12)), ng = Math.round(220 * power);
+    for (let i = 0; i < nc; i++) {
+      const a = rnd() * TAU, rr = 0.25 + 0.75 * Math.sqrt(rnd()), px = p[0] + Math.cos(a) * rr, pz = p[2] + Math.sin(a) * rr, py = p[1] + (rnd() - 0.2) * 1.2;
+      const vx = v[0] * (0.15 + 0.25 * rnd()) + (rnd() - 0.5) * 1.0, vz = v[2] * (0.15 + 0.25 * rnd()) + (rnd() - 0.5) * 1.0, vy = -0.4 - rnd() * 1.0, f = 0.25 + 0.4 * rnd();
+      Spray.puff(t + 0.06 * rnd(), px, py, pz, vx, vy, vz, f, lerp(0.05, 0.10, rnd()), lerp(4.5, 2.8, f), 1.8, 1.1, 0.6);
+    }
+    for (let i = 0; i < 3; i++) { const a = rnd() * TAU, rr = 0.4 * rnd(); Spray.puff(t + 0.1 + 0.15 * rnd(), p[0] + Math.cos(a) * rr, p[1] - 0.3 * rnd(), p[2] + Math.sin(a) * rr, v[0] * 0.2, -0.2, v[2] * 0.2, 0.92, lerp(0.10, 0.16, rnd()), 0.35, 1, 0.7, 1.0); }
+    for (let i = 0; i < ng; i++) {
+      const a = rnd() * TAU, rr = Math.sqrt(rnd()) * 0.9, px = p[0] + Math.cos(a) * rr, pz = p[2] + Math.sin(a) * rr, py = p[1] + (rnd() - 0.3) * 1.4;
+      const vx = v[0] * (0.15 + 0.25 * rnd()) + (rnd() - 0.5) * 1.2, vz = v[2] * (0.15 + 0.25 * rnd()) + (rnd() - 0.5) * 1.2, vy = -0.3 - rnd() * 1.2;
+      Spray.grain(t, px, py, pz, vx * 1.4, vy * 1.6 + 0.6, vz * 1.4, 0.35 + 0.65 * rnd(), 0.5 + 1.6 * rnd() * rnd(), 1.2);
+    }
+    if (typeof Grains !== 'undefined' && Grains.clumps) Grains.clumps(t, p, [v[0] * 0.2, -0.8, v[2] * 0.2], Math.round(4 * power), 0.05, { from: 'tree' });
+    if (Spray.onEmit && Spray.onEmit.length) { const e = { kind: 'sift', t, p: p.slice(), v: [v[0] * 0.2, -0.8, v[2] * 0.2], spread: 1.5, rate: Math.min(2, power), powder: 1, r: [1, 0], f: [0, -1] }; for (const f of Spray.onEmit) f(e); }
+  };
   function live(dt) {
     tick++;
     for (const [k, a] of shake) { const b = a * Math.exp(-dt * 3.0); if (b < 0.02) shake.delete(k); else shake.set(k, b); }
@@ -606,7 +710,7 @@ const Trees = (() => {
           for (let k = 0; k < 120 && n < 6; k++) { const b = B[Math.floor(rnd() * B.length)]; if (b.u > 0.1 && b.u < 0.6 && to(b) > 0.5) { puff(c, o, b, 10, NEAR, 0.1); n++; } }
           for (let q = q0; q < nDust * DF; q += DF) { dust[q + 3] += 0.3 * ev.vx; dust[q + 5] += 0.3 * ev.vz; }
           for (const b of B) if (b.cls < 2 && b.pw < 3 && b.u > 0.15 && b.u < 0.5 && to(b) > (top ? to(top) : 0.5)) top = b;
-          if (top && !shed.has(key) && shed.size < 96) { shed.set(key, { id: top.id, t: 0, seen: tick }); puff(c, o, top, top.cls ? 100 : 150, SHED, 0.2); }
+          if (top && !shed.has(key) && shed.size < 96) { shed.set(key, { id: top.id, t: 0, seen: tick }); puff(c, o, top, top.cls ? 100 : 150, SHED, 0.2); bomb(c, o, top, 0.9); }
           break;
         }
         shake.set(key, hard ? 1.6 : 1.0);

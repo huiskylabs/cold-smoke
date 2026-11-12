@@ -29,6 +29,7 @@ async function boot(stage) {
   Gates.init(gfx);
   await step(0.56, '点亮星云');
   Spray.init(gfx); Grains.init(gfx); Dust.init(gfx); Nebula.init(gfx, +QS.get('nebres') || (gfx.caps.maxTex >= 4096 && (navigator.deviceMemory || 8) >= 4 ? 1536 : 768)); Clouds.init(gfx, +QS.get('cloudres') || 0); Shafts.init(gfx); Tracks.init(gfx);
+  Wind.init(gfx);                                                        // snow the wind carries off the crests and along the ground (11b_wind.js)
   await step(0.64, '调音');
   Sound.init();
   Render.onResize.push(Spray.resize); Render.onResize.push(Shafts.resize);
@@ -37,6 +38,7 @@ async function boot(stage) {
   Render.passes.offscreen.push(R => Shafts.offscreen(R));
   Render.passes.fx.push(R => Dust.veil(R));                              // (heavy snow: the veil of the far snowfall, under everything near)
   Render.passes.fx.push(R => Shafts.fx(R));
+  Render.passes.fx.push(R => Wind.fx(R));
   Render.passes.fx.push(R => Spray.fx(R));
   Render.passes.fx.push(R => Grains.fx(R));                             // (the crystals and clumps in the thrown snow, over its cloud)
   Render.passes.fx.push(R => Dust.fx(R));
@@ -49,7 +51,7 @@ async function boot(stage) {
   Render.passes.transparent.push(R => Clouds.draw(R)); Render.passes.transparent.push(R => Trees.drawGhost(R));
   Render.passes.transparent.push(R => Gates.drawOver(R));
   await step(0.70, '调光');
-  const pipes = [].concat(Sky.pipes, Terrain.pipes, Post.pipes, Skier.pipes, Deer.pipes, Trees.pipes, Spray.pipes, Grains.pipes, Dust.pipes, Nebula.pipes, Clouds.pipes, Shafts.pipes, Tracks.pipes);
+  const pipes = [].concat(Sky.pipes, Terrain.pipes, Post.pipes, Skier.pipes, Deer.pipes, Trees.pipes, Spray.pipes, Grains.pipes, Dust.pipes, Nebula.pipes, Clouds.pipes, Shafts.pipes, Tracks.pipes, Wind.pipes);
   pipes.push(...Gates.pipes);
   for (let i = 0; i < pipes.length; i++) { const p = pipes[i]; if (gfx.finishPipelineAsync) await gfx.finishPipelineAsync(p); else gfx.finishPipeline(p); if (stage && !manual && i % 6 === 5) await step(0.70 + 0.16 * (i + 1) / pipes.length, null); }
   await step(0.87, '铺雪');
@@ -104,7 +106,7 @@ function tick(dt, draw) {
     // snow knocked off the boughs
     else if (ev.type === 'brush' || ev.type === 'crash') {
       const p = Game.root.pos, dx = ev.x - p[0], dz = ev.z - p[2], l = Math.hypot(dx, dz) || 1, k = Math.min(1, 0.9 / l);
-      Spray.sift(App.t, [p[0] + dx * k, p[1] + 1.5, p[2] + dz * k], S.v, ev.type === 'crash' ? 1.6 : 0.8);
+      (Trees.sift || Spray.sift)(App.t, [p[0] + dx * k, p[1] + 1.5, p[2] + dz * k], S.v, ev.type === 'crash' ? 1.6 : 0.8);
       if (ev.type === 'crash') { Game.shake = Math.max(Game.shake, 0.05); Spray.fall(App.t, p, S.n, clamp(ev.v / 5, 0.3, 2.2)); }
     }
   }

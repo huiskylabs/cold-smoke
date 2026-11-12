@@ -136,6 +136,7 @@ const Spray = (() => {
   //       rate (how much snow this step, 0..2), powder (0..1), r:[x,z] right axis, f:[x,z] forward axis }   (world space)
   // A listener that throws is dropped from that one call, never from the game.
   P.onEmit = [];
+  const LF0 = [0, 0, 0, 0], LF1 = [0, 0, 0, 0], liftU = () => { if (typeof Tracks === 'undefined' || !Tracks.liftU) return LF0; const u = Tracks.liftU(), o = (typeof Render !== 'undefined' && Render.origin) || LF0; LF1[0] = u[0] - o[0]; LF1[1] = u[1] - o[2]; LF1[2] = u[2]; LF1[3] = u[3]; return LF1; };
   function emit(kind, t, p, v, spread, rate, powder, r, f) {
     if (!P.onEmit.length) return;
     const e = { kind, t, p, v, spread, rate, powder, r, f };
@@ -149,7 +150,7 @@ const Spray = (() => {
     pipePuff = gfx.pipeline({
       name: 'sprayPuff', lib: [SL.common, SL.depth, SL.shadow, SL.sprayTau, GROUND_SSL, FLIGHT_SSL, PUFF_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'add4',
       buffers: [{ instanced: true, attrs: [['a0', 'vec4f'], ['a1', 'vec4f'], ['a2', 'vec4f'], ['a3', 'vec4f']] }],
-      varyings: { uv: 'vec2f', d0: 'vec4f', d1: 'vec4f', d2: 'vec4f' }, uniforms: { hx: 'vec4f', hx2: 'vec4f', fc: 'vec4f' },
+      varyings: { uv: 'vec2f', d0: 'vec4f', d1: 'vec4f', d2: 'vec4f' }, uniforms: { hx: 'vec4f', hx2: 'vec4f', fc: 'vec4f', lf: 'vec4f' },
       textures: { tH: 'fetch', tDepth: 'depth', tDetail: '2d', tShadow: 'shadow', tSunTau: '2d' },
       vs: PUFF_VS, fs: PUFF_FS,
     });
@@ -158,7 +159,7 @@ const Spray = (() => {
     pipePuffSun = gfx.pipeline({
       name: 'spraySun', lib: [SL.common, GROUND_SSL, FLIGHT_SSL, PUFF_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'add4', colorFormat: 'rgba16f',
       buffers: [{ instanced: true, attrs: [['a0', 'vec4f'], ['a1', 'vec4f'], ['a2', 'vec4f'], ['a3', 'vec4f']] }],
-      varyings: { uv: 'vec2f', d0: 'vec4f' }, uniforms: { hx: 'vec4f', sn: 'vec4f' }, textures: { tH: 'fetch' },
+      varyings: { uv: 'vec2f', d0: 'vec4f' }, uniforms: { hx: 'vec4f', sn: 'vec4f', lf: 'vec4f' }, textures: { tH: 'fetch' },
       vs: PUFF_SUN_VS, fs: PUFF_SUN_FS,
     });
     pipeComp = gfx.pipeline({
@@ -484,7 +485,7 @@ const Spray = (() => {
     gfx.beginPass(sunT, { color: [0, 0, 0, 0] });
     // night: 0 by day, at golden hour and at dusk (they keep the look they had), 1 once the sun is well under (see the end of SPRAY_COMP_FS)
     P.nt = P.night != null ? P.night : smooth(-0.07, -0.16, Sky.sunElev);
-    if (P.enabled && P.shadows) gfx.draw(pipePuffSun, { u: { hx: hb.xf, sn: [1 - 0.6 * P.nt, 0, 0, 0] }, tex: { tH: hb.tex }, vb: [puffBuf], count: 4, instances: P.NP });
+    if (P.enabled && P.shadows) gfx.draw(pipePuffSun, { u: { hx: hb.xf, sn: [1 - 0.6 * P.nt, 0, 0, 0], lf: liftU() }, tex: { tH: hb.tex }, vb: [puffBuf], count: 4, instances: P.NP });
     gfx.endPass();
   };
   // (a phone draws the rim of the curtain with one noise instead of two: P.grainy off there and whenever the governor has had to shrink the picture)
@@ -492,7 +493,7 @@ const Spray = (() => {
   P.offscreen = function (R) {
     P.grainy = !touchSmall && !(Render.scale < 0.75);
     gfx.beginPass(accT, { color: [0, 0, 0, 0] });
-    if (P.enabled) gfx.draw(pipePuff, { u: { hx: P.hb.xf, hx2: [P.nearBlur, P.shutter && R.motionBlur !== false && R.dt > 0 ? Post.shutter / Math.max(R.dt, 1 / 240) : 0, P.streakMax, P.lens], fc: [P.face, P.grainy ? 1 : 0, 0, 0] }, tex: { tH: P.hb.tex, tDepth: R.depth, tDetail: Tex.detail, tShadow: R.shadowTex, tSunTau: sunTex }, vb: [puffBuf], count: 4, instances: P.NP });
+    if (P.enabled) gfx.draw(pipePuff, { u: { hx: P.hb.xf, hx2: [P.nearBlur, P.shutter && R.motionBlur !== false && R.dt > 0 ? Post.shutter / Math.max(R.dt, 1 / 240) : 0, P.streakMax, P.lens], fc: [P.face, P.grainy ? 1 : 0, 0, 0], lf: liftU() }, tex: { tH: P.hb.tex, tDepth: R.depth, tDetail: Tex.detail, tShadow: R.shadowTex, tSunTau: sunTex }, vb: [puffBuf], count: 4, instances: P.NP });
     gfx.endPass();
   };
   P.fx = function (R) {
@@ -508,6 +509,11 @@ const Spray = (() => {
 })();
 
 const PUFF_SSL = `
+// the snow surface as drawn: near the skier the terrain raises the powder by the depth the skis ride at (Tracks.lift, the same numbers)
+fn groundS(p: vec3f) -> f32 {
+  let d: f32 = length(p.xz - M.lf.xy);
+  return groundH(p) + M.lf.z * (1.0 - smoothstep(mix(1.0, 3.0, M.lf.w), mix(2.15, 7.5, M.lf.w), d));
+}
 struct PuffS { pos: vec3f, vel: vec3f, sm: vec3f, r: f32, dens: f32, lf: f32, t: f32, }
 // one puff now: thrown, braked, then hanging and sifting down (snowFly). dens = optical depth at its centre (0 = dead).
 // a2 = (how far the air lets its throw carry, the speed it falls at in the end, life, radius at launch), a3 = (growth, optical depth, fineness, stretch)
@@ -541,12 +547,12 @@ fn puffState(a0: vec4f, a1: vec4f, a2: vec4f, a3: vec4f) -> PuffS {
   // Back on the snow. A clot is snow again: it fades where it lands. The fine part is heavier than the air it hangs in: what reaches the
   // ground does not stop there but runs out along it, a flat flow spreading as the square root of time and sliding downhill at the
   // better part of a metre a second, slowing within a second or two, thinning as it goes.
-  let g0: f32 = groundH(pos); let gy: f32 = g0 + r * 0.28;
+  let g0: f32 = groundS(pos); let gy: f32 = g0 + r * 0.28;
   let pen: f32 = max(gy - pos.y, 0.0);
   let tg: f32 = pen / max(a2.y, 0.15);                                  // about how long ago it reached the snow
   let onG: f32 = saturate(pen / max(r * 0.4, 0.04)) * fr;
   if (onG > 0.0) {
-    let gx: f32 = groundH(pos + vec3f(0.6, 0.0, 0.0)) - g0; let gz: f32 = groundH(pos + vec3f(0.0, 0.0, 0.6)) - g0;
+    let gx: f32 = groundS(pos + vec3f(0.6, 0.0, 0.0)) - g0; let gz: f32 = groundS(pos + vec3f(0.0, 0.0, 0.6)) - g0;
     let gl: f32 = length(vec2f(gx, gz));
     var dn: vec2f = vec2f(0.0);
     if (gl > 1e-4) { dn = -vec2f(gx, gz) / gl; }

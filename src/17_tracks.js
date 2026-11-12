@@ -293,6 +293,8 @@ const Tracks = (() => {
     if (!T.enabled) return 0; const k = T.deep, d = Math.hypot(x - cx, z - cz);
     return T.D * smooth(lerp(2.15, 7.5, k), lerp(1.0, 3.0, k), d);
   };
+  const LU = [0, 0, 0, 0];
+  T.liftU = function () { LU[0] = cx; LU[1] = cz; LU[2] = T.enabled ? T.D : 0; LU[3] = T.deep; return LU; };
   // what the terrain needs to know this frame
   T.frame = function () {
     U.on = T.enabled; U.D = T.D; const pb = 0.6 + 0.6 * T.deep; U.pc[0] = cx - pb * pdx; U.pc[1] = cz - pb * pdz;      // (the relief is centred a little behind the skier, where the tracks are; further back for a furrow)
