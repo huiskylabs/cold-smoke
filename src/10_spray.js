@@ -684,13 +684,17 @@ fn frag(v: VOut) -> FOut {
     let moon: vec3f = U.sunCol.rgb * vec3f(0.56, 0.78, 1.16) * (vis * mix(1.0, 2.1, M.r.z));
     // (against the moon the veil has a silver edge: it does not blaze as it does against the sun)
     let S1n: f32 = wbk * tn * Tn + (wsd * (1.0 - Tn) + wfr * 0.5 * (1.0 - Tn * Tn)) * 0.5;
-    var cn: vec3f = moon * (min(ph, 1.4) * S1n * 0.8 + (1.0 - Tn) * mix(0.16, 0.55 * wrapD, smoothstep(0.25, 1.8, tn)));
+    // (snow in the air by night is seen only where a light finds it. Outside the lamp's cone that is the moon alone, and the moon picks out
+    // wisps, not a sheet: what it lights is torn by the same world noise as the edge, and the rest of the cloud is all but nothing.
+    // With a constant ambient fill and the moon lighting all of it evenly, the curtain behind the skier read as a grey poster)
+    let wisp: f32 = smoothstep(0.42, 0.78, wn) * smoothstep(0.30, 0.70, w3);
+    var cn: vec3f = moon * ((min(ph, 1.4) * S1n * 0.8 + (1.0 - Tn) * mix(0.16, 0.55 * wrapD, smoothstep(0.25, 1.8, tn))) * (0.08 + 0.62 * wisp));
     // the dark around it: the sky, and the moonlit slope it hangs over, which is the largest light there is by night (a veil over that
     // snow has that snow's brightness, give or take: shaded with the sky alone it stood on the slope as a wall of dark smoke)
     // (but it is only what the cloud takes out of the snow behind it, given back: the cloud itself takes out little (see To below), so
     // this is a faint grey haze over the dark, and over lit snow next to nothing: it neither darkens that snow nor paints it blue)
     let ambN: vec3f = U.ambSky.rgb * (1.1 + 0.6 * up) + U.ambGnd.rgb * 0.95;
-    cn += (mix(ambN, vec3f(luma(ambN)), 0.6) * 0.45 + moon * (0.05 * deep)) * (1.0 - Tn);
+    cn += (mix(ambN, vec3f(luma(ambN)), 0.6) * 0.06 + moon * (0.05 * deep)) * ((1.0 - Tn) * (0.25 + 0.75 * wisp));
     // the town: a trace of its warmth in whatever hangs toward it
     cn += vec3f(1.0, 0.50, 0.42) * (0.0045 * U.skyP.z * (0.35 + 0.65 * sq(saturate(dot(d.xz, M.c.xy)))) * (1.0 - Tn));
     // the headlamp. It is the one light close enough to show how much snow there is, so it sees all of it (not the thinned veil).
@@ -702,14 +706,14 @@ fn frag(v: VOut) -> FOut {
       // beside and behind the lamp, never in its cone, and without this the skier's light did not touch the snow the skier throws)
       let dl: vec3f = P1 - U.lamp.xyz; let r2: f32 = dot(dl, dl); let cl: f32 = dot(dl, U.lampDir.xyz) / sqrt(max(r2, 1e-4));
       // (the spill is a glow, not a flood: at full strength it lit the whole near curtain behind the skier to one flat grey slab)
-      let E: vec3f = lampLight(P1) + vec3f(1.0, 0.85, 0.64) * (U.lamp.w * 0.013 * smoothstep(-0.6, 0.3, cl) / (r2 + 6.0));
+      let E: vec3f = lampLight(P1) + vec3f(1.0, 0.85, 0.64) * (U.lamp.w * 0.004 * smoothstep(-0.6, 0.3, cl) / (r2 + 6.0));
       let ml: f32 = dot(d, -dl) / sqrt(max(r2, 1e-4));
       // (the peak is held down: unheld, the whole cloud burnt out to one white shape against the lamp, thick and thin alike. Held, the thick
       // of it stands dark in a bright rim, as snow against a light does. And it is in thin snow that single crystals show)
       let phl: f32 = min((0.50 * hg(ml, 0.86) + 0.38 * hg(ml, 0.40) + 0.12 * hg(ml, -0.30)) * 12.566, 3.5);
-      let glit: f32 = smoothstep(0.74, 1.0, s1) * smoothstep(0.45, 1.0, s2) * 8.0 * max(sharp, 0.6) * (1.0 - 0.6 * smoothstep(0.6, 2.5, tau));
+      let glit: f32 = smoothstep(0.70, 1.0, s1) * smoothstep(0.40, 1.0, s2) * 14.0 * max(sharp, 0.6) * (1.0 - 0.6 * smoothstep(0.6, 2.5, tau));
       // (lit snow in the air is crystals and tufts, lit unevenly: the same world noise the edge is torn by, so it is never one even face)
-      let tl: f32 = mix(0.30, 1.5, smoothstep(0.30, 0.70, wn));
+      let tl: f32 = mix(0.15, 1.6, smoothstep(0.30, 0.70, wn));
       cn += E * ((phl * tau * T + (1.0 - T) * mix(0.30, 0.60, saturate(0.5 - 0.5 * ml))) * (tl + glit));
     }
     // the night cloud is light added, not a dye: it takes at most a tenth of what is behind it (real crystals off the lamp are all but
@@ -756,7 +760,7 @@ fn vert(a: VIn) -> VOut {
       // (by night a crumb is as cold and faint as the veil it flies in, unless the lamp has it: left as by day, they were dark pepper on a bright fog)
       if (nt > 0.0) {
         let ll: vec3f = lampLight(pos);
-        let cn: vec3f = U.sunCol.rgb * vec3f(0.56, 0.78, 1.16) * ((0.05 + 0.36 * vis) * mix(1.0, 2.1, M.gp.w)) + U.ambSky.rgb * 1.3 + U.ambGnd.rgb * 0.6 + ll * 0.8;
+        let cn: vec3f = U.sunCol.rgb * vec3f(0.56, 0.78, 1.16) * ((0.05 + 0.36 * vis) * mix(1.0, 2.1, M.gp.w)) + (U.ambSky.rgb * 1.3 + U.ambGnd.rgb * 0.6) * 0.3 + ll * 1.2;
         let an: f32 = min(1.0, 3.14159 * rc * rc / max(foot, 1e-3)) * 0.92 * fade * max(smoothstep(0.30, 0.85, vis), saturate(ll.x * 6.0)) * smoothstep(2.4, 5.2, zv) * M.gp.x;
         cc = mix(cc, vec4f(cn, an), nt);
       }
