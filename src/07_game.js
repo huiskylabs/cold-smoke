@@ -92,7 +92,7 @@ const Game = (() => {
   // on the title page the lens looks a little to the left of the figure: the words stand on that side, the picture gathers on the other
   G.titleYaw = -0.13;
   const cam = G.cam = { pos: [0, 3, 8], yaw: 0, roll: 0, fov: 1.3, anchor: [0, 0, 0], pitch: -0.2, side: 0, gy: 0, init: false, fwd: [0, 0, -1] };
-  const pc = {}, pk = {}, tn = { ok: false }, tnc = { ok: false };
+  const pc = {}, tn = { ok: false }, tnc = { ok: false };
   let acc = 0;
 
   G.reset = function (s0 = 14) {
@@ -190,31 +190,22 @@ const Game = (() => {
     // steps, only when the skis really leave the snow
     S.bite = damp(S.bite, contact ? Math.min(N, 2 * GRAV) : 0, contact ? BITE_K : 30, dt);
 
-    // ---- the edge of the run. Nothing pushes the skier back into it (the force that did hauled it up the flank of a ridge by itself).
-    // Past the edge three things act, as they would on a mountain. The snow lies deep and drags. The skis hold their edge against a flank
-    // that falls away from the run, instead of sliding off down it. And the skier's own steering brings the line round toward the run, the
-    // farther out the more firmly. The last two act across the direction of travel: they turn the skier and cannot add speed, so any
-    // height won back is paid for in speed. A slow skier is never steered onto a line that climbs: it traverses downhill until there is speed to spend
-    const uo = p[0] - c.cx, so = uo < 0 ? -1 : 1, eo = Math.abs(uo) - c.hw; S.off = eo;
-    const yawC = Math.atan2(Course.at(-p[2] + 12, pk).cx - c.cx, 12), yawV = Math.atan2(v[0], -v[2]);       // which way the valley runs here, and the skier
-    let uE = u, aHold = 0, hd = 0;
-    // (no steering turns the skier on round until it faces up the hill: as the line swings across the valley the lean asked for fades to
-    // nothing, so a turn held too long ends as a traverse, still going down. Height is only ever won on speed already in hand)
-    if (sp > 1.5) { hd = yawV - yawC; hd -= TAU * Math.round(hd / TAU); if (u * hd > 0) uE = u * smooth(1.30, 0.80, Math.abs(hd)); }
+    // ---- off the run. Nothing steers or pushes the skier back onto it: beyond the edge gravity takes the skier wherever the land falls, as
+    // anywhere else. (What did, a force toward the run's centre line and after it a steer added to the player's and an edge held against
+    // the flank, read as an invisible hand dragging the skier back up against gravity.) What keeps a skier near the run is what can be
+    // seen: the land (03_course.js: banks rise either side; off a ridge the flank runs down into hollows whose floors climb back to a
+    // shoulder level with the run) and the snow, deep and unpacked off the run, which drags (below)
+    const eo = Math.abs(p[0] - c.cx) - c.hw; S.off = eo;
+    // (no steering turns the skier on round until it faces up the hill: as the line swings across the slope the lean asked for fades to
+    // nothing, so a turn held too long ends as a traverse, still going down; height is only ever won on speed already in hand. The slope is
+    // the land's own under the skier, its fall line taken over some fifteen metres so that a bump or a roller does not swing it, the same on
+    // the run and off it; where the land lies nearly level there is no 'up the hill' and nothing fades. It acts on the player's own steering
+    // only, and never turns the skier anywhere)
+    let uE = u, hd = 0;
+    { const gx = Course.height(p[0] - 15, p[2], 2) - Course.height(p[0] + 15, p[2], 2), gz = Course.height(p[0], p[2] - 15, 2) - Course.height(p[0], p[2] + 15, 2), gl = Math.hypot(gx, gz);
+      const w = smooth(0.06, 0.15, gl / 30);
+      if (sp > 1.5 && w > 0) { hd = Math.atan2(v[0], -v[2]) - Math.atan2(gx, -gz); hd -= TAU * Math.round(hd / TAU); hd *= w; if (u * hd > 0) uE = u * smooth(1.30, 0.80, Math.abs(hd)); } }
     S.hdOff = hd;
-    // (on a ridge the 'edge' is taken some metres early: its rims carry the wind lips and the stunted trees, which stand from four metres inside it)
-    const eq = eo + 9 * c.ridge;
-    if (eq > -9 && sp > 0.3) {
-      const gx = -n[0] / n[1], gz = -n[2] / n[1];                                          // the snow's gradient
-      // (the most outward heading allowed: any at all nine metres inside the edge and less and less from there, along the run at the edge, back toward it beyond)
-      let lim = yawC + so * (1.1 * smooth(-5, -9, eq) + 0.5 * smooth(0, -5, eq) - 0.32 * smooth(0, 9, eq));
-      const need = lerp(0.12, -0.6, smooth(5, 11, sp)), fall = Math.atan2(-gx, gz);
-      for (let i = 0; i < 14 && gx * Math.sin(lim) - gz * Math.cos(lim) > -need; i++) { let d = fall - lim; d -= TAU * Math.round(d / TAU); if (Math.abs(d) < 0.1) break; lim += sign(d) * 0.1; }
-      let err = so * (yawV - lim); err -= TAU * Math.round(err / TAU);
-      if (so * u > 0) uE *= 1 - smooth(1, 13, eo);                                         // steering away from the run counts for less the farther out
-      if (err > 0) uE = clamp(uE - so * Math.min(0.85, 1.7 * err) * sat(sp / 2) * sat(Math.abs(uo) / 2), -1, 1);       // (nothing at the very middle: which side is 'out' changes there)
-      if (so * rx * ry < 0) aHold = GRAV * ry * smooth(0, 5, eq);
-    }
 
     // the player leans; the lean is what turns the skis (tucked, the body cannot be thrown over as far, nor the skis pivoted)
     const gn = GRAV * n[1];
@@ -233,12 +224,12 @@ const Game = (() => {
       const aC = S.bite * Math.tan(S.lean) * grip;
       const aSk = (0.95 + 0.25 * S.powder) * S.bite * sat(Math.abs(sb) / 0.34) * smooth(0.5, 3, sp);
       // (the part of a skid that turns the skier fades as the carve's does: nothing swings the line on round up the hill)
-      const lim = 1.95 * S.bite, aReac = clamp(aC + aSk * cb * sign(sb) * (sb * hd > 0 ? smooth(1.30, 0.80, Math.abs(hd)) : 1) + clamp(aHold, -0.85 * N, 0.85 * N), -lim, lim);
+      const lim = 1.95 * S.bite, aReac = clamp(aC + aSk * cb * sign(sb) * (sb * hd > 0 ? smooth(1.30, 0.80, Math.abs(hd)) : 1), -lim, lim);
       const mu = lerp(0.028, 0.06, S.powder) + (c.mog > 0.01 ? MOG_MU * Course.bumps(p[0], p[2]) : 0), lowV = sat(sp / 0.6);       // (a field of bumps is slow going; the smooth line through it is not)
       aLat = aReac; aTan -= (aSk * Math.abs(sb) + 0.05 * Math.abs(aC) + mu * N) * lowV;
       S.aReac = aReac; S.aSkid = aSk; S.aCarve = aC;
       if (S.crash > 0) { aTan -= 2.5 * lowV; }
-      if (eo > 0) aTan -= (1.6 + 0.006 * sp * sp) * sat(eo / 16) * (1 - 0.5 * c.ridge) * sat(sp / 6);       // deep, unpacked snow off the run (wind-packed and firmer along a ridge)
+      if (eo > 0) aTan -= (1.0 + 0.008 * sp * sp) * sat(eo / 16) * (1 - 0.5 * Math.max(c.ridge, sat((c.rtail - 0.74) / 0.26))) * sat(sp / 6);       // deep, unpacked snow off the run (wind-packed and firmer about a ridge)
       if (S.owe > 0) { const d = Math.min(S.owe, 16 * dt, sp); aTan -= d / dt; S.owe -= d; }
     }
     // the air drags on the whole of the speed, wherever it points (in flight too); a tuck halves it, and the player's own tuck counts for more than the one the body falls into at speed
@@ -256,6 +247,8 @@ const Game = (() => {
         let nx = p[0] - tn.x, nz = p[2] - tn.z; const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
         const vd = v[0] * nx + v[2] * nz; if (vd < 0) { v[0] -= 1.5 * vd * nx; v[2] -= 1.5 * vd * nz; }
         const imp = Math.max(0, -vd); v[0] *= 0.45; v[2] *= 0.45; p[0] = tn.x + nx * (trunk + 0.31); p[2] = tn.z + nz * (trunk + 0.31);
+        // (brought to a stop against it, the skier shuffles round it on the side the slope goes, instead of being held there by the slope)
+        if (Math.hypot(v[0], v[2]) < 3) { let ux = -nz, uz = nx; if (ux * fx + uz * fz < 0) { ux = -ux; uz = -uz; } v[0] += ux * 1.5; v[2] += uz * 1.5; }
         if (S.crash <= 0.2) G.events.push({ type: 'crash', v: imp, x: tn.x, z: tn.z, h: tn.h, r: tn.r });
         S.crash = 0.9; S.leanV += (rx * nx + rz * nz) * 4;
       } else if (d < tn.h * 0.20 && sp > 3) {
@@ -268,7 +261,8 @@ const Game = (() => {
           const push = (soft - d) * Math.min(1, 16 * dt); p[0] += nx * push; p[2] += nz * push;
           // ...and off to one side: the speed that was carrying the skier into the tree is turned along its flank, not lost
           const vd = v[0] * nx + v[2] * nz;
-          if (vd < 0) { const kk = Math.min(1, 12 * dt); let ux = -nz, uz = nx; if (v[0] * ux + v[2] * uz < 0) { ux = -ux; uz = -uz; } v[0] -= vd * (nx + 0.75 * ux) * kk; v[2] -= vd * (nz + 0.75 * uz) * kk; }
+          if (vd < 0) { const kk = Math.min(1, 12 * dt), h0 = Math.hypot(v[0], v[2]); let ux = -nz, uz = nx; if (v[0] * ux + v[2] * uz < 0) { ux = -ux; uz = -uz; } v[0] -= vd * (nx + 0.75 * ux) * kk; v[2] -= vd * (nz + 0.75 * uz) * kk;
+            const h1 = Math.hypot(v[0], v[2]); if (h1 > h0) { v[0] *= h0 / h1; v[2] *= h0 / h1; } }      // (turned, never sped up)
         }
       }
     }
