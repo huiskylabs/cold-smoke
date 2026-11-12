@@ -121,6 +121,11 @@ const Deer = (() => {
 
   // ---- the body as a distance field, built on the standing pose
   function buildBody(bd) {
+    // (the same shapes as the mesher's own, on a plain square root: Math.hypot is several times slower, and this field is asked half a million times at load)
+    const sd = { smin(a, b, k) { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; },
+      sphere(x, y, z, cx, cy, cz, r) { x -= cx; y -= cy; z -= cz; return Math.sqrt(x * x + y * y + z * z) - r; },
+      ellipsoid(x, y, z, cx, cy, cz, rx, ry, rz) { const px = (x - cx) / rx, py = (y - cy) / ry, pz = (z - cz) / rz, k0 = Math.sqrt(px * px + py * py + pz * pz), qx = px / rx, qy = py / ry, qz = pz / rz, k1 = Math.sqrt(qx * qx + qy * qy + qz * qz); return k1 > 1e-9 ? k0 * (k0 - 1) / k1 : -Math.min(rx, ry, rz); },
+      capsule(x, y, z, ax, ay, az, bx, by, bz, ra, rb) { const pax = x - ax, pay = y - ay, paz = z - az, bax = bx - ax, bay = by - ay, baz = bz - az, h = Math.max(0, Math.min(1, (pax * bax + pay * bay + paz * baz) / (bax * bax + bay * bay + baz * baz))), dx = pax - bax * h, dy = pay - bay * h, dz = paz - baz * h; return Math.sqrt(dx * dx + dy * dy + dz * dz) - (ra + (rb - ra) * h); } };
     const J = bd.J, c = sd.capsule, cap = (x, y, z, a, b, ra, rb) => c(x, y, z, a[0], a[1], a[2], b[0], b[1], b[2], ra, rb);
     const hb = J.hb, HB = J.HB;
     const loc = (x, y, z, o, X, Y, Z) => { const dx = x - o[0], dy = y - o[1], dz = z - o[2]; return [dx * X[0] + dy * X[1] + dz * X[2], dx * Y[0] + dy * Y[1] + dz * Y[2], dx * Z[0] + dy * Z[1] + dz * Z[2]]; };
@@ -235,7 +240,7 @@ const Deer = (() => {
   D.build = function () {
     bind = solve(G0); invBind = bind.F.map(m => m4.invert(m)); D.bind = bind;
     const body = buildBody(bind), t0 = performance.now();
-    const m = meshSDF(body.f, [-0.36, -0.01, -1.42], [0.36, 1.98, 0.82], 0.0135, { stride: 4, attr: body.attr });
+    const m = meshSDF(body.f, [-0.36, -0.01, -1.42], [0.36, 1.98, 0.82], 0.0135, { stride: 2, attr: body.attr });        // (a finer first pass finds the same surface with fewer questions)
     D.meshMs = performance.now() - t0;
     const bw = boneWeights(m, bind), an = antlers(), Fh = bind.F[B.head];
     const nv = m.nv + an.nv, ni = m.ni + an.ni, V = new Float32Array(nv * 10), W = new Float32Array(nv * 4), I = new Uint32Array(ni);
@@ -276,6 +281,8 @@ const Deer = (() => {
       vs: VS(true), fs: null,
     });
     D.pipes = [pipe, pipeShadow]; D.ready = true;
+    // the other animals of the mountain (08c) are made here too and come and go through the deer's own doors: nothing else needs to know of them
+    D.fauna = typeof Fauna !== 'undefined' ? Fauna : null; if (D.fauna) { Fauna.init(g); D.pipes = D.pipes.concat(Fauna.pipes); }
   };
 
   // ---- the animals themselves. They come out of the trees ahead and run down the mountain a few metres off to one side, a little slower
@@ -306,14 +313,21 @@ const Deer = (() => {
     for (let i = 0; i < D.NB; i++) boneData.set(m4.mul(R, m4.mul(s.F[i], invBind[i])), (a.row + i) * 16);
     a.R = R; a.J = s.J; return s;
   }
+  D.room = s => open(s) && open(s + 60) && open(s + 140);
+  D.leave = function () { if (D.herd.length && D.stage < 2) { D.stage = 2; D.tGo = 0; } };
   D.update = function (dt, t) {
     Post.riders[0][3] = 0; Post.riders[1][3] = 0; D.pull = 0;
-    if (!D.ready || !D.enabled) return;
+    if (!D.ready) return;
+    herd(dt, t);
+    if (D.fauna) Fauna.update(dt, t);          // the other kinds, and who decides which kind comes past next (the deer take their turn with the rest)
+  };
+  function herd(dt, t) {
     const S = Game.s, sS = -S.p[2];
     if (!D.herd.length) {
-      if (Game.mode === 'run' && Game.runT > D.next && S.speed > 6 && open(sS) && open(sS + 60) && open(sS + 140)) { D.spawn(); D.next = Game.runT + lerp(D.gap[0], D.gap[1], rnd()); }
+      if (!D.fauna && D.enabled && Game.mode === 'run' && Game.runT > D.next && S.speed > 6 && D.room(sS)) { D.spawn(); D.next = Game.runT + lerp(D.gap[0], D.gap[1], rnd()); }
       return;
     }
+    if (!D.enabled) D.leave();                 // switched off while they are here: they go
     const cS = Course.at(sS, pc), uS = S.p[0] - cS.cx, vs = Math.max(-S.v[2], 4), lead = D.herd[0]; let alive = false;
     // how far toward their side the skier has lately come: taken up at once when the skier swings in, let go as the skier swings away
     // (an animal keeps its distance from what comes at it, and is slower to follow what goes away)
@@ -383,13 +397,15 @@ const Deer = (() => {
       if (!a.gone) { alive = true; const r = Post.riders[a.i]; r[0] = a.pos[0] - Render.origin[0]; r[1] = a.pos[1] - Render.origin[1] + 1.0 * a.scale; r[2] = a.pos[2] - Render.origin[2]; r[3] = a.scale; }
     }
     if (!alive) D.herd.length = 0; else gfx.updateTexture(boneTex, 0, 0, 4, ROWS, boneData);
-  };
+  }
   D.draw = function (shadowTex, skyTex) {
     if (!D.ready) return;
+    if (D.fauna) Fauna.draw(shadowTex, skyTex);
     for (const a of D.herd) if (!a.gone && a.R) gfx.draw(pipe, { u: { p: [a.row, a.antlers, a.snow, 0] }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count });
   };
   D.drawShadow = function () {
     if (!D.ready) return;
+    if (D.fauna) Fauna.drawShadow();
     for (const a of D.herd) if (!a.gone && a.R) gfx.draw(pipeShadow, { u: { p: [a.row, a.antlers, 0, 0] }, tex: { tBones: boneTex }, vb: [vb, vb2], ib, count });
   };
   // tests: stand one somewhere, in a given moment of its stride
