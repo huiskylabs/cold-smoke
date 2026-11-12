@@ -299,15 +299,16 @@ const Grains = (() => {
   }
   const q0 = [0, 0, 0], q1 = [0, 0, 0];
   // when it comes down: march its arc against the snow, then close in on the crossing
-  function impactT(p, v, vT, tau) {
-    let ta = 0, tb = 0;
-    for (let t = 0.03; t < 3.5; t += 0.03) {
+  // (dt: the march step. A granule, gone without a mark where it lands, takes a coarser one: there are thousands of them a second)
+  function impactT(p, v, vT, tau, dt, nb) {
+    let ta = 0, tb = 0; dt = dt || 0.03;
+    for (let t = dt; t < 3.5; t += dt) {
       kpos(q0, p, v, vT, tau, t);
       if (q0[1] <= Course.height(q0[0], q0[2], 0.5)) { tb = t; break; }
       ta = t;
     }
     if (!tb) return 3.5;
-    for (let k = 0; k < 6; k++) { const tm = 0.5 * (ta + tb); kpos(q1, p, v, vT, tau, tm); if (q1[1] <= Course.height(q1[0], q1[2], 0.5)) tb = tm; else ta = tm; }
+    for (let k = 0; k < (nb || 6); k++) { const tm = 0.5 * (ta + tb); kpos(q1, p, v, vT, tau, tm); if (q1[1] <= Course.height(q1[0], q1[2], 0.5)) tb = tm; else ta = tm; }
     return tb;
   }
   function wind() { const w = App.state && App.state.wind; return w ? [w[0], w[2]] : [1.2, 0.4]; }
@@ -316,7 +317,7 @@ const Grains = (() => {
   function clump(t0, p, v, size, o) {
     sync();
     const vt = 7 + 5 * Math.sqrt(Math.min(size / 0.08, 1)) * (0.8 + 0.4 * rnd()), tau = vt / GR, w = wind(), wk = 0.12;
-    const vT = [w[0] * wk, -vt, w[1] * wk], T = impactT(p, v, vT, tau);
+    const vT = [w[0] * wk, -vt, w[1] * wk], T = o.nodep ? impactT(p, v, vT, tau, 0.08, 4) : impactT(p, v, vT, tau);
     const i = kh * G.KF, c = kCPU;
     c[i] = p[0] - org[0]; c[i + 1] = p[1] - org[1]; c[i + 2] = p[2] - org[2]; c[i + 3] = t0;
     c[i + 4] = v[0]; c[i + 5] = v[1]; c[i + 6] = v[2]; c[i + 7] = rnd();
