@@ -397,7 +397,7 @@ const Skier = (() => {
   // the face (axis of the curve gz, radius gr, half-thickness gt, half-height gh, reaching ga radians round each side, at height gy); the strap a raised
   // band round the shell at the goggles' height; the face under it all in a gaiter. Written twice: here for the mesh and in init for the shader)
   const HEAD = K.HEAD = { shell: [0, 0.004, 0.014, 0.106, 0.105, 0.133], ear: [0.088, -0.050, 0.020, 0.028, 0.050, 0.054], brim: [0, 0.032, -0.100, 0.080, 0.009, 0.030],
-    cut: [0, -0.078, -0.125, 0.074, 0.080, 0.085, 0.024], gy: -0.010, gz: -0.015, gr: 0.114, gt: 0.006, gh: 0.026, ga: 1.2, sh: 0.0145, rim: -0.072, face: [0, -0.028, -0.004, 0.078, 0.088, 0.096], chin: [0, -0.075, -0.040], chinR: 0.064 };
+    cut: [0, -0.078, -0.125, 0.074, 0.080, 0.085, 0.024], gy: -0.020, gz: -0.015, gr: 0.114, gt: 0.006, gh: 0.042, ga: 1.2, sh: 0.0145, rim: -0.072, face: [0, -0.028, -0.004, 0.078, 0.088, 0.096], chin: [0, -0.075, -0.040], chinR: 0.064 };
   const Ee = (x, y, z, e) => { const px = (x - e[0]) / e[3], py = (y - e[1]) / e[4], pz = (z - e[2]) / e[5], k0 = Math.sqrt(px * px + py * py + pz * pz), ax = px / e[3], ay = py / e[4], az = pz / e[5], k1 = Math.sqrt(ax * ax + ay * ay + az * az); return k1 > 1e-9 ? k0 * (k0 - 1) / k1 : -Math.min(e[3], e[4], e[5]); };
   const sminS = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; }, smaxS = (a, b, k) => -sminS(-a, -b, k);
   function headHelmet(a, b, d) {
@@ -980,7 +980,7 @@ fn frag(v: VOut) -> FOut {
   let big: f32 = skN(bp.xy * 5.0 + bp.zz * vec2f(3.7, 2.8)) * saturate(1.6 - px * 20.0);      // (the padding is not even)
   let lay: f32 = saturate(0.55 + skN(bp.yz * 2.7 + bp.xx * vec2f(1.9, 1.4)) * 4.0);            // (the long folds lie in patches)
   var fold: f32 = 0.0; var sd: f32 = 1.0; var shell: f32 = 0.0; var dark: f32 = 0.0;
-  var alb: vec3f = vec3f(0.5); var specP: f32 = 20.0; var specS: f32 = 0.03; var sheen: f32 = 0.0; var gloss: f32 = 0.0; var glossTint: vec3f = vec3f(1.0); var cloth: f32 = 0.0;
+  var alb: vec3f = vec3f(0.5); var specP: f32 = 20.0; var specS: f32 = 0.03; var sheen: f32 = 0.0; var gloss: f32 = 0.0; var glossTint: vec3f = vec3f(1.0); var cloth: f32 = 0.0; var lensK: f32 = 0.0; var lensV: f32 = 0.0;
   let orange: vec3f = ${V(L.jacket.alb)}; let navy: vec3f = ${V(L.sleeveFore.alb)};
   /*MARKS*/
   // where one garment ends on another the edge is drawn here, pixel by pixel, from the garment's own line, a few millimetres inside the lip the mesh
@@ -993,14 +993,14 @@ fn frag(v: VOut) -> FOut {
   // (new body: where the helmet meets the collar and the gaiter its rim is drawn from the helmet's own shape, not from the mesh's triangles, which left a
   // ragged white fringe; the strap round it is found the same way)
   // ...and the goggles, their strap and the gaiter: every pixel of the head and of the collar under it takes the material whose shape it lies on
-  var strapK: f32 = 0.0;
-  if (nb > 0.5 && (id < 0.5 || (id > 3.5 && id < 7.5)) && length(hd3) < 0.25) {
+  var strapK: f32 = 0.0; var colK: f32 = 0.0;
+  if (nb > 0.5 && (id < 1.5 || (id > 3.5 && id < 7.5)) && length(hd3) < 0.34) {      // (id 1 too: the jacket-or-trousers rule above takes a few collar triangles for trousers)
     let dH: f32 = hdHelm(hd3); let dG: f32 = hdGog(hd3); let dB: f32 = hdBuff(hd3);
     let dm: f32 = min(dH, min(dG - 0.002, dB));
-    if (min(dm, colD) < 0.008) {
+    if (min(dm, colD) < 0.016) {
       var best: f32 = colD; var nid: f32 = 0.0;
-      if (dB < best) { best = dB; nid = 7.0; } if (dH < best) { best = dH; nid = 4.0; } if (dG - 0.002 < best) { best = dG; nid = 6.0; }
-      id = nid;
+      if (dB + 0.003 * nb < best) { best = dB; nid = 7.0; } if (dH < best) { best = dH; nid = 4.0; } if (dG - 0.002 < best) { best = dG; nid = 6.0; }
+      id = nid; colK = select(0.0, 1.0, nid < 0.5);     // (a pixel given to the collar is torso, whatever the triangle under it was skinned as: the sleeve's navy cuff left dark teeth along the gaiter)
       let gc: vec3f = hdGogA(hd3);
       if (id > 5.5 && id < 6.5 && gc.x > ${(Skier.HEAD.gr).toFixed(4)} && abs(gc.z) < ${(Skier.HEAD.gh - 0.007).toFixed(4)} && gc.y < ${(Skier.HEAD.ga - 0.11).toFixed(4)}) { id = 5.0; }     // the lens: the outer face inside the frame
       if (id > 3.5 && id < 4.5 && abs(hd3.y - ${(Skier.HEAD.gy).toFixed(4)}) < ${(Skier.HEAD.sh).toFixed(4)}) { id = 6.0; strapK = 1.0; }                                  // the strap round the shell
@@ -1010,7 +1010,7 @@ fn frag(v: VOut) -> FOut {
   // jacket or pack: by the pack's own outline
   if (id < 0.5 || (id > 7.5 && id < 8.5)) { id = select(0.0, 8.0, pkD < 0.006); }
   if (id < 0.5) {            // jacket: orange shell, dark forearms, a pale band round the upper sleeves, pack straps over the shoulders
-    let onTorso: f32 = smoothstep(-0.004, 0.004, v.mat.w);
+    let onTorso: f32 = max(smoothstep(-0.004, 0.004, v.mat.w), colK);
     let fore: f32 = mix(smoothstep(0.035, 0.065, armF), smoothstep(0.140, 0.152, armF), nb) * (1.0 - onTorso);     // (new body: only a navy storm cuff, under the gauntlet's edge)
     alb = mix(orange, navy, fore);
     let chev: f32 = smoothstep(0.016, 0.011, abs(armU - 0.150)) * (1.0 - onTorso) * (1.0 - fore);
@@ -1047,22 +1047,26 @@ fn frag(v: VOut) -> FOut {
     let dk: f32 = length(kq - legB * 0.04); let dh: f32 = length(hq + legB * 0.05 - thD * 0.03);
     let fk: f32 = skFold(kq, legAx, 29.0, px); let fh: f32 = skFold(hq, thD, 26.0, px); let fl: f32 = skFold(hq, normalize(legAx + legB * 0.55 + vec3f(0.25, 0.0, 0.0)), 12.0, px); let fc: f32 = skFold(kq, shD, 27.0, px);
     let stack: f32 = smoothstep(0.10, 0.26, legS) * smoothstep(hemS, hemS - 0.024, legS);
-    fold = inL * (exp(-dk * dk / 0.016) * (0.004 + 0.013 * kne) * (abs(fk) * 2.0 - 0.2) + exp(-dh * dh / 0.018) * (0.003 + 0.012 * hpf) * (abs(fh) * 2.0 - 0.2) + stack * 0.022 * fc + (0.022 + 0.014 * nb) * lay * fl) + (0.008 + 0.006 * nb) * big;
+    fold = inL * (exp(-dk * dk / 0.016) * (0.004 + 0.013 * kne) * (abs(fk) * 2.0 - 0.2) + exp(-dh * dh / 0.018) * (0.003 + 0.012 * hpf) * (abs(fh) * 2.0 - 0.2) + stack * (0.022 + 0.014 * nb * (0.5 + kne)) * fc + (0.022 + 0.014 * nb) * lay * fl) + (0.008 + 0.006 * nb) * big;
+    // (new body: the bent knee gathers the cloth behind it into a fan of compression folds, and the leg crumples onto the boot cuff)
+    let fkb: f32 = skFold(kq, normalize(legAx + legB * 0.45), 21.0, px); let bkK: f32 = exp(-dot(kq - legB * 0.06, kq - legB * 0.06) / 0.006);
+    let cufK: f32 = smoothstep(hemS - 0.075, hemS - 0.030, legS) * smoothstep(hemS + 0.004, hemS - 0.012, legS);
+    fold += nb * inL * (bkK * (0.006 + 0.026 * kne) * (abs(fkb) * 2.0 - 0.3) + cufK * (0.010 + 0.016 * kne) * (abs(fc) * 2.0 - 0.3));
     // seams: down the outside of the leg, up the seat, a panel over the knee, the band of the cuff
     let rl: vec3f = mix(hq - thD * thU, kq - shD * legS, smoothstep(-0.03, 0.03, legS));
     sd = min(abs(rl.z) + step(rl.x, 0.0), abs(bp.x) + step(pl.z, 0.03));
     sd = min(sd, abs(length(kq + legB * 0.03) - 0.105) + step(0.0, dot(kq, legB)));
     sd = min(sd, abs(legS - hemS + 0.040));
     fold -= 0.003 * exp(-sd * 80.0);
-    alb *= 1.0 - kz * 0.12 * smoothstep(hemS - 0.042, hemS - 0.038, legS);
+    alb *= 1.0 - kz * mix(0.12, 0.0, nb) * smoothstep(hemS - 0.042, hemS - 0.038, legS);     // (new body: no dark band at the cuff, only its panel line)
     // (new body: the cloth is shaded into the bends: the hollow behind the knee and the crease across the lap darken as far as they are folded)
-    dark = nb * (0.38 * kne * exp(-dot(kq - legB * 0.05, kq - legB * 0.05) / 0.005) + 0.30 * hpf * exp(-dh * dh / 0.006)) * inL;
+    dark = nb * (0.38 * kne * exp(-dot(kq - legB * 0.05, kq - legB * 0.05) / 0.005) + 0.30 * hpf * exp(-dh * dh / 0.006) + 0.22 * cufK * saturate(-fold * 90.0)) * inL;
     // (the jacket's hem lies close over them, except at the back, where it rides up and down the seat)
     dark = max(dark, 0.5 * smoothstep(-0.030, -0.002, hemV) * (1.0 - smoothstep(-0.02, 0.07, pl.z)));
     let fine: vec4f = texLod(tDetail, bp.xy * 11.0 + bp.zz * vec2f(7.0, 5.0), log2(max(px * 5600.0, 1.0)));
-    let snowy: f32 = smoothstep(0.31, 0.235, bp.y) * smoothstep(0.55, 0.85, fine.w * 0.6 + weave.z * 0.5 + smoothstep(0.28, 0.235, bp.y) * 0.2 + kz * 0.25 * saturate(-fold * 120.0));
-    alb = mix(alb, vec3f(0.78, 0.83, 0.90), snowy * 0.5);
-    sheen = mix(0.35, 0.20, nb); cloth = 1.0; specS = mix(0.04, 0.022, nb); shell = mix(0.45, 0.22, nb);
+    let snowy: f32 = mix(smoothstep(0.31, 0.235, bp.y), smoothstep(0.30, 0.17, bp.y), nb) * smoothstep(0.55, 0.85, fine.w * 0.6 + weave.z * 0.5 + smoothstep(0.28, 0.235, bp.y) * 0.2 + kz * 0.25 * saturate(-fold * 120.0));
+    alb = mix(alb, vec3f(0.78, 0.83, 0.90), snowy * mix(0.5, 0.22, nb));     // (new body: a fainter, patchier dusting with no edge to it)
+    sheen = mix(0.35, 0.28, nb); cloth = 1.0; specS = mix(0.04, 0.035, nb); shell = mix(0.45, 0.42, nb);     // (new body: a soft sheen on the waterproof face)
   } else if (id < 2.5) {     // gloves
     alb = ${V(L.glove.alb)}; sheen = ${F(L.glove.sheen)}; specS = ${F(L.glove.specS)}; specP = ${F(L.glove.specP)};
   } else if (id < 3.5) {     // boots: graphite shell (pale ones are lost against the snow and the legs seem to end at the hem), orange buckles
@@ -1086,7 +1090,9 @@ fn frag(v: VOut) -> FOut {
     let fr: f32 = 1.0 - saturate(dot(N, V));
     glossTint = mix(vec3f(1.0, 0.62, 0.20), vec3f(0.95, 0.25, 0.55), fr);
     // (new body: a mirrored lens that runs from gold at the top to violet-blue at the bottom)
-    glossTint = mix(glossTint, mix(vec3f(1.0, 0.70, 0.22), vec3f(0.45, 0.35, 1.0), smoothstep(${(Skier.HEAD.gy + 0.016).toFixed(4)}, ${(Skier.HEAD.gy - 0.016).toFixed(4)}, hd3.y)) * (1.0 + 0.4 * fr), nb);
+    // (new body: a tall mirrored lens that reflects the sky above and the bright snow below it, as a curved mirror does, in a gold-to-blue coating; the sun a hard glint)
+    lensV = (hd3.y - ${Skier.HEAD.gy.toFixed(4)}) / ${Skier.HEAD.gh.toFixed(4)}; lensK = nb;
+    glossTint = mix(glossTint, mix(vec3f(1.0, 0.78, 0.42), vec3f(0.55, 0.62, 1.0), smoothstep(0.5, -0.6, lensV)) * (1.05 + 0.3 * fr), nb);
   } else if (id < 6.5) {     // goggle frame + strap
     alb = mix(vec3f(0.02), orange, step(-0.095, qz));
     sheen = 0.2; specS = 0.06;
@@ -1096,6 +1102,10 @@ fn frag(v: VOut) -> FOut {
     }
   } else if (id < 7.5) {     // neck gaiter
     alb = vec3f(0.022, 0.030, 0.045); sheen = 0.4; cloth = 1.0;
+    if (nb > 0.5) {      // (new body: a charcoal knit, not a black hole: fine ribs round the neck, fading out when they are too small to see, and a soft fuzz)
+      let rb: f32 = 0.5 + 0.5 * sin(hd3.y * 1047.0 + 0.35 * sin(hd3.x * 160.0));
+      alb = vec3f(0.115, 0.118, 0.126) * (1.0 - 0.12 * rb * smoothstep(0.0040, 0.0016, px)); sheen = 0.7; fold = 0.0012 * (rb - 0.5) * smoothstep(0.0040, 0.0016, px);
+    }
   } else if (id < 8.5) {     // backpack: slate body, orange lid, reflective tab
     alb = vec3f(0.045, 0.055, 0.070);
     let lid: f32 = smoothstep(0.082, 0.092, tl.y - (tl.z - 0.18) * 0.35);
@@ -1141,7 +1151,7 @@ fn frag(v: VOut) -> FOut {
   N = normalize(N + (vec3f(weave.x, weave.y, weave.z) - 0.5) * 0.22 * cloth);
   let ndl: f32 = dot(N, L); let ndv: f32 = saturate(dot(N, V));
   let sh: f32 = shadowAt(v.wp + N * 0.035, 0.0016);
-  let ao: f32 = v.mat.y;
+  let ao: f32 = select(v.mat.y, max(v.mat.y, 0.7), nb > 0.5 && id > 6.5 && id < 7.5);     // (new body: the gaiter is soft and grey: the crease where it meets the collar keeps no dark triangles)
   let wrapD: f32 = saturate((ndl + 0.25 * cloth) / (1.0 + 0.25 * cloth));
   // at night the moon is the key, and by moonlight the eye sees little colour: what the moon and the sky light is seen half grey (the snow, white,
   // loses nothing by it), and the lifts that make the figure stand out by day (rim, fuzz, the glow through the shell, the pale floor of the rim)
@@ -1166,11 +1176,13 @@ fn frag(v: VOut) -> FOut {
   let Rv: vec3f = reflect(-V, N);
   col += shell * kz * (U.sunCol.rgb * sh * (0.07 * pow(max(dot(N, Hh), 0.0), 9.0) * saturate(ndl * 3.0)) + U.ambSky.rgb * ((0.4 + 0.6 * saturate(Rv.y * 1.5 + 0.4)) * (0.025 + 0.20 * pow(1.0 - ndv, 2.5)) * ao));
   if (gloss > 0.0) {
-    let R: vec3f = reflect(-V, N);
+    var R: vec3f = reflect(-V, N);
+    R = normalize(vec3f(R.x, mix(R.y, 0.12 + 0.55 * lensV, lensK), R.z));      // (the lens: its curve folds the sky into its top half and the snow into its bottom)
     var env: vec3f = skyLut(normalize(vec3f(R.x, abs(R.y) * 0.9 + 0.02, R.z)));
     env = mix(env, vec3f(0.75, 0.80, 0.90) * (U.ambSky.rgb + U.sunCol.rgb * 0.35), smoothstep(0.05, -0.25, R.y));    // snow below the horizon
     let f0: f32 = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);
     col += env * glossTint * gloss * mix(f0, 1.0, step(0.5, gloss));
+    col += U.sunCol.rgb * sh * lensK * (0.25 * smoothstep(0.55, 0.0, abs(lensV - 0.15)) * pow(saturate(dot(R, L)), 6.0) + 1.5 * pow(saturate(dot(R, L)), 300.0));
   }
   // the headlamp's spill: the hands, the poles' grips and the fronts of the skis are just in front of and below it, at the edge of its flood (the
   // head and the back are behind it and take none); it lights them in their own colours
