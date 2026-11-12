@@ -210,8 +210,8 @@ const Sound = (() => {
       R.poles = (R.poles || 0) + 1; const lead = hash1(R.poles * 13 + 5) < 0.5 ? -1 : 1, gap = 0.006 + 0.01 * hash1(R.poles * 29 + 1);
       for (let k = 0; k < 2; k++) { const s = ctx.createBufferSource(), g = gain(k ? 0.13 : 0.16), p = pan(); s.buffer = M.poles[(R.poles * 2 + k) % M.poles.length]; if (p.pan) p.pan.value = (k ? -lead : lead) * 0.34; chain(s, g, p, fT); s.start(t + k * gap); }
     };
-    // leaving the ground (fly: how long the flight is going to last) and coming back to it: the score's business
-    R.takeoff = (t, fly) => { if (mus) mus.takeoff(t, fly); };
+    // leaving the ground (fly: how long the flight is going to last, hgt: how high over the snow) and coming back to it: the score's business
+    R.takeoff = (t, fly, hgt) => { if (mus) mus.takeoff(t, fly, hgt); };
     R.down = (t, v, airT) => { if (mus) mus.down(t, v, airT); };
     R.hoof = (t, amp, pn) => {             // a pair of hooves driving into the snow: a soft thump and the crust giving
       if (hfP.pan) hfP.pan.setTargetAtTime(pn, t, 0.02); R.hoofs = (R.hoofs || 0) + 1;
@@ -298,14 +298,17 @@ const Sound = (() => {
     const S = Game.s, c = Course.at(-S.p[2], A.pc), sg = Course.segAt(-S.p[2]);
     return { run: Game.mode === 'run', speed: Math.hypot(S.v[0], S.v[1], S.v[2]), contact: S.contact, lat: S.aReac / 9.81, skid: Math.abs(Math.sin(S.beta)), load: S.load / 9.81, powder: S.powder, I: Spray.intensity, tuck: S.tuck, lean: S.lean,
       ridge: c.ridge || 0, forest: Math.max(c.forest || 0, c.glade || 0),
-      air: S.air, airT: S.airT, ts: Game.timeScale || 1, kind: sg.type, slope: sg.p.slope, sun: Sky.sunElev };       // (for the score)
+      air: S.air, airT: S.airT, ts: Game.timeScale || 1, kind: sg.type, slope: sg.p.slope, sun: Sky.sunElev,       // (for the score)
+      pred: Game.flight && Game.flight.on ? Game.flight.pred : 0, clear: S.air ? S.p[1] - Course.height(S.p[0], S.p[2], 0.5) : 0 };
   };
-  // how long the flight that has just begun will last: the body's path against the snow ahead, as the contact test will see it. This is what
-  // tells a hop off a bump from a jump at the instant of takeoff
+  // the flight that has just begun: how long it will last (T, s) and how high over the snow the body will go (H, m). The body's path is
+  // marched against the snow ahead, as the contact test will see it; the time is the game's own forecast where it keeps one (the number the
+  // slow motion is set from). This is what tells a hop off a bump from a jump at the instant of takeoff
   A.flight = function () {
-    const S = Game.s, p = S.p, v = S.v, k = Course.mogK; let T = 3; Course.mogK = 0.34;
-    for (let t = 1 / 30; t < 3; t += 1 / 30) if (p[1] + v[1] * t - 4.905 * t * t - Course.height(p[0] + v[0] * t, p[2] + v[2] * t, 0.5) < 0.22) { T = t; break; }
-    Course.mogK = k; return T + S.airT;
+    const S = Game.s, p = S.p, v = S.v, k = Course.mogK; let T = 3, H = 0; Course.mogK = 0.34;
+    for (let t = 1 / 30; t < 3; t += 1 / 30) { const e = p[1] + v[1] * t - 4.905 * t * t - Course.height(p[0] + v[0] * t, p[2] + v[2] * t, 0.5); if (e < 0.22) { T = t; break; } H = Math.max(H, e); }
+    Course.mogK = k; const fl = Game.flight;
+    return { T: fl && fl.on && fl.pred > 0 ? fl.pred : T + S.airT, H };
   };
   A.frame = function () {
     if (!A.rig) return; const t = A.now(), S = Game.s;
@@ -328,7 +331,7 @@ const Sound = (() => {
   A.event = function (ev) {
     if (!A.rig) return; const t = A.now(), S = Game.s;
     if (ev.type === 'land') { A.rig.down(t, ev.v, ev.airT); if (ev.airT > 0.14 || ev.v > 1.6) A.rig.land(ev.v * (ev.airT > 0.14 ? 1 : 0.5), t); }
-    else if (ev.type === 'takeoff') A.rig.takeoff(t, A.flight());
+    else if (ev.type === 'takeoff') { const f = A.flight(); A.rig.takeoff(t, f.T, f.H); }
     else if (ev.type === 'pole') A.rig.pole(t);
     else if (ev.type === 'brush' || ev.type === 'crash') A.rig.brush(t, sign((ev.x - S.p[0]) * S.r[0] + (ev.z - S.p[2]) * S.r[2]) || 1, ev.type === 'crash');
     else if (ev.type === 'hoof') A.rig.hoof(t, ev.k * Math.pow(sat(1 - ev.d / 34), 1.6), ev.side * sat(ev.d / 6) * 0.75);

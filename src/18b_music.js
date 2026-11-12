@@ -142,7 +142,7 @@ const Music = (() => {
     const h = { padLP: H(padLP.frequency), arpLP: H(arpLP.frequency), pad: H(padB.gain), eq: H(eq.gain), out: H(outG.gain), duck: H(duck.gain), lp: H(lp.frequency), rvIn: H(rvIn.gain), held: H(hG.gain),
       rvG: H(rvG.gain), dA: H(dA.gain), arp: H(arpB.gain), bas: H(basB.gain), kik: H(kikB.gain) };
     const T = { t: 0, on: false, pos: 0, next: 0, last: 0, abs: 0, step: 0, bar: 0, chord: 0, round: 0, nBar: 0, set: 'clear', want: 'clear', ch: SETS.clear[0], tone: TONE.clear, kind: KIND.bowl,
-      tierP: 0, tierB: 0, wantP: 0, wantB: 0, dwP: 0, dwB: 0, sag: 0, sp: 0, carve: 0, side: 0, night: 0, d: 0, full: false, fly: 0, hush: 0, bl: 0, bloom: 0, tail: 0, np: 0, ns: 0, av: 0, sv: 0, lv: 0, ph: null, phS: 0, lastPh: -1, rest: 0 };
+      tierP: 0, tierB: 0, wantP: 0, wantB: 0, dwP: 0, dwB: 0, sag: 0, sp: 0, carve: 0, side: 0, night: 0, d: 0, full: false, fly: 0, H: 0, hush: 0, bl: 0, bloom: 0, tail: 0, np: 0, ns: 0, av: 0, sv: 0, lv: 0, ph: null, phS: 0, lastPh: -1, rest: 0 };
 
     // a new chord (every fourth bar, or the instant of a landing)
     function chordIn(t) {
@@ -194,15 +194,20 @@ const Music = (() => {
     }
 
     // ---- events
-    // leaving the ground: fly = how long the flight will last (s). A hop off a bump changes nothing; a real jump drops the music out
-    S.takeoff = function (t, fly) { if (!T.on) return; T.fly = t; drop(smooth(0.35, 0.8, fly), t); };
+    // how much of the music a flight takes away, 0..1, from how long it lasts (fly, s) and how high over the snow it goes (hgt, m). A hop off
+    // a bump or a roller, the player's own pop, a drop of a metre or two: nothing, the beat goes on. A kicker's three or four metres and more
+    // than a second in the air: the music sinks away, darker and quieter, and slows with the clock, the more the bigger the jump. Only the
+    // biggest air (past FULL) stops it dead, to come back on the landing
+    const size = (fly, hgt) => sat(0.5 * (smooth(0.8, 1.6, fly) + smooth(1.0, 5.0, hgt))), FULL = 0.8;
+    // leaving the ground
+    S.takeoff = function (t, fly, hgt) { if (!T.on) return; T.fly = t; T.H = hgt || 0; const d = size(fly, T.H); if (d > 0) say(t, 'dip ' + d.toFixed(2)); drop(d, t); };
     function drop(d, t) {
       if (d <= T.d) return; T.d = d;
-      if (d > 0.6 && !T.full) { T.full = true; for (let i = 0; i < 4; i++) hO[i].frequency.setValueAtTime(hz(T.ch.lead[i < 2 ? 0 : 3] + 12), t); say(t, 'drop'); }
+      if (d > FULL && !T.full) { T.full = true; for (let i = 0; i < 4; i++) hO[i].frequency.setValueAtTime(hz(T.ch.lead[i < 2 ? 0 : 3] + 12), t); say(t, 'drop'); }
     }
     // touching down: after a real flight the landing is the downbeat of the next chord, and the music comes back with it, as large as the jump was
     S.down = function (t, v, airT) {
-      const full = T.full; T.fly = 0; T.d = 0; T.full = false; if (!T.on || !full) return;
+      const full = T.full; T.fly = 0; T.d = 0; T.H = 0; T.full = false; if (!T.on || !full) return;
       T.bl = Math.max(0.25, sat(airT / 1.3) * (0.55 + 0.45 * sat(v / 7)));
       T.step = 0; T.bar = 0; T.abs = 0; T.chord = (T.chord + 1) & 3; T.pos = T.next = Math.ceil(T.pos); T.ph = null; say(t, 'land ' + T.bl.toFixed(2));
     };
@@ -212,7 +217,7 @@ const Music = (() => {
     // ---- every frame. s: the engine's snapshot of the skier; E: how hard the edges are moving snow; side: which side it flies to
     S.update = function (s, t, E, side) {
       const dt = clamp(t - T.t, 0, MU.look); T.t = t;
-      const e = s.sun == null ? 0.2 : s.sun, ts = clamp(s.ts || 1, 0.05, 1);
+      const e = s.sun == null ? 0.2 : s.sun, tsR = clamp(s.ts || 1, 0.05, 1);
       T.night = smooth(0, -0.17, e); T.want = e < -0.1 ? 'nebula' : e < 0.03 ? 'ember' : e < 0.12 ? 'gold' : 'clear';
       if (s.run && !T.on) {        // a run begins (the first or a later one): from the top, with nothing remembered of what the skier was doing before
         T.on = true; T.pos = T.next = T.abs = T.step = T.bar = T.chord = 0; T.wantP = T.wantB = T.tierP = T.tierB = T.carve = T.bloom = T.hush = T.fly = T.tail = 0; T.ph = null;
@@ -225,9 +230,11 @@ const Music = (() => {
       const drive = Math.max(smooth(24, 32, T.sp), 0.8 * smooth(0.46, 0.56, s.slope || 0) * smooth(12, 20, T.sp));
       T.wantP = tier(T.sp, T.wantP, PUP, PDN); T.wantB = t < T.hush ? 0 : tier(drive, T.wantB, BUP, BDN);
       const c = sat(((E || 0) - 0.33) / 0.42); T.carve = damp(T.carve, c, c > T.carve ? 9 : 1.1, dt); if (c > 0.05) T.side = side || 0;
-      // a flight that turns out longer than it looked still gets its drop; one that ended without a word is closed
-      if (T.fly) { if (s.air) drop(smooth(0.35, 0.8, s.airT), t); else if (t - T.fly > 0.3) S.down(t, 0, 0); }
-      // time running slow pulls every pitch flat and closes the sound
+      // a flight that turns out longer or higher than it looked still gets its share; one that ended without a word is closed
+      if (T.fly) { if (s.air) { T.H = Math.max(T.H, s.clear || 0); drop(size(Math.max(s.airT, s.pred || 0), T.H), t); } else if (t - T.fly > 0.3) S.down(t, 0, 0); }
+      // time running slow pulls every pitch flat and closes the sound: as much of it as the flight has taken of the music (a small hop that
+      // the clock slows a touch for leaves the score alone)
+      const ts = lerp(1, tsR, smooth(0.15, 0.6, T.d));
       const sg = 1200 * Math.log2(ts) * MU.sag; if (Math.abs(sg - T.sag) > 1.5 || (!sg && T.sag)) { T.sag = sg; for (const b of bent) b[0].setTargetAtTime(b[1] + sg, t, 0.04); }
       const hush = t < T.hush ? 0.6 : 0, dk = Math.max(T.d, hush), vk = sat(T.sp / 34), tn = T.tone;
       set(h.duck, lerp(1, 0.17, dk), t, dk > 0 ? 0.05 : 0.035); set(h.lp, 9000 * Math.pow(0.04, dk) * Math.pow(ts, 0.7), t, dk > 0 ? 0.07 : 0.04);
