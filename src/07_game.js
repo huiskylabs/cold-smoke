@@ -420,18 +420,27 @@ const Game = (() => {
   }
   // which trick for U seconds of usable air: something that fills the time (little air: a tweak; more: a grab, a half or full turn; the
   // most: two turns, a somersault, or two shapes one after the other), never the one just done
-  function pickTrick(U) {
+  // (big: 2 off a marked jump, 1 for any other flight forecast to last 0.8 s or more, 0 for a hop. A hop off a mogul or the wall of a gully gets
+  // a small shape at most; a big air off the terrain may turn, but only whole turns, so it always comes down facing forward; and off the terrain
+  // there is one trick at most every HOP_GAP seconds of the game's time. Spun on every bump, landing backwards and pivoting round on the snow,
+  // the figure turned round every few seconds and read as a glitch, not as style. Off a marked jump anything goes, as before)
+  const HOP = { grab: 1, scratch: 1, spread: 1, tuck: 1, daffy: 1 }, HOP_GAP = 6, _kc = {};
+  const offKicker = () => { const s0 = -fl.P[2]; for (let b = Math.floor((s0 - 40) / 32), e = Math.floor((s0 + 16) / 32); b <= e; b++) for (const f of Course.feats.get(b) || []) {
+    if (!f.mark || f.kind !== 'kicker') continue; const ds = s0 - f.s; if (ds < -14 || ds > f.len + 8) continue; if (Math.abs(fl.P[0] - Course.at(f.s + f.len, _kc).cx - f.u) < f.wid * 0.5 + 2.5) return true; } return false; };
+  const bigAir = pred => offKicker() ? 2 : pred >= 0.8 ? 1 : 0, ODD = id => /^(180|540)/.test(id);
+  function pickTrick(U, big) {
     if (U < 0.34) return null;
+    if (big < 2 && !G.forceTrick && fl.hopT != null && G.t >= fl.hopT && G.t - fl.hopT < HOP_GAP) return null;
     // (a spin goes the way the skier was last leaning, if any: carved into; n = its half turns)
     const mk = id => { const n = parseInt(id) / 180 || 0; return { id, n, spin: n > 0, base: 0, dir: n && Math.abs(S.lean) > 0.12 ? sign(S.lean) : rnd() < 0.5 ? -1 : 1, amp: 0.72 + 0.33 * rnd(), min: TRICKS[id] ? TRICKS[id][0] : 0 }; };
     if (G.forceTrick) { const ids = String(G.forceTrick).split('+').filter(id => SHAPES[id]); if (ids.length === 2) { const t = mk(ids[0]); t.id = ids.join('+'); t.seq = ids; t.spin = false; t.n = 0; t.min = 0; return t; } if (ids.length) { const t = mk(ids[0]); t.min = 0; return t; } }
-    if (U >= 1.1 && rnd() < 0.35) {            // two shapes, one after the other
+    if (big && U >= 1.1 && rnd() < 0.35) {            // two shapes, one after the other
       const ok = PAIRS.filter(id => TRICKS[id][0] * 0.9 <= U / 2), a = ok[Math.floor(rnd() * ok.length)], rest = ok.filter(id => id !== a), b = rest[Math.floor(rnd() * rest.length)];
       if (a && b && a + '+' + b !== fl.last) { const t = mk(a); t.id = a + '+' + b; t.seq = [a, b]; t.min = 1.0; return t; }
     }
     let tot = 0; const c = [];
     for (const id in TRICKS) {
-      const m = TRICKS[id][0]; if (m > U) continue;
+      const m = TRICKS[id][0]; if (m > U || (!big && !HOP[id]) || (big < 2 && ODD(id))) continue;
       // (wanted most when the air is a little more than it needs: not rushed, and fading out as the air outgrows it)
       const wt = TRICKS[id][1] * sat((U - m) / 0.15 + 0.35) * Math.exp(-Math.max(0, U - m - 0.15) / TRICKS[id][2]) * (id === fl.last ? 0.04 : id === fl.last2 ? 0.4 : 1);
       c.push(id, wt); tot += wt;
@@ -441,7 +450,7 @@ const Game = (() => {
   }
   // (what was planned on the way in stands while it suits the air there is: with too little for it, or a good deal more than it was
   // chosen to fill, something else is picked; a turn keeps the side it has been wound up to)
-  const planFor = (U, old) => { if (old && old.min <= U && U - old.U < 0.25 && (!G.forceTrick || old.id === String(G.forceTrick))) return old; const t = pickTrick(U); if (t) { t.U = U; t.k = /\d|flip|grab/.test(t.id) ? 1 : clamp((t.seq ? U / 2 : U) / 0.62, 0.5, 1); if (old && old.spin && t.spin) t.dir = old.dir; } return t; };
+  const planFor = (U, old, pred) => { const big = bigAir(pred); if (old && old.min <= U && U - old.U < 0.25 && (big === 2 || (big && !ODD(old.id)) || HOP[old.id] || G.forceTrick) && (!G.forceTrick || old.id === String(G.forceTrick))) return old; const t = pickTrick(U, big); if (t) { t.U = U; t.big = big; t.k = /\d|flip|grab/.test(t.id) ? 1 : clamp((t.seq ? U / 2 : U) / 0.62, 0.5, 1); if (old && old.spin && t.spin) t.dir = old.dir; } return t; };
   function startTrick(tr) { fl.tr = tr; fl.ph = 0; fl.swT = 0; if (tr.id !== 'pivot' && !tr.base) { fl.last2 = fl.last; fl.last = tr.id; G.events.push({ type: 'trick', id: tr.id, dir: tr.dir }); } }
   function flightReset() {
     Object.assign(fl, { air: false, on: false, t: 0, rem: 0, pred: 0, big: 0, w: 0, wV: 0, wu: 0, wuV: 0, plL: 0, plLV: 0, plR: 0, plRV: 0, kc: 0, kcV: 0, lipT: 9, lipAir: 0, lipAge: 9, prepL: 0, prepLV: 0, prep: 0, aK: 0, mL: 0, reach: 0, reachV: 0, soak: 0, soakV: 0, hit: 0, ph: 1, tr: null, plan: null, took: false,
@@ -472,14 +481,14 @@ const Game = (() => {
       if (!fl.took && fl.t < 0.25) {
         fl.tOut = clamp(0.2 * fl.pred, 0.2, 0.36); const U = fl.pred - 0.05 - fl.tOut, cur = fl.tr;
         if (cur && cur.id === 'pivot') fl.took = true;                                                                    // (already coming round)
-        else if (cur) { if (U >= 0.3) { startTrick({ id: '180', dir: cur.dir, spin: true, n: 1, base: 1, amp: 1, min: 0 }); fl.took = true; } }     // riding switch: a half turn back to forward
-        else { const tr = planFor(U, fl.plan); if (tr) { startTrick(tr); fl.took = true; } }
+        else if (cur) { if (U >= 0.3 && cur.spin && ((cur.base + cur.n) & 1)) startTrick({ id: '180', dir: cur.dir, spin: true, n: 1, base: 1, amp: 1, min: 0, big: 2 }); fl.took = true; }     // riding switch: a half turn back to forward (a shape still being let go of off the last hop is simply finished)
+        else { const tr = planFor(U, fl.plan, fl.pred); if (tr) { startTrick(tr); fl.took = true; if (tr.big < 2) fl.hopT = G.t; } }
       }
     }
     // the lip ahead, while on the snow and moving
     fl.lipAge += dt; if (!S.air && vh > 5 && G.mode === 'run') scanLip(P, v, vh); if (fl.lipAge > 0.12) fl.lipT = 9;
     const lip = !S.air && fl.lipT < 0.45 && fl.lipAir >= 0.42;
-    if (lip && !fl.tr) fl.plan = planFor(fl.lipAir - 0.05 - clamp(0.2 * fl.lipAir, 0.2, 0.36), fl.plan);
+    if (lip && !fl.tr) fl.plan = planFor(fl.lipAir - 0.05 - clamp(0.2 * fl.lipAir, 0.2, 0.36), fl.plan, fl.lipAir);
     if (!lip && !S.air && fl.lipAge > 0.6) fl.plan = null;
     // the trick runs on the time there is: its phase moves so as to be done `tOut` before the skis touch, however the forecast shifts
     const tr = fl.tr;
