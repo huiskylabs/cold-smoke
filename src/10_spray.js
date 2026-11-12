@@ -120,6 +120,16 @@ const Spray = (() => {
   const dirtyP = [], dirtyG = [];                        // [first, count] ranges written since the last upload
   let accP = 0, accG = 0;
   const rnd = RNG(977);
+  // Other modules that add to thrown snow (grains, clumps, marks left on the slope, wind) hear every emission here, synchronously, as it happens.
+  // e = { kind: 'carve'|'skid'|'powder'|'land'|'sift'|'fall'|'pole', t, p:[x,y,z], v:[x,y,z] (mean throw velocity), spread (rad),
+  //       rate (how much snow this step, 0..2), powder (0..1), r:[x,z] right axis, f:[x,z] forward axis }   (world space)
+  // A listener that throws is dropped from that one call, never from the game.
+  P.onEmit = [];
+  function emit(kind, t, p, v, spread, rate, powder, r, f) {
+    if (!P.onEmit.length) return;
+    const e = { kind, t, p, v, spread, rate, powder, r, f };
+    for (const fn of P.onEmit) { try { fn(e); } catch (err) { if (typeof console !== 'undefined') console.warn('Spray.onEmit', err); } }
+  }
 
   P.init = function (g) {
     gfx = g;
@@ -257,6 +267,13 @@ const Spray = (() => {
       return clamp(0.5 + (0.30 * Math.sin(a + 1.7 * Math.sin(tj * 2.3 + al * 2.0)) + 0.20 * Math.sin(a * 2.7 + tj * 9.0)) * (0.5 + 0.7 * gust)
         + 0.15 * Math.sin(al * 21.0 + tj * 47.0 + 2.2 * Math.sin(tj * 6.1 + al * 3.0)) * (1.2 - gust), 0, 1);          // 0..1
     };
+    if (P.onEmit.length && Ie > 0.004) {
+      const el = elBase, ce = Math.cos(el), se = Math.sin(el), c = 0.15, al = 0.2;
+      const lx = fx * al + ox * stance, lz = fz * al + oz * stance;
+      emit(S.powder > 0.5 ? 'powder' : skid > 0.25 ? 'skid' : 'carve', t, [S.p[0] + lx, base - (n[0] * lx + n[2] * lz) / n[1] + 0.04, S.p[2] + lz],
+        [v[0] * c + (ox * ce + n[0] * se) * ve, v[1] * c + (oy * ce + n[1] * se) * ve, v[2] * c + (oz * ce + n[2] * se) * ve],
+        0.35 + 0.5 * skid, Math.min(Ie, 2), S.powder || 0, [rr[0], rr[2]], [fx, fz]);
+    }
     while (accP >= 1) {
       accP -= 1;
       const u1 = rnd(), u2 = rnd(), u3 = rnd(), u4 = rnd(), jt = rnd() * H, tail = rnd() < tailP;
@@ -328,6 +345,7 @@ const Spray = (() => {
     const np = Math.round(140 * power), ng = Math.round(260 * power), jet = 3.0 + 3.6 * power, reach = 0.9 + 0.75 * power;
     // (skis that come down on their edges have their bases turned outward: more of it goes that way)
     const lean = Game.s.lean || 0, pOut = 0.5 - 0.3 * Math.sign(lean) * sat(Math.abs(lean) / 0.5);
+    emit(P.slapKind || 'land', t, [p[0], base, p[2]], [tx * 0.3 + n[0] * jet * 0.3, ty * 0.3 + n[1] * jet * 0.3, tz * 0.3 + n[2] * jet * 0.3], 1.4, Math.min(power, 2), Game.s.powder || 0, [rx, rz], [fx, fz]);
     for (let i = 0; i < np + ng; i++) {
       const pf = i < np, mid = rnd() < 0.15, side = rnd() < pOut ? 1 : -1, tau = T * Math.pow(rnd(), 1.6), u = rnd();
       // where along the ski it comes out (tail .. shovel), and on which side of it
@@ -347,12 +365,13 @@ const Spray = (() => {
   };
   P.burst = P.slap;      // (the old name, from when this was a ring thrown out round one point)
   // a fall (into a tree): the skis are stopped but the snow they were ploughing is not: the same two fans, thrown on the way the skier WAS going
-  P.fall = function (t, p, n, power) { P.slap(t, p, [was[0] * 0.6, was[1] * 0.6, was[2] * 0.6], n, power); };
+  P.fall = function (t, p, n, power) { P.slapKind = 'fall'; try { P.slap(t, p, [was[0] * 0.6, was[1] * 0.6, was[2] * 0.6], n, power); } finally { P.slapKind = null; } };
   // a double-pole push: the two tips go in beside the skis, about level with the toes: a pinch of snow each, flicked back as the basket bites
   P.poles = function (t, root, stance) {
     const f = root.fwd, n = root.nrm, rx = f[1] * n[2] - f[2] * n[1], rz = f[0] * n[1] - f[1] * n[0], d = (stance || 0.3) * 0.5 + 0.24;
     for (const sd of [-1, 1]) {
       const x = root.pos[0] + f[0] * 0.25 + rx * sd * d, z = root.pos[2] + f[2] * 0.25 + rz * sd * d, y = Course.height(x, z, 0.5) + 0.03;
+      emit('pole', t, [x, y, z], [-f[0] * 0.5 + rx * sd * 0.3, 0.9, -f[2] * 0.5 + rz * sd * 0.3], 1.2, 0.1, (typeof Game !== 'undefined' && Game.s && Game.s.powder) || 0, [rx, rz], [f[0], f[2]]);
       for (let i = 0; i < 20; i++) {
         const a = rnd() * TAU, c = 0.25 + 0.5 * rnd(), up = 0.5 + 1.1 * rnd();
         const vx = -f[0] * 0.5 + rx * sd * 0.3 + Math.cos(a) * c, vz = -f[2] * 0.5 + rz * sd * 0.3 + Math.sin(a) * c;
@@ -375,6 +394,7 @@ const Spray = (() => {
   // snow shaken off a bough: a thin veil of fine dust that hangs and sifts down, and a shower of sparkling grains
   P.sift = function (t, p, v, power) {
     const np = Math.round(9 * power), ng = Math.round(220 * power);
+    emit('sift', t, [p[0], p[1], p[2]], [v[0] * 0.25, -0.9, v[2] * 0.25], 3.14, Math.min(power, 2), 1, [1, 0], [0, -1]);
     for (let i = 0; i < np + ng; i++) {
       const a = rnd() * TAU, rr = Math.sqrt(rnd()) * 0.9, px = p[0] + Math.cos(a) * rr, pz = p[2] + Math.sin(a) * rr, py = p[1] + (rnd() - 0.3) * 1.4;
       const vx = v[0] * (0.15 + 0.25 * rnd()) + (rnd() - 0.5) * 1.2, vz = v[2] * (0.15 + 0.25 * rnd()) + (rnd() - 0.5) * 1.2, vy = -0.3 - rnd() * 1.2;
