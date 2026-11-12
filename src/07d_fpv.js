@@ -402,7 +402,7 @@ const Fpv = (() => {
 
 
   // ---- on the page: buffers, the bones as a texture (like the figure's), one pipeline, and the figure asked to leave its own arms out
-  let gfx = null, vb = null, ib = null, boneTex = null, pipe = null, figTex = null, figData = null, hideTex = null, hideIb = null, hideCount = 0, skiIb = null, skiCount = 0;
+  let gfx = null, vb = null, ib = null, boneTex = null, pipe = null, figTex = null, figData = null, hideTex = null, hideIb = null, hideCount = 0, hideFor = null, skiIb = null, skiCount = 0;
   const RID = [[0, 0, 0, 0], [0, 0, 0, 0]], boneData = new Float32Array(4 * 16 * 4), hideData = new Float32Array(4 * 32 * 4), UNI = { tw: [0, 0, 0, 0], bend: [0, 0, 0, 0], ski: [0, 0, 0, 0], fx: [0, 0, 0, 0] };
   const fail = e => { if (!F.dead) { F.dead = true; F.vis = false; F.err = e; try { console.error('fpv: first person falls back to the figure\'s own arms', e); } catch (_) { } } };
   // (the figure's triangles without skis, poles and gloves: the list it is drawn from while these stand in for them)
@@ -700,7 +700,7 @@ fn frag(v: VOut) -> FOut {
       gfx = App.gfx; const t0 = performance.now(); if (!F.mesh) F.build();
       vb = gfx.buffer(F.mesh.V, 'vertex'); ib = gfx.buffer(F.mesh.I, 'index');
       boneTex = gfx.texture({ w: 4, h: 16, format: 'rgba32f', filter: 'nearest' }); hideTex = gfx.texture({ w: 4, h: 32, format: 'rgba32f', filter: 'nearest' });
-      const fi = F.figIdx(); hideIb = gfx.buffer(fi, 'index'); hideCount = fi.length;
+      const fi = F.figIdx(); hideIb = gfx.buffer(fi, 'index'); hideCount = fi.length; hideFor = Skier.mesh;
       // (and these skis by themselves, for the view that shows nothing else)
       { const m = F.mesh, keep = []; for (let i = 0; i < m.ni; i += 3) if (m.V[m.I[i] * VSZ + 6] === 8) keep.push(m.I[i], m.I[i + 1], m.I[i + 2]); skiIb = gfx.buffer(new Uint32Array(keep), 'index'); skiCount = keep.length; }
       const sh = shaders();
@@ -725,6 +725,7 @@ fn frag(v: VOut) -> FOut {
         if (!(F.vis && F.posed && figTex)) return dr0.apply(this, arguments);
         if (F.hideFig) return;        // (the view of the ski tips: the lens is down among the knees, and nothing of the skier is to show; the shadow is still cast)
         const d0 = gfx.draw; let n = 0;
+        if (Skier.want) Skier.want(); if (hideFor !== Skier.mesh) { const fi = F.figIdx(); hideIb = gfx.buffer(fi, 'index'); hideCount = fi.length; hideFor = Skier.mesh; }     // (the figure's body was swapped: Variants 'body')
         gfx.draw = function (P, d) { if (d && d.tex && d.tex.tBones === figTex && d.count === Skier.mesh.ni) { n++; const e = Object.assign({}, d); e.tex = Object.assign({}, d.tex, { tBones: hideTex }); e.ib = hideIb; e.count = hideCount; return d0.call(this, P, e); } return d0.apply(this, arguments); };
         try { return dr0.apply(this, arguments); } finally { gfx.draw = d0; if (!n) fail(new Error('the figure is no longer drawn the way this expects')); }
       };
