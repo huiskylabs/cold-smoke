@@ -170,7 +170,7 @@ const Clouds = (() => {
     const V = typeof Vista !== 'undefined' ? Vista : null, lt = Sky.lights || 0, g = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
     if (V && V.cores && V.famc && lt > 0.001) for (let j = 0; j < 3; j++) {
       const a = az + (j - 1) * c.w * 0.4, du = (a - V.cityAz) * V.cityDist;
-      const town = Math.exp(-(((du + 200) / 5200) ** 2)) * V.lit.town * 1.4, col = [1.0 * town, 0.48 * town, 0.30 * town];
+      const town = Math.exp(-(((du + 200) / 5200) ** 2)) * V.lit.town * 1.4, col = [1.0 * town, 0.54 * town, 0.19 * town];
       V.cores.forEach((q, i) => { const k = Math.exp(-(((du - q[0]) / (q[2] * 2.4)) ** 2)) * V.lit.core * (0.3 + q[3] / 1000) * 3.0; for (let ch = 0; ch < 3; ch++) col[ch] += V.famc[i][ch] * k; });
       g[j] = col.map(v => v * lt * C.night.glow).concat([0]);
     }
