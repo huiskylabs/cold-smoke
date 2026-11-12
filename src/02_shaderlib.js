@@ -126,6 +126,10 @@ const CAM_NEAR = 0.25, CAM_FAR = 14000;
 SL.depth = `
 fn linDepth(d: f32) -> f32 { return ${(CAM_NEAR * CAM_FAR).toFixed(1)} / (${CAM_FAR.toFixed(1)} - d * ${(CAM_FAR - CAM_NEAR).toFixed(2)}); }
 `;
+// (views) first person draws from closer in than CAM_NEAR, to show the skier's own hands: the near plane is read from the frame (U.camFwd.w) instead
+SL.depth = `
+fn linDepth(d: f32) -> f32 { let n: f32 = U.camFwd.w; return n * ${CAM_FAR.toFixed(1)} / (${CAM_FAR.toFixed(1)} - d * (${CAM_FAR.toFixed(1)} - n)); }
+`;
 
 SL.shadow = `
 // shadows of the clouds overhead, drifting with the wind: two octaves of lattice noise that repeat every 1024 m, so the pattern
