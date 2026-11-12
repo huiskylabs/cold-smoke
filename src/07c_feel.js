@@ -122,6 +122,8 @@ const Feel = (() => {
     // without this every streak would keep its full-speed length while the motion itself shrank: a smear), and what hangs in the air hangs
     // sharp. (The thrown snow's own streaks read Post.shutter too, so they keep step with the ground's.)
     Post.shutter = lerp(F.shut[0], F.shut[1], F.speed) * F.timeK; Post.blurMax = lerp(F.blur[0], F.blur[1], F.speed);
+    // (a lens orbiting beside or ahead of the skier sweeps the snow under it far faster than the chase: half the shutter and half the longest streak there, eased over a switch)
+    F.viewShut = damp(F.viewShut || 1, { front: 1, left: 1, right: 1, low: 1 }[Game.view] ? 0.5 : 1, 6, rdt); Post.shutter *= F.viewShut; Post.blurMax *= F.viewShut;
     // ...and fast, the corners and sides of the frame are drawn out along lines to the point the lens is heading for, the far ridges as much as
     // the snow beside it, while the middle (the skier, the line ahead) stays sharp: Post.radial, the least streak at the very corner, and
     // Post.radC, that point (09_post.js). Only for a lens that travels along its view, forward or back (the chase, first person, in front;
