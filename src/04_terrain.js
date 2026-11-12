@@ -373,7 +373,9 @@ fn skiPress(wp: vec3f, C: vec4f, A: vec4f, B: vec4f) -> f32 {
   // (M.tb.z: how far ahead of the boot the snow is open over the ski. One riding deep runs under the snow from there to its shovel)
   // (it gives way over two quads' width beside the ski: any sharper, and the line of the snow along the ski's side comes out in steps)
   let m: f32 = smoothstep(-0.045, 0.0, wd - abs(b)) * smoothstep(-0.02, 0.02, a + A.w) * smoothstep(-0.02, 0.02, min(B.w, M.tb.z) - a);
-  return mix(wp.y, min(wp.y, yp + rise / ny - 0.001), m);
+  // (riding deep in powder (M.tb.w) nothing is pressed open round the skis at all: they run under the snow, and the snow that closed
+  // back over them behind the boots is the furrow's floor. Pressed open, the tails lay bare in the trench; owner 2026-11-12)
+  return mix(wp.y, min(wp.y, yp + rise / ny - 0.001), m * (1.0 - smoothstep(0.4, 0.8, M.tb.w)));
 }
 fn patchVertex(ij: vec2f) -> TerrV {
   var t: TerrV;

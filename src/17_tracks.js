@@ -128,7 +128,7 @@ const Tracks = (() => {
       // ski the stamp has anything to say: the wall, as wide as the coarser map draws it, and what is piled beyond
       const dl = Math.hypot(dx, dz), ldr = dl > 1e-4 ? (dx * rx + dz * rz) / dl * kv : 0;
       skd = Math.max(skd, Math.min(1, Math.abs(ldr) / 0.45));
-      const mar = (Math.max(0.022 + 0.07 * pw, 0.085) + 0.17 * Math.min(1, Math.abs(ldr) / 0.45)) * 1.05 + 0.13 + Math.abs(th);
+      const mar = (Math.max(0.022 + 0.07 * pw, 0.085) + 0.17 * Math.min(1, Math.abs(ldr) / 0.45)) * 1.05 + 0.13 + Math.abs(th) + T.deep * (0.9 * T.D + 0.04);
       if (count === MAXI) { cpu.copyWithin(0, FL * MAXI / 2); wpos.copyWithin(0, MAXI); count = MAXI / 2; base += MAXI / 2; }
       const o = count * FL; wpos[count * 2] = Fx; wpos[count * 2 + 1] = Fz; count++;
       cpu[o] = fract(Fx / LN.span); cpu[o + 1] = fract(Fz / LN.span); cpu[o + 2] = fract(Fx / LF.span); cpu[o + 3] = fract(Fz / LF.span);
@@ -448,8 +448,11 @@ fn frag(v: VOut) -> FOut {
     let ak: f32 = smoothstep(0.25, 0.6, v.e.x);
     if (M.p.z > 0.5) {
       if (sd > 0.0) { discard; }
-      let f: f32 = smoothstep(0.0, W, -sd);
-      let R: f32 = -Df * f + (lump.z - 0.5) * 0.02 * f;
+      // (the walls slope in from the sides and from the front, never from the back edge of the stamp: the last stamp over any spot is the
+      // one whose back edge just reached it, and its slope there put a step into the floor every stamp, a staircase down the furrow)
+      let sdLF: f32 = max(abs(v.q.x) - fh.x, v.q.y - (fc.y + fh.y)) + rag;
+      let f: f32 = smoothstep(0.0, W, -sdLF);
+      let R: f32 = -0.6 * Df * f + (lump.z - 0.5) * 0.02 * f;       // (the floor a little above the bases: what the skis parted has partly fallen back in over them)
       o.color = vec4f(M.e.x + R * M.e.y, 0.75, M.e.x + R * M.e.y, ak * smoothstep(0.0, 0.01, -sd + 0.01));
       return o;
     }
@@ -462,6 +465,10 @@ fn frag(v: VOut) -> FOut {
     o.color = vec4f(M.e.x + Hl * M.e.y, 0.9 * (1.0 - smoothstep(0.6, 1.0, so)), M.e.x + Hl * M.e.y, a);
     return o;
   }
+  // (a ski riding IN deep powder cuts no slot of its own that stays open: the snow it parts closes back over it behind the boot, and what
+  // the skier leaves is the one furrow above (d.w = 2). An open box round each ski showed its tail on the floor of a square pit, the boots
+  // stood in it below legs that went into the snow higher up, and the legs looked cut in two. Owner 2026-11-12)
+  if (v.e.x > 0.6) { discard; }
   // where this spot lay in the ski's frame a step ago: the ski came the stretch q.zw and turned by d.x, so each spot has its own way under it
   let p: vec2f = v.q.xy; let pe: vec2f = p + v.q.zw; let cs: vec2f = vec2f(cos(v.d.x), sin(v.d.x));
   let dl: vec2f = vec2f(cs.x * pe.x - cs.y * pe.y, cs.y * pe.x + cs.x * pe.y) - p; let ll: f32 = max(length(dl), 1e-4);
@@ -474,6 +481,9 @@ fn frag(v: VOut) -> FOut {
   let D: f32 = mix(v.c.z, v.d.z, sm); let lift: f32 = mix(v.c.w, min(v.c.w, v.d.y), sm);
   // (packed snow breaks off clean at the edge, powder slumps in; and a wall thinner than two texels or so would come out as a staircase)
   let soft: f32 = max(mix(0.007, 0.07, pw) + 0.01 * skid, mix(2.4, 2.0, M.p.w) * M.p.y);
+  // (riding IN deep powder (v.e.x) the snow does not stand in a box round each ski: it parts at the ski and slumps back, so the slot is as
+  // narrow as the ski at its floor and opens out toward the surface, front and sides alike: a trough with sloping walls. Owner 2026-11-12)
+  let softD: f32 = max(soft, v.e.x * (0.9 * D + 0.04));
   let tip: f32 = mix(skiFront(D, v.e.x), SKI_TIP, skid * (1.0 - v.e.x));          // (a ski going sideways clears the snow off its whole length)
   // the strip of the ski's width that is in the snow: from its low edge up to where the tilted base comes out of the surface. Of a ski going
   // sideways only the low edge counts: whichever way it slides, what it leaves is a floor at the depth of that edge, and the rest of the
@@ -522,8 +532,8 @@ fn frag(v: VOut) -> FOut {
   // (powder is pressed down more than it is squeezed out: a deep trench with a low wide swell beside it, not a roll)
   let Hs: f32 = (D * mix(0.22, 0.10, pw) + D * 0.55 * hi * (1.0 - sk) + sk * (0.045 + 0.035 * pw)) * (1.0 - tr);
   let Ws: f32 = max(mix(0.022 + 0.07 * pw, 0.085, hi) + 0.17 * sk, 2.0 * M.p.y);
-  let so: f32 = max(sdu - soft, 0.0);
-  let val: f32 = mix(Rq, Hs * sq(saturate(1.0 - so / Ws)) * (0.7 + 0.6 * lump.z), smoothstep(0.0, soft, sdu));
+  let so: f32 = max(sdu - softD, 0.0);
+  let val: f32 = mix(Rq, Hs * sq(saturate(1.0 - so / Ws)) * (0.7 + 0.6 * lump.z), smoothstep(0.0, softD, sdu));
   // nothing is piled round a shovel that rides up over the snow (one running under it has a face of snow before the boot, and that is
   // piled up like any other), nor by a ski that is not in the snow
   // (nor is anything written behind the side of a ski that is going sideways: what lies there is the floor it has just scraped, and, where

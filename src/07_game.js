@@ -573,7 +573,8 @@ const Game = (() => {
       // faster than it could be seen and answered after the fact)
       let pen = -1;
       for (const a of [0, 0.04, 0.08]) { const x = tip[0] + o[0] + S.v[0] * a, z = tip[2] + o[2] + S.v[2] * a; pen = Math.max(pen, sf(x, z) - (tip[1] + o[1] + S.v[1] * a)); }
-      pen += 0.02; const key = k ? 'tcR' : 'tcL', cur = fl[key];
+      // (in deep powder the shovel planes well up out of it: a hand's breadth of tip shows; owner 2026-11-12)
+      pen += 0.02 + 0.06 * (typeof Tracks !== 'undefined' ? Tracks.deep || 0 : 0); const key = k ? 'tcR' : 'tcL', cur = fl[key];
       const want = clamp(cur + pen / (0.94 * ce), 0, 0.5);
       fl[key] = want > cur ? cur + (want - cur) * (1 - Math.exp(-dt / 0.03)) : cur + (want - cur) * (1 - Math.exp(-dt / 0.25));
     }
@@ -688,7 +689,7 @@ const Game = (() => {
     // (the inside ski draws ahead as the edges come up: hardly at all in a shallow turn)
     pose.lead = 0.19 * sL * Math.abs(sL) + q.lead; pose.stance = 0.31 + 0.16 * Math.abs(sL) + 0.04 * w + q.st;
     pose.fore = damp(pose.fore, clamp(-0.25 * w * (1 - q.own) + q.fore - 0.5 * fl.soak, -1, 1), 8, kd);
-    pose.liftL = q.lL; pose.liftR = q.lR; fl.tipUp = damp(fl.tipUp || 0, S.contact && typeof Tracks !== 'undefined' ? (Tracks.deep || 0) * lerp(0.17, 0.09, smooth(5, 18, sp)) * (1 - w) : 0, 5, dt);
+    pose.liftL = q.lL; pose.liftR = q.lR; fl.tipUp = damp(fl.tipUp || 0, S.contact && typeof Tracks !== 'undefined' ? (Tracks.deep || 0) * lerp(0.22, 0.14, smooth(5, 18, sp)) * (1 - w) : 0, 5, dt);
     // (in deep powder the skis ride tips up, planing: the shovels come up out of the snow and the tails run low in it, more so when slow)
     // and whatever else: a ski's shovel never digs into the snow (the owner: '任何情况下雪橇的头都不应该扎到雪里面'). A real ski bends and its tip
     // rides up over a hollow, a mogul's face, the lip of the run-out, the powder; this one is stiff, so where its tip would be under the
