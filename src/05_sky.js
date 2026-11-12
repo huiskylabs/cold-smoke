@@ -46,8 +46,9 @@ const Sky = (() => {
         o.color = vec4f(c, 1.0); return o; }`,
     });
     pipeSky = gfx.pipeline({
-      name: 'sky', lib: [SL.common, SL.hash, SL.fog, NEBULA_SSL, vistaSSL(), CLOUDSEA_SSL, CIRRUS_SSL, NIGHT_SSL, CONTRAIL_SSL], buffers: [], varyings: { uv: 'vec2f' },
-      uniforms: { p: 'vec4f', nr: 'vec4f', nu: 'vec4f', nf: 'vec4f', sd: 'vec4f', mo: 'vec4f', hi: 'vec4f', fr: 'vec4f', pa: 'vec4f', pb: 'vec4f', pc: 'vec4f', cs: 'vec4f' },
+      name: 'sky', lib: [SL.common, SL.hash, SL.fog, NEBULA_SSL, vistaSSL(), CLOUDSEA_SSL, CIRRUS_SSL, NIGHT_SSL, CONTRAIL_SSL, weatherSkySSL()], buffers: [], varyings: { uv: 'vec2f' },
+      uniforms: { p: 'vec4f', nr: 'vec4f', nu: 'vec4f', nf: 'vec4f', sd: 'vec4f', mo: 'vec4f', hi: 'vec4f', fr: 'vec4f', pa: 'vec4f', pb: 'vec4f', pc: 'vec4f', cs: 'vec4f',
+        wa: 'vec4f', wb: 'vec4f', wc: 'vec4f', wd: 'vec4f', we: 'vec4f', wf: 'vec4f', wg: 'vec4f' },
       textures: { tSky: '2d', tNebA: '2d', tNebB: '2d', tDetail: '2d', tFarA: '2d', tFarB: '2d', tCityA: '2d', tCityB: '2d', tCitySh: '2d', tSeaA: '2d', tSeaB: '2d' }, depthFunc: 'lequal', depthWrite: false, cull: 'none',
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let uv: vec2f = vec2f(f32((a.vid << 1u) & 2u), f32(a.vid & 2u)); v.clip = vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, 1.0, 1.0); v.uv = uv; return v; }`,
       fs: `fn frag(v: VOut) -> FOut { var o: FOut;
@@ -81,10 +82,14 @@ const Sky = (() => {
         let disc: f32 = smoothstep(0.0062, 0.0048, ang) * M.sd.w * smoothstep(-0.002, 0.003, d.y);
         col += M.sd.rgb * U.sunCol.w * disc * (0.55 + 0.45 * sqrt(saturate(1.0 - sq(ang / 0.0062))));
         col += U.sunCol.rgb * (0.9 * exp(-ang * 55.0) + 0.12 * exp(-ang * 9.0) + (0.20 * exp(-ang * 15.0) + M.pc.y * exp(-ang * 4.4)) * (0.2 + 0.8 * M.sd.w));
+        // in heavy snow the overcast is drawn over all of that, the sun coming and going through its breaks (05b_weather.js)
+        col = overcast(d, mu, col);
         // beyond the mountain, nearest last: ranges on the horizon, the cloud deck, the city standing in it
         col = farRanges(d, col);
         col = mix(col, cloudSea(d, mu, col), smoothstep(0.0, -0.006, d.y));
         col = cityLayer(d, col);
+        // ...and nearer than all of it, a bolt of lightning
+        col += bolt(d);
         o.color = vec4f(col, 0.0); return o; }`,
     });
     S.pipes = [pipeLut, pipeSky];
@@ -199,9 +204,12 @@ const Sky = (() => {
     Vista.updateShadow(); const b = Nebula.basis(), md = S.moonDir(), cam = Render.cam.pos;
     // strobes: two quick white flashes and a slow red beacon
     const ph = (Render.time * 0.9) % 1, strobe = (ph < 0.045 || (ph > 0.13 && ph < 0.175)) ? 1 : 0, beacon = Math.pow(Math.max(0, Math.sin(Render.time * 4.2)), 8);
+    // (under the overcast the far summits lose the sun with everything else)
+    const wx = typeof Weather !== 'undefined' ? Weather.sky : null, wk = wx && Weather.sunK != null ? Weather.sunK : 1;
     gfx.draw(pipeSky, { u: { p: [S.nebDay, S.nebNight * S.nebNightK, S.polar * lerp(0.5, 1, S.milk), lerp(1.0, S.nebSat, S.milk)], nr: b.nr, nu: b.nu, nf: b.nf,
-      sd: [S.disc[0], S.disc[1], S.disc[2], S.isMoon ? 0 : 1], mo: [md[0], md[1], md[2], S.moonVis], hi: [S.sunHi[0], S.sunHi[1], S.sunHi[2], S.night], fr: [S.sunFar[0], S.sunFar[1], S.sunFar[2], strobe + 0.5 * beacon],
-      pa: PL.on ? [PL.x - cam[0], PL.z - cam[2], S.hiAlt, 1] : [0, 0, S.hiAlt, 0], pb: [PL.hx, PL.hz, PL.len, PL.v], pc: [PL.cut, S.glare, 0, 0], cs: [Clouds.sea.f, Clouds.sea.oA, Clouds.sea.oB, 0] },
+      sd: [S.disc[0], S.disc[1], S.disc[2], S.isMoon ? 0 : 1], mo: [md[0], md[1], md[2], S.moonVis], hi: [S.sunHi[0], S.sunHi[1], S.sunHi[2], S.night], fr: [S.sunFar[0] * wk, S.sunFar[1] * wk, S.sunFar[2] * wk, strobe + 0.5 * beacon],
+      pa: PL.on ? [PL.x - cam[0], PL.z - cam[2], S.hiAlt, 1] : [0, 0, S.hiAlt, 0], pb: [PL.hx, PL.hz, PL.len, PL.v], pc: [PL.cut, S.glare, 0, 0], cs: [Clouds.sea.f, Clouds.sea.oA, Clouds.sea.oB, 0],
+      wa: wx ? wx.wa : [0, 0, 0, 0], wb: wx ? wx.wb : [0, 0, 0, 0], wc: wx ? wx.wc : [0, 0, 0, 0], wd: wx ? wx.wd : [0, 0, 0, 0], we: wx ? wx.we : [0, 0, 0, 0], wf: wx ? wx.wf : [0, 0, 0, 0], wg: wx ? wx.wg : [0, 0, 0, 0] },
       tex: { tSky: lutTex, tNebA: Nebula.texA, tNebB: Nebula.texB, tDetail: Tex.detail, tFarA: Vista.farA, tFarB: Vista.farB, tCityA: Vista.cityA, tCityB: Vista.cityB, tCitySh: Vista.shTex, tSeaA: Clouds.sea.A, tSeaB: Clouds.sea.B }, count: 3 });
   };
   return S;
@@ -397,7 +405,7 @@ const CIRRUS_SSL = `
 fn cirrus(d: vec3f, mu: f32) -> vec4f {
   // a sheet far overhead, bent with the earth so it meets the horizon instead of running off to infinity
   let t: f32 = 1.0 / (max(d.y, 0.0) + 0.10);
-  let p: vec2f = d.xz * t + vec2f(U.skyP.y * 1.1, U.skyP.y * 0.3);
+  let p: vec2f = d.xz * t + vec2f(-U.skyP.y * 1.1, -U.skyP.y * 0.3);   // (minus: the sheet drifts with the wind below, toward +x)
   let ax: vec2f = vec2f(0.86, 0.50);
   let q: vec2f = vec2f(dot(p, ax), dot(p, vec2f(-ax.y, ax.x)));
   let wv: vec2f = tex(tDetail, q * vec2f(0.045, 0.09) + vec2f(0.21, 0.63)).xy - 0.5;

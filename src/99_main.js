@@ -35,6 +35,7 @@ async function boot(stage) {
   Render.onOriginShift = d => { Spray.shiftOrigin(d); };
   Render.passes.offscreen.push(R => Spray.offscreen(R));
   Render.passes.offscreen.push(R => Shafts.offscreen(R));
+  Render.passes.fx.push(R => Dust.veil(R));                              // (heavy snow: the veil of the far snowfall, under everything near)
   Render.passes.fx.push(R => Shafts.fx(R));
   Render.passes.fx.push(R => Spray.fx(R));
   Render.passes.fx.push(R => Dust.fx(R));
@@ -92,7 +93,8 @@ function tick(dt, draw) {
   // the day moves on while you ski (the title page stays in the afternoon)
   if (Game.mode === 'run' && Sky.rate !== 0) Sky.setClock(Sky.clock + dt * (Sky.rate || 1));
   Sky.updatePlane(App.t, dt, cp, Render.cam.fwd);
-  Feel.update(dt);                                                      // speed in the lens, snow on the glass, the air of this run (reads Game.events: keep above the loop that clears them)
+  Weather.update(dt);                                                   // light or heavy snow: its clouds, wind, sun and lightning (05b_weather.js)
+  Feel.update(dt);                                                     // speed in the lens, snow on the glass, the air of this run (reads Game.events: keep above the loop that clears them)
   Render.computeGlobals(App.t, dt, st);
   for (const ev of Game.events) {
     Sound.event(ev);
@@ -255,7 +257,7 @@ window.__ski = {
   // set the time of day: seconds into the 10-minute day, or a name (day, golden, sunset, dusk, night, dawn, sunrise)
   tod(t) { Sky.setClock(typeof t === 'string' ? Sky.times[t] : t); Sky.update(); Clouds.baked = false; Vista.shadowElev = -9; Vista.updateShadow(true); return +Sky.sunElev.toFixed(4); },
   game: () => Game, input: () => Input, app: () => App, ui: () => UI,
-  get m() { return { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Skier, Tex, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Atmo, Deer, View, Variants }; },
+  get m() { return { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Skier, Tex, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Atmo, Deer, View, Variants, Weather }; },
 };
 App.fit = fit;
 window.__ski.gates = Gates;

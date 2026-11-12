@@ -269,6 +269,9 @@ const Sound = (() => {
       latPrev = al; loadPrev = s.load;
       if (mus) mus.update(s, t, E, side);
     };
+    // ---------------- the weather (05b_weather.js): the wind of heavy snow, its own and gusting, and thunder (fed after the rest each frame)
+    { const wx = typeof Weather !== 'undefined' && Weather.build ? Weather.build(ctx, tap('weather'), M, { gain, biq, pan, chain, H, set }) : null;
+      if (wx) { const up = R.update; R.update = (s, t) => { up(s, t); wx.update(s, t); }; R.thunder = wx.thunder; } }
     return R;
   };
 
