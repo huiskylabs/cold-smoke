@@ -23,7 +23,7 @@ const Clouds = (() => {
   // at that range are scraps: torn, ragged underneath, thin enough to see the blue through, and softened by the air in front. Versions:
   // a as it was, b torn scraps (rag), c no small ones at all. (each cloud's rag and presence ease over a few seconds: nothing snaps)
   const VCU = typeof Variants !== 'undefined' ? Variants : { val: {}, def() { } };
-  VCU.def('cu', '小云', [['a', '现在的'], ['b', '碎云'], ['c', '去掉小云']], 'b');
+  VCU.def('cu', '小云', [['a', '现在的'], ['b', '碎云'], ['c', '去掉小云']], 'c');
   const small = c => smooth(0.27, 0.16, c.w);
   let lastU = -1;
   let gfx, volTex, volT, pipeVol, pipeBake, pipeDraw, pipeSea, order;
