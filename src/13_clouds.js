@@ -44,11 +44,11 @@ const Clouds = (() => {
     C.atlas = cu.tex[0]; C.sea.A = C.sea.B = se.tex[0];
     const v4 = n => { const o = {}; for (const k of n.split(' ')) o[k] = 'vec4f'; return o; };
     pipeVol = gfx.pipeline({ name: 'cloudVol', lib: [SL.common, SL.hash], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f' }, textures: {}, colorFormat: 'rgba8', depth: false, depthTest: false, cull: 'none', vs: VS_FULLSCREEN, fs: CLOUD_VOLNOISE_FS });
-    pipeBake = gfx.pipeline({ name: 'cloudBake', lib: [SL.common, SL.hash, SL.tonemap, CLOUD_VOL_SSL, CLOUD_CU_SSL], topology: 'strip', buffers: [], varyings: { uv: 'vec2f' }, uniforms: v4('r t a b l c k o0 o1 o2 o3 l0 l1 l2 l3 l4 m0 m1 m2 m3 m4'),
+    pipeBake = gfx.pipeline({ name: 'cloudBake', lib: [SL.common, SL.hash, SL.tonemap, CLOUD_VOL_SSL, CLOUD_CU_SSL], topology: 'strip', buffers: [], varyings: { uv: 'vec2f' }, uniforms: v4('r t a b l c k o0 o1 o2 o3 l0 l1 l2 l3 l4 l5 l6 m0 m1 m2 m3 m4 m5 m6'),
       textures: { tVol: '2d' }, colorFormat: 'rgba16f', depth: false, depthTest: false, cull: 'none', vs: CLOUD_RECT_VS, fs: CLOUD_BAKE_FS });
     pipeSea = gfx.pipeline({ name: 'seaBake', lib: [SL.common, SL.hash, SL.tonemap, CLOUD_VOL_SSL, SEA_FIELD_SSL], topology: 'strip', buffers: [], varyings: { uv: 'vec2f' }, uniforms: v4('r t p l w'),
       textures: { tVol: '2d' }, colorFormat: 'rgba16f', depth: false, depthTest: false, cull: 'none', vs: CLOUD_RECT_VS, fs: SEA_BAKE_FS });
-    pipeDraw = gfx.pipeline({ name: 'cloudDraw', lib: [SL.common, SL.fog], topology: 'strip', buffers: [], varyings: { uv: 'vec2f', dir: 'vec3f' }, uniforms: v4('a t k f s'),
+    pipeDraw = gfx.pipeline({ name: 'cloudDraw', lib: [SL.common, SL.fog], topology: 'strip', buffers: [], varyings: { uv: 'vec2f', dir: 'vec3f' }, uniforms: v4('a t k f s g0 g1 g2 n'),
       textures: { tCloudA: '2d', tCloudB: '2d', tSky: '2d' }, depthFunc: 'lequal', depthWrite: false, cull: 'none', blend: 'premul', vs: CLOUD_DRAW_VS, fs: CLOUD_DRAW_FS });
     // how much of the sun's disc the cumulus let through (1 = all): one texel, read by the lens (09_post.js sunVis) so that a cloud in front of
     // the sun hides its starburst, glare and ghosts the way it hides the disc
@@ -84,6 +84,14 @@ const Clouds = (() => {
       const cy = lerp(lerp(c.yb + 0.10 * H, Math.max(top - r * sy * 1.25, c.yb + 0.10 * H), grow) - 0.04 * H * age, c.yb + H * (0.10 + 0.12 * hz), 0.8 * rg);
       L.push([x * (1 - 0.3 * rg), Math.min(cy, c.yt - r * sy * 1.3 - 0.01), (hz - 0.5) * 0.5, r]); M.push([sy * (1 - 0.4 * rg), 0, Math.max(age, 0.6 * rg), w * (1 - 0.5 * rg)]);      // (a scrap has no young crisp bubble in it: its bubbles shrink to small bumps on the layer)
     }
+    // two crowns that always stand on the mound, drifting slowly (no cycle, so nothing to snap): without them, in the spells when no
+    // thermal is up, the cloud is its bare mound, a box with a flat top. They swell and sink a little over minutes
+    for (let k = 0; k < 2; k++) {
+      const ph = ev * (0.0031 + 0.0013 * k) + sd * (1.3 + k), sw = 0.5 + 0.5 * Math.sin(ph * 1.7 + 2.1 * k);
+      const r = (0.25 + 0.06 * sw) * (1 - 0.35 * rg), sy = 1.05 + 0.15 * sw, x = (k ? 0.26 : -0.30) + 0.10 * Math.sin(ph);
+      const top = c.yb + H * (0.46 + 0.16 * sw) * (0.6 + 0.4 * c.tur) * (1 - 0.5 * rg);
+      L.push([x, Math.max(top - r * sy, c.yb + 0.05 * H), 0.12 * Math.cos(ph * 1.3), r]); M.push([sy, 0, 0.35 + 0.25 * rg, 1 - 0.5 * rg]);
+    }
     M[0][1] = rg;      // (the base mound's free slot carries the rag to the shader)
     return { L, M };
   }
@@ -109,7 +117,7 @@ const Clouds = (() => {
       const v0 = Math.max(r0 - i * C.res, 0) / C.res, v1 = Math.min(r1 - i * C.res, C.res) / C.res; if (v1 <= v0) continue;
       const c = C.list[i], q = rect(i), J = jb.cl[i], u = { r: [q[0], lerp(q[1], q[3], v0), q[2], lerp(q[1], q[3], v1)], t: [0, v0, 1, v1],
         a: [c.seed, c.yb, c.tw, c.el], b: [c.D, ZR, c.asp, c.yt], l: [J.Ll[0], J.Ll[1], J.Ll[2], C.silver], c: [C.shear, S0, S1, jb.s2], k: [0.60, 0.70, C.kd, C.sigma * (1 - 0.55 * (c.rag || 0))], o0: J.o0, o1: J.o1, o2: J.o2, o3: J.o3 };
-      for (let k = 0; k < 5; k++) { u['l' + k] = J.lb.L[k]; u['m' + k] = J.lb.M[k]; }
+      for (let k = 0; k < 7; k++) { u['l' + k] = J.lb.L[k]; u['m' + k] = J.lb.M[k]; }
       gfx.draw(pipeBake, { u, tex: { tVol: volTex }, count: 4 });
     }
     gfx.endPass();
@@ -154,6 +162,20 @@ const Clouds = (() => {
   };
   // (for timing: all of a key of the cumulus ('cu'), of the deck ('sea'), or of both, now)
   C.bakeNow = function (which) { const jb = job(Render.time); if (which !== 'sea') bakeCu(cu.tgt[iC], jb, 0, 1, true); if (which !== 'cu') bakeSea(se.tgt[iC], jb, 0, 1, true); p = 0; };
+  // At night the town lights the bases of the cloud near its bearing from below, in its own colours: sodium wide and low, each quarter's
+  // neon over it (Vista.cores / famc, the same quarters cityGlow3 uses). Three colours across the base (left, middle, right), mixed in the
+  // shader. n = (night, how strongly the moon lights the tops, thinning of the edges, -)
+  C.night = { glow: 0.14, moon: 1.7, thin: 0.9 };
+  function cityUp(c, az) {
+    const V = typeof Vista !== 'undefined' ? Vista : null, lt = Sky.lights || 0, g = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
+    if (V && V.cores && V.famc && lt > 0.001) for (let j = 0; j < 3; j++) {
+      const a = az + (j - 1) * c.w * 0.4, du = (a - V.cityAz) * V.cityDist;
+      const town = Math.exp(-(((du + 200) / 5200) ** 2)) * V.lit.town * 1.4, col = [1.0 * town, 0.48 * town, 0.30 * town];
+      V.cores.forEach((q, i) => { const k = Math.exp(-(((du - q[0]) / (q[2] * 2.4)) ** 2)) * V.lit.core * (0.3 + q[3] / 1000) * 3.0; for (let ch = 0; ch < 3; ch++) col[ch] += V.famc[i][ch] * k; });
+      g[j] = col.map(v => v * lt * C.night.glow).concat([0]);
+    }
+    return { g0: g[0], g1: g[1], g2: g[2], n: [Sky.night || 0, C.night.moon, C.night.thin, 0] };
+  }
   C.draw = function (R) {
     if (!C.enabled || !C.baked) return;
     C.time = R.time || 0;
@@ -162,7 +184,7 @@ const Clouds = (() => {
     for (const i of order) {
       const c = C.list[i], az = azAt(c, C.time), q = rect(i), fade = smooth(1.45, 1.2, Math.abs(az)) * wx * (c.keep === undefined ? 1 : c.keep), ru = C.rise * C.K / (2 * c.asp);
       if (fade < 0.002) continue;
-      gfx.draw(pipeDraw, { u: { a: [az, c.el, c.tw, c.asp], t: [q[0], q[1], q[2] - q[0], q[3] - q[1]], k: [C.ksun, C.ksky, C.kgnd, c.haze + (1 - c.haze) * (0.10 + 0.32 * (c.rag || 0))], f: [fade, p, ru * C.oA, ru * C.oB], s: [Sky.sunFar[0], Sky.sunFar[1], Sky.sunFar[2], C.ktwi] },
+      gfx.draw(pipeDraw, { u: { a: [az, c.el, c.tw, c.asp], t: [q[0], q[1], q[2] - q[0], q[3] - q[1]], k: [C.ksun, C.ksky, C.kgnd, c.haze + (1 - c.haze) * (0.10 + 0.32 * (c.rag || 0))], f: [fade, p, ru * C.oA, ru * C.oB], s: [Sky.sunFar[0], Sky.sunFar[1], Sky.sunFar[2], C.ktwi], ...cityUp(c, az) },
         tex: { tCloudA: cu.tex[iA], tCloudB: cu.tex[iB], tSky: Sky.lut }, count: 4 });
     }
   };
@@ -222,7 +244,7 @@ fn cuLobe(p: vec3f, a: vec4f, b: vec4f, acc: vec3f) -> vec3f {
 }
 fn cuCov(p: vec3f) -> vec2f {
   var a: vec3f = vec3f(-9.0, 0.0, 1e-4);
-  a = cuLobe(p, M.l0, M.m0, a); a = cuLobe(p, M.l1, M.m1, a); a = cuLobe(p, M.l2, M.m2, a); a = cuLobe(p, M.l3, M.m3, a); a = cuLobe(p, M.l4, M.m4, a);
+  a = cuLobe(p, M.l0, M.m0, a); a = cuLobe(p, M.l1, M.m1, a); a = cuLobe(p, M.l2, M.m2, a); a = cuLobe(p, M.l3, M.m3, a); a = cuLobe(p, M.l4, M.m4, a); a = cuLobe(p, M.l5, M.m5, a); a = cuLobe(p, M.l6, M.m6, a);
   return vec2f(a.x, a.y / a.z);
 }
 // a torn scrap (M.m0.y) is drawn out along the wind: its noise is stretched across, so it tears into streaks, not into round patches
@@ -310,7 +332,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   // ...and of that only the stretch where a thermal is
   let rl: vec3f = cuLean(ro); let dl2: vec3f = vec3f(rd.x - M.c.x * rd.y, rd.y, rd.z);
   var tr: vec2f = vec2f(1e9, -1e9);
-  tr = cuHit(rl, dl2, M.l0, M.m0, tr); tr = cuHit(rl, dl2, M.l1, M.m1, tr); tr = cuHit(rl, dl2, M.l2, M.m2, tr); tr = cuHit(rl, dl2, M.l3, M.m3, tr); tr = cuHit(rl, dl2, M.l4, M.m4, tr);
+  tr = cuHit(rl, dl2, M.l0, M.m0, tr); tr = cuHit(rl, dl2, M.l1, M.m1, tr); tr = cuHit(rl, dl2, M.l2, M.m2, tr); tr = cuHit(rl, dl2, M.l3, M.m3, tr); tr = cuHit(rl, dl2, M.l4, M.m4, tr); tr = cuHit(rl, dl2, M.l5, M.m5, tr); tr = cuHit(rl, dl2, M.l6, M.m6, tr);
   let t0: f32 = max(max(max(min(ia.x, ib.x), min(ia.y, ib.y)), min(ia.z, ib.z)), tr.x); let t1: f32 = min(min(min(max(ia.x, ib.x), max(ia.y, ib.y)), max(ia.z, ib.z)), tr.y);
   if (t1 <= t0) { o.color = vec4f(0.0); return o; }
   // the angle between the sun and this line of sight (the silver lining is all about that angle)
@@ -412,12 +434,27 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   var col: vec3f = M.s.rgb * (t.x * M.k.x) + U.ambSky.rgb * (t.y * M.k.y + t.z * M.k.z * 0.55) + U.ambGnd.rgb * (t.z * M.k.z * 0.45);
   // after sunset the bright band low on the sun's bearing goes on lighting them, on the flanks turned to it and from underneath
   col += U.twi.rgb * ((t.x * 0.8 + t.z * 0.35) * M.s.w);
+  // at night: the moon catches the tops (the key holds the moon's light then: 05_sky.js lights by the moon after dark), and the town's
+  // glow comes up under the bases, in the colours of the quarters below them
+  col += M.s.rgb * (t.x * M.k.x * M.n.x * (M.n.y - 1.0));
+  let gx: f32 = v.uv.x * 2.0;
+  col += mix(mix(M.g0.rgb, M.g1.rgb, saturate(gx)), M.g2.rgb, saturate(gx - 1.0)) * ((t.z * 0.9 + t.y * 0.03) * smoothstep(0.35, 0.9, v.uv.y));      // (the base: the lower part of the tile)
   // the air between here and the cloud
   let d: vec3f = normalize(v.dir);
   col = mix(col, skyLut(vec3f(d.x, max(d.y, 0.0), d.z)) * t.a, M.k.w);
   // (nothing may end at the edge of its tile)
   let e: vec2f = min(v.uv, 1.0 - v.uv);
-  o.color = vec4f(col, t.a) * (M.f.x * smoothstep(0.0, 0.03, min(e.x, e.y))); return o; }
+  // at night the thin parts thin further, so the nebula and the stars show through the edges (a lump of smoke has hard ones)
+  let ta: f32 = pow(t.a, 1.0 + M.n.z * M.n.x);
+  // The sun's disc and its hot core are thousands of times the sky: whatever share of it a thin edge lets through would still blaze.
+  // Close to the sun the cloud is taken as much thicker than it is (its transmittance to a high power): the disc is gone wherever there
+  // is cloud worth the name, and shows only through the last frayed wisps at the very edge (the moon the same at night)
+  let cs: f32 = dot(d, U.sunDir.xyz);
+  let kp: f32 = 1.0 + 14.0 * smoothstep(0.9975, 0.99995, cs);
+  let ao: f32 = 1.0 - pow(1.0 - ta, kp);
+  // (what is taken from the blaze behind a thin edge comes back as that edge's own glow, in the colour of the sky round the sun: no dark seam)
+  let fill: vec3f = skyLut(vec3f(d.x, max(d.y, 0.0), d.z)) * ((ao - ta) * 2.0);
+  o.color = vec4f(col * (ta / max(t.a, 1e-4)) + fill, ao) * (M.f.x * smoothstep(0.0, 0.03, min(e.x, e.y))); return o; }
 `;
 
 // ---- the sea of cloud, as a volume. q = a spot on the map (m from the eye, carried along by the wind), y = height above the deck's floor (m).
