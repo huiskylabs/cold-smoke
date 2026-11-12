@@ -10,7 +10,7 @@
 //   the wind that grows with speed: 1 in light snow), .hush (0..1: how much of the high end of far sounds the falling snow swallows)
 const Weather = (() => {
   const W = { levels: [['light', '小雪'], ['heavy', '大雪']], level: 'light', k: 0, kc: 0, ks: 0, v: 1, hold: null, wind: 1, hush: 0, gust: 0, ramp: 7,
-    off: [0, 0, 0], cloud: [0, 0], windNow: [1.2, 0, 0.4], F: 0, fl: null, flashes: 0, flashAt: -1, ex: null, hole: [0.6, 0, 0, 0], cityK: 1 };
+    off: [0, 0, 0], cloud: [0, 0], windNow: [1.2, 0, 0.4], F: 0, fl: null, flashes: 0, flashAt: -1, ex: null, hole: [0.6, 0, 0, 0], cityK: 1, cityOut: 0 };
   // the two kinds of heavy snow the owner can pick between (Variants 'snow'). a: snow showers under a broken sky, the sun out for a while now and
   // then (the owner's own words); b: a blizzard, thicker and windier, the sun seldom out (and then mostly as a pale disc), lightning more often.
   // sig/D: how thick the falling snow is and how far off it levels out (m); sky: how thick it is against the sky; hid/out: spells of the sun
@@ -48,7 +48,8 @@ const Weather = (() => {
     }
     return [0.6, 0, 0, 0];
   }
-  const sunIn = H => 1 - H[3] * smooth(H[2] + E, H[2] - E, Math.hypot(H[0], H[1]));
+  // (the break is a tear stretched along the drift, ST times longer than it is wide: H[2] is its half length, the sky draws it the same way)
+  const ST = 3, sunIn = H => 1 - H[3] * smooth(H[2] + E, H[2] - E, Math.hypot(H[0], H[1] * ST));
 
   W.set = function (id, now) {
     if (!W.levels.some(l => l[0] === id)) return W.level;
@@ -102,6 +103,14 @@ const Weather = (() => {
     for (let i = 0; i < 3; i++) W.off[i] += W.windNow[i] * dt;
     W.cloud[0] = (W.cloud[0] + W.windNow[0] * dt * 4) % 60000; W.cloud[1] = (W.cloud[1] + W.windNow[2] * dt * 4) % 60000;
     W.wind = 1 + 0.45 * W.ks; W.hush = 0.65 * W.ks;
+    // the far city behind the snowfall: a dim shape, its lights no more than their glow on the cloud's underside (the sky draws the towers
+    // with this, and the lights drawn over the sky by Vista.drawLights are turned down by it for as long as they are drawn)
+    W.cityOut = W.kc * lerp(0.45, 0.9, typeof Sky !== 'undefined' ? Sky.night || 0 : 0);     // (by day its towers stay a grey shape)
+    if (typeof Vista !== 'undefined' && Vista.drawLights && !Vista.drawLights.wx) {
+      const dl = Vista.drawLights, f = function (R) {
+        const k = 1 - W.cityOut, L = Vista.lit; if (k < 0.995 && L) { const keep = {}; for (const n in L) if (typeof L[n] === 'number') { keep[n] = L[n]; L[n] *= k; } try { dl(R); } finally { Object.assign(L, keep); } } else dl(R);
+      }; f.wx = true; Vista.drawLights = f;
+    }
     // the headlamp's beam stands out in the falling snow
     if (typeof Shafts !== 'undefined') { if (W.lampAir0 == null) W.lampAir0 = Shafts.lampAir; Shafts.lampAir = W.lampAir0 * (1 + 3.5 * W.ks); }
     // lightning, once the snow is heavy: the first soon after it has come, then every half minute or so
@@ -151,7 +160,7 @@ const Weather = (() => {
     const fd = f ? [Math.sin(f.az) * Math.cos(f.el), Math.sin(f.el), -Math.cos(f.az) * Math.cos(f.el)] : [0, 1, 0];
     const bl = f && f.bolt ? W.F * 7 / ex : 0, den = lerp(0.72, 1, v);
     W.sky = { wa: [ov[0], ov[1], ov[2], kc], wb: [saz + H[0] / Math.max(Math.cos(sel), 0.2), sel + H[1], H[2], H[3]], wc: [sc[0], sc[1], sc[2], E],
-      wd: [fd[0], fd[1], fd[2], Ef], we: f ? [f.az, f.top, f.seed, bl] : ZERO, wf: [0.050 * cg * kc, 0.036 * cg * kc, 0.024 * cg * kc, 0], wg: [W.cloud[0] / 1500, W.cloud[1] / 1500, 0, 0] };
+      wd: [fd[0], fd[1], fd[2], Ef], we: f ? [f.az, f.top, f.seed, bl] : ZERO, wf: [0.050 * cg * kc, 0.036 * cg * kc, 0.024 * cg * kc, W.cityOut], wg: [W.cloud[0] / 1500, W.cloud[1] / 1500, 1.3 * ks, 0] };
     W.veilU = ks < 0.002 ? null : { a: [P.sig * ks * den, P.D, P.sky * ks * den, ks], b: [ov[0] * 1.12 + gnd[0] * 0.08, ov[1] * 1.12 + gnd[1] * 0.08, ov[2] * 1.12 + gnd[2] * 0.08, 0],
       c: [0.034 * cg * ks, 0.024 * cg * ks, 0.015 * cg * ks, 0], d: [fd[0], fd[1], fd[2], Ef * ks],
       e: [((W.off[0] % 1024) + 1024) % 1024, 0, ((W.off[2] % 1024) + 1024) % 1024, App.t % 1024] };
@@ -240,14 +249,19 @@ fn overcast(d: vec3f, mu: f32, colIn: vec3f) -> vec3f {
   // (kept true right at the sun, so the disc goes in and out with the light on the snow)
   let kc: f32 = M.wa.w;
   let cov: f32 = smoothstep(1.05 - 1.35 * kc, 1.30 - 1.35 * kc, n + 0.35 * kc);
-  let ce: f32 = cos(M.wb.y);
-  let hd: vec3f = vec3f(sin(M.wb.x) * ce, sin(M.wb.y), -cos(M.wb.x) * ce);
   let toSun: f32 = acos(clamp(mu, -1.0, 1.0));
-  let rag: f32 = ((n1 - 0.5) * 0.14 + (n2 - 0.5) * 0.05) * smoothstep(0.03, 0.15, toSun);
-  let hole: f32 = M.wb.w * smoothstep(M.wb.z + M.wc.w, M.wb.z - M.wc.w, wxAng(d, hd) + rag);
+  // (a tear, not a porthole: three times longer along the drift than across it, its edge torn at the scale of the cloud's own lumps)
+  let el: f32 = asin(clamp(d.y, -1.0, 1.0));
+  var dz: f32 = atan2(d.x, -d.z) - M.wb.x; dz = atan2(sin(dz), cos(dz));
+  let lc: vec2f = vec2f(dz * cos(el), (el - M.wb.y) * 3.0);
+  let rag: f32 = ((n - 0.5) * 1.1 + (n3 - 0.5) * 0.5) * M.wb.z * smoothstep(0.03, 0.15, toSun);
+  let hole: f32 = M.wb.w * smoothstep(M.wb.z + M.wc.w, M.wb.z - M.wc.w, length(lc) + rag);
   // (thickest in front of the sun itself unless a break is there: where the light on the snow says the sun is in, no disc shows through)
-  let tau: f32 = cov * (5.5 + 8.0 * n + 7.0 * smoothstep(0.15, 0.03, toSun)) * (1.0 - hole);
-  let T: f32 = exp(-tau);
+  // (and while snow falls there is snow in the break too: what shows through it is a hazed blue, never the deep clear sky)
+  let tau: f32 = max(cov * (5.5 + 8.0 * n + 7.0 * smoothstep(0.15, 0.03, toSun)) * (1.0 - hole), M.wg.z);
+  // (thick cloud lets nothing of the sky above through, however bright: no stars, nebula or moon show through the overcast at night; only
+  // where it thins toward a break does the sky come through, hazed)
+  let T: f32 = exp(-tau - 2.0 * kc * max(tau - 2.0, 0.0));
   // its light: the overcast's, darker where it is thicker; the sun soaking through the thin parts round it (brightest just at the edge of a break,
   // the silver lining) and a pale glow round it however thick the cloud; the city's glow underneath at night; a flash lighting it from inside
   var c: vec3f = M.wa.rgb * (1.42 - 0.5 * n) * (0.88 + 0.12 * smoothstep(0.0, 0.4, d.y));
