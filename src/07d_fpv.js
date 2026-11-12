@@ -402,7 +402,7 @@ const Fpv = (() => {
 
 
   // ---- on the page: buffers, the bones as a texture (like the figure's), one pipeline, and the figure asked to leave its own arms out
-  let gfx = null, vb = null, ib = null, boneTex = null, pipe = null, figTex = null, figData = null, hideTex = null, hideIb = null, hideCount = 0, skiIb = null, skiCount = 0;
+  let gfx = null, vb = null, ib = null, boneTex = null, pipe = null, figTex = null, figData = null, hideTex = null, hideIb = null, hideCount = 0, hideFor = null, skiIb = null, skiCount = 0;
   const RID = [[0, 0, 0, 0], [0, 0, 0, 0]], boneData = new Float32Array(4 * 16 * 4), hideData = new Float32Array(4 * 32 * 4), UNI = { tw: [0, 0, 0, 0], bend: [0, 0, 0, 0], ski: [0, 0, 0, 0], fx: [0, 0, 0, 0] };
   const fail = e => { if (!F.dead) { F.dead = true; F.vis = false; F.err = e; try { console.error('fpv: first person falls back to the figure\'s own arms', e); } catch (_) { } } };
   // (the figure's triangles without skis, poles and gloves: the list it is drawn from while these stand in for them)
@@ -490,7 +490,7 @@ fn frag(v: VOut) -> FOut {
     let s: f32 = uv.x; let th: f32 = uv.y; let r: f32 = max(uv.z, 0.02); let zone: f32 = v.mat.z;
     if (zone < 0.5) {
       // the shell: the figure's jacket (orange, navy forearms, the pale band round the upper arm)
-      let fore: f32 = smoothstep(${n(L1 + 0.035)}, ${n(L1 + 0.065)}, s);
+      let fore: f32 = smoothstep(${n(L1 + 0.035)}, ${n(L1 + 0.065)}, s) * (1.0 - M.ski.w);      // (the new body, Variants 'body' b: orange to the cuff, the navy storm cuff over the glove is all that is left of it)
       alb = mix(ORANGE, NAVY, fore); alb = mix(alb, PALE, smoothstep(0.016, 0.011, abs(s - 0.150)) * (1.0 - fore));
       // ripstop: a heavier thread every few millimetres, both ways
       let g: vec2f = abs(fract(vec2f(s, th * r) / 0.0042) - 0.5); let rip: f32 = smoothstep(0.38, 0.47, max(g.x, g.y)) * fine;
@@ -631,8 +631,9 @@ fn frag(v: VOut) -> FOut {
   // (two things: a dusting worked into the cloth, soft-edged and never quite white, and here and there a small lump that has stuck, with an
   // edge and a thickness of its own. Snow lying deep on a ski is all of it)
   let facing: f32 = smoothstep(-0.05, 0.25, N.y) * step(0.001, sn);
-  let dust: f32 = smoothstep(thr - 0.12, thr + 0.06, lump * 0.52 + lumpF * 0.48) * facing;
-  let lumps: f32 = smoothstep(thr + 0.035, thr + 0.065, lumpF * 0.72 + lump * 0.28) * facing;
+  // (powder, not paint: the dusting is soft-edged and thin, the lumps few and small, and both fade at their edges)
+  let dust: f32 = 0.50 * smoothstep(thr - 0.08, thr + 0.22, lump * 0.52 + lumpF * 0.48) * facing;
+  let lumps: f32 = 0.60 * smoothstep(thr + 0.085, thr + 0.150, lumpF * 0.80 + lump * 0.20) * facing;
   let clump: f32 = max(max(dust * dk, lumps), bury);
   alb = mix(alb, vec3f(0.90, 0.93, 0.98), clump); specS = mix(specS, 0.10, clump); specP = mix(specP, 24.0, clump); gloss *= 1.0 - clump; sheen = mix(sheen, 0.25, clump); cloth = mix(cloth, 1.0, clump); hgt += 0.0016 * lumps; ao = mix(ao, 1.0, clump * 0.7);
   // (the relief leans the normal: seams stand up, stitches sink, snow lies proud)
@@ -688,6 +689,9 @@ fn frag(v: VOut) -> FOut {
     let nl2: f32 = saturate((dot(N, Ld) + 0.35) / 1.35);
     col += ll * (alb * nl2 * (0.6 + 0.4 * ao) + (specS * 1.5 + 0.2 * sheen * fr) * pow(max(dot(N, normalize(V + Ld)), 0.0), specP) + cry * 8.0 * pow(saturate(dot(reflect(-V, Ng), Ld)), 50.0));
   }
+  // (the upper arm close under the lens is in its own shade and half lost to the eye: darker and greyer, so it does not read as a flat orange card)
+  let nearL: f32 = smoothstep(0.36, 0.14, length(U.camPos.xyz - v.wp));
+  col = mix(col, vec3f(dot(col, vec3f(0.30, 0.55, 0.15))) * 0.5 + col * 0.12, nearL * 0.8);
   col = applyFog(col, v.wp);
   o.color = vec4f(col, 1.0);
   return o;
@@ -700,7 +704,7 @@ fn frag(v: VOut) -> FOut {
       gfx = App.gfx; const t0 = performance.now(); if (!F.mesh) F.build();
       vb = gfx.buffer(F.mesh.V, 'vertex'); ib = gfx.buffer(F.mesh.I, 'index');
       boneTex = gfx.texture({ w: 4, h: 16, format: 'rgba32f', filter: 'nearest' }); hideTex = gfx.texture({ w: 4, h: 32, format: 'rgba32f', filter: 'nearest' });
-      const fi = F.figIdx(); hideIb = gfx.buffer(fi, 'index'); hideCount = fi.length;
+      const fi = F.figIdx(); hideIb = gfx.buffer(fi, 'index'); hideCount = fi.length; hideFor = Skier.mesh;
       // (and these skis by themselves, for the view that shows nothing else)
       { const m = F.mesh, keep = []; for (let i = 0; i < m.ni; i += 3) if (m.V[m.I[i] * VSZ + 6] === 8) keep.push(m.I[i], m.I[i + 1], m.I[i + 2]); skiIb = gfx.buffer(new Uint32Array(keep), 'index'); skiCount = keep.length; }
       const sh = shaders();
@@ -725,6 +729,7 @@ fn frag(v: VOut) -> FOut {
         if (!(F.vis && F.posed && figTex)) return dr0.apply(this, arguments);
         if (F.hideFig) return;        // (the view of the ski tips: the lens is down among the knees, and nothing of the skier is to show; the shadow is still cast)
         const d0 = gfx.draw; let n = 0;
+        if (Skier.want) Skier.want(); if (hideFor !== Skier.mesh) { const fi = F.figIdx(); hideIb = gfx.buffer(fi, 'index'); hideCount = fi.length; hideFor = Skier.mesh; }     // (the figure's body was swapped: Variants 'body')
         gfx.draw = function (P, d) { if (d && d.tex && d.tex.tBones === figTex && d.count === Skier.mesh.ni) { n++; const e = Object.assign({}, d); e.tex = Object.assign({}, d.tex, { tBones: hideTex }); e.ib = hideIb; e.count = hideCount; return d0.call(this, P, e); } return d0.apply(this, arguments); };
         try { return dr0.apply(this, arguments); } finally { gfx.draw = d0; if (!n) fail(new Error('the figure is no longer drawn the way this expects')); }
       };
@@ -732,7 +737,7 @@ fn frag(v: VOut) -> FOut {
     } catch (e) { fail(e); }
   };
   // the bones of these arms, and the figure's own with its arms gathered in, as textures
-  const GONE = ['uarmL', 'farmL', 'handL', 'uarmR', 'farmR', 'handR', 'poleL', 'poleR', 'elbowL', 'elbowR'];
+  const GONE = ['uarmL', 'farmL', 'handL', 'uarmR', 'farmR', 'handR', 'poleL', 'poleR', 'elbowL', 'elbowR', 'head'];      // (the head too: the lens is inside it, and the goggles' frame crossed the view)
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   // the snow off the shovels in the view of the ski tips: crumbs thrown up and aside from where each ski meets the snow, and a thin mist of the
   // finest of it. rate: lumps a second flat out in deep snow (a third of them mist); dens: how thick a crumb is; life, brake: how soon it
@@ -745,7 +750,7 @@ fn frag(v: VOut) -> FOut {
     gfx.updateTexture(boneTex, 0, 0, 4, 16, boneData);
     if (figData) {
       hideData.set(figData);
-      for (const nm of GONE) { const b = Skier.B[nm]; if (b == null) continue; const p = m4.tp(R, Skier.world.J[nm.slice(-1) === 'L' ? 'shL' : 'shR']), o = b * 16, e = 0.002; hideData.fill(0, o, o + 16); hideData[o] = e; hideData[o + 5] = e; hideData[o + 10] = e; hideData[o + 12] = p[0]; hideData[o + 13] = p[1]; hideData[o + 14] = p[2]; hideData[o + 15] = 1; }
+      for (const nm of GONE) { const b = Skier.B[nm]; if (b == null) continue; const p = m4.tp(R, Skier.world.J[nm === 'head' ? 'skull' : nm.slice(-1) === 'L' ? 'shL' : 'shR']), o = b * 16, e = 0.002; hideData.fill(0, o, o + 16); hideData[o] = e; hideData[o + 5] = e; hideData[o + 10] = e; hideData[o + 12] = p[0]; hideData[o + 13] = p[1]; hideData[o + 14] = p[2]; hideData[o + 15] = 1; }
       gfx.updateTexture(hideTex, 0, 0, 4, 32, hideData);
     }
     const S = Game.s, ps = Game.pose || {}, t = (typeof App !== 'undefined' ? App.t : 0) % 512, ch = Game.feel && Game.feel.chatter || 0, sp = S.speed || 0, on = S.air ? 0 : 1;
@@ -753,7 +758,7 @@ fn frag(v: VOut) -> FOut {
     UNI.bend[0] = SD[0].bend; UNI.bend[1] = SD[1].bend; UNI.bend[2] = smooth(7, 28, sp) * (1 - 0.5 * sat(ps.tuck || 0)); UNI.bend[3] = t;
     const amp = (0.0025 * smooth(4, 20, sp) + 0.011 * ch) * on;
     UNI.ski[0] = amp * Math.sin(t * 61 + 0.7) * (0.6 + 0.4 * Math.sin(t * 13.7)); UNI.ski[1] = amp * Math.sin(t * 57 + 2.9) * (0.6 + 0.4 * Math.sin(t * 11.3 + 1));
-    UNI.ski[2] = 1 - sat(typeof Sky !== 'undefined' && Sky.night || 0);       // (how much daylight there is: for fluorescent ink, and for how bright snow on a sleeve may be)
+    UNI.ski[2] = 1 - sat(typeof Sky !== 'undefined' && Sky.night || 0); UNI.ski[3] = Skier.mesh && Skier.mesh.v === 'a' ? 0 : 1;       // (how much daylight there is: for fluorescent ink, and for how bright snow on a sleeve may be)
     const pwd = sat(S.powder || 0); PH.flow = ((PH.flow || 0) + dt * sp * 0.35) % 96;
     UNI.fx[0] = PH.snow; UNI.fx[1] = 0.45; UNI.fx[2] = on * smooth(3, 12, sp) * lerp(0.6 * pwd, smooth(0.2, 0.6, pwd), F.tk); UNI.fx[3] = PH.flow;
     // what rides with the lens must not be smeared by its speed. The motion blur leaves alone what is near the skier's middle, and has two
