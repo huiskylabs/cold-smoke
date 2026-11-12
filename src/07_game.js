@@ -105,7 +105,10 @@ const Game = (() => {
   // carries the sun and the city across the picture. Steeps: high and long, down the fall line. Ridge: low, the horizon low, swung out over
   // one of the two drops. Gully: low between the walls. Glade: close, as it was. The open runs between are swung wide, three-quarter views
   const SHOTS = { steeps: [-0.2, -0.08, 0, 0.06], ridge: [-0.35, 0.03, 0.12, 0.32], gully: [-0.3, 0.05, 0.03, 0], glade: [0, 0, 0, 0], bowl: [0.15, -0.05, 0, 0.34], powder: [0.3, -0.02, 0.05, 0.24], rollers: [-0.2, 0.03, 0.08, 0.2], moguls: [0.25, -0.03, -0.02, 0.14], kickers: [0, 0, 0, 0.12] }, SH0 = [0, 0, 0, 0];
-  if (typeof Variants !== 'undefined') Variants.def('shots', '分段机位', [['a', '现在的'], ['b', '按路段变化']], 'a');
+  // c (the owner's ask, 2026-11-12): the same chase camera everywhere, only nudged per kind of run, and gently: a little closer or further,
+  // a little higher or lower, the framing tipped a little up or down. Never swung round the skier (no side views), never the gully's low bank.
+  const SHOTS_C = {}; for (const k in SHOTS) { const t = SHOTS[k]; SHOTS_C[k] = [t[0] * 0.35, t[1] * 0.5, t[2] * 0.5, 0]; }
+  if (typeof Variants !== 'undefined') Variants.def('shots', '分段机位', [['a', '不变'], ['b', '按路段大变'], ['c', '轻微变化']], 'c');
   // on the title page, with no sun ahead, the lens looks a little to the left of the valley (and the skier stands on the right third, see updateCamera)
   G.titleYaw = -0.05;
   const cam = G.cam = { pos: [0, 3, 8], yaw: 0, roll: 0, fov: 1.3, anchor: [0, 0, 0], pitch: -0.2, side: 0, gy: 0, init: false, fwd: [0, 0, -1] };
@@ -782,8 +785,8 @@ const Game = (() => {
       spring(cam, 'wood', to, to > (cam.wood || 0) ? 2 : 0.9, dt * q); if (!to && cam.wood < 1e-4) cam.wood = cam.woodV = 0; }
     // the picture of this kind of run (SHOTS), taken over through springs some three seconds long: a new section comes into the lens,
     // never in a cut, and switching the owner's choice glides the same way. (Not in a tall window: that branch is left as it was; nor on the title page, which has its own picture)
-    { const sg = Course.segAt(-p[2]), T = !portrait && G.mode !== 'title' && typeof Variants !== 'undefined' && Variants.val.shots === 'b' && SHOTS[sg.type] || SH0, sd = sg.idx & 1 ? -1 : 1, w = 1.3;
-      spring(cam, 'shH', T[0], w, dt * q); spring(cam, 'shF', T[1], w, dt * q); spring(cam, 'shK', T[2], w, dt * q); spring(cam, 'shO', T[3] * sd, w * 0.8, dt * q); spring(cam, 'shG', T === SH0 || sg.type !== 'gully' ? 0 : 1, w, dt * q); }
+    { const sg = Course.segAt(-p[2]), T = !portrait && G.mode !== 'title' && typeof Variants !== 'undefined' && (Variants.val.shots === 'b' ? SHOTS[sg.type] : Variants.val.shots === 'c' ? SHOTS_C[sg.type] : null) || SH0, sd = sg.idx & 1 ? -1 : 1, w = 1.3;
+      spring(cam, 'shH', T[0], w, dt * q); spring(cam, 'shF', T[1], w, dt * q); spring(cam, 'shK', T[2], w, dt * q); spring(cam, 'shO', T[3] * sd, w * 0.8, dt * q); spring(cam, 'shG', T === SH0 || Variants.val.shots !== 'b' || sg.type !== 'gully' ? 0 : 1, w, dt * q); }
     // a marked jump: the lens swings out about fifteen degrees to one side as the skier lines up for it (from about 100 m), so the lip stands
     // clear beside the figure instead of hidden behind it, and through a flight the forecast says will last over a second it stays out there
     // and drops: the skier crosses the horizon side-on with the landing below. It comes back once the skis are down. cam.jw 0..1 (all of
