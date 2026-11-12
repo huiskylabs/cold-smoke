@@ -94,8 +94,15 @@ const Game = (() => {
   // (the lens among trees is the owner's to choose. a: as it was. b: it closes up, and a tree in its way fades before it is reached.
   // c: it stays where it was, and only the fading is early. 14_trees.js reads the same choice for the fading)
   if (typeof Variants !== 'undefined') Variants.def('wood', '林间镜头', [['a', '现在的'], ['b', '贴近'], ['c', '原位淡树']], 'b');
-  // on the title page the lens looks a little to the left of the figure: the words stand on that side, the picture gathers on the other
-  G.titleYaw = -0.13;
+  // each kind of run its own picture (the owner's choice 'shots'; a: one picture everywhere, the sun and the city always top centre).
+  // Per kind: the lens higher (m), its angle narrower (-) or wider (rad; the distance makes up, so the figure keeps its size), the skier
+  // lower in the frame (+, the horizon with it), and a swing round the skier (rad; its side alternates from one section to the next) that
+  // carries the sun and the city across the picture. Steeps: high and long, down the fall line. Ridge: low, the horizon low, swung out over
+  // one of the two drops. Gully: low between the walls. Glade: close, as it was. The open runs between are swung wide, three-quarter views
+  const SHOTS = { steeps: [0.35, -0.16, 0.02, 0.06], ridge: [-0.35, 0.03, 0.12, 0.32], gully: [-0.3, 0.05, 0.03, 0], glade: [0, 0, 0, 0], bowl: [0.15, -0.05, 0, 0.34], powder: [0.3, -0.02, 0.05, 0.24], rollers: [-0.2, 0.03, 0.08, 0.2], moguls: [0.25, -0.03, -0.02, 0.14], kickers: [0, 0, 0, 0.12] }, SH0 = [0, 0, 0, 0];
+  if (typeof Variants !== 'undefined') Variants.def('shots', '分段机位', [['a', '现在的'], ['b', '按路段变化']], 'b');
+  // on the title page, with no sun ahead, the lens looks a little to the left of the valley (and the skier stands on the right third, see updateCamera)
+  G.titleYaw = -0.05;
   const cam = G.cam = { pos: [0, 3, 8], yaw: 0, roll: 0, fov: 1.3, anchor: [0, 0, 0], pitch: -0.2, side: 0, gy: 0, init: false, fwd: [0, 0, -1] };
   const pc = {}, tn = { ok: false }, tnc = { ok: false };
   let acc = 0;
@@ -694,13 +701,48 @@ const Game = (() => {
     // (Only in version b of the owner's choice: switched to another, it goes off as it does behind the last tree)
     { const s0 = -p[2], c = Course.at(s0, _ca), e = Math.abs(p[0] - c.cx) - c.hw, to = typeof Variants !== 'undefined' && Variants.val.wood !== 'b' ? 0 : Math.max(smooth(0.15, 0.75, Math.max(c.glade, Course.at(s0 + sp, _cb).glade)), smooth(4, 16, e) * smooth(0.3, 0.7, c.forest));
       spring(cam, 'wood', to, to > (cam.wood || 0) ? 2 : 0.9, dt * q); if (!to && cam.wood < 1e-4) cam.wood = cam.woodV = 0; }
+    // the picture of this kind of run (SHOTS), taken over through springs some three seconds long: a new section comes into the lens,
+    // never in a cut, and switching the owner's choice glides the same way. (Not in a tall window: that branch is left as it was; nor on the title page, which has its own picture)
+    { const sg = Course.segAt(-p[2]), T = !portrait && G.mode !== 'title' && typeof Variants !== 'undefined' && Variants.val.shots === 'b' && SHOTS[sg.type] || SH0, sd = sg.idx & 1 ? -1 : 1, w = 1.3;
+      spring(cam, 'shH', T[0], w, dt * q); spring(cam, 'shF', T[1], w, dt * q); spring(cam, 'shK', T[2], w, dt * q); spring(cam, 'shO', T[3] * sd, w * 0.8, dt * q); spring(cam, 'shG', T === SH0 || sg.type !== 'gully' ? 0 : 1, w, dt * q); }
+    // a marked jump: the lens swings out about fifteen degrees to one side as the skier lines up for it (from about 100 m), so the lip stands
+    // clear beside the figure instead of hidden behind it, and through a flight the forecast says will last over a second it stays out there
+    // and drops: the skier crosses the horizon side-on with the landing below. It comes back once the skis are down. cam.jw 0..1 (all of
+    // it), cam.ja 0..1 (the flight's share: the lens turns from the lip to the skier); jSide is chosen as it starts, toward the run's middle
+    { let to = 0; const s0 = -p[2];
+      if (!portrait && sp > 11) for (let b = Math.floor(s0 / 32), e = Math.floor((s0 + 84) / 32); b <= e; b++) for (const f of Course.feats.get(b) || []) {
+        if (!f.mark) continue; const ds = f.s + f.len - s0, du = Math.abs(p[0] - Course.at(f.s + f.len, _ca).cx - f.u);
+        to = Math.max(to, smooth(105, 70, ds) * smooth(-1, 3, ds) * smooth(f.wid * 0.5 + 5, f.wid * 0.5 + 1, du) * smooth(12, 16, sp)); }
+      const air = fl.on && !S.contact ? smooth(0.85, 1.05, fl.pred || 0) : 0; to = Math.max(to, air);
+      if ((cam.jw || 0) < 0.01 && to > 0) { const c = Course.at(s0, _cb); cam.jSide = p[0] > c.cx ? -1 : 1; }
+      spring(cam, 'jw', to, to > (cam.jw || 0) ? 1.8 : 1.4, dt * q); spring(cam, 'ja', air, air > (cam.ja || 0) ? 4 : 1.6, dt * q); }
+    // the title page: the lens looks toward the sun or the moon, whichever lights the scene (when it is up and somewhere ahead; else a little left of the valley), and is swung
+    // round the figure until the skier stands on the right third, across the picture from the words. tLook: where it looks, tPsi: the
+    // way from the lens to the skier. Both glide (the sun moves; the window can change shape)
+    const idl = cam.idle == null ? 1 : cam.idle;
+    { let look = cam.yaw + G.titleYaw;
+      if (typeof Sky !== 'undefined' && Sky.sunDir) { const sd = Sky.sunDir(), el = Math.asin(clamp(sd[1], -1, 1)); let da = Math.atan2(sd[0], -sd[2]) - look; da = Math.atan2(Math.sin(da), Math.cos(da)); look += da * smooth(-0.03, 0.03, el) * smooth(1.1, 0.7, Math.abs(da)); }
+      const psi = look + Math.atan(aspect * Math.tan(cam.fov / 2) / 3); cam.tLook = first ? look : damp(cam.tLook, look, 2, dt); cam.tPsi = first ? psi : damp(cam.tPsi, psi, 2, dt); }
+    const orb = cam.shO + (cam.jSide || 1) * (0.27 + 0.1 * (cam.ja || 0)) * cam.jw + (portrait ? 0 : idl * (cam.tPsi - cam.yaw));
     // (each stroke of a double-pole push gives the lens a small pull: it falls back a hand's breadth and opens a touch as the skier drives. Where the physics has no strokes yet, leaving the gate gives one such pull)
     const drive = spring(cam, 'drv', S.dp > 0 ? bell(0.22, 0.36, 0.5, 0.7, S.dp) : cam.launch || 0, 9, dt * q); cam.launch = damp(cam.launch || 0, 0, 3.5, dt);
     // (in the air it draws back a little, the more the higher the skier is over the snow, but never by much: the figure has to stay
     // large enough for the trick to be read. cam.hA: that height, as the lens takes it, a little late)
     spring(cam, 'hA', first ? 0 : Math.max(0, fl.fr - fl.sg), 5, dt * q);
-    const dist = (portrait ? lerp(5.6, 5.0, k) : lerp(CL.d0, CL.d1, k)) - 0.75 * Math.min(sp, 46) / 16 - 0.45 * cam.steep + 0.3 * kc + smin(0.3 * cam.hA, 1.4, 0.7) + 0.12 * drive - CL.wd * cam.wood, hC = (portrait ? lerp(1.6, 1.3, k) : lerp(CL.h0, CL.h1, k)) - 0.3 * cam.low + 0.6 * cam.steep - CL.wh * cam.wood;
-    const dx = Math.sin(cam.yaw), dz = -Math.cos(cam.yaw), rx = Math.cos(cam.yaw), rz = Math.sin(cam.yaw);
+    // the lens: wider with speed (and in the air, on a stroke, among trees), then the section's own (cam.shF)
+    const fovS = (portrait ? lerp(1.30, 1.50, k) : lerp(CL.f0, CL.f1, k) + 0.10 * smooth(29, 41, sp)) + 0.05 * kc + 0.035 * drive + CL.wf * cam.wood, fovT = fovS + cam.shF;
+    // (the distance to the skier as the picture sees it: the lens's own and the sixteenth of a second it trails by, sp / 16. As the lens
+    // widens with speed the figure shrank to a seventh of the frame on the steeps at 115 km/h: from 80 km/h up the distance gives back
+    // what the widening takes, so the figure holds about a fifth even tucked. A narrower lens for the section stands back by as much)
+    let dist = (portrait ? lerp(5.6, 5.0, k) : lerp(CL.d0, CL.d1, k)) - 0.75 * Math.min(sp, 46) / 16 - 0.45 * cam.steep + 0.3 * kc + smin(0.3 * cam.hA, 1.4, 0.7) + 0.12 * drive - CL.wd * cam.wood;
+    // (the title page stands a metre further back: the skier, the sun a fifth of the way down and the valley all have room)
+    // (and through a long flight it comes in closer than it would on the snow, so the figure is large against the sky as it goes over)
+    if (!portrait) dist += 1.0 * (cam.idle == null ? 1 : cam.idle) - 0.8 * (cam.ja || 0);
+    if (!portrait) { const lag = sp / 16, zc = (1 - Math.tan(CL.f0 / 2) / Math.tan(fovS / 2)) * smooth(22, 32, sp); dist = (dist + lag) * (1 - zc - 0.08 * smooth(25, 33, sp)) * Math.tan(fovS / 2) / Math.tan(fovT / 2) - lag; }
+    // (on the title page the lens stands lower, so that pitched up to bring the sun a fifth of the way down the frame it still has the
+    // skis in the picture; lining up for a marked jump it stands higher, and looks onto the face of the takeoff instead of along it)
+    const hC = (portrait ? lerp(1.6, 1.3, k) : lerp(CL.h0, CL.h1, k)) - 0.3 * cam.low + 0.6 * cam.steep - CL.wh * cam.wood + cam.shH - 0.95 * (cam.idle == null ? 1 : cam.idle) + 0.6 * cam.jw * (1 - (cam.ja || 0));
+    const yo = cam.yaw + orb, dx = Math.sin(yo), dz = -Math.cos(yo), rx = Math.cos(yo), rz = Math.sin(yo);
     const a = cam.anchor;
     a[0] = damp(a[0], p[0], 16, dt * q); a[2] = damp(a[2], p[2], 16, dt * q); a[1] = damp(a[1], fl.fr, 9, dt * q);
     // before the run the lens idles: a slow drift from side to side, always turned back toward the figure
@@ -738,7 +780,8 @@ const Game = (() => {
     }
     // between banks (a gully, the trough of a turn in deep snow) the lens rides higher, so the picture is the run ahead and not the bank beside it
     const bankT = clamp(0.45 * (Math.max(Course.height(cx + rx * 7, cz + rz * 7, 2), Course.height(cx - rx * 7, cz - rz * 7, 2)) - gy - 0.5), 0, 2.4);
-    cam.bank = damp(cam.bank || 0, bankT, 2.2, dt * q);
+    // (...except in a gully under the owner's 'shots' b: there the lens keeps low between the walls, and the walls stand up in the picture)
+    cam.bank = damp(cam.bank || 0, bankT * (1 - 0.7 * (cam.shG || 0)), 2.2, dt * q);
     // (and over a mogul field a hand higher: at hip height the crests come up to within a hand of the lens, nearer than it can see)
     cam.hOff = damp(cam.hOff, hC + cam.bank + 0.25 * bm, 2.5, dt * q);
     // (in flight the lens follows the body late, and low. Off the lip it is where the ramp had it, a little over a metre above the skis;
@@ -746,7 +789,7 @@ const Game = (() => {
     // up out of the landing slope against the far side of the valley and the sky, and the height is seen from the side, as height. A
     // lens that stays above looks down on the figure flat against the snow, and three metres of air read as none. Coming down, the
     // same rule lifts it again before the snow has to. On the snow that offset is simply kept equal to where the lens is: no seam)
-    cam.oS = damp(cam.oS, lerp(cam.gy + cam.hOff - cam.ys, lerp(1.25, 0.05, smooth(0.5, 2, fl.fr - fl.sg)), smooth(0.05, 0.6, kc)), 5, dt * q);
+    cam.oS = damp(cam.oS, lerp(cam.gy + cam.hOff - cam.ys, lerp(1.25, 0.05 - 0.55 * (cam.ja || 0), smooth(0.5, 2, fl.fr - fl.sg)), smooth(0.05, 0.6, kc)), 5, dt * q);
     // (a landing presses the lens down for a moment)
     spring(cam, 'dip', fl.soak, 12, dt * q);
     // ...and that flight line keeps clear of the snow under the lens: of its own rounded ground line, cam.gy (riding 0.7 m over the
@@ -764,24 +807,33 @@ const Game = (() => {
     // (the lens kick, G.fovKick: a heavy landing sets it, and the lens opens a touch within a tenth of a second and closes again. It is
     // taken through a spring and added outside the slow follow of the lens: quick, and still without a corner)
     spring(cam, 'fk', G.fovKick, 14, dt);
-    const fovT = (portrait ? lerp(1.30, 1.50, k) : lerp(CL.f0, CL.f1, k) + 0.10 * smooth(29, 41, sp)) + 0.05 * kc + 0.035 * drive + CL.wf * cam.wood; cam.fovB = damp(first ? fovT : cam.fovB, fovT, 3, dt * q); cam.fov = cam.fovB + cam.fk;
+    cam.fovB = damp(first ? fovT : cam.fovB, fovT, 3, dt * q); cam.fov = cam.fovB + cam.fk;
     // frame the skier in the lower part of the picture, whatever the slope is doing
     // (a wide picture is framed by the snow under the skis, which sits a fixed way up from its lower edge; standing at the start there is a
     // little more room under it. So in the air nothing has to be decided: the lens keeps looking at the snow, the skier leaves it and
     // rises in the picture by just the height gained, hangs, and comes back down to it; the slope and the shadow stay in view below)
     const hd = Math.hypot(p[0] - cam.pos[0], p[2] - cam.pos[2]) || 1, th = Math.tan(cam.fov / 2);
     const eFeet = Math.atan2(fl.fr - 0.1 - cam.pos[1], hd), eHead = Math.atan2(fl.fr + 1.85 - cam.pos[1], hd);
-    const pitchT = portrait ? Math.atan2(fl.fr + 0.95 - cam.pos[1], dist) + Math.atan(0.27 * th) : Math.atan2(fl.sg - 0.1 - cam.pos[1], hd) + Math.atan((CL.kf - 0.05 * cam.idle) * th);
-    cam.pitch = damp(cam.pitch, pitchT, 4.5, dt * q);
+    const pitchT = portrait ? Math.atan2(fl.fr + 0.95 - cam.pos[1], dist) + Math.atan(0.27 * th) : Math.atan2(fl.sg - 0.1 - cam.pos[1], hd) + Math.atan((CL.kf + cam.shK - 0.05 * cam.idle) * th);
+    // (on the title page the lens is pitched by the sun instead, so that it stands a fifth of the way down the frame (0.47: measured, the
+    // drawn disc sits a little above the sun line through glare and refraction): by day, with the sun
+    // in the picture. The limits below still hold the skis and the head in it)
+    let pT = pitchT;
+    if (cam.idle > 0.001 && !portrait && typeof Sky !== 'undefined' && Sky.sunDir) {
+      const sd = Sky.sunDir(), el = Math.asin(clamp(sd[1], -1, 1)), az = Math.atan2(sd[0], -sd[2]), hh = Math.atan(aspect * th);
+      let da = az - cam.tLook; da = Math.atan2(Math.sin(da), Math.cos(da));
+      pT = lerp(pitchT, el - Math.atan(0.47 * th * Math.cos(da)), cam.idle * smooth(-0.03, 0.03, el) * smooth(hh + 0.15, hh - 0.1, Math.abs(da)));
+    }
+    cam.pitch = damp(cam.pitch, pT, 4.5, dt * q);
     // ...and whatever the snow does (a drop off a crest, a landing) the skis never leave by the lower edge, nor the head by the upper
     // (the limits are rounded where they take hold: the lens is turned by them, not struck)
-    { const pMax = eFeet + Math.atan(0.90 * th), pMin = eHead - Math.atan(0.74 * th); cam.pitch = smin(smax(cam.pitch, Math.min(pMin, pMax), 0.03), pMax, 0.03); }
+    { const pMax = eFeet + Math.atan((0.90 - 0.2 * cam.idle) * th), pMin = eHead - Math.atan(0.74 * th); cam.pitch = smin(smax(cam.pitch, Math.min(pMin, pMax), 0.03), pMax, 0.03); }
     G.fovKick = damp(G.fovKick, 0, 3, dt); G.shake = damp(G.shake, 0, 5, dt); cam.shk = damp(cam.shk, G.shake, 30, dt);
     const sh = 0.010 * k * k + cam.shk, t = G.t;
     const ox = vnoise1(t * 17, 1) * sh, oy = vnoise1(t * 19, 2) * sh;
     // pushed aside by a tree, the lens turns back toward the skier so the figure never leaves the frame
     cam.pull = damp(cam.pull || 0, typeof Deer !== 'undefined' && Deer.pull ? Deer.pull : 0, 1.4, dt);                 // something worth a glance beside us
-    const ly = cam.yaw + Math.atan2(-cam.dodge, lerp(dist, hd, cam.wood)) * 0.9 + Math.atan2(-sway, dist) * 0.85 + (portrait ? 0 : G.titleYaw * cam.idle) + cam.pull;
+    const ly = yo - (cam.jSide || 1) * 0.27 * cam.jw * 0.6 * (1 - (cam.ja || 0)) + Math.atan2(-cam.dodge, lerp(dist, hd, cam.wood)) * 0.9 + Math.atan2(-sway, dist) * 0.85 + (portrait ? 0 : (cam.tLook - cam.tPsi) * cam.idle) + cam.pull;
     const cp = Math.cos(cam.pitch), f = [Math.sin(ly) * cp, Math.sin(cam.pitch), -Math.cos(ly) * cp];
     cam.fwd = f;
     // (a tree gone by close, untouched: the lens ducks a finger's breadth and tips away from it, as 07c_feel.js has worked out; both

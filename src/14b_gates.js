@@ -219,6 +219,9 @@ const Gates = (() => {
     const stroke = (x0, x1, z0, z1, st, keep) => sheet(x0, x1, z0, z1, an, DVt, DIt, DS, DV, (x, y, z) => { const q = st(x, -z); DVt.push(x - an[0], y - an[1], z - an[2], q[0], q[1], q[2], q[3], q[4], q[5], q[6], 0); }, keep);
     const sdG = hash2(Math.round(xl * 8), Math.round(sl * 8)), L1 = 2 * (uf + 0.5), sLand = sc + ld, xL = cx(sLand), L2 = 2 * (mo - 1.6);
     g.work.push(() => stroke(xq - L1 / 2 - 0.6, xq + L1 / 2 + 0.6, -sq - 1.25, -sq + 1.6, (x, s) => [x - xq, s - sq, L1, 1.5, sdG, 0, 1]));
+    // (and the face under it washed with a lighter, wider pass: from up the hill the lip band alone is one line two pixels high, the face
+    // seen nearly edge-on; washed, the face is a pale cyan block under a deep blue lip, and the takeoff reads from eighty metres)
+    g.work.push(() => stroke(xq - L1 / 2 - 0.6, xq + L1 / 2 + 0.6, -sc + 1.2, -sc + 8.2, (x, s) => [x - xq, s - (sc - 4.6), L1 * 0.94, 5.4, sdG + 0.63, 0, 0.52]));
     g.work.push(() => stroke(xL - L2 / 2 - 0.6, xL + L2 / 2 + 0.6, -sLand - 1.4, -sLand + 1.4, (x, s) => [x - xL, s - sLand, L2, 0.95, sdG + 0.37, 0, 0.92]));
     g.work.push(() => { for (const sx of [-1, 1]) {
       // (along the top edge of each wall: these run with the line of sight, so they are what shows the takeoff from far up the hill)
