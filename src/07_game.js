@@ -73,6 +73,7 @@ const Game = (() => {
   // the double-pole stroke: its length (s), the phase of the plant and of the end of the drive, what one stroke is worth from rest (m/s), the
   // speed above which poling gives nothing and the skier tucks instead, and the speed at which the strokes that leave the start stop
   const DP_T = 0.95, DP_PLANT = 0.22, DP_END = 0.62, DP_DV = 1.6, V_POLE = 9.5, V_GLIDE = 6.5;
+  const V_AUTO = 3.3, V_AUTO1 = 4.6;        // the skier poles by itself under 12 km/h, and keeps on to 16.5 km/h
   const S = G.s = {
     p: [0, 0, 0], v: [0, 0, 0], n: [0, 1, 0], t: [0, 0, -1], r: [1, 0, 0], h: 0, e: 0, air: false, airT: 0, speed: 0, lean: 0, leanV: 0, beta: 0, load: GRAV,
     aReac: 0, aSkid: 0, aCarve: 0, tuck: 0, tuckT: 0, powder: 0.25, landV: 0, crash: 0, brush: 0, u: 0, contact: true, hdot: 0,
@@ -176,10 +177,15 @@ const Game = (() => {
     // to 0.62, release, recover); poles do nothing for a skier already moving faster than arms can push, so above V_POLE the same control is a
     // tuck (S.tuckIn). The stroke in hand is always finished first. Leaving the start is the same stroke, up to three, until the slope takes over
     if (S.dpGo > 0 && sp >= V_GLIDE) S.dpGo = 0;
-    const more = sound && calm && (S.dpGo > 0 || Input.tuck && sp < V_POLE - 1);
+    // (and by itself, as any skier does: slow on the snow and not turning hard, the skier poles, stroke after stroke, without being asked:
+    // on a flat, in deep snow off the run, getting going again after a tree. It starts under V_AUTO and keeps on to V_AUTO1, then glides)
+    // (a key held at that speed does not stop it: there the key turns the skis only a little and no longer skids them, see su below; it
+    // waits only for a body that is over on an edge or skis that are across)
+    S.autoP = sound && Math.abs(S.lean) < 0.16 && Math.abs(S.beta) < 0.25 && !S.jOn && sp < (S.autoP ? V_AUTO1 : V_AUTO);
+    const more = sound && (calm && (S.dpGo > 0 || Input.tuck && sp < V_POLE - 1) || S.autoP);
     if (S.dp > 0) {
       const q0 = S.dp;
-      if (q0 < DP_PLANT && !(sound && calm)) S.dp = Math.max(0, q0 - 2 * dt / DP_T);       // not planted and no longer possible (off the snow, hard over, hit): the hands come back
+      if (q0 < DP_PLANT && !(sound && (calm || S.autoP))) S.dp = Math.max(0, q0 - 2 * dt / DP_T);       // not planted and no longer possible (off the snow, hard over, hit): the hands come back
       else { S.dp = q0 + dt / DP_T; if (q0 < DP_PLANT && S.dp >= DP_PLANT) G.events.push({ type: 'pole' }); if (S.dp >= 1) { S.dp = more ? S.dp - 1 + 1e-4 : 0; if (more && S.dpGo > 0) S.dpGo--; } }
     } else if (more) { S.dp = 1e-4; if (S.dpGo > 0) S.dpGo--; }
     let aPole = 0;
@@ -232,7 +238,9 @@ const Game = (() => {
     // past the carve range the skis are pivoted across the direction of travel: a skid that brakes and throws snow. Only when asked for:
     // rolling from one edge to the other does not swing the skis. They are swung, and let come back, as a leg moves them, not at a blow
     // (their rate of turn never jumps); and never on round past straight across the hill: there the skid is a brake and nothing else
-    const su = sign(u) * smooth(0.72, 1.0, Math.abs(u)) * (1 - 0.8 * S.tuckIn);
+    // (and only with speed to scrub: crawling, a key held hard is a skier trying to turn, not to stop, and swinging the skis across then
+    // only stalled the skier where it stood, in a skid at walking pace, the key still held. Under 9 km/h it does not skid at all, full from 22)
+    const su = sign(u) * smooth(0.72, 1.0, Math.abs(u)) * (1 - 0.8 * S.tuckIn) * smooth(2.5, 6, sp);
     { const w = contact ? BETA_W : 9, bMax = su * hd > 0 ? Math.max(0, PI / 2 - Math.abs(hd)) : 9, bT = contact ? clamp(su * 0.62, -bMax, bMax) : 0; S.betaV += (w * w * (bT - S.beta) - 2 * w * S.betaV) * dt; S.beta += S.betaV * dt; }
     let aLat = 0, aTan = aPole; S.aReac = 0; S.aSkid = 0; S.aCarve = 0;
     if (contact) {
@@ -729,8 +737,16 @@ const Game = (() => {
     const sp = spring(cam, 'sp', Math.hypot(v[0], v[1], v[2]), 16, dt), k = smooth(6, 30, sp), kc = fl.kc;
     // the lens looks down the valley, whichever way the valley is running just here, and goes a little over half way with the skier's own turns
     const cyw = Course.yawAt(-p[2]), vyaw = lerp(cyw, Math.atan2(v[0], -v[2]), smooth(0.8, 2.5, Math.hypot(v[0], v[2])));
-    cam.cyaw = damp(cam.cyaw == null || first ? cyw : cam.cyaw, cyw, 1.3, dt * q);
-    cam.yaw = damp(cam.yaw, cam.cyaw + clamp((vyaw - cam.cyaw) * 0.55, -0.7, 0.7), 2.4, dt * q);
+    // off the run and going slowly (lost among the trees, getting going again after one), the lens turns away from the skier's own line
+    // toward the run: to a point on its middle some thirty metres down, so the open lane between the trees is in the picture and it is
+    // plain which way to go; and it stands a little higher and further back to see over the snow. cam.lost 0..1, eased over a second or
+    // two either way. (Nothing moves the skier: only the picture turns)
+    { const s0 = -p[2], c = Course.at(s0, _ca), eo = Math.abs(p[0] - c.cx) - c.hw, to = G.mode === 'run' ? smooth(3, 16, eo) * lerp(0.2, 1, smooth(8, 3.5, sp)) : 0;
+      spring(cam, 'lost', first ? 0 : to, to > (cam.lost || 0) ? 1.6 : 1.0, dt * q);
+      if (cam.lost > 1e-3) { const cR = Course.at(s0 + 30, _cb), ry = Math.atan2(cR.cx - p[0], 30); cam.ryaw = clamp(ry - cyw, -0.9, 0.9); } }
+    const lost = cam.lost || 0, cyl = cyw + lost * (cam.ryaw || 0);
+    cam.cyaw = damp(cam.cyaw == null || first ? cyl : cam.cyaw, cyl, 1.3, dt * q);
+    cam.yaw = damp(cam.yaw, cam.cyaw + clamp((vyaw - cam.cyaw) * 0.55 * (1 - 0.7 * lost), -0.7, 0.7), 2.4, dt * q);
     // drift toward the inside of the turn: the curtain hangs just outside the track, and from in here the lens looks along its lit face instead of flying through it
     cam.side = damp(cam.side, S.lean * 0.55 + S.beta * 0.5, 2.2, dt * q);
     cam.roll = damp(cam.roll, -S.lean * 0.20, 5, dt * q);
@@ -785,14 +801,14 @@ const Game = (() => {
     // (the distance to the skier as the picture sees it: the lens's own and the sixteenth of a second it trails by, sp / 16. As the lens
     // widens with speed the figure shrank to a seventh of the frame on the steeps at 115 km/h: from 80 km/h up the distance gives back
     // what the widening takes, so the figure holds about a fifth even tucked. A narrower lens for the section stands back by as much)
-    let dist = (portrait ? lerp(5.6, 5.0, k) : lerp(CL.d0, CL.d1, k)) - 0.75 * Math.min(sp, 46) / 16 - 0.45 * cam.steep + 0.3 * kc + smin(0.3 * cam.hA, 1.4, 0.7) + 0.12 * drive - CL.wd * cam.wood;
+    let dist = (portrait ? lerp(5.6, 5.0, k) : lerp(CL.d0, CL.d1, k)) - 0.75 * Math.min(sp, 46) / 16 - 0.45 * cam.steep + 0.3 * kc + smin(0.3 * cam.hA, 1.4, 0.7) + 0.12 * drive - CL.wd * cam.wood + 0.7 * lost;
     // (the title page stands a metre further back: the skier, the sun a fifth of the way down and the valley all have room)
     // (and through a long flight it comes in closer than it would on the snow, so the figure is large against the sky as it goes over)
     if (!portrait) dist += 1.0 * (cam.idle == null ? 1 : cam.idle) - 0.8 * (cam.ja || 0);
     if (!portrait) { const lag = sp / 16, zc = (1 - Math.tan(CL.f0 / 2) / Math.tan(fovS / 2)) * smooth(22, 32, sp); dist = (dist + lag) * (1 - zc - 0.08 * smooth(25, 33, sp)) * Math.tan(fovS / 2) / Math.tan(fovT / 2) - lag; }
     // (on the title page the lens stands lower, so that pitched up to bring the sun a fifth of the way down the frame it still has the
     // skis in the picture; lining up for a marked jump it stands higher, and looks onto the face of the takeoff instead of along it)
-    const hC = (portrait ? lerp(1.6, 1.3, k) : lerp(CL.h0, CL.h1, k)) - 0.3 * cam.low + 0.6 * cam.steep - CL.wh * cam.wood + cam.shH - 0.95 * (cam.idle == null ? 1 : cam.idle) + 0.6 * cam.jw * (1 - (cam.ja || 0));
+    const hC = (portrait ? lerp(1.6, 1.3, k) : lerp(CL.h0, CL.h1, k)) - 0.3 * cam.low + 0.6 * cam.steep - CL.wh * cam.wood + cam.shH - 0.95 * (cam.idle == null ? 1 : cam.idle) + 0.6 * cam.jw * (1 - (cam.ja || 0)) + 0.55 * lost;
     const yo = cam.yaw + orb, dx = Math.sin(yo), dz = -Math.cos(yo), rx = Math.cos(yo), rz = Math.sin(yo);
     const a = cam.anchor;
     a[0] = damp(a[0], p[0], 16, dt * q); a[2] = damp(a[2], p[2], 16, dt * q); a[1] = damp(a[1], fl.fr, 9, dt * q);
