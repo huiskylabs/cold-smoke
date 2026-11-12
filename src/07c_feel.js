@@ -11,6 +11,13 @@ const Feel = (() => {
   F.v0 = 22; F.v1 = 40; F.shake = 0.018; F.dry = 1.5;
   // the shutter (s) and the longest streak it may leave (picture heights), calm and flat out
   F.shut = [1 / 90, 1 / 50]; F.blur = [0.045, 0.11];
+  // the corners drawn out toward where the lens is heading: the speeds (m/s) between which it grows (about 70 to 125 km/h). How much is the
+  // owner's call (Variants, the 场景 panel): none (as delivered), light (the corners only), or clear (as the Riders Republic reference: longer,
+  // and reaching further in from the sides). Each version: [streak at the very corner at the top of that (picture heights), where it begins
+  // (0 the middle of the frame, 1 the middle of a side, 1.41 a corner)]. A change is eased in over a few tenths of a second
+  F.rad = [19, 35]; F.radV = { a: [0, 0.6], b: [0.045, 0.6], c: [0.085, 0.45] }; F.radK = 0; F.radC = [0.5, 0.5];
+  if (typeof Variants !== 'undefined') Variants.def('edge', '四角模糊', [['a', '无'], ['b', '轻'], ['c', '明显']], 'b');
+  F.radL = (F.radV[typeof Variants !== 'undefined' && Variants.val.edge] || F.radV.b).slice();
   // the air of each kind of run, in multiples of the plain day's: [snow the wind carries along the ground, glitter hanging in the air, haze].
   // The ridge stands in the wind; among the trees and in deep powder the air is full of crystals; the gully holds the cold and its mist
   // (the haze is a far one: what shows is the slopes beyond going pale)
@@ -96,6 +103,25 @@ const Feel = (() => {
     // without this every streak would keep its full-speed length while the motion itself shrank: a smear), and what hangs in the air hangs
     // sharp. (The thrown snow's own streaks read Post.shutter too, so they keep step with the ground's.)
     Post.shutter = lerp(F.shut[0], F.shut[1], F.speed) * F.timeK; Post.blurMax = lerp(F.blur[0], F.blur[1], F.speed);
+    // ...and fast, the corners and sides of the frame are drawn out along lines to the point the lens is heading for, the far ridges as much as
+    // the snow beside it, while the middle (the skier, the line ahead) stays sharp: Post.radial, the least streak at the very corner, and
+    // Post.radC, that point (09_post.js). Only for a lens that travels along its view, forward or back (the chase, first person, in front;
+    // not one looking across the line, nor the long lens far off), kept near the middle and eased, and as much shorter as time is slower.
+    {
+      const c = Render.cam, v = S.v, vl = Math.hypot(v[0], v[1], v[2]), kr = run ? smooth(F.rad[0], F.rad[1], vl) : 0;
+      F.radK = cut ? kr : damp(F.radK, kr, kr > F.radK ? 2.5 : 5, dt);
+      let x = 0.5, y = 0.5, al = 0;
+      if (vl > 1) {
+        const z = (v[0] * c.fwd[0] + v[1] * c.fwd[1] + v[2] * c.fwd[2]) / vl, T = Math.tan(c.fovY / 2), A = Render.W / Math.max(Render.H, 1); al = Math.abs(z);
+        if (al > 0.05) { x = 0.5 + 0.5 * (v[0] * c.right[0] + v[1] * c.right[1] + v[2] * c.right[2]) / vl / (z * T * A); y = 0.5 - 0.5 * (v[0] * c.up[0] + v[1] * c.up[1] + v[2] * c.up[2]) / vl / (z * T); }
+      }
+      x = clamp(x, 0.32, 0.68); y = clamp(y, 0.34, 0.66);
+      F.radC[0] = cut ? x : damp(F.radC[0], x, 6, dt); F.radC[1] = cut ? y : damp(F.radC[1], y, 6, dt);
+      const L = F.radV[typeof Variants !== 'undefined' && Variants.val.edge] || F.radV.b; F.radL[0] = damp(F.radL[0], L[0], 8, rdt); F.radL[1] = damp(F.radL[1], L[1], 8, rdt);
+      // (the ski-tips view tears its edges harder, as the Steep reference: Game.viewEdge 1..1.6, eased by 07b_views.js: longer, and from further in)
+      const ve = Math.max(1, (typeof Game !== 'undefined' && Game.viewEdge) || 1);
+      Post.radial = F.radL[0] * ve * F.radK * F.timeK * smooth(0.5, 0.85, al) * smooth(0.35, 0.8, c.fovY); Post.radIn = F.radL[1] - 0.25 * (ve - 1); Post.radC[0] = F.radC[0]; Post.radC[1] = F.radC[1];
+    }
 
     // ---- each kind of run has its own air. It changes over a few seconds as the next run comes up (looked for a second ahead, so it is
     // there when the skier is). The wind itself is never touched: the falling snow is placed by wind x time and would jump.
