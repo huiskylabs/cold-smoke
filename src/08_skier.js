@@ -150,17 +150,22 @@ const Skier = (() => {
       const x = (Ls * Ls - Lt * Lt + Lc * Lc) / (2 * Lc), hc = Math.sqrt(Math.max(0, Ls * Ls - x * x)), fw = v3.mul(b.Z, -1);
       let e1 = v3.sub(fw, v3.mul(dn, v3.dot(fw, dn))); if (v3.len(e1) < 1e-4) e1 = v3.sub(b.Y, v3.mul(dn, v3.dot(b.Y, dn))); e1 = v3.norm(e1); const e2 = v3.cross(dn, e1);
       const A = x * v3.dot(dn, b.X) - Ls * Math.sin(clamp(lean * 0.10, -0.09, 0.09)), Bc = v3.dot(e1, b.X), Cc = v3.dot(e2, b.X), R = Math.hypot(Bc, Cc);
-      let th = 0;
-      if (hc > 1e-5 && R > 1e-5) { const t0 = Math.atan2(Cc, Bc), w = Math.acos(clamp(-A / (hc * R), -1, 1)), wrap = q => Math.atan2(Math.sin(q), Math.cos(q)), ta = wrap(t0 + w), tb = wrap(t0 - w); th = Math.abs(ta) < Math.abs(tb) ? ta : tb; }
-      return v3.add(v3.mad(ank, dn, x), v3.add(v3.mul(e1, hc * Math.cos(th)), v3.mul(e2, hc * Math.sin(th))));
+      let th = 0, th0 = 0;
+      if (hc > 1e-5 && R > 1e-5) { const t0 = Math.atan2(Cc, Bc), w = Math.acos(clamp(-A / (hc * R), -1, 1)), wrap = q => Math.atan2(Math.sin(q), Math.cos(q)), ta = wrap(t0 + w), tb = wrap(t0 - w); th = Math.abs(ta) < Math.abs(tb) ? ta : tb;
+        // (but a leg flung out to the side (the spread eagle, the X) cannot keep its shin square in the boot: the nearest it can come put the knee out
+        // sideways or right round behind, the thigh screwed round on itself by up to half a turn, and the cloth at the hip, hung between the pelvis and that
+        // thigh, was wrung thin. Past what the boot can hold the knee goes back to bending over the ski's tip, the way a straight leg is carried in the air)
+        th0 = th; th *= 1 - smooth(0.5, 1.5, Math.abs(A) / (hc * R)); }
+      const kp = q => v3.add(v3.mad(ank, dn, x), v3.add(v3.mul(e1, hc * Math.cos(q)), v3.mul(e2, hc * Math.sin(q)))); J['kneeRaw' + (side < 0 ? 'L' : 'R')] = kp(th0 + (th - th0) * 0.15); return kp(th);
     };
     J.kneeL = knee(hipL, J.ankleL, fbL, -1); J.kneeR = knee(hipR, J.ankleR, fbR, 1);
     // (a boot only flexes so far: a ski that is off the snow gives way and pitches with the shin instead)
+    // (the boot is flexed by the knee as the boot would have it (kneeRaw, near enough), so a leg flung out keeps the skis where the trick put them)
     const boot = (b, kn, an, w) => {
       if (w <= 0) return b; const sh = v3.norm(v3.sub(kn, an)), fl = Math.atan2(-v3.dot(sh, b.Z), v3.dot(sh, b.Y)), e = (fl - clamp(fl, 0.10, 0.58)) * w; if (Math.abs(e) < 1e-5) return b;
       const ce = Math.cos(e), se = Math.sin(e); return { X: b.X, Y: v3.sub(v3.mul(b.Y, ce), v3.mul(b.Z, se)), Z: v3.add(v3.mul(b.Z, ce), v3.mul(b.Y, se)) };
     };
-    const fbl = boot(fbL, J.kneeL, J.ankleL, Math.max(sat(liftL / 0.06), air, sat(Math.abs(p.pitchL || 0) / 0.08))), fbr = boot(fbR, J.kneeR, J.ankleR, Math.max(sat(liftR / 0.06), air, sat(Math.abs(p.pitchR || 0) / 0.08)));
+    const fbl = boot(fbL, J.kneeRawL, J.ankleL, Math.max(sat(liftL / 0.06), air, sat(Math.abs(p.pitchL || 0) / 0.08))), fbr = boot(fbR, J.kneeRawR, J.ankleR, Math.max(sat(liftR / 0.06), air, sat(Math.abs(p.pitchR || 0) / 0.08)));
     J.footL = v3.mad(J.ankleL, fbl.Y, -LEN.ankle); J.footR = v3.mad(J.ankleR, fbr.Y, -LEN.ankle);
     // torso: hinged forward at the hips, more upright sideways than the legs, rotated toward the fall line (separation)
     // (a turn begins with the whole body tipping in; only as it tightens do the hips drop inside while the shoulders stay nearer level)
