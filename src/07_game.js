@@ -256,7 +256,9 @@ const Game = (() => {
       aLat = aReac; aTan -= (aSk * Math.abs(sb) + 0.05 * Math.abs(aC) + mu * N) * lowV;
       S.aReac = aReac; S.aSkid = aSk; S.aCarve = aC;
       if (S.crash > 0) { aTan -= 2.5 * lowV; }
-      if (eo > 0) aTan -= (1.0 + 0.008 * sp * sp) * sat(eo / 16) * (1 - 0.5 * Math.max(c.ridge, sat((c.rtail - 0.74) / 0.26))) * sat(sp / 6);       // deep, unpacked snow off the run (wind-packed and firmer about a ridge)
+      // (it slows, never stops: down any slope worth the name the skier still gathers speed off the run, only less of it. Tried at 1 + 0.008 v^2
+      // it held a skier 25 m out to 30-40 km/h on a 20-degree pitch, and the owner felt it as gravity gone wrong (2026-11-12))
+      if (eo > 0) aTan -= (0.3 + 0.0022 * sp * sp) * sat(eo / 16) * (1 - 0.5 * Math.max(c.ridge, sat((c.rtail - 0.74) / 0.26))) * sat(sp / 6);       // deep, unpacked snow off the run (wind-packed and firmer about a ridge)
       if (S.owe > 0) { const d = Math.min(S.owe, 16 * dt, sp); aTan -= d / dt; S.owe -= d; }
     }
     // the air drags on the whole of the speed, wherever it points (in flight too); a tuck halves it, and the player's own tuck counts for more than the one the body falls into at speed
