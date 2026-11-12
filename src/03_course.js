@@ -320,11 +320,16 @@ const Course = ((vn1, vn2, h2U) => {
   // through them. That line is the fast way; the bumps either side of it are slow going and throw the skier about
   function mogField(u, s, hw) { return smooth(hw * 1.1, hw * 0.8, Math.abs(u)) * smooth(2.4, 6.5, Math.abs(u - 0.5 * hw * vnoise1(s / 105 + 7.3, C.seed + 31))); }
   C.bumps = function (x, z) { const c = at(-z, _py); return c.mog > 0.01 ? c.mog * mogField(x - c.cx, -z, c.hw) : 0; };
-  // the lie of the rock: which bed of the mountain a point belongs to. Beds are 64 m thick and gently folded, so their dip keeps changing.
-  // Every term repeats over 1024 m in x, y and z, because the shader only knows positions modulo that (STRATA_SSL is the same function).
+  // the lie of the rock: which bed of the mountain a point belongs to. Beds average 64 m but are not stacked plates: one is three or four
+  // times the next, and how thick a bed is changes along the wall (the phase ph slides), so beds swell, pinch and nearly end. The warp
+  // stays monotonic (its slope runs 0.39..1.61), so beds never cross. The dip is folded twice as hard as the plain y/64 cake had it.
+  // Every term repeats over 1024 m in x, y and z (u + 16 per 1024 m of height; the warp's frequencies are whole turns per 16 beds), because
+  // the shader only knows positions modulo that (strataAt in 04_terrain.js is the same function, term for term).
   C.strata = function (x, y, z) {
     const k = TAU / 1024;
-    return y / 64 + 0.42 * Math.sin(k * (x + z) + 1.1 * Math.sin(k * (x - z) + 0.7)) + 0.16 * Math.sin(2 * k * x + 1.7 * Math.sin(k * z)) + 0.10 * Math.sin(3 * k * z + 1.3 * Math.sin(k * x) + 1.1) + 0.045 * Math.sin(4 * k * (x - z) + 2.0 * Math.sin(k * (x + z)));
+    const u = y / 64 + 0.84 * Math.sin(k * (x + z) + 1.1 * Math.sin(k * (x - z) + 0.7)) + 0.32 * Math.sin(2 * k * x + 1.7 * Math.sin(k * z)) + 0.20 * Math.sin(3 * k * z + 1.3 * Math.sin(k * x) + 1.1) + 0.09 * Math.sin(4 * k * (x - z) + 2.0 * Math.sin(k * (x + z)));
+    const ph = 2.1 * Math.sin(k * (x - z) + 0.4) + 1.3 * Math.sin(2 * k * z + 1.1 * Math.sin(k * x));
+    return u + 0.22 * Math.sin(1.9634954 * u + 1.7 + ph) + 0.035 * Math.sin(5.1050881 * u + 0.6 - 0.8 * ph);
   };
   // how far up into the mountain's own country a point lies (0 on the run and its shoulders, 1 high on the walls)
   C.mountain = function (x, z) { const c = at(-z), e = Math.abs(x - c.cx) - c.hw; return smooth(30, 900, e); };

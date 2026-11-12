@@ -414,10 +414,12 @@ fn sparkLayer(wxz: vec2f, cell: f32, N: vec3f, Hh: vec3f, ja: vec2f, jb: vec2f, 
   return vec4f(tint, 1.0) * (pow(d, 380.0) * shape * shape);
 }
 fn snowSlope(t: vec4f) -> vec2f { let q: vec2f = t.xy * 2.0 - 1.0; return q * abs(q); }
-// the lie of the rock: Course.strata term for term (p = world xz, y = world height, each known modulo 1024 m)
+// the lie of the rock: Course.strata term for term (p = world xz, y = world height, each known modulo 1024 m): uneven beds that swell and pinch
 fn strataAt(p: vec2f, y: f32) -> f32 {
   let k: f32 = 0.0061359232;
-  return y / 64.0 + 0.42 * sin(k * (p.x + p.y) + 1.1 * sin(k * (p.x - p.y) + 0.7)) + 0.16 * sin(2.0 * k * p.x + 1.7 * sin(k * p.y)) + 0.10 * sin(3.0 * k * p.y + 1.3 * sin(k * p.x) + 1.1) + 0.045 * sin(4.0 * k * (p.x - p.y) + 2.0 * sin(k * (p.x + p.y)));
+  let u: f32 = y / 64.0 + 0.84 * sin(k * (p.x + p.y) + 1.1 * sin(k * (p.x - p.y) + 0.7)) + 0.32 * sin(2.0 * k * p.x + 1.7 * sin(k * p.y)) + 0.20 * sin(3.0 * k * p.y + 1.3 * sin(k * p.x) + 1.1) + 0.09 * sin(4.0 * k * (p.x - p.y) + 2.0 * sin(k * (p.x + p.y)));
+  let ph: f32 = 2.1 * sin(k * (p.x - p.y) + 0.4) + 1.3 * sin(2.0 * k * p.y + 1.1 * sin(k * p.x));
+  return u + 0.22 * sin(1.9634954 * u + 1.7 + ph) + 0.035 * sin(5.1050881 * u + 0.6 - 0.8 * ph);
 }
 // how much blowing snow stands over a point of the slope (p = world xz, known modulo 1024 m): long streams that wander as they run
 fn driftRho(p: vec2f, tm: f32, lod: f32) -> f32 {
@@ -428,6 +430,8 @@ fn driftRho(p: vec2f, tm: f32, lod: f32) -> f32 {
   let b: f32 = texLod(tDetail, vec2f(xm * (456.0 / 1024.0) + 0.37, (p.y + tm * 12.5) * (19.0 / 1024.0) + 0.61), lod).z;
   return smoothstep(0.50, 0.74, a) * smoothstep(0.44, 0.70, b) * 1.5;
 }
+// mip level for a 512-texel map, given the texels a pixel steps along screen x and y (leaning toward the short side of the footprint)
+fn footLod(a: vec2f, b: vec2f) -> f32 { let la: f32 = length(a); let lb: f32 = length(b); return max(log2(max(pow(min(la, lb), 0.65) * pow(max(la, lb), 0.35), 1e-6)), 0.0); }
 fn ggxD(nh: f32, a2: f32) -> f32 { let d: f32 = nh * nh * (a2 - 1.0) + 1.0; return a2 / (PI * d * d); }
 // --- where ski, boot and leg meet the snow. The shadow map cannot see this close to the ground (its texels are wider than a ski, and whatever
 // stands within a stride of a spot is inside its bias), so the first metre of the skier's own shadow is worked out from the shapes
@@ -526,10 +530,10 @@ fn frag(v: VOut) -> FOut {
   // grows with the steepness of the face: past about 45 degrees snow cannot hold and only the benches stay white)
   var rk: vec3f = vec3f(0.0, 0.5, 0.0);       // (x: top of the band in the bed, y: its height, z: in the band)
   if (M.pt.x > 0.001 && mnt > 0.001) {
-    let fr: f32 = fract(tau); let bed: f32 = floor(tau);
+    let fr: f32 = fract(tau); let bed: f32 = floor(tau); let bm: f32 = bed - 16.0 * floor(bed / 16.0);      // (bm: the bed, as the shader knows it, mod 1024 m of height)
     // (whether a bed makes a cliff at all, and how tall, changes slowly along it: many beds hardly break the snow, a few stand out for a
     // kilometre; a strong bed next to a strong bed makes one great face)
-    let bn: f32 = texLod(tDetail, vec2f((wxz.x + wxz.y) / 2900.0 + bed * 0.37, (wxz.x - wxz.y) / 4100.0 + bed * 0.213), 0.0).z;
+    let bn: f32 = texLod(tDetail, vec2f((wxz.x + wxz.y) / 2900.0 + bm * 0.37, (wxz.x - wxz.y) / 4100.0 + bm * 0.213), 0.0).z;
     let cl: f32 = saturate((0.86 + M.pt.y - Nc.y - shut) * 3.4 + (bn - 0.5) * 4.0 + (lb - 0.5) * 0.8 - conc * 1.1 - smoothstep(0.04, 0.25, sm.w) * 2.0);
     let hw: f32 = cl * (0.42 + 0.5 * M.pt.y);
     // the top of a band is the lip of the bench above: a hard, nearly level line. Its foot is ragged: snow runs up into the rock in
@@ -542,12 +546,54 @@ fn frag(v: VOut) -> FOut {
     // (on the steepest faces only a good bench (lb: the ledge this bed makes, here) still holds a line of snow; a poor one is rock too, and
     // the bands either side of it run together into one great face)
     rb = max(rb, saturate(cl * 2.0 - 0.95) * smoothstep(0.56, 0.44, lb + (sa.x - 0.5) * 0.3)) * step(0.001, rgate);
+    // joints: the beds are cut by vertical fractures, and snow fills them, so a band is a row of blocks with white chutes between, not one
+    // unbroken stripe. A fracture is a vertical plane that holds the fall line of the face, so of four families (x, z and the diagonals,
+    // whole periods per 1024 m) the face takes the one whose plane lies nearest its fall line. Each bed shifts them a little (they step
+    // from bed to bed), and the snow in them is ragged at the edge. A wide set ~90 m apart and a narrow set a third of that.
+    let fd: vec2f = normalize(sm.xy + vec2f(1e-5, 0.0));
+    let jw: vec4f = pow(abs(vec4f(fd.x, fd.y, (fd.x + fd.y) * 0.70711, (fd.x - fd.y) * 0.70711)), vec4f(10.0));
+    let jo: f32 = fract(sin(bm * 12.9898 + 4.1) * 43758.547) * 0.22 + (e1.z - 0.5) * 0.30 + (e3.z - 0.5) * 0.16;
+    let jc: vec4f = vec4f(wxz.y * (11.0 / 1024.0), wxz.x * (11.0 / 1024.0), (wxz.x - wxz.y) * (8.0 / 1024.0), (wxz.x + wxz.y) * (8.0 / 1024.0)) + jo;
+    let jA: vec4f = smoothstep(vec4f(0.035), vec4f(0.075), abs(fract(jc) - 0.5));
+    let jB: vec4f = smoothstep(vec4f(0.04), vec4f(0.10), abs(fract(jc * 3.0 + vec4f(0.31, 0.57, 0.13, 0.79) + (sa.y - 0.5) * 0.8) - 0.5) + (sa.z - 0.5) * 0.25);
+    let jm: f32 = dot(jw, jA * mix(vec4f(1.0), jB, 0.6)) / (jw.x + jw.y + jw.z + jw.w);
+    rb *= mix(1.0, jm, smoothstep(0.02, 0.10, hw));
     rk = vec3f(top, max(top - bot, 0.05), rb);
     rock = mix(rock, rb, M.pt.x);
   }
+  let sdir0: vec2f = normalize(L.xz + vec2f(1e-4, 0.0)); let tanE0: f32 = L.y / max(length(L.xz), 1e-3);
   let g1: vec2f = snowSlope(d1) * (0.81 * f1); let g2: vec2f = snowSlope(d2) * (0.81 * f2); let g3: vec2f = snowSlope(d3) * (0.5 * f3);
   var slope: vec2f = sm.xy + cs + g1 + g2 + g3;
   slope += snowSlope(d1) * rock * 1.2;
+  // --- the middle distance (15..250 m): relief a few metres across that the mesh is too coarse for and the snow maps too fine. Broad
+  // wind pillows, and in patches soft sastrugi: sharp-crested ridges drawn out along the wind (down the fall line), a couple of metres
+  // apart. Light and shade only (the slopes of a height field, and the shadow its crests throw toward a low sun): the ground the skis
+  // run on is not touched. Close to the lens the snow maps carry the detail as before, so this fades in from 15 m.
+  let fM: f32 = smoothstep(12.0, 32.0, dist) * smoothstep(300.0, 170.0, dist) * (1.0 - rock) * (1.0 - 0.6 * smoothstep(0.04, 0.25, sm.w));
+  let KP: f32 = 1.8; let KS: f32 = 0.42;      // (metres of relief: pillows, sastrugi)
+  var gM: vec2f = vec2f(0.0); var mshM: f32 = 1.0;
+  // (seen this flat, a pixel's footprint is metres long down the view and centimetres across it: a mip level chosen by the long side
+  // would blur every ridge away, so the level leans toward the short side, as for the tracks)
+  let jaM: vec2f = dpdx(wxz); let jbM: vec2f = dpdy(wxz);
+  if (fM > 0.002) {
+    // (where the wind has worked the slope into pillows, where into sastrugi, and where it left it smooth: blobs ~80 m across)
+    let pz: vec4f = tex(tDetail, wxz / 512.0 + vec2f(0.23, 0.67));
+    let wS: f32 = smoothstep(0.42, 0.62, pz.z); let wP: f32 = 0.55 + 0.45 * smoothstep(0.62, 0.40, pz.z);
+    let lP: f32 = footLod(jaM * 4.0, jbM * 4.0); let sk: vec2f = vec2f(16.0, 2.0); let lS: f32 = footLod(jaM * sk, jbM * sk);
+    let pil: vec4f = texLod(tDetail, wxz / 128.0 + vec2f(0.61, 0.17), lP);
+    let sas: vec4f = texLod(tDetail, vec2f(wxz.x / 32.0, wxz.y / 256.0) + vec2f(0.29, 0.83), lS);
+    let qs: f32 = sas.z * 2.0 - 1.0; let rs: f32 = qs / sqrt(qs * qs + 0.015);
+    // (tDetail's slopes are per tile / 48: x metres of height over a T m tile is x * 96 / T per unit of (rg - 0.5))
+    gM = (pil.xy - 0.5) * (KP * 96.0 / 128.0) * wP - rs * (sas.xy - 0.5) * vec2f(KS * 96.0 / 32.0, KS * 96.0 / 256.0) * wS;
+    // the crests' shadows: is the relief 3 m toward the sun higher than the sun stands above this spot?
+    let hp: f32 = (pil.z - 0.5) * 2.32 * KP * wP - sqrt(qs * qs + 0.015) * KS * wS;
+    let sp: vec2f = wxz + sdir0 * 3.0; let qs2: f32 = texLod(tDetail, vec2f(sp.x / 32.0, sp.y / 256.0) + vec2f(0.29, 0.83), lS).z * 2.0 - 1.0;
+    let hs: f32 = (texLod(tDetail, sp / 128.0 + vec2f(0.61, 0.17), lP).z - 0.5) * 2.32 * KP * wP - sqrt(qs2 * qs2 + 0.015) * KS * wS;
+    let tM: f32 = max(tanE0 - dot(sm.xy, sdir0), 0.03);
+    mshM = 1.0 - fM * smoothstep(tM * 0.8, tM * 1.3 + 0.02, (hs - hp) / 3.0);
+    gM *= fM;
+  }
+  slope += gM;
   // a ledge is flatter than the face it sits on
   // (bands, b/c: the snow lying on the bench just above each band is a ledge too, turned up to the sun and the sky)
   let cap: f32 = smoothstep(rk.x, rk.x + 0.015, fract(tau)) * (1.0 - smoothstep(rk.x + 0.07, rk.x + 0.14, fract(tau))) * step(0.001, rk.y - 0.051) * M.pt.x;
@@ -629,7 +675,7 @@ fn frag(v: VOut) -> FOut {
   // (the line after the next is the shadow map's, word for word as master has it. The shadow of the tracks' own walls is held back from
   // it (trW), so that the sun but for those walls is known as well (sh0): the loose snow of a berm lets some of it through)
   let trW: f32 = trSh; trSh = 1.0;
-  var sh: f32 = shadowSoft(wp, 0.00001) * mix(1.0, msh, U.fx.w) * far * exp(-0.9 * sprayTau(wp, 0.0)) * trSh * (1.0 - 0.30 * (1.0 - exp(-dSun * 2.4)));
+  var sh: f32 = shadowSoft(wp, 0.00001) * mix(1.0, msh * mshM, U.fx.w) * far * exp(-0.9 * sprayTau(wp, 0.0)) * trSh * (1.0 - 0.30 * (1.0 - exp(-dSun * 2.4)));
   // (skis, boots and legs: the darker of their own shadow, worked out from their shapes, and the shadow map's. Never one on top of the
   // other: where the shadow map reaches the boots too, the two are the same shadow)
   sh = min(sh, skS.x); let sh0: f32 = sh; sh *= trW;
@@ -701,19 +747,28 @@ fn frag(v: VOut) -> FOut {
     var ra: vec3f = mix(vec3f(0.125, 0.120, 0.128), vec3f(0.31, 0.29, 0.265), lay);
     ra = mix(ra, vec3f(0.29, 0.21, 0.15), smoothstep(0.55, 0.75, sb.z) * 0.35);
     ra = mix(ra, vec3f(0.085, 0.082, 0.09), smoothstep(0.36, 0.22, sb.z) * 0.6) * (0.80 + 0.40 * e1.z);
+    // every bed is its own rock: warm grey limestone, dark slate, a rusty iron-stained bed, a pale one. (bed mod 16: what the shader can
+    // tell apart; the tone also drifts slowly along each bed)
+    let bq: f32 = floor(tau); let bh: f32 = fract(sin((bq - 16.0 * floor(bq / 16.0)) * 78.233 + 1.3) * 43758.547);
+    let bt: f32 = saturate(bh + (sa.w - 0.5) * 0.25 + (sb.x - 0.5) * 0.3);
+    var tone: vec3f = mix(vec3f(0.60, 0.65, 0.75), vec3f(1.06, 1.00, 0.91), smoothstep(0.18, 0.34, bt));
+    tone = mix(tone, vec3f(1.30, 0.97, 0.73), smoothstep(0.58, 0.70, bt));
+    tone = mix(tone, vec3f(1.42, 1.37, 1.27), smoothstep(0.86, 0.95, bt));
+    ra *= mix(vec3f(1.0), tone, M.pt.x);
     // each bed weathers back a little further than its neighbour: steps across the face that catch the low sun
     let tdir: vec3f = vec3f(0.0, 1.0, 0.0) - N * N.y;
     // (bands, b/c: every thin bed in a band is a step, its top weathered round and turned up to the sky and the sun, its foot cut back
     // into shade: a sawtooth across the band in place of the random tilt; and right under the bench above, where the snow and the
     // top bed hang out over the face, an overhang that neither sun nor sky reaches into)
-    let fr: f32 = fract(tau); let fs: f32 = fract(tau * 7.0 + (sa.x - 0.5) * 0.9);
+    // (seven thin beds to a bed, uneven: one thrice the next, and their lie wanders along the face)
+    let fr: f32 = fract(tau); let fs: f32 = fract(tau * 7.0 + 0.75 * sin(tau * 6.2831853 + sa.x * 3.0) + (sa.x - 0.5) * 0.9);
     let saw: f32 = (smoothstep(0.0, 0.85, fs) - smoothstep(0.85, 1.0, fs)) * 2.0 - 1.0;
     let ov: f32 = smoothstep(rk.x - 0.10 * rk.y - 0.045, rk.x - 0.015, fr) * (1.0 - smoothstep(rk.x - 0.012, rk.x + 0.01, fr)) * M.pt.x;
     let Nr: vec3f = normalize(N - tdir * mix((sa.y - 0.5) * 1.6 + (sb.y - 0.5) * 1.2, -0.9 * saw + (sa.y - 0.5) * 0.6 - 1.4 * ov, M.pt.x));
     // a face is not one dark stain: snow lies along the lip of every thin bed (white lines across it, broken where the bed is poor), the
     // rock under each lip is in its shadow, and cracks run down through the beds
     let near: f32 = smoothstep(1100.0, 420.0, dist);
-    let fb: f32 = fract(tau * 7.0 + (sa.x - 0.5) * 0.9);
+    let fb: f32 = fs;
     let lip: f32 = smoothstep(0.80, 0.90, fb) * smoothstep(0.38, 0.56, sb.x + (e1.z - 0.5) * 0.45) * near;
     let under: f32 = smoothstep(0.52, 0.72, fb) * (1.0 - smoothstep(0.80, 0.86, fb)) * near;
     let ck: f32 = tex(tDetail, vec2f((wxz.x + wxz.y) / 43.0, tau * 0.55 + 0.19)).z;
