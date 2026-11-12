@@ -119,7 +119,7 @@ const Weather = (() => {
       if (W.lampAir0 == null) { W.lampAir0 = Shafts.lampAir; W.shOn0 = Shafts.enabled; W.shGain0 = Shafts.gain; }
       Shafts.lampAir = W.lampAir0 * (1 + 3.0 * W.ks);
       const so = W.ks * (1 - W.v) * (1 - (typeof Sky !== 'undefined' ? Sky.night || 0 : 0));
-      if (W.shOn0) Shafts.gain = W.shGain0 * (1 + 2 * so); else { Shafts.enabled = so > 0.01; Shafts.gain = so > 0.01 ? W.shGain0 * 3.0 * so : W.shGain0; }
+      if (W.shOn0) Shafts.gain = W.shGain0 * (1 + 2 * so); else { Shafts.enabled = so > 0.01; Shafts.gain = so > 0.01 ? W.shGain0 * 1.1 * so : W.shGain0; }      // (gain held low: the march's forward lobe made a blown ball of the sun)
     }
     // lightning, once the snow is heavy: the first soon after it has come, then every half minute or so
     if (W.ks > 0.6) {
@@ -292,11 +292,15 @@ fn overcast(d: vec3f, mu: f32, colIn: vec3f) -> vec3f {
   c = mix(max(c, luma(colIn) * vec3f(0.97, 0.99, 1.03) * 0.92), c, smoothstep(0.35, 0.85, kc));
   // (the sun's light through thin cloud is whitened by it, and in the break itself the glow stays a soft halo: the disc shows through the
   // snow there small, not as a blown ball the size of the break)
-  c += mix(M.wc.rgb, vec3f(luma(M.wc.rgb)), 0.35) * (hg(mu, 0.75) * (0.02 + 0.17 * (1.0 - smoothstep(0.0, 7.0, tau)) * (1.0 - 0.75 * hole)) + 0.008);
+  var sg: vec3f = mix(M.wc.rgb, vec3f(luma(M.wc.rgb)), 0.35) * (hg(mu, 0.75) * (0.02 + 0.17 * (1.0 - smoothstep(0.0, 7.0, tau)) * (1.0 - 0.75 * hole)) + 0.008);
+  c += sg * min(1.0, 2.0 * luma(M.wa.rgb) / max(luma(sg), 1e-6));
   let az: f32 = atan2(d.x, -d.z) - ${f(ca)};
   c += M.wf.rgb * ((0.06 + exp(-abs(atan2(sin(az), cos(az))) / 0.45)) * (0.15 + smoothstep(0.35, 0.0, d.y)));
   c += vec3f(0.78, 0.86, 1.0) * (M.wd.w * (0.7 + 2.6 * exp(-sq(wxAng(d, M.wd.xyz)) / 0.10)) * (0.6 + 0.8 * n));
-  return colIn * T + c * (1.0 - T);
+  // (what shows through a break: the disc itself, but the sky's wide glare round it held to a few times the overcast, as the snow in the
+  // break scatters it away; while the cloud is still coming in the clear sky's glare is left as it is)
+  let cin: vec3f = mix(colIn, mix(min(colIn, vec3f(luma(M.wa.rgb) * 4.0)), colIn, smoothstep(0.03, 0.008, toSun)), smoothstep(0.3, 0.8, kc));
+  return cin * T + c * (1.0 - T);
 }
 fn boltWalk(x: f32, s: f32) -> f32 { let i: f32 = floor(x); let fr: f32 = x - i; return mix(hash21(vec2f(i, s)), hash21(vec2f(i + 1.0, s)), fr) * 2.0 - 1.0; }
 fn boltLine(w: f32, px: f32) -> f32 { return exp(-sq(w / (0.75 * px))) + 0.07 * exp(-abs(w) / (5.0 * px)); }

@@ -16,7 +16,7 @@ const Dust = (() => {
   // the flakes of heavy snow (boxes must divide 1024 m, the floating origin's step): size = radius (m), fall (m/s), op = opacity, shut = how far
   // they streak (the dust's shutter times this). The counts are the blizzard's; the snow showers draw three quarters of them
   heavy: [
-    { W: 32, n: 14000, size: 0.015, fall: 1.15, op: 1.0, shut: 3.5 },
+    { W: 32, n: 14000, size: 0.015, fall: 1.15, op: 0.7, shut: 3.5 },
     { W: 16, n: 14000, size: 0.018, fall: 1.05, op: 1.0, shut: 3.5 },
     { W: 4, n: 160, size: 0.021, fall: 0.9, op: 0.6, shut: 1.6 },
   ] };
@@ -96,7 +96,7 @@ fn vert(a: VIn) -> VOut {
 const FLAKE_VS = `
 // a flake on screen: drawn at its own size (rp, px) blurred by the lens, a streak along its motion over the shutter; a big soft one near the
 // lens streaks no longer than twice its disc (it is smeared already, and a long soft streak reads as a capsule, not as snow)
-fn flakeQuad(corner: vec2f, pos: vec3f, vel: vec3f, rphys: f32, shutK: f32) -> GlintV {
+fn flakeQuad(corner: vec2f, pos: vec3f, vel: vec3f, rphys: f32, shutK: f32, rnd: vec2f) -> GlintV {
   var g: GlintV = glintCull();
   let rel: vec3f = pos - U.camPos.xyz; let zv: f32 = dot(rel, U.camFwd.xyz);
   if (zv < 0.12) { return g; }
@@ -107,12 +107,15 @@ fn flakeQuad(corner: vec2f, pos: vec3f, vel: vec3f, rphys: f32, shutK: f32) -> G
   let pp: vec4f = U.prevViewProj * vec4f(pos - vel * U.misc.z, 1.0);
   var mv: vec2f = vec2f(0.0);
   if (pp.w > 0.05) { mv = (ndc - pp.xy / pp.w) * vec2f(0.5, -0.5) * U.res.xy * (U.dof.w * shutK / max(U.misc.z, 0.004)); }
+  // (each flake its own streak: tumbling and caught by eddies, it is not where the wind alone would put it, so the streaks differ in length
+  // and lean a little this way and that, never an even grid of the same dash)
+  mv = vec2f(mv.x * cos(rnd.y) - mv.y * sin(rnd.y), mv.x * sin(rnd.y) + mv.y * cos(rnd.y)) * rnd.x;
   var ml: f32 = length(mv); var ax: vec2f = vec2f(1.0, 0.0);
   if (ml > 0.25) { ax = mv / ml; }
   let sc: f32 = U.res.y / 1170.0;
   let coc: f32 = min(U.dof.y * abs(1.0 / U.dof.x - 1.0 / zv), U.dof.z) * sc;
   let rp: f32 = rphys * U.res.y / (2.0 * U.camRight.w * zv);
-  let rad: f32 = sqrt(coc * coc + rp * rp + sq(0.62 * sc));
+  let rad: f32 = sqrt(coc * coc + rp * rp + sq(0.62 * sc) + sq(0.8 * sc * smoothstep(10.0, 28.0, zv)));      // (far flakes soft specks, seen through the falling snow)
   ml = min(ml, 0.16 * U.res.y);
   ml = mix(min(ml, 5.0 * rad), min(ml, 2.0 * rad), smoothstep(2.5 * sc, 7.0 * sc, rad));       // (short soft streaks: never pills or confetti)
   let hl: f32 = ml * 0.5;
@@ -142,7 +145,9 @@ fn vert(a: VIn) -> VOut {
   // (as the snowfall comes on it thickens flake by flake, each fading in, none popping)
   let fade: f32 = smoothstep(0.5, 0.40, edge) * smoothstep(0.0, 0.04, M.q.x - f32(a.iid) / M.q.w);
   let vis: f32 = shadowFast(pos, 0.0015);
-  let g: GlintV = flakeQuad(corner, pos, vel, M.p.y * (0.6 + 0.8 * h.z), M.q.y);
+  let h3: vec3f = hashu3(id * 3u + 9001u);
+  let rnd: vec2f = vec2f(0.4 + 0.8 * h3.x, (h3.y - 0.5) * 0.52 + 0.16 * sin(tm * (0.8 + h3.z) + h3.x * 40.0));
+  let g: GlintV = flakeQuad(corner, pos, vel, M.p.y * (0.5 + 1.4 * h3.z * h3.z), M.q.y, rnd);
   v.clip = g.clip; v.uv = g.uv; v.shp = g.shp;
   // how much of what is drawn the flake really covers: its own area on screen against the soft disc (or streak) it is drawn as (the soft
   // profile below holds a third of a full disc's area, and 1.07 r per pixel of streak)
@@ -203,7 +208,11 @@ fn frag(v: VOut) -> FOut {
   tau *= 1.0 + 0.8 * (s1 - 0.5) * smoothstep(12.0, 18.0, r) + 0.7 * (s2 - 0.5) * smoothstep(30.0, 40.0, r) + 0.6 * (s3 - 0.5) * smoothstep(65.0, 90.0, r) * (1.0 - sky);
   let T: f32 = exp(-tau);
   let mu: f32 = dot(d, U.sunDir.xyz);
-  var c: vec3f = M.b.rgb + mix(U.sunCol.rgb, vec3f(luma(U.sunCol.rgb)), 0.3) * (0.05 + 0.32 * hg(mu, 0.72));
+  // (the sun's light thrown forward by the snow: a soft glow and a small bright core round the disc, held to a few times the overcast's own
+  // light, so the sun in a break is a sun seen through snow and not a blown ball)
+  var sf: vec3f = mix(U.sunCol.rgb, vec3f(luma(U.sunCol.rgb)), 0.3) * (0.05 + 0.11 * hg(mu, 0.6) + 0.04 * hg(mu, 0.93));
+  sf *= min(1.0, 2.5 * luma(M.b.rgb) / max(luma(sf), 1e-6));
+  var c: vec3f = M.b.rgb + sf;
   var az: f32 = atan2(d.x, -d.z) - ${(+ca).toFixed(5)}; az = atan2(sin(az), cos(az));
   c += M.c.rgb * ((0.08 + 1.6 * exp(-abs(az) / 0.35)) * smoothstep(0.3, -0.05, d.y));
   c += vec3f(0.78, 0.86, 1.0) * (M.d.w * (0.9 + 2.0 * exp(-sq(acos(clamp(dot(d, M.d.xyz), -1.0, 1.0))) / 0.15)));
