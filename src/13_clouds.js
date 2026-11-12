@@ -19,6 +19,13 @@ const Clouds = (() => {
     { az: 0.10, el: 0.055, w: 0.17, asp: 0.42, seed: 6, haze: 0.50, tur: 0.45 },
   ] };
   const COLS = 3, ROWS = 2, ZR = 0.8, ZB = 0.6, S0 = 0.85, S1 = 1.9;
+  // The small ones, far off: drawn as crisp young cumulus they read as a flat lens stuck on the sky (a sticker, a saucer). Real small cumulus
+  // at that range are scraps: torn, ragged underneath, thin enough to see the blue through, and softened by the air in front. Versions:
+  // a as it was, b torn scraps (rag), c no small ones at all. (each cloud's rag and presence ease over a few seconds: nothing snaps)
+  const VCU = typeof Variants !== 'undefined' ? Variants : { val: {}, def() { } };
+  VCU.def('cu', '小云', [['a', '现在的'], ['b', '碎云'], ['c', '去掉小云']], 'b');
+  const small = c => smooth(0.27, 0.16, c.w);
+  let lastU = -1;
   let gfx, volTex, volT, pipeVol, pipeBake, pipeDraw, pipeSea, order;
   // the three keys of each: iA the one fading out, iB the one fading in, iC the one being baked; p = how far both the fade and the bake have got
   const cu = { tex: [], tgt: [] }, se = { tex: [], tgt: [], w: 0, h: 0 };
@@ -60,7 +67,7 @@ const Clouds = (() => {
   // away (age 0 -> 1). How big and how high the next one will be is drawn afresh each time, while it is nothing: no cloud is twice the same.
   function lobes(c, phi) {
     const sd = c.seed * 97, H = c.yt - c.yb, ev = phi / C.life, L = [], M = [];
-    const r0 = 0.72 * (1 + 0.05 * Math.sin(ev * 0.017 + sd)), hm = (0.34 + 0.10 * c.tur) * H;
+    const rg = c.rag || 0, r0 = 0.72 * (1 + 0.05 * Math.sin(ev * 0.017 + sd)) * (1 - 0.3 * rg), hm = (0.34 + 0.10 * c.tur) * H * (1 - 0.35 * rg);
     L.push([0.05 * Math.sin(ev * 0.011 + sd * 1.7), c.yb - 0.02, 0, r0]); M.push([hm / r0, 0, 0.22, 1]);
     for (let k = 1; k < 5; k++) {
       const T = 75 + 55 * hash2(k, sd), u0 = ev / T + hash2(k + 9, sd) + k * 0.23, n = Math.floor(u0), u = u0 - n;
@@ -68,9 +75,11 @@ const Clouds = (() => {
       const grow = smooth(0, 0.36, u), age = smooth(0.40, 0.92, u), w = grow * smooth(1.0, 0.76, u);
       const r = (0.24 + 0.15 * hr) * (0.5 + 0.5 * grow), sy = 1.1 + 0.25 * hy, x = clamp((k - 2.5) * 0.29 + (hx - 0.5) * 0.24 + 0.10 * age, -0.74 + r, 0.74 - r);
       const top = c.yb + H * (0.50 + 0.42 * hy * (1 - 0.6 * x * x)) * (0.55 + 0.45 * c.tur);      // the tall ones stand toward the middle
-      const cy = lerp(c.yb + 0.10 * H, Math.max(top - r * sy * 1.25, c.yb + 0.10 * H), grow) - 0.04 * H * age;
-      L.push([x, Math.min(cy, c.yt - r * sy * 1.3 - 0.01), (hz - 0.5) * 0.5, r]); M.push([sy, 0, age, w]);
+      // (a torn scrap: its pieces hang at different heights, some of them clear of the base, so no one flat underside joins them)
+      const cy = lerp(c.yb + 0.10 * H, Math.max(top - r * sy * 1.25, c.yb + 0.10 * H), grow) - 0.04 * H * age + rg * H * (0.12 + 0.22 * hz);
+      L.push([x, Math.min(cy, c.yt - r * sy * 1.3 - 0.01), (hz - 0.5) * 0.5, r * (1 - 0.2 * rg)]); M.push([sy * (1 - 0.4 * rg), 0, age, w]);
     }
+    M[0][1] = rg;      // (the base mound's free slot carries the rag to the shader)
     return { L, M };
   }
   // everything a key is baked from is fixed when its first row is: the moment it is for, the light, the thermals
@@ -92,7 +101,7 @@ const Clouds = (() => {
     for (let i = Math.floor(r0 / C.res); i < N && i * C.res < r1; i++) {
       const v0 = Math.max(r0 - i * C.res, 0) / C.res, v1 = Math.min(r1 - i * C.res, C.res) / C.res; if (v1 <= v0) continue;
       const c = C.list[i], q = rect(i), J = jb.cl[i], u = { r: [q[0], lerp(q[1], q[3], v0), q[2], lerp(q[1], q[3], v1)], t: [0, v0, 1, v1],
-        a: [c.seed, c.yb, c.tw, c.el], b: [c.D, ZR, c.asp, c.yt], l: [J.Ll[0], J.Ll[1], J.Ll[2], C.silver], c: [C.shear, S0, S1, jb.s2], k: [0.40, 0.70, C.kd, C.sigma], o0: J.o0, o1: J.o1, o2: J.o2 };
+        a: [c.seed, c.yb, c.tw, c.el], b: [c.D, ZR, c.asp, c.yt], l: [J.Ll[0], J.Ll[1], J.Ll[2], C.silver], c: [C.shear, S0, S1, jb.s2], k: [0.40, 0.70, C.kd, C.sigma * (1 - 0.55 * (c.rag || 0))], o0: J.o0, o1: J.o1, o2: J.o2 };
       for (let k = 0; k < 5; k++) { u['l' + k] = J.lb.L[k]; u['m' + k] = J.lb.M[k]; }
       gfx.draw(pipeBake, { u, tex: { tVol: volTex }, count: 4 });
     }
@@ -107,7 +116,8 @@ const Clouds = (() => {
   }
   // once a frame, before anything is drawn. Runs on the game's clock: in slow motion the clouds slow with everything else
   C.update = function () {
-    const t = Render.time;
+    const t = Render.time, ed = lastU < 0 ? 1 : 1 - Math.exp(-Math.min(Math.abs(t - lastU), 0.5) / 1.2), vc = VCU.val.cu || 'a'; lastU = t;
+    for (const c of C.list) { const s = small(c); c.rag = lerp(c.rag || 0, vc === 'b' ? s : 0, ed); c.keep = lerp(c.keep === undefined ? 1 : c.keep, vc === 'c' ? 1 - s : 1, ed); }
     if (!volDone) { gfx.beginPass(volT, { color: [0, 0, 0, 0] }); gfx.draw(pipeVol, { u: { p: [0, 0, 0, 0] }, tex: {}, count: 3 }); gfx.endPass(); volDone = true; }
     if (!C.baked || t < lastT || t - lastT > C.K * 0.75) {
       // all at once: at the start, when the clock has jumped (a change of the hour, a test running the game ahead without drawing)
@@ -133,8 +143,9 @@ const Clouds = (() => {
     // (in heavy snow the fair-weather cumulus are lost in the overcast that rolls in over them: 05b_weather.js)
     const wx = typeof Weather !== 'undefined' ? 1 - Weather.kc : 1; if (wx < 0.003) return;
     for (const i of order) {
-      const c = C.list[i], az = azAt(c, C.time), q = rect(i), fade = smooth(1.45, 1.2, Math.abs(az)) * wx, ru = C.rise * C.K / (2 * c.asp);
-      gfx.draw(pipeDraw, { u: { a: [az, c.el, c.tw, c.asp], t: [q[0], q[1], q[2] - q[0], q[3] - q[1]], k: [C.ksun, C.ksky, C.kgnd, c.haze], f: [fade, p, ru * C.oA, ru * C.oB], s: [Sky.sunFar[0], Sky.sunFar[1], Sky.sunFar[2], C.ktwi] },
+      const c = C.list[i], az = azAt(c, C.time), q = rect(i), fade = smooth(1.45, 1.2, Math.abs(az)) * wx * (c.keep === undefined ? 1 : c.keep), ru = C.rise * C.K / (2 * c.asp);
+      if (fade < 0.002) continue;
+      gfx.draw(pipeDraw, { u: { a: [az, c.el, c.tw, c.asp], t: [q[0], q[1], q[2] - q[0], q[3] - q[1]], k: [C.ksun, C.ksky, C.kgnd, c.haze + (1 - c.haze) * 0.42 * (c.rag || 0)], f: [fade, p, ru * C.oA, ru * C.oB], s: [Sky.sunFar[0], Sky.sunFar[1], Sky.sunFar[2], C.ktwi] },
         tex: { tCloudA: cu.tex[iA], tCloudB: cu.tex[iB], tSky: Sky.lut }, count: 4 });
     }
   };
@@ -215,7 +226,8 @@ fn cuHit(o: vec3f, d: vec3f, a: vec4f, b: vec4f, tr: vec2f) -> vec2f {
 fn cuSharp(age: f32) -> f32 { return mix(9.0, 2.2, age); }
 fn cuMax(age: f32) -> f32 { return mix(1.0, 0.30, age * age); }
 // a flat base where the air reaches its dew point (not quite flat: a little ragged)
-fn cuBase(y: f32, n: f32) -> f32 { return smoothstep(0.0, 0.045, y - M.a.y - 0.07 * (n - 0.5)); }
+// (a torn scrap, M.m0.y: no flat base at all, only a frayed underside)
+fn cuBase(y: f32, n: f32) -> f32 { let rg: f32 = M.m0.y; return smoothstep(0.0, 0.045 + 0.16 * rg, y - M.a.y - (0.07 + 0.26 * rg) * (n - 0.5) - 0.05 * rg); }
 // the cloud without its fine detail: enough for asking how much of it lies in the way of the light
 fn cuDensLo(p: vec3f) -> f32 {
   if (p.y < M.a.y - 0.02) { return 0.0; }
@@ -231,16 +243,19 @@ fn cuDens(p: vec3f) -> vec2f {
   let ps: vec3f = cuLean(p); let cv: vec2f = cuCov(ps);
   if (cv.x < -0.4) { return vec2f(0.0); }
   let n: vec4f = vol(ps * M.c.y + M.o0.xyz);
-  var F: f32 = cv.x + (mix(n.r, n.g, 0.35) - 0.56) * 0.75;
+  // (a torn scrap: its outline is set by the soft noise more than by its bubbles)
+  let rg: f32 = M.m0.y;
+  var F: f32 = cv.x + (mix(n.r, n.g, 0.35 + 0.4 * rg) - 0.56) * (0.75 + 0.55 * rg);
   if (F <= 0.0) { return vec2f(0.0, cv.y); }
   let a: vec4f = vol(ps * M.c.z + M.o1.xyz); let b: vec4f = vol(ps * M.c.w + M.o2.xyz);
   let hN: f32 = saturate((p.y - M.a.y) / (M.b.w - M.a.y));
   // where the air is old: thermals past their prime, the skirts near the base, and patches all over where dry air has got in
-  let old: f32 = saturate(cv.y + 0.5 * (1.0 - smoothstep(0.0, 0.2, hN)) + 0.8 * smoothstep(0.50, 0.85, a.a));
+  // (a torn scrap is old air through and through but for a firmer heart)
+  let old: f32 = saturate(cv.y + 0.5 * (1.0 - smoothstep(0.0, 0.2, hN)) + 0.8 * smoothstep(0.50, 0.85, a.a) + M.m0.y * (0.85 - 0.5 * saturate(F * 3.0)));
   let seam: f32 = smoothstep(0.15, 0.85, (1.0 - a.r) * 0.62 + (1.0 - b.r) * 0.38);
   let e: f32 = mix(seam, a.g * 0.6 + b.g * 0.4, old);
-  F -= e * mix(M.k.x, M.k.y, old) * (1.0 - 0.75 * saturate(F * 2.5));
-  return vec2f(saturate(F * cuSharp(old)) * cuMax(old) * cuBase(p.y, n.a), old);
+  F -= e * mix(M.k.x, M.k.y, old) * (1.0 - 0.75 * (1.0 - 0.6 * rg) * saturate(F * 2.5));
+  return vec2f(saturate(F * cuSharp(old) * (1.0 - 0.45 * rg)) * cuMax(old) * cuBase(p.y, n.a), old);
 }
 `;
 const CLOUD_RECT_VS = `
