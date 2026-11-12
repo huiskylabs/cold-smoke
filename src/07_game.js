@@ -426,8 +426,10 @@ const Game = (() => {
   // the figure turned round every few seconds and read as a glitch, not as style. Off a marked jump anything goes, as before)
   const HOP = { grab: 1, scratch: 1, spread: 1, tuck: 1, daffy: 1 }, HOP_GAP = 6, _kc = {};
   // (seen from inside the helmet, first person or the ski tips: only shapes that keep the body upright and facing the way the lens looks. A spin or a
-  // somersault would turn the figure away under a lens that keeps looking down the valley; a helmet camera that spun with it is no way to ride)
-  const FPOK = { grab: 1, scratch: 1, spread: 1, tuck: 1, daffy: 1, eagle: 1 }, fpView = () => G.view === 'fp' || G.view === 'tips', fpOK = id => !fpView() || String(id).split('+').every(k => FPOK[k]);
+  // somersault would turn the figure away under a lens that keeps looking down the valley; a helmet camera that spun with it is no way to ride. And
+  // ones that read from in there: the spread and the eagle fling the skis out of the picture, and in a grab the head is folded out over the ski
+  // tips with the hand on the ski behind and under the lens: nothing to see. A tuck, a daffy, a tail press: hands up in front, skis below)
+  const FPOK = { scratch: 1, tuck: 1, daffy: 1 }, fpView = () => G.view === 'fp' || G.view === 'tips', fpOK = id => !fpView() || String(id).split('+').every(k => FPOK[k]);
   const offKicker = () => { const s0 = -fl.P[2]; for (let b = Math.floor((s0 - 40) / 32), e = Math.floor((s0 + 16) / 32); b <= e; b++) for (const f of Course.feats.get(b) || []) {
     if (!f.mark || f.kind !== 'kicker') continue; const ds = s0 - f.s; if (ds < -14 || ds > f.len + 8) continue; if (Math.abs(fl.P[0] - Course.at(f.s + f.len, _kc).cx - f.u) < f.wid * 0.5 + 2.5) return true; } return false; };
   const bigAir = pred => offKicker() ? 2 : pred >= 0.8 ? 1 : 0, ODD = id => /^(180|540)/.test(id);

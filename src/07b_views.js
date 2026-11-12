@@ -279,13 +279,16 @@
   // in first person the hands are carried where a helmet camera sees them: a little higher and further forward, and in a tuck out in front of the chin.
   // It is added to what the game asked of the arms this frame, after it asked: nothing of it is kept (and should a pose ever not be asked afresh, what was
   // added to it the frame before is first taken off again)
-  const AR = [[0, 0, 0, 0], [0, 0, 0, 0]]; let armsOn = false;
+  // (in the air the figure flings its hands wide, out of this picture: from inside the helmet they are kept in front, a little out to either side and
+  // up for balance, so a jump is seen to be a jump; not the hand that has gone down to take hold of a ski)
+  const AR = [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]]; let armsOn = false;
   function fpArms(w) {
-    const ps = G.pose, v = VD.fp, tk = sat(ps.tuck || 0), ay = (v.arm[0] + v.armT[0] * tk) * w, az = -(v.arm[1] + v.armT[1] * tk) * w;
+    const ps = G.pose, v = VD.fp, tk = sat(ps.tuck || 0), ay = (v.arm[0] + v.armT[0] * tk) * w, az = -(v.arm[1] + v.armT[1] * tk) * w, ai = sat(Math.max((ps.air || 0) / 0.5, G.flight ? G.flight.w || 0 : 0)) * w;
     for (let i = 0; i < 2; i++) {
       const a = i ? ps.armR : ps.armL, m = AR[i]; if (!a || !(a.length >= 3)) continue;
-      if (a[1] === m[2] && a[2] === m[3]) { a[1] = m[0]; a[2] = m[1]; }
-      m[0] = a[1]; m[1] = a[2]; a[1] += ay; a[2] += az; m[2] = a[1]; m[3] = a[2];
+      if (a[0] === m[4] && a[1] === m[2] && a[2] === m[3]) { a[0] = m[5]; a[1] = m[0]; a[2] = m[1]; }
+      const g = ai * (1 - sat((i ? ps.grabR : ps.grabL) || 0)), sd = i ? 1 : -1;
+      m[5] = a[0]; m[0] = a[1]; m[1] = a[2]; a[0] -= sd * 0.34 * g; a[1] += ay + 0.02 * g; a[2] += az - 0.14 * g; m[4] = a[0]; m[2] = a[1]; m[3] = a[2];
     }
     armsOn = w > 0;
   }
@@ -333,8 +336,8 @@
     if (armsOn || fpc > 0) fpArms(smooth(0, 1, fpc));
     // (the lens is where the head is but goes on looking down the valley: should the figure be turned or tipped well away from that (a spin or a
     // somersault already under way when this view was taken up, or riding switch after it; this view itself only gets tricks that keep the body
-    // upright and facing forward, see pickTrick), it would look out through the back of its own hood. Then the figure and these arms are left out and only
-    // the skis of this view are drawn (they turn under the lens: that is the spin), until it has come round again. G.fpIn, read by 07d_fpv.js; with a margin either way, so it does not flicker)
+    // upright and facing forward, see pickTrick), it would look out through the back of its own hood. Then the figure is left out, and the arms of this view
+    // with it (they hang from its shoulders, which are then in front of the lens: tried, the upper arms filled the picture), and only the skis are drawn (they turn under the lens: that is the spin), until it has come round again. G.fpIn, read by 07d_fpv.js; with a margin either way, so it does not flicker)
     { const fq = G.flight && G.flight.q, yw = fq ? Math.abs(Math.atan2(Math.sin(fq.yaw || 0), Math.cos(fq.yaw || 0))) : 0, fp = fq ? Math.abs(Math.atan2(Math.sin(fq.flip || 0), Math.cos(fq.flip || 0))) : 0, sw = G.flight && G.flight.sw ? 1 : 0;
       const r = Math.max(yw / 0.6, fp / 0.35, sw); G.fpIn = fpc > 0 && (G.fpIn ? r > 0.65 : r > 1); }
     if (typeof Fpv !== 'undefined') Fpv.tick(dt, fpc, tk);       // (the arms, poles and skis made for these two views: 07d_fpv.js)
