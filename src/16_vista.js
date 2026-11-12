@@ -12,7 +12,7 @@ const Vista = (() => {
     ready: false, stats: {},
     // the city's lights (see buildLights). Strengths are those of the sources after dark; `day*`: how many times brighter each kind runs in
     // daylight (screens, signs and warning lamps are turned up by day and down at night, as the real ones are)
-    lit: { on: 1, win: 0.62, screen: 0.95, strip: 2.2, flood: 1.0, sign: 1.7, spot: 1, glint: 16, beam: 1, deck: 1, dome: 1, town: 0.26, core: 0.20, dayWin: 4.5, dayLed: 4.2, dayFlood: 3.6, dayGlow: 5 },
+    lit: { on: 1, win: 0.72, screen: 0.95, strip: 2.2, flood: 1.0, sign: 1.7, spot: 1, glint: 16, beam: 1, deck: 1.25, dome: 1, town: 0.26, core: 0.20, road: 1, dayWin: 4.5, dayLed: 4.2, dayFlood: 3.6, dayGlow: 5 },
     lampH: 780,                                                               // towers whose tip stands higher than this (m above the deck) carry a red warning lamp
   };
   let gfx;
@@ -282,14 +282,16 @@ const Vista = (() => {
   // corner, a floodlit crown, a sign, a lamp on a mast, the beam of a searchlight. They are listed once, from the same towers the panorama
   // was drawn from, and drawn every frame over the sky (which has already painted the towers' bodies), each with its own colour, its own
   // clock and its own hour: `thr` is the height of the sun (rad) under which a light is lit; 0.3 = it is never off.
-  const PAL = { cyan: [0.05, 0.78, 1.0], aqua: [0.04, 0.86, 0.78], blue: [0.10, 0.33, 1.0], violet: [0.48, 0.20, 1.0], magenta: [1.0, 0.10, 0.68], pink: [1.0, 0.24, 0.42], amber: [1.0, 0.50, 0.12], gold: [1.0, 0.72, 0.28], warm: [1.0, 0.82, 0.60], ice: [0.86, 0.95, 1.0], red: [1.0, 0.05, 0.02] };
-  const NEON = [PAL.cyan, PAL.aqua, PAL.blue, PAL.violet, PAL.magenta, PAL.pink, PAL.amber, PAL.gold];
-  // each quarter keeps to a few colours of its own (the nebula's cyan, violet and magenta, with gold for warmth), so the skyline reads as
-  // districts of one city and not as confetti
-  const FAM = [[0, 2, 3, 0, 1], [4, 5, 3, 4, 5], [7, 6, 1, 7, 0], [2, 1, 0, 2, 3], [5, 6, 4, 5, 7]];
-  const SOD = [1.0, 0.55, 0.22];                                              // the sodium light of the streets
-  const FAMC = FAM.map(f => { const m = [0, 1, 2].map(c => 0.8 * f.reduce((s, k) => s + NEON[k][c], 0) / f.length + 0.2 * SOD[c]), l = (m[0] + m[1] + m[2]) / 3; return m.map(v => Math.max(0.02, l + (v - l) * 1.35)); });
-  const DOME = [[PAL.cyan, PAL.violet], [PAL.magenta, PAL.violet], [PAL.gold, PAL.amber], [PAL.blue, PAL.aqua], [PAL.pink, PAL.amber]];
+  const PAL = { cyan: [0.05, 0.78, 1.0], aqua: [0.04, 0.86, 0.78], blue: [0.10, 0.33, 1.0], violet: [0.48, 0.20, 1.0], magenta: [1.0, 0.10, 0.68], pink: [1.0, 0.24, 0.42], amber: [1.0, 0.50, 0.12], gold: [1.0, 0.72, 0.28], warm: [1.0, 0.82, 0.60], ice: [0.86, 0.95, 1.0], red: [1.0, 0.05, 0.02], green: [0.08, 0.90, 0.36], white: [1.0, 0.93, 0.82] };
+  // A real city seen from a mountain is points of warm white and amber; colour is rare and small (a logo under a roof, a lit crown, a
+  // screen high on a wall), and it is the colours signs are made in, the plain ones several times as likely as the fancy. Nothing here
+  // takes its colour from the sky: the first version borrowed the nebula's cyan, violet and magenta for whole towers and for the glow in
+  // the cloud, and the city read as the nebula's reflection
+  const NEON = [PAL.red, PAL.blue, PAL.green, PAL.amber, PAL.red, PAL.blue, PAL.gold, PAL.cyan, PAL.magenta, PAL.green];
+  const SOD = [1.0, 0.52, 0.17];                                              // the sodium light of the streets
+  // what each quarter's streets throw up into the cloud: sodium everywhere, paler where the lamps have been changed for white ones
+  const FAMC = [[1.0, 0.60, 0.26], [1.0, 0.50, 0.16], [1.0, 0.64, 0.32], [1.0, 0.54, 0.20], [1.0, 0.47, 0.14]];
+  const DOME = FAMC.map(c => [c, [1.0, c[1] + 0.07, c[2] + 0.07]]);
   function buildLights(towers, zb, BW, BH) {
     const F = cityFrame(), deck = V.deck, az0 = V.cityAz - V.cityHalf, daz = 2 * V.cityHalf / BW, del = (V.cEL1 - V.cEL0) / BH;
     const WX = (u, w) => F.C[0] + u * F.U[0] + w * F.W[0], WZ = (u, w) => F.C[1] + u * F.U[1] + w * F.W[1];
@@ -327,20 +329,25 @@ const Vista = (() => {
     const corners = new Set();
     for (const t of towers) {
       const rnd = RNG((t.seed ^ 0x2545f491) >>> 0), seed = rnd(), fam = famOf(t.u, t.w), tallK = smooth(250, 900, t.h), mkd = t.mark || '';
-      const neon = () => NEON[fam >= 0 && rnd() < 0.8 ? FAM[fam][(rnd() * 5) | 0] : (rnd() * NEON.length) | 0];
-      // what the building is after dark: offices, a hotel with its sign, a tower traced in lines of light, one whose whole wall is a screen
-      const x = rnd(), sch = mkd || (x < 0.02 + 0.10 * tallK && t.h > 330 ? 'media' : x < 0.12 + 0.16 * tallK && t.h > 380 ? 'outline' : x > 0.80 ? 'hotel' : x > 0.76 ? 'dark' : 'office');
+      const neon = () => NEON[(rnd() * NEON.length) | 0];
+      // how near the middle of a quarter it stands: the light of a city is thickest at its centres and thins toward its edges
+      const ck = 0.62 + 0.5 * Math.max(...CORES.map(c => (0.55 + 0.45 * c[3] / 1060) * Math.exp(-((t.u - c[0]) ** 2 + (t.w - c[1]) ** 2) / (c[2] * c[2] * 1.2))));
+      // what the building is after dark: offices (most of them), a hotel with its sign, one asleep, a few with lines of light round their
+      // tops, a very few with a screen high on a wall
+      const x = rnd(), sch = mkd || (x < 0.012 + 0.045 * tallK && t.h > 330 ? 'media' : x < 0.05 + 0.10 * tallK && t.h > 380 ? 'outline' : x > 0.80 ? 'hotel' : x > 0.70 ? 'dark' : 'office');
       const c1 = neon(); let c2 = neon(); if (c2 === c1) c2 = neon();
       // its windows: [share of the blocks lit at night, colour of the lamps (0 warm .. 1 cold), strength]
       const r1 = rnd(), r2 = rnd();
-      const W = sch === 'office' ? [0.40 + 0.18 * r1, 0.05 + 0.80 * r2 * r2, 1] : sch === 'hotel' ? [0.30 + 0.16 * r1, 0.04 + 0.30 * r2, 0.95] : sch === 'outline' ? [0.28 + 0.20 * r1, 0.3 + 0.6 * r2, 0.8] : sch === 'dark' ? [0.05, 0.5, 0.7] : sch === 'twin' ? [0.30, 0.78, 0.85] : sch === 'stone' ? [0.30, 0.10, 0.9] : [0.22, 0.65, 0.7];
+      const W = sch === 'office' ? [0.22 + 0.36 * r1, 0.16 + 0.56 * r2, 1] : sch === 'hotel' ? [0.26 + 0.18 * r1, 0.04 + 0.26 * r2, 0.95] : sch === 'outline' ? [0.26 + 0.22 * r1, 0.25 + 0.45 * r2, 0.9] : sch === 'dark' ? [0.06, 0.4, 0.7] : sch === 'twin' ? [0.34, 0.55, 0.9] : sch === 'stone' ? [0.30, 0.10, 0.9] : [0.32, 0.50, 0.9];
+      W[0] *= 0.75 + 0.25 * ck; W[2] *= ck;
       const wthr = 0.03 + (rnd() - 0.5) * 0.06, top = t.h - t.crownH, cx = WX(t.u, t.w), cz = WZ(t.u, t.w), cl = Math.hypot(cx, cz);
       const scrThr = (mkd || (tallK > 0.55 && rnd() < 0.5)) ? 0.3 : 0.12 * rnd(), lineThr = -0.02 + 0.10 * rnd(), lineChase = rnd() < 0.35 ? 1 : 0, lineRate = 0.10 + 0.14 * rnd();
-      const crownC = rnd() < 0.55 ? (rnd() < 0.5 ? PAL.warm : rnd() < 0.5 ? PAL.gold : PAL.ice) : c1, crownThr = (mkd || (t.h > 600 && rnd() < 0.3)) ? 0.3 : -0.03 + 0.10 * rnd();
+      const crownC = rnd() < 0.72 ? (rnd() < 0.5 ? PAL.warm : rnd() < 0.5 ? PAL.gold : PAL.ice) : c1, crownThr = (mkd || (t.h > 600 && rnd() < 0.3)) ? 0.3 : -0.03 + 0.10 * rnd();
       const pat = (rnd() * 4) | 0, lam = 110 + 110 * rnd(), spd = 14 + 18 * rnd();
-      // a screen takes the whole wall, the upper part of it, or a band across it; the rest of the wall is windows like any other
-      const sv = rnd(), sa = rnd(), sb = rnd(), lineC = rnd() < 0.45 ? (rnd() < 0.6 ? PAL.gold : PAL.ice) : c1;
-      const scr = (sch === 'needle' || sch === 'blade') ? [Y0, 1e9] : sch !== 'media' ? null : sv < 0.34 ? [Y0, 1e9] : sv < 0.67 ? [t.h * (0.58 + 0.14 * sa), 1e9] : [t.h * (0.30 + 0.25 * sa), t.h * (0.30 + 0.25 * sa) + 70 + 90 * sb];
+      // a screen takes the top of a wall or a band across it, never its whole height (a wall lit from foot to roof in one colour reads
+      // from here as a stick of neon, which no real tower is); the rest of the wall is windows like any other
+      const sv = rnd(), sa = rnd(), sb = rnd(), lineC = rnd() < 0.78 ? (rnd() < 0.5 ? PAL.white : rnd() < 0.5 ? PAL.gold : PAL.ice) : c1;
+      const scr = sch === 'needle' ? [t.h * 0.80, 1e9] : sch === 'blade' ? [t.h * 0.86, 1e9] : sch !== 'media' ? null : sv < 0.55 ? [t.h * (0.76 + 0.12 * sa), 1e9] : [t.h * (0.42 + 0.30 * sa), t.h * (0.42 + 0.30 * sa) + 50 + 70 * sb];
       const winRect = (f, a0, a1) => { if (a1 > a0 + 3) { rect(0, f.a, f.b, a0, a1, seed, f.pA, f.pB, wthr, 0.13, [1, 1, 1], W[2], c1, 0, W[0], W[1], f.R); cnt.wall++; } };
       let best = null; const glassy = !mkd && t.style !== 1 && t.style !== 4 && t.h > 160, gw = [];
       for (let ti = 0; ti < t.tiers.length; ti++) {
@@ -351,25 +358,26 @@ const Vista = (() => {
           const s0 = scr ? Math.max(y0, scr[0]) : 0, s1 = scr ? Math.min(yw, scr[1]) : 0;
           if (sch === 'bridge') { rect(4, f.a, f.b, y0, y1, seed, 0, f.len, 0.07, 0.004, PAL.warm, 0.5, PAL.warm, 0, 0, 0, 0); cnt.sign++; }
           else if (scr && s1 > s0 + 3 && (f.R || (f.face > 0.55 && f.len > 14))) {
-            if (sch === 'needle') rect(1, f.a, f.b, s0, s1, seed, f.pA, f.pB, 0.3, 0.004, PAL.cyan, 1, PAL.violet, 0, 95, 30, f.R);
-            else rect(1, f.a, f.b, s0, s1, seed, f.pA, f.pB, scrThr, 0.004, c1, 1, c2, sch === 'blade' ? 1 : pat, lam, spd, f.R);
+            if (sch === 'needle') rect(1, f.a, f.b, s0, s1, seed, f.pA, f.pB, 0.3, 0.004, PAL.gold, 1, PAL.white, 0, 95, 30, f.R);
+            else if (sch === 'blade') rect(1, f.a, f.b, s0, s1, seed, f.pA, f.pB, 0.3, 0.004, PAL.blue, 1, PAL.ice, 1, lam, spd, f.R);
+            else rect(1, f.a, f.b, s0, s1, seed, f.pA, f.pB, scrThr, 0.004, c1, 1, c2, pat, lam, spd, f.R);
             cnt.screen++; winRect(f, y0, s0); winRect(f, s1, yw);
           }
           else winRect(f, y0, yw);
           if (glassy && !f.R && yw > y0 + 40) gw.push({ f, y0, y1: yw });
-          // lines of light up the corners, and round the top (on a tower of many steps, round every third step as well)
+          // lines of light up the corners of its top third, and round the roof (most of them white or gold)
           if (sch === 'outline' || sch === 'twin') {
-            const lc = sch === 'twin' ? PAL.magenta : lineC;
-            if (!f.R) for (let end = 0; end < 2; end++) {
+            const lc = sch === 'twin' ? PAL.white : lineC, yl = Math.max(y0, t.h * 0.68);
+            if (!f.R && y1 > yl + 8) for (let end = 0; end < 2; end++) {
               const q = end ? f.b : f.a, key = Math.round(q[0]) + ',' + Math.round(q[1]) + ',' + ti; if (corners.has(key)) continue; corners.add(key);
-              rect(2, end ? [q[0] - dir[0] * 2.2, q[1] - dir[1] * 2.2] : q, end ? q : [q[0] + dir[0] * 2.2, q[1] + dir[1] * 2.2], y0, y1, seed, 0, 2.2, lineThr, 0.004, lc, 1, lc, lineChase, 0, lineRate, 0); cnt.strip++;
+              rect(2, end ? [q[0] - dir[0] * 2.2, q[1] - dir[1] * 2.2] : q, end ? q : [q[0] + dir[0] * 2.2, q[1] + dir[1] * 2.2], yl, y1, seed, 0, 2.2, lineThr, 0.004, lc, 1, lc, lineChase, 0, lineRate, 0); cnt.strip++;
             }
-            if (last || (t.tiers.length >= 5 && ti % 3 === 2)) { rect(2, f.a, f.b, y1 - 3, y1, seed, 0, f.len, lineThr, 0.004, lc, 0.8, lc, 0, 0, 0, f.R); cnt.strip++; }
+            if (last) { rect(2, f.a, f.b, y1 - 3, y1, seed, 0, f.len, lineThr, 0.004, lc, 0.8, lc, 0, 0, 0, f.R); cnt.strip++; }
           }
           // the stone tower: lamps on every setback wash the wall above it
           if (sch === 'stone' && ti > 0) { rect(3, f.a, f.b, tr[0], tr[0] + 0.6 * (y1 - tr[0]), seed, 0, f.len, 0.06, 0.004, PAL.gold, 1, PAL.gold, 0, 2.4, 0, f.R); cnt.flood++; }
           // a floodlit crown
-          if (last && t.crownH > 0 && t.crownLit > 0) { const cc = sch === 'needle' ? PAL.ice : sch === 'twin' ? PAL.violet : sch === 'stone' ? PAL.amber : crownC; rect(3, f.a, f.b, top, t.h, seed, 0, f.len, crownThr, 0.004, cc, t.crownLit, sch === 'stone' ? PAL.pink : cc, 0, 1.1, sch === 'stone' ? 0.25 : 0, f.R); cnt.flood++; }
+          if (last && t.crownH > 0 && t.crownLit > 0) { const cc = sch === 'needle' ? PAL.ice : sch === 'twin' ? PAL.gold : sch === 'stone' ? PAL.amber : crownC; rect(3, f.a, f.b, top, t.h, seed, 0, f.len, crownThr, 0.004, cc, t.crownLit, sch === 'stone' ? PAL.gold : cc, 0, 1.1, sch === 'stone' ? 0.25 : 0, f.R); cnt.flood++; }
           if (last && !f.R && f.len * f.face > (best ? best.w : 9)) best = { f, w: f.len * f.face, y1: yw, y0 };
         }
       }
@@ -381,7 +389,7 @@ const Vista = (() => {
       }
       // the mast: a line of light, a red lamp at its tip, on the tallest a white strobe as well
       if (t.spire && seen(cx, cz, t.h + t.spire * 0.5, 30)) {
-        const tx = -cz / cl * t.spireR, tz = cx / cl * t.spireR, sc = rnd() < 0.6 ? PAL.ice : c1;
+        const tx = -cz / cl * t.spireR, tz = cx / cl * t.spireR, sc = (mkd || rnd() < 0.85) ? PAL.ice : c1;
         rect(2, [cx - tx, cz - tz], [cx + tx, cz + tz], t.h, t.h + t.spire, seed, 0, 2 * t.spireR, (mkd || t.h > 800) ? 0.3 : 0.10 * rnd(), 0.004, sc, 1.3, sc, rnd() < 0.45 ? 1 : 0, 0, 0.16 + 0.2 * rnd(), 0); cnt.strip++;
       }
       const tip = t.h + t.spire;
@@ -398,26 +406,27 @@ const Vista = (() => {
         const g = gw[(rnd() * gw.length) | 0], q = at(g.f, 0.15 + 0.7 * rnd()), y = g.y0 + (g.y1 - g.y0) * rnd(), kk = 1 - 2 / Math.hypot(q[0], q[1]);
         if (y > 150 && seen(q[0], q[1], y, 16)) { spot(q[0] * kk, y, q[1] * kk, [1, 1, 1], 1, 3, 1, rnd(), 0.3, 1, 0.27 * rnd(), 0.010 + 0.010 * rnd()); cnt.glint++; }
       }
-      // what it sheds on the cloud round its foot: its quarter's colour, pulled toward its own if it wears LEDs
-      { const led = sch === 'media' || sch === 'outline' || sch === 'needle' || sch === 'twin' || sch === 'blade', fc = fam >= 0 ? FAMC[fam] : SOD, o = led ? c1 : SOD, k = led ? 0.6 : 0.2;
-        pool(t.u, t.w, 60 + 0.35 * t.h, [0, 1, 2].map(i => lerp(fc[i], o[i], k)), (0.008 + 0.04 * tallK) * (sch === 'dark' ? 0.2 : led ? 1.3 : 0.8)); }
+      // what it sheds on the cloud round its foot: the light of its lobby, its forecourt and the streets about it, in its quarter's lamps
+      pool(t.u, t.w, 60 + 0.35 * t.h, fam >= 0 ? FAMC[fam] : SOD, (0.006 + 0.028 * tallK) * (sch === 'dark' ? 0.2 : 0.9) * ck);
     }
-    // searchlights on a few of the highest flat roofs, each quarter's in its own colour
+    // searchlights on a few of the highest flat roofs: xenon white, as they are (the night's colour setting leaves every other one out)
     { const brnd = RNG(7717);
       const beam = (t, col, side) => { const x = WX(t.u, t.w), z = WZ(t.u, t.w); BE.push(x, t.h + 4, z, 3000, col[0], col[1], col[2], 0.6, V.cityAz + side * (1.15 + 0.5 * brnd()), 0.40 + 0.2 * brnd(), 0.45 + 0.4 * brnd(), 0.13 + 0.1 * brnd(), 8 + 7 * brnd(), brnd() * TAU, -0.025 - 0.05 * brnd(), 20); spot(x, t.h + 5, z, col, 4, 2, 1, brnd(), -0.03, 1); cnt.beam++; };
       const roofsOf = ci => { const c = CORES[ci]; return towers.filter(t => !t.mark && !t.spire && Math.hypot(t.u - c[0], t.w - c[1]) < c[2] * 0.8 && seen(WX(t.u, t.w), WZ(t.u, t.w), t.h - 1, 60)).sort((a, b) => b.h - a.h); };
-      const r0 = roofsOf(0), r1 = roofsOf(1), r2 = roofsOf(2), r3 = roofsOf(3);
-      if (r0.length > 2) { beam(r0[0], PAL.ice, -1); beam(r0[2], PAL.cyan, 1); beam(r0[1], PAL.violet, 1); }
-      if (r1.length) { beam(r1[0], PAL.magenta, 1); beam(r1[0], PAL.violet, -1); }
-      if (r2.length > 1) { beam(r2[0], PAL.warm, -1); beam(r2[1], PAL.gold, 1); }
-      if (r3.length) beam(r3[0], PAL.blue, 1);
+      const r0 = roofsOf(0), r1 = roofsOf(1), r2 = roofsOf(2);
+      if (r0.length > 2) { beam(r0[0], PAL.ice, -1); beam(r0[2], PAL.white, 1); }
+      if (r1.length) { beam(r1[0], PAL.ice, 1); beam(r1[0], PAL.white, -1); }
+      if (r2.length > 1) { beam(r2[0], PAL.white, -1); beam(r2[1], PAL.ice, 1); }
     }
-    // the town itself, down under the cloud, far wider than its towers: sodium streets in clumps, pinker here and there, and over them
-    // every quarter's own cast of colour. (GL holds light as the eye has it at night; `enc` scales it into the map's eight bits)
+    // the town itself, down under the cloud, far wider than its towers: sodium streets in clumps, paler where the lamps are white ones,
+    // brightest under the quarters and along the avenues (the long slots the towers leave: buildCityList), which show through the cloud
+    // as veins of light. (GL holds light as the eye has it at night; `enc` scales it into the map's eight bits)
+    const ga = 0.38, gc = Math.cos(ga), gs = Math.sin(ga), P = 108, slot = (g, n, k) => { const q = ((g / P - k + n / 2) % n + n) % n - n / 2; return Math.exp(-((q * P / 95) ** 2)); };
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
       const u = V.glU0 + (i + 0.5) * du, w = V.glW0 + (j + 0.5) * dw, o = (j * N + i) * 3;
-      const b = V.lit.town * Math.exp(-(((u + 200) / 4300) ** 2 + (w / 3500) ** 2)) * (0.6 + 0.8 * vn(u / 800 + 31.7, w / 800 + 5.3)), pk = vn(u / 1700 + 3.1, w / 1700 + 77.7);
-      let r = b, g = b * lerp(0.55, 0.40, pk), bl = b * lerp(0.22, 0.42, pk);
+      const b = V.lit.town * Math.exp(-(((u + 200) / 3600) ** 2 + (w / 3000) ** 2)) * (0.6 + 0.8 * vn(u / 800 + 31.7, w / 800 + 5.3)), pk = vn(u / 1700 + 3.1, w / 1700 + 77.7);
+      const gu = u * gc + w * gs, gw = -u * gs + w * gc, road = Math.max(slot(gu, 7, 3), slot(gw, 9, 5)), bb = b * (0.8 + 1.1 * road * V.lit.road);
+      let r = bb, g = bb * lerp(0.50, 0.63, pk), bl = bb * lerp(0.15, 0.31, pk);
       for (let c = 0; c < CORES.length; c++) { const q = CORES[c], e = V.lit.core * (0.3 + q[3] / 1000) * Math.exp(-((u - q[0]) ** 2 + (w - q[1]) ** 2) / (q[2] * q[2] * 1.5)), fc = FAMC[c]; r += e * fc[0]; g += e * fc[1]; bl += e * fc[2]; }
       GL[o] += r; GL[o + 1] += g; GL[o + 2] += bl;
     }
@@ -440,7 +449,7 @@ const Vista = (() => {
     pipeFace = gfx.pipeline(Object.assign({ name: 'cityFace', lib: [SL.common, S.air, S.lit], buffers: i4(6), varyings: { st: 'vec4f', ab: 'vec4f', py: 'vec4f', ca: 'vec4f', cb: 'vec4f', mi: 'vec4f', ex: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', s: 'vec4f' }, textures: { tDetail: '2d', tCityZ: '2d' }, vs: S.faceVS, fs: S.faceFS }, base));
     pipeSpot = gfx.pipeline(Object.assign({ name: 'citySpot', lib: [SL.common, S.air, S.lit], buffers: i4(4), varyings: { uv: 'vec2f', col: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f' }, textures: { tDetail: '2d', tCityZ: '2d' }, vs: S.spotVS, fs: S.spotFS }, base));
     pipeBeam = gfx.pipeline(Object.assign({ name: 'cityBeam', lib: [SL.common, S.air, S.lit], buffers: i4(4), varyings: { ab: 'vec4f', pos: 'vec4f', col: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f' }, textures: { tDetail: '2d', tCityZ: '2d' }, vs: S.beamVS, fs: S.beamFS }, base));
-    pipeGlow = gfx.pipeline(Object.assign({ name: 'cityGlow', lib: [SL.common, S.air, S.lit], buffers: [], varyings: { dir: 'vec3f' }, uniforms: { p: 'vec4f', q: 'vec4f', c0: 'vec4f', c1: 'vec4f', c2: 'vec4f', c3: 'vec4f', c4: 'vec4f' }, textures: { tDetail: '2d', tCityZ: '2d', tCityA: '2d', tCityB: '2d', tGlow: '2d' }, vs: S.glowVS, fs: S.glowFS }, base));
+    pipeGlow = gfx.pipeline(Object.assign({ name: 'cityGlow', lib: [SL.common, SEA_MAP_SSL, S.air, S.lit], buffers: [], varyings: { dir: 'vec3f' }, uniforms: { p: 'vec4f', q: 'vec4f', c0: 'vec4f', c1: 'vec4f', c2: 'vec4f', c3: 'vec4f', c4: 'vec4f' }, textures: { tDetail: '2d', tCityZ: '2d', tCityA: '2d', tCityB: '2d', tGlow: '2d', tSeaB: '2d' }, vs: S.glowVS, fs: S.glowFS }, base));
     V.pipes = [pipeGlow, pipeBeam, pipeFace, pipeSpot];
     // these pipelines are made ready here and not in the boot list (99_main.js): until they are, the city is simply drawn without its lights
     V.pipesReady = (async () => { for (const P of V.pipes) { if (gfx.finishPipelineAsync) await gfx.finishPipelineAsync(P); else gfx.finishPipeline(P); } litReady = true; })()
@@ -461,11 +470,11 @@ const Vista = (() => {
     const gl = (0.25 * smooth(0.14, 0.03, e) + 0.75 * smooth(0.04, -0.085, e)) * (1 + (L.dayGlow - 1) * dk) * ek;
     // (the night's colour, 12_nebula.js NSKY: the lights calmer by night, half the searchlights out)
     const nk = NSKY.step(R.time), cs = lerp(1, nk[2], Sky.lights);
-    const dome = i => { const k = 0.5 + 0.5 * Math.sin(t * (0.09 + 0.017 * i) + i * 2.1), a = DOME[i][0], b = DOME[i][1], s = 0.3 * CORES[i][3] / 1000; const r = [lerp(a[0], b[0], k) * s, lerp(a[1], b[1], k) * s, lerp(a[2], b[2], k) * s], l = 0.2126 * r[0] + 0.7152 * r[1] + 0.0722 * r[2]; return [l + (r[0] - l) * cs, l + (r[1] - l) * cs, l + (r[2] - l) * cs, 0]; };
-    if (gl > 0.001) gfx.draw(pipeGlow, { u: { p: [e, dk, gl, t], q: [0, V.glowEnc / 1.2 * L.deck, L.dome, 0], c0: dome(0), c1: dome(1), c2: dome(2), c3: dome(3), c4: dome(4) }, tex: { tDetail: Tex.detail, tCityZ: V.cityZ, tCityA: V.cityA, tCityB: V.cityB, tGlow: V.glowTex }, count: 4 });
+    const dome = i => { const k = 0.5 + 0.5 * Math.sin(t * (0.09 + 0.017 * i) + i * 2.1), a = DOME[i][0], b = DOME[i][1], s = 0.3 * CORES[i][3] / 1000; return [lerp(a[0], b[0], k) * s, lerp(a[1], b[1], k) * s, lerp(a[2], b[2], k) * s, 0]; };
+    if (gl > 0.001) gfx.draw(pipeGlow, { u: { p: [e, dk, gl, t], q: [0, V.glowEnc / 1.2 * L.deck, L.dome, 0], c0: dome(0), c1: dome(1), c2: dome(2), c3: dome(3), c4: dome(4) }, tex: { tDetail: Tex.detail, tCityZ: V.cityZ, tCityA: V.cityA, tCityB: V.cityB, tGlow: V.glowTex, tSeaB: Clouds.sea.B }, count: 4 });
     if (V.nBeam && e < 0 && L.beam > 0) gfx.draw(pipeBeam, { u: { p, q: [L.beam * nk[4], cs, nk[3], 0] }, tex, vb: [V.beamBuf], count: 4, instances: V.nBeam });
     gfx.draw(pipeFace, { u: { p, q: [L.win, L.screen, L.strip, L.flood], r: [L.sign, L.dayWin, L.dayLed, L.dayFlood], s: [cs, 0, 0, 0] }, tex, vb: [V.faceBuf], count: 4, instances: V.nFace });
-    gfx.draw(pipeSpot, { u: { p, q: [L.spot, L.glint, 1 - cs, 0] }, tex, vb: [V.spotBuf], count: 4, instances: V.nSpot });
+    gfx.draw(pipeSpot, { u: { p, q: [L.spot, L.glint, 0, 0] }, tex, vb: [V.spotBuf], count: 4, instances: V.nSpot });
   };
 
   V.init = function (g, opt = {}) {
@@ -541,7 +550,7 @@ fn farRanges(d: vec3f, colIn: vec3f) -> vec3f {
 fn cityGlow3(pp: vec2f) -> vec3f {
   let rel: vec2f = pp - vec2f(${f(C[0])}, ${f(C[1])});
   let u: f32 = dot(rel, vec2f(${f(Uu[0])}, ${f(Uu[1])})); let w: f32 = dot(rel, vec2f(${f(Ww[0])}, ${f(Ww[1])}));
-  var c: vec3f = vec3f(1.0, 0.48, 0.30) * (${f(V.lit.town / 1.2)} * exp(-sq((u + 200.0) / 4300.0) - sq(w / 3500.0)));
+  var c: vec3f = vec3f(1.0, 0.54, 0.19) * (${f(V.lit.town / 1.2)} * exp(-sq((u + 200.0) / 3600.0) - sq(w / 3000.0)));
 ${V.cores.map((q, i) => `  c += vec3f(${V.famc[i].map(f).join(', ')}) * (${f(V.lit.core / 1.2 * (0.3 + q[3] / 1000))} * exp(-(sq(u - ${f(q[0])}) + sq(w - ${f(q[1])})) / ${f(q[2] * q[2] * 1.5)}));`).join('\n')}
   return c;
 }
@@ -633,7 +642,7 @@ fn cityOpen(uv: vec2f, du: vec2f, dv: vec2f, r: f32) -> f32 {
   return 0.25 * (step(r, cityZ(uv + du * 0.125 + dv * 0.375)) + step(r, cityZ(uv - du * 0.375 + dv * 0.125)) + step(r, cityZ(uv + du * 0.375 - dv * 0.125)) + step(r, cityZ(uv - du * 0.125 - dv * 0.375)));
 }
 // the colour of a room's lamps: sodium and tungsten at one end, daylight tubes at the other
-fn winTint(k: f32) -> vec3f { return mix(mix(vec3f(1.0, 0.46, 0.14), vec3f(1.0, 0.74, 0.42), saturate(k * 3.0)), mix(vec3f(0.92, 0.90, 0.84), vec3f(0.52, 0.76, 1.0), saturate(k * 3.0 - 2.0)), saturate(k * 3.0 - 1.0)); }
+fn winTint(k: f32) -> vec3f { return mix(mix(vec3f(1.0, 0.48, 0.14), vec3f(1.0, 0.64, 0.28), saturate(k * 3.0)), mix(vec3f(1.0, 0.80, 0.50), vec3f(0.88, 0.93, 1.0), saturate(k * 3.0 - 2.0)), saturate(k * 3.0 - 1.0)); }
 // the lit windows of a wall, from so far that only blocks of them can be told apart: one number a block (c metres of floors, 2c of bays),
 // blended to its neighbours; a block is lit when its number stands above th
 fn winCells(q: vec2f, c: f32, sd: f32, th: f32, rw: f32, tm: f32, warm: f32, acc: vec3f) -> vec3f {
@@ -645,13 +654,13 @@ fn winCells(q: vec2f, c: f32, sd: f32, th: f32, rw: f32, tm: f32, warm: f32, acc
   // every block has a slow clock of its own that carries it toward the line and back; one in ten goes right over it, on and off, and
   // now and then a whole floor does (lights going on and off somewhere at any moment, never many at once)
   let fr: f32 = fract(fl * 57.31);
-  let k: f32 = mix(n, fl, 0.5) + (0.045 + 0.40 * smoothstep(0.86, 0.92, m)) * clamp(2.5 * sin(tm * (0.14 + 0.5 * n) + m * 41.0 + n * 9.0), -1.0, 1.0)
+  let k: f32 = mix(n, fl, 0.6) + (0.045 + 0.40 * smoothstep(0.86, 0.92, m)) * clamp(2.5 * sin(tm * (0.14 + 0.5 * n) + m * 41.0 + n * 9.0), -1.0, 1.0)
     + 0.16 * smoothstep(0.80, 0.90, fr) * clamp(2.5 * sin(tm * (0.10 + 0.25 * fract(fl * 13.7)) + fl * 50.0), -1.0, 1.0);
   let lt: f32 = smoothstep(th - rw, th + rw, k);
   var c3: vec3f = winTint(saturate(warm + (fl - 0.5) * 0.7 + (m - 0.5) * 0.35));
-  c3 = mix(c3, acc * 1.4, smoothstep(0.92, 0.96, m) * 0.85);
+  c3 = mix(c3, acc * 1.4, smoothstep(0.975, 0.99, m) * 0.6);       // (a coloured room is a rare thing)
   // (and the eleven kilometres of air between make every one of them tremble a little)
-  return c3 * (lt * (0.45 + 1.1 * m * m) * (1.0 + 1.8 * smoothstep(0.86, 1.0, n)) * (0.91 + 0.09 * sin(tm * (4.0 + 6.0 * m) + n * 61.0)));
+  return c3 * (lt * (0.45 + 1.1 * m * m) * (1.0 + 1.3 * smoothstep(0.86, 1.0, n)) * (0.91 + 0.09 * sin(tm * (4.0 + 6.0 * m) + n * 61.0)));
 }
 `;
   const faceVS = `
@@ -716,7 +725,7 @@ fn frag(v: VOut) -> FOut { var o: FOut; o.color = vec4f(0.0);
     // (the bigger the block, the more windows in it, and the less it is simply lit or dark)
     let rw: f32 = 0.09 + 0.05 * L;
     // (and under the blocks that can be told apart, the even glow of all the windows that cannot)
-    col = (mix(winCells(q, c0, seed, th, rw, tm, v.mi.w, v.cb.rgb), winCells(q, c0 * 2.0, seed + 0.37, th, rw, tm, v.mi.w, v.cb.rgb), L - l0) + winTint(v.mi.w) * (0.4 * sh))
+    col = (mix(winCells(q, c0, seed, th, rw, tm, v.mi.w, v.cb.rgb), winCells(q, c0 * 2.0, seed + 0.37, th, rw, tm, v.mi.w, v.cb.rgb), L - l0) + winTint(v.mi.w) * (0.24 * sh))
       * v.ca.rgb * (v.ca.w * M.q.x * nb * (1.0 + (M.r.y - 1.0) * dk) * smoothstep(0.0, 0.06, lvl));
   } else if (kind < 1.5) {
     // a wall that is a screen: bands of colour climbing it, two colours chasing each other up it, or a bar of light sweeping it
@@ -752,7 +761,9 @@ fn frag(v: VOut) -> FOut { var o: FOut; o.color = vec4f(0.0);
     if (v.cb.w > 1.5) { c3 *= 0.2 + 0.8 * smoothstep(-0.3, 0.1, w2); } else if (v.cb.w > 0.5) { c3 = mix(v.ca.rgb, v.cb.rgb, smoothstep(-0.2, 0.2, w2)); }
     col = c3 * (pow(wpx, -0.42) * v.ca.w * M.r.x * (1.0 + (M.r.z - 1.0) * dk) * lvl);
   }
-  o.color = vec4f(mix(vec3f(luma(col)), col, M.s.x) * (air * M.p.z), 0.0); return o; }`;
+  // (the night's colour setting calms the coloured light: screens, lines and signs. Windows and floodlit stone keep their warmth)
+  let sx: f32 = select(M.s.x, mix(1.0, M.s.x, 0.25), kind < 0.5 || (kind > 2.5 && kind < 3.5));
+  o.color = vec4f(mix(vec3f(luma(col)), col, sx) * (air * M.p.z), 0.0); return o; }`;
   const spotVS = `
 fn vert(a: VIn) -> VOut {
   var v: VOut;
@@ -857,30 +868,11 @@ fn frag(v: VOut) -> FOut { var o: FOut; o.color = vec4f(0.0);
   // tb: how far off the line of sight ends in the deck (roughly, to begin with)
   var col: vec3f = vec3f(0.0); var tb: f32 = 1e9; if (sl < -0.003) { tb = ${f(HP)} / -sl; }
   if (d.y < -0.034 && d.y > -0.185) {
-    // ---- the deck, lit from below and by the walls that stand in it. The line of sight is walked down through the billows to the first
-    // one it meets, step for step as the cloud sea does it (cloudSea, 05_sky.js), so that the light lies on the cloud that is drawn there
-    let dy: f32 = -d.y; let drift: vec2f = vec2f(U.skyP.y * 9000.0, U.skyP.y * 2500.0);
-    let t1: f32 = C_DECK / dy; let t0: f32 = (C_DECK - 260.0) / dy;
-    let lod: f32 = log2(max(t0 * pxa / sqrt(dy) / 33.0, 1.0));
-    var fh: f32 = 1.0; var fp: f32 = 0.0; var dp: f32 = 1.0 - deckA(d.xz * t0 + drift, lod);
-    if (dp <= 0.0) { fh = 0.0; }
-    else {
-      for (var i: i32 = 1; i <= 14; i++) {
-        let fq: f32 = f32(i) / 14.0;
-        let dq: f32 = (1.0 - fq) - deckA(d.xz * mix(t0, t1, fq) + drift, lod);
-        if (dq <= 0.0) {
-          var fa: f32 = fp; var da: f32 = dp; var fb: f32 = fq; var db: f32 = dq;
-          for (var j: i32 = 0; j < 2; j++) {
-            let fm: f32 = fa + (fb - fa) * da / (da - db);
-            let dm: f32 = (1.0 - fm) - deckA(d.xz * mix(t0, t1, fm) + drift, lod);
-            if (dm > 0.0) { fa = fm; da = dm; } else { fb = fm; db = dm; }
-          }
-          fh = fa + (fb - fa) * da / (da - db); break;
-        }
-        dp = dq; fp = fq;
-      }
-    }
-    let tt: f32 = mix(t0, t1, fh); tb = tt * hl;
+    // ---- the deck, lit from below and by the walls that stand in it: the light lies where the line of sight meets the cloud that is
+    // drawn there (the cloud sea's own panorama of distances, seaRange in 05_sky.js)
+    let dy: f32 = -d.y;
+    let tt: f32 = seaRange(d); tb = tt * hl;
+    let fh: f32 = 1.0 - saturate((C_DECK - dy * tt) / ${f(SEA.top)});
     let rel: vec2f = d.xz * tt - vec2f(${f(C[0])}, ${f(C[1])});
     let guv: vec2f = vec2f((dot(rel, vec2f(${f(Uu[0])}, ${f(Uu[1])})) - ${f(V.glU0)}) / ${f(V.glU1 - V.glU0)}, (dot(rel, vec2f(${f(Ww[0])}, ${f(Ww[1])})) - ${f(V.glW0)}) / ${f(V.glW1 - V.glW0)});
     if (guv.x > 0.0 && guv.x < 1.0 && guv.y > 0.0 && guv.y < 1.0) {
@@ -890,10 +882,11 @@ fn frag(v: VOut) -> FOut { var o: FOut; o.color = vec4f(0.0);
       let lg: f32 = log2(max(fw / ${f((V.glU1 - V.glU0) / V.glN)}, 1.0));
       var g3: vec3f = (texLod(tGlow, guv - gs, lg).rgb + texLod(tGlow, guv, lg).rgb + texLod(tGlow, guv + gs, lg).rgb) * (1.0 / 3.0);
       g3 *= smoothstep(0.0, 0.06, guv.x) * smoothstep(1.0, 0.94, guv.x) * smoothstep(0.0, 0.06, guv.y) * smoothstep(1.0, 0.94, guv.y);
-      // every quarter's colour breathes a little
-      let br: vec3f = vec3f(1.0) + 0.16 * sin(vec3f(0.0, 2.1, 4.2) + (M.p.w * 0.23 + dot(rel, vec2f(0.0011, 0.0007))));
+      // the light under the cloud is never quite still (traffic, the cloud itself thinning and thickening): it swells and sinks a
+      // little from place to place, in brightness only
+      let br: f32 = 1.0 + 0.12 * sin(M.p.w * 0.23 + dot(rel, vec2f(0.0011, 0.0007))) * sin(M.p.w * 0.11 + dot(rel, vec2f(-0.0006, 0.0013)));
       // (what comes on first, while it is still day, is the street lamps: sodium)
-      g3 = mix(g3, vec3f(1.0, 0.55, 0.22) * (1.3 * max(g3.r, max(g3.g, g3.b))), 0.8 * M.p.y);
+      g3 = mix(g3, vec3f(1.0, 0.52, 0.17) * (1.3 * max(g3.r, max(g3.g, g3.b))), 0.8 * M.p.y);
       // the billows' tops catch the most of it (1 - fh: how high on the billow the eye's line ends)
       col = g3 * br * ((0.50 + 0.50 * (1.0 - fh)) * exp(-tt / 26000.0) * (1.0 - twA * smoothstep(tb + 250.0, tb - 150.0, twD)) * M.q.y);
     }
