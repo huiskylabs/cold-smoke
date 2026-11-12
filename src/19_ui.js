@@ -53,6 +53,7 @@ const UI = (() => {
     Input.onFlip = () => U.layout();
     initSwitch();
     initSplits();
+    initVariants();
   };
   // how the frame lies: wide or tall, turned or not; the stylesheet does the rest
   U.layout = function () {
@@ -246,6 +247,9 @@ const UI = (() => {
     // (each figure keeps the width of its whole value while it runs up to it, so nothing beside it moves)
     for (const f of d.f) f.el.style.minWidth = f.el.offsetWidth + 'px';
     for (const f of d.f) f.el.textContent = fmt(0, f.dp);
+    // (held in the hands it stands high, out from under the thumbs: on the left, or mirrored on the right while the sun is in the left half)
+    let r = false; if (U.hh) try { const g = Render.G, o = GOFF.sunScr; r = g[o + 2] > 0 && g[o] < 0.5; } catch (e) { }
+    el.day.classList.toggle('r', r);
     el.day.classList.remove('on', 'held'); void el.day.offsetWidth; el.day.classList.add('on'); el.app.classList.add('daycard');
   }
   function dayFrame(dt) {
@@ -284,6 +288,7 @@ const UI = (() => {
     document.addEventListener('visibilitychange', () => { if (document.hidden) { letGo(); U.pause(); } });
     // a mountain named in the address while the page is open (a link followed, the back button) is gone to as well
     addEventListener('hashchange', () => { const m = /^#seed-(\d{1,9})$/.exec(location.hash); if (m && +m[1] !== Course.seed) U.newMountain(+m[1]); });
+    if (App.onMountain) App.onMountain.push(onMountain);          // (the page's own listener takes a link followed first: this hears of that change too)
   }
   // the two moves under the thumb. Each button keeps the finger that pressed it (captured: sliding off it neither lets go nor reaches the
   // picture, where a press would begin to steer); a tap shorter than a frame is held until one step of the game has seen it
@@ -299,6 +304,7 @@ const UI = (() => {
     if (!el) return; if (on == null) on = !U.open; if (on === U.open) return;
     U.open = on; if (on) { paint(); el.say.classList.remove('on'); sayT = 0; }
     el.sw.classList.toggle('open', on); el.swp.classList.toggle('on', on); el.sw.setAttribute('aria-expanded', on ? 'true' : 'false');
+    el.app.classList.toggle('swopen', on);          // (the thumbs' two buttons step aside under the open sheet)
   };
   // what a key changed, said once (the open sheet shows it itself)
   function say(k, v) { if (!el || U.open) return; el.sayK.textContent = k; el.sayV.textContent = v || ''; el.say.classList.add('on'); sayT = 2.4; }
@@ -323,6 +329,7 @@ const UI = (() => {
     el.view.hidden = !vs; el.mt.hidden = !mt; el.more.hidden = !vs && !mt;
     if (vs) { const v = vs.find(q => q.id === Game.view) || vs[0], n = v.name || String(v.id); if (el.vn.textContent !== n) el.vn.textContent = n; }
     if (mt) { const n = '#' + Course.seed; if (el.seed.textContent !== n) el.seed.textContent = n; }
+    paintVariants();
   }
 
   // ---- the hour. It is turned to, not cut to: the clock is run the short way round to the hour asked for in a second or two (the sun
@@ -337,6 +344,59 @@ const UI = (() => {
     paint(); say('时间', id === 'auto' ? '自动' : (TIMES.find(q => q[0] === id) || [])[1]);
   };
   U.nextTime = function (dir) { const i = TIMES.findIndex(q => q[0] === (U.tod === 'auto' ? hour() : U.tod)); U.setTime(TIMES[(i + (dir || 1) + TIMES.length) % TIMES.length][0]); };
+
+  // ---- the weather (Weather, where this build has it: its own levels, eased by itself), beside the hour; X steps through it
+  const wxMod = () => { try { return typeof Weather !== 'undefined' && Weather && Array.isArray(Weather.levels) && Weather.levels.length && typeof Weather.set === 'function' ? Weather : null; } catch (e) { return null; } };
+  U.setWeather = function (id) {
+    const W = wxMod(); if (!W || !live()) return; const l = W.levels.find(q => q[0] === id); if (!l) return;
+    try { W.set(id); } catch (e) { console.warn(e); }
+    paint(); say('天气', l[1]);
+  };
+  U.nextWeather = function (dir) { const W = wxMod(); if (!W) return; const L = W.levels, i = Math.max(0, L.findIndex(q => q[0] === W.level)); U.setWeather(L[(i + (dir || 1) + L.length) % L.length][0]); };
+
+  // ---- the versions the owner picks between: one row for each choice in Variants, in the order the modules register them (one that
+  // registers late gets its row then), the current version underlined like the hour, the recommended one marked with a grain of snow.
+  // A press switches at once (each module eases its own change); 恢复推荐 puts every choice back to the recommended version
+  let vSig = null, wxSig = null;
+  const varMod = () => { try { return typeof Variants !== 'undefined' && Variants && Array.isArray(Variants.defs) ? Variants : null; } catch (e) { return null; } };
+  function initVariants() {
+    el.vers = $('sw-vers'); el.vbox = $('sw-vbox'); el.vrows = $('sw-vrows'); el.vreset = $('sw-vreset'); el.wx = $('sw-wx'); el.wxc = $('sw-wxc');
+    const V = varMod(); if (V && V.on) V.on(() => { if (U.open) paint(); });          // (a choice registered or changed elsewhere: shown at once)
+    el.swp.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return; const d = b.dataset, V = varMod();
+      if (d.vn) { if (V) try { V.set(d.vn, d.vid); } catch (err) { console.warn(err); } paint(); }
+      else if (d.vreset) { if (V && V.reset) try { V.reset(); } catch (err) { console.warn(err); } paint(); }
+      else if (d.wx) U.setWeather(d.wx);
+    });
+    // the one part of the page that scrolls: the page's own guard against it (on #app) is kept out of this box
+    el.vbox.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
+    el.vbox.addEventListener('scroll', vFade, { passive: true });
+    addEventListener('keydown', e => { if (e.code !== 'KeyX' || e.repeat || e.metaKey || e.ctrlKey || e.altKey || U.paused || U.gone || !live()) return; U.nextWeather(e.shiftKey ? -1 : 1); });
+  }
+  // a fade at whichever edge has more rows beyond it
+  function vFade() { const b = el.vbox, top = b.scrollTop > 2, more = b.scrollTop + b.clientHeight < b.scrollHeight - 2; b.classList.toggle('less', top); b.classList.toggle('more', more); }
+  function paintVariants() {
+    const V = varMod(), defs = V ? V.defs : [];
+    const sig = defs.map(d => [d.name, d.label, d.def].concat(d.opts.map(o => o[0] + ':' + o[1])).join('|')).join(';');
+    if (sig !== vSig) {
+      vSig = sig; el.vrows.textContent = ''; let w = 0;
+      for (const d of defs) {
+        const row = document.createElement('div'), lab = document.createElement('span'), ch = document.createElement('div');
+        row.className = 'row'; lab.className = 'lab'; lab.textContent = d.label; ch.className = 'chips'; w = Math.max(w, [...String(d.label)].length);
+        for (const [id, name] of d.opts) { const b = mkBtn(name, 'vn', d.name); b.dataset.vid = id; if (id === d.def) { b.classList.add('rec'); b.title = '推荐'; } ch.appendChild(b); }
+        row.appendChild(lab); row.appendChild(ch); el.vrows.appendChild(row);
+      }
+      el.vbox.style.setProperty('--vlw', (w * 1.2 + 0.8).toFixed(1) + 'em');          // (all the version rows' chips start on one line)
+      el.vers.hidden = !defs.length;
+    }
+    let all = true;
+    for (const b of el.vrows.querySelectorAll('button')) { const on = !!V && V.val[b.dataset.vn] === b.dataset.vid; b.classList.toggle('on', on); if (on && !b.classList.contains('rec')) all = false; }
+    el.vreset.classList.toggle('idle', all);
+    const W = wxMod(), ls = W ? W.levels : [], ws = ls.map(l => l[0] + ':' + l[1]).join();
+    if (ws !== wxSig) { wxSig = ws; el.wxc.textContent = ''; for (const [id, name] of ls) el.wxc.appendChild(mkBtn(name, 'wx', id)); el.wx.hidden = !W; }
+    if (W) for (const b of el.wxc.children) b.classList.toggle('on', b.dataset.wx === W.level);
+    if (U.open) vFade();
+  }
 
   // ---- a change of place is a cut, and is shown as one: the picture dips to black, the skier is put there, the picture comes back.
   // (The black also covers the one long frame in which the snow of the new place is worked out.)
@@ -383,14 +443,15 @@ const UI = (() => {
 
   // ---- another mountain (the seeding itself is the course's: App.newMountain). The seed is written into the address as #seed-<n>
   function reflect(n) { if (n == null) return; const h = '#seed-' + n; try { if (location.hash !== h) history.replaceState(null, '', h); } catch (e) { try { location.hash = h; } catch (_) { } } }
+  // The change is App.swap's own single transition: its veil closes over the last picture, the new mountain is made behind it, and it lifts
+  // on the skier at the gate, pushing off again by itself if a run was on (no dip of ours on top of it: that showed the held picture between
+  // the two). What follows a change, however it came (the key, the sheet, a link followed), is onMountain's: App.onMountain calls it
   U.newMountain = function (seed) {
-    if (!live() || typeof App.newMountain !== 'function') return false;
-    return cutTo(() => {
-      const run = Game.mode === 'run'; let n = null; try { n = App.newMountain(seed); } catch (e) { console.warn(e); }
-      settle(); if (run && Game.mode === 'run' && Math.hypot(Game.s.v[0], Game.s.v[1], Game.s.v[2]) < 0.5) launch();          // (left standing at the gate: push off)
-      reflect(n != null ? n : Course.seed); say('山', '#' + Course.seed);
-    });
+    if (!live() || typeof App.newMountain !== 'function' || cut || App.swapping) return false;
+    try { App.newMountain(seed); } catch (e) { console.warn(e); return false; }
+    return true;
   };
+  function onMountain(n) { settle(); reflect(n); say('山', '#' + n); }
 
   // ---- the things otherwise met by chance, sent for
   U.animal = function (id) {
