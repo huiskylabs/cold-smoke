@@ -111,7 +111,10 @@ fn snowFly(p0: vec3f, v0: vec3f, t: f32, L: f32, tb: f32, vs: f32, wk: f32) -> F
 `;
 
 const Spray = (() => {
-  const P = { NP: 6144, NG: 16384, PF: 16, GF: 12, gain: 1, reach: 1.0, clots: 0.40, lens: 1.3, bump: 1.0, tear: 1.0, speck: 1.0, keyhole: 1.0, nearBlur: 0.75, shutter: true, streakMax: 0.06, crumb: 1.0, grainShutter: 4.0, shadows: true, enabled: true, stats: { puffs: 0, grains: 0 } };
+  const P = { NP: 6144, NG: 16384, PF: 16, GF: 12, gain: 1, reach: 1.0, clots: 0.40, lens: 1.3, bump: 1.0, tear: 1.0, speck: 1.0, keyhole: 1.0, nearBlur: 0.75, shutter: true, streakMax: 0.06, crumb: 1.0, grainShutter: 4.0, shadows: true, enabled: true, moonMix: 0, night: null, nt: 0, stats: { puffs: 0, grains: 0 } };
+  // the owner's choice: how much the moon shows of the snow in the air by night (the headlamp's share is the same in both). a: thin and dark blue,
+  // the lamp carries it; b: the moon lights the curtain too, silver-blue. (P.night: null = by the sun's height; a number holds it, for tests)
+  if (typeof Variants !== 'undefined') Variants.def('nspray', '夜间雪雾', [['a', '暗蓝头灯'], ['b', '月光亮些']], 'a');
   let gfx, puffBuf, grainBuf, puffCPU, grainCPU, pipePuff, pipePuffSun, pipeComp, pipeGrain, accTex, accT, sunTex, sunT, hw = 0, hh = 0;
   let ph = 0, gh = 0;                                    // ring heads
   const dirtyP = [], dirtyG = [];                        // [first, count] ranges written since the last upload
@@ -134,11 +137,11 @@ const Spray = (() => {
     pipePuffSun = gfx.pipeline({
       name: 'spraySun', lib: [SL.common, GROUND_SSL, FLIGHT_SSL, PUFF_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'add4', colorFormat: 'rgba16f',
       buffers: [{ instanced: true, attrs: [['a0', 'vec4f'], ['a1', 'vec4f'], ['a2', 'vec4f'], ['a3', 'vec4f']] }],
-      varyings: { uv: 'vec2f', d0: 'vec4f' }, uniforms: { hx: 'vec4f' }, textures: { tH: 'fetch' },
+      varyings: { uv: 'vec2f', d0: 'vec4f' }, uniforms: { hx: 'vec4f', sn: 'vec4f' }, textures: { tH: 'fetch' },
       vs: PUFF_SUN_VS, fs: PUFF_SUN_FS,
     });
     pipeComp = gfx.pipeline({
-      name: 'sprayComposite', lib: [SL.common, SL.depth, SL.tnoise], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f' }, textures: { tSpray: '2d', tDepth: 'depth', tNoise: '2d' },
+      name: 'sprayComposite', lib: [SL.common, SL.depth, SL.tnoise], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', c: 'vec4f' }, textures: { tSpray: '2d', tDepth: 'depth', tNoise: '2d' },
       depth: false, depthTest: false, cull: 'none', blend: 'trans', vs: VS_FULLSCREEN, fs: SPRAY_COMP_FS,
     });
     pipeGrain = gfx.pipeline({
@@ -383,7 +386,9 @@ const Spray = (() => {
     upload(puffBuf, puffCPU, dirtyP, P.PF); upload(grainBuf, grainCPU, dirtyG, P.GF);
     const hb = Terrain.heightBinding(R.origin, 1); P.hb = hb;
     gfx.beginPass(sunT, { color: [0, 0, 0, 0] });
-    if (P.enabled && P.shadows) gfx.draw(pipePuffSun, { u: { hx: hb.xf }, tex: { tH: hb.tex }, vb: [puffBuf], count: 4, instances: P.NP });
+    // night: 0 by day, at golden hour and at dusk (they keep the look they had), 1 once the sun is well under (see the end of SPRAY_COMP_FS)
+    P.nt = P.night != null ? P.night : smooth(-0.07, -0.16, Sky.sunElev);
+    if (P.enabled && P.shadows) gfx.draw(pipePuffSun, { u: { hx: hb.xf, sn: [1 - 0.6 * P.nt, 0, 0, 0] }, tex: { tH: hb.tex }, vb: [puffBuf], count: 4, instances: P.NP });
     gfx.endPass();
   };
   P.offscreen = function (R) {
@@ -394,8 +399,11 @@ const Spray = (() => {
   P.fx = function (R) {
     if (!P.enabled) return;
     const o = R.origin, wr = (x, f) => ((x * f) % 256 + 256) % 256;
-    gfx.draw(pipeComp, { u: { p: [hw, hh, P.bump, P.tear], q: [wr(o[0], 3.1), wr(o[1], 3.1), wr(o[2], 3.1), P.speck], r: [P.keyhole, 0, 0, 0] }, tex: { tSpray: accTex, tDepth: R.depth, tNoise: Tex.noise }, count: 3 });
-    gfx.draw(pipeGrain, { u: { hx: P.hb.xf, gp: [P.crumb, P.grainShutter, 0, 0] }, tex: { tH: P.hb.tex, tDepth: R.depth, tShadow: R.shadowTex, tSunTau: sunTex }, vb: [grainBuf], count: 4, instances: P.NG });
+    const nt = P.nt || 0, az = typeof Vista !== 'undefined' && Vista.cityAz != null ? Vista.cityAz : 0;
+    // (the owner's choice between the two nights is eased, not switched)
+    { const want = typeof Variants !== 'undefined' && Variants.val.nspray === 'b' ? 1 : 0; P.moonMix = R.dt > 0 ? damp(P.moonMix, want, 6, R.dt) : want; }
+    gfx.draw(pipeComp, { u: { p: [hw, hh, P.bump, P.tear], q: [wr(o[0], 3.1), wr(o[1], 3.1), wr(o[2], 3.1), P.speck], r: [P.keyhole, nt, P.moonMix, 0], c: [Math.sin(az), -Math.cos(az), 0, 0] }, tex: { tSpray: accTex, tDepth: R.depth, tNoise: Tex.noise }, count: 3 });
+    gfx.draw(pipeGrain, { u: { hx: P.hb.xf, gp: [P.crumb, P.grainShutter, nt, P.moonMix] }, tex: { tH: P.hb.tex, tDepth: R.depth, tShadow: R.shadowTex, tSunTau: sunTex }, vb: [grainBuf], count: 4, instances: P.NG });
   };
   return P;
 })();
@@ -532,7 +540,8 @@ fn vert(a: VIn) -> VOut {
   let corner: vec2f = vec2f(f32(a.vid & 1u), f32((a.vid >> 1u) & 1u)) * 2.0 - 1.0;
   let c: vec4f = U.shadowVP * vec4f(s.pos, 1.0);
   v.clip = vec4f((c.xy + corner * (s.r * 1.15 / U.misc.w)) * U.sprayT.x - U.sprayT.yz, 0.5, 1.0);
-  v.uv = corner; v.d0 = vec4f(s.dens, (c.z - U.sprayT.w) * 1199.0, 0.0, 0.0);
+  // (M.sn.x: by night the moon's shadow of the cloud is as thin as the cloud is shown: a veil that can hardly be seen does not lay black blotches on the snow)
+  v.uv = corner; v.d0 = vec4f(s.dens * M.sn.x, (c.z - U.sprayT.w) * 1199.0, 0.0, 0.0);
   return v;
 }`;
 const PUFF_SUN_FS = `
@@ -596,7 +605,8 @@ fn frag(v: VOut) -> FOut {
   { let pc: vec4f = U.viewProj * vec4f(U.player.xyz + vec3f(0.0, 0.9, 0.0), 1.0);
     let dp: vec2f = (ndc - pc.xy / max(pc.w, 0.1)) * vec2f(U.camUp.w, 0.8);
     let hole: f32 = (1.0 - smoothstep(0.20, 0.62, length(dp))) * step(0.1, pc.w) * smoothstep(0.3, -0.5, zr) * M.r.x;
-    let cap: f32 = mix(40.0, 1.05, hole);
+    // (by night the figure is a dark shape with a lamp on it, and takes less veiling than the bright figure of the day does)
+    let cap: f32 = mix(40.0, mix(1.05, 0.6, M.r.y), hole);
     tau = cap * (1.0 - exp(-tau / cap)); }
   if (tau < 0.00002) { return o; }
   let T: f32 = exp(-tau);
@@ -636,7 +646,43 @@ fn frag(v: VOut) -> FOut {
   col += (amb + glow) * (1.0 - T);
   // (and whatever of it hangs in the beam of the headlamp)
   if (U.lamp.w > 0.0) { col += lampLight(U.camPos.xyz + d * (zm / max(dot(d, U.camFwd.xyz), 0.2))) * ((1.0 - T) * 0.55); }
-  o.color = vec4f(col, T);
+  var To: f32 = T;
+  // ---- by night none of the above will do. Those are the sun's formulas, and with the moon's light put through them (it is as grey as the
+  // sun's is, and it hangs over the valley ahead, so the lens looks against it all night) the cloud was a bright grey fog on dark blue snow,
+  // with the figure a ghost behind it and every shaded part of it a dark blotch. By night snow in the air shows where something lights it: in
+  // the cone of the headlamp it glows and sparkles; the moon gives it a cold, faint edge; the town far off, a trace. The rest of it is all but
+  // unseen: what a veil that swallows no light takes out of the dark behind it, it gives back from the dark around it. So there it is thin,
+  // and as blue as the night is. (M.r.y: 0 by day, at golden hour and at dusk, which keep every digit of the above; 1 in the night proper)
+  if (M.r.y > 0.0) {
+    let tn: f32 = tau * mix(0.55, 0.75, M.r.z); let Tn: f32 = exp(-tn);
+    let moon: vec3f = U.sunCol.rgb * vec3f(0.56, 0.78, 1.16) * (vis * mix(1.0, 2.1, M.r.z));
+    // (against the moon the veil has a silver edge: it does not blaze as it does against the sun)
+    let S1n: f32 = wbk * tn * Tn + (wsd * (1.0 - Tn) + wfr * 0.5 * (1.0 - Tn * Tn)) * 0.5;
+    var cn: vec3f = moon * (min(ph, 1.4) * S1n * 0.8 + (1.0 - Tn) * mix(0.16, 0.55 * wrapD, smoothstep(0.25, 1.8, tn)));
+    // the dark around it: the sky, and the moonlit slope it hangs over, which is the largest light there is by night (a veil over that
+    // snow has that snow's brightness, give or take: shaded with the sky alone it stood on the slope as a wall of dark smoke)
+    cn += (U.ambSky.rgb * (1.1 + 0.6 * up) + U.ambGnd.rgb * 0.95 + moon * (0.05 * deep)) * (1.0 - Tn);
+    // the town: a trace of its warmth in whatever hangs toward it
+    cn += vec3f(1.0, 0.50, 0.42) * (0.0045 * U.skyP.z * (0.35 + 0.65 * sq(saturate(dot(d.xz, M.c.xy)))) * (1.0 - Tn));
+    // the headlamp. It is the one light close enough to show how much snow there is, so it sees all of it (not the thinned veil).
+    // Thin snow passes the beam on, most of it straight ahead: looked at against the lamp it blazes, from behind the lamp it glows.
+    // Thick snow is a white face turned to the lamp. And it is crystals: here and there one of them throws the lamp straight back.
+    if (U.lamp.w > 0.0) {
+      let P1: vec3f = U.camPos.xyz + d * (zm / max(dot(d, U.camFwd.xyz), 0.2));
+      // (the cone, and round the skier what the lamp spills sideways and what its pool on the snow throws back up: the turn's own snow is
+      // beside and behind the lamp, never in its cone, and without this the skier's light did not touch the snow the skier throws)
+      let dl: vec3f = P1 - U.lamp.xyz; let r2: f32 = dot(dl, dl); let cl: f32 = dot(dl, U.lampDir.xyz) / sqrt(max(r2, 1e-4));
+      let E: vec3f = lampLight(P1) + vec3f(1.0, 0.85, 0.64) * (U.lamp.w * 0.035 * smoothstep(-0.6, 0.3, cl) / (r2 + 6.0));
+      let ml: f32 = dot(d, -dl) / sqrt(max(r2, 1e-4));
+      // (the peak is held down: unheld, the whole cloud burnt out to one white shape against the lamp, thick and thin alike. Held, the thick
+      // of it stands dark in a bright rim, as snow against a light does. And it is in thin snow that single crystals show)
+      let phl: f32 = min((0.50 * hg(ml, 0.86) + 0.38 * hg(ml, 0.40) + 0.12 * hg(ml, -0.30)) * 12.566, 3.5);
+      let glit: f32 = smoothstep(0.74, 1.0, s1) * smoothstep(0.45, 1.0, s2) * 8.0 * sharp * (1.0 - 0.6 * smoothstep(0.6, 2.5, tau));
+      cn += E * ((phl * tau * T + (1.0 - T) * mix(0.30, 0.60, saturate(0.5 - 0.5 * ml))) * (1.0 + glit));
+    }
+    col = mix(col, cn, M.r.y); To = mix(T, Tn, M.r.y);
+  }
+  o.color = vec4f(col, To);
   return o;
 }`;
 
@@ -665,11 +711,21 @@ fn vert(a: VIn) -> VOut {
       let vis: f32 = shadowFast(pos, 0.0015) * visC;
       // every one of them is a crumb of snow with a size of its own (most a few millimetres, a few the size of a hazelnut)
       let rc: f32 = (0.0032 + 0.011 * pow(fract(seed * 7.77), 3.0)) * (0.5 * U.res.y / U.camRight.w) / zv;
-      g = glintQuad(corner, pos, vel, seed, power, vis, min(rc, 0.006 * U.res.y), M.gp.y);
+      // (by night, M.gp.z: the moon's sparks are fewer and fainter, the lamp's flashes carry it. glintQuad's moon light goes with power * vis,
+      // its lamp light with power alone)
+      let nt: f32 = M.gp.z; let pm: f32 = mix(1.0, 2.2, nt);
+      g = glintQuad(corner, pos, vel, seed, power * pm, vis * mix(1.0, mix(0.40, 0.80, M.gp.w) / 2.2, nt), min(rc, 0.006 * U.res.y), M.gp.y);
       let foot: f32 = 3.14159 * g.shp.y * g.shp.y + 4.0 * g.shp.y * g.shp.x;
       // (one that is down in the shade of the cloud is lost in it: it is the ones flung clear, in the sun, that show. And the ones that go
       // past within a few strides of the lens are a blur of a blur: left in, they are bars across the sky, like rain on the glass)
       cc = vec4f(U.sunCol.rgb * (0.08 + 0.66 * vis) + U.ambSky.rgb * 1.5, min(1.0, 3.14159 * rc * rc / max(foot, 1e-3)) * 0.92 * fade * smoothstep(0.30, 0.85, vis) * smoothstep(2.4, 5.2, zv) * M.gp.x);
+      // (by night a crumb is as cold and faint as the veil it flies in, unless the lamp has it: left as by day, they were dark pepper on a bright fog)
+      if (nt > 0.0) {
+        let ll: vec3f = lampLight(pos);
+        let cn: vec3f = U.sunCol.rgb * vec3f(0.56, 0.78, 1.16) * ((0.05 + 0.36 * vis) * mix(1.0, 2.1, M.gp.w)) + U.ambSky.rgb * 1.3 + U.ambGnd.rgb * 0.6 + ll * 0.8;
+        let an: f32 = min(1.0, 3.14159 * rc * rc / max(foot, 1e-3)) * 0.92 * fade * max(smoothstep(0.30, 0.85, vis), saturate(ll.x * 6.0)) * smoothstep(2.4, 5.2, zv) * M.gp.x;
+        cc = mix(cc, vec4f(cn, an), nt);
+      }
     }
   }
   v.clip = g.clip; v.uv = g.uv; v.shp = g.shp; v.col = g.col; v.cc = cc;
