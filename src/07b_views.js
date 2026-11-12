@@ -21,9 +21,33 @@
     // climb to at the most (1 = the top edge); fovK: how much the lens opens with speed; rollK: how much of the body's lean tips the horizon; follow: how far the eyes go
     // with the skis; near: how close it draws (m); arm: how much higher and further forward the hands are carried, so that it sees them (m: up, ahead;
     // armT: that much more again in a full tuck, fists out in front of the chin); turn: how far the lens leaves the middle of the helmet as the head bows (m)
-    fp: { fov: 1.52, fovK: 0.10, tilt: -0.16, tips: 0.90, sky: 0.76, rollK: 0.34, follow: 0.8, up: 0.03, near: 0.10, arm: [0.03, 0.10], armT: [0.12, 0.16], turn: 0.15 },
+    fp: { fov: 1.52, fovK: 0.10, tilt: -0.16, tips: 0.90, sky: 0.76, rollK: 0.34, follow: 0.8, up: 0.03, near: 0.10, arm: [0.14, 0.14], armT: [-0.14, -0.03], turn: 0.15 },
+    // the ski tips: the lens rides low over the skis, between the knees and the tips, behind a wide glass; nothing of the skier shows but the
+    // two tips along the foot of the picture, and the snow they throw. The same numbers as first person, and: at: where it rides (m above the
+    // snow under the skier, m ahead of the boots); side: how far it goes over with the body's lean (m for each radian: nothing now, see centre); edge: how much more than
+    // elsewhere the edges of the picture should tear at speed (Game.viewEdge: for whoever draws that)
+    // (VD.tips holds the numbers as they are now: they are eased toward whichever of the three versions below is chosen)
+    tips: {},
   };
-  G.views = [{ id: 'chase', name: '追尾' }, { id: 'fp', name: '第一人称' }, { id: 'low', name: '贴雪' }, { id: 'high', name: '俯瞰' }, { id: 'left', name: '左侧' }, { id: 'right', name: '右侧' }, { id: 'front', name: '正面' }, { id: 'far', name: '远摄' }];
+  // Where that lens rides is the owner's to choose (Variants 'tips'): a, down among the knees, the tips large, as in the picture the view was asked
+  // from; b, at the thighs; c, in the helmet, first person without its hands. at: m above the snow under the skier, m ahead of the boots; pk: how far
+  // from the helmet toward that place it goes (0 = it stays in the helmet); slideY, slideMax: where the tips are held in the picture and how far
+  // the skis may be drawn forward to keep them there (07d_fpv.js); close: how far the skis are drawn in toward each other (m); gather, flat: how
+  // much of what a turn does to them is taken back there (the wider stance and the lead of the inside ski; the angle they are set on edge);
+  // centre: how far the lens goes across to keep the two tips either side of the middle; lens, blur: how near thrown snow is let come and how wide
+  // a veil it is spread into close by (10_spray.js); sink: how far under soft snow the skis run (m)
+  const TIPV = G.tipVersions = {
+    a: { fov: 1.64, fovK: 0.10, tilt: 0.0, tips: 0.56, sky: 0.80, rollK: 0.31, follow: 0.9, at0: 0.44, at1: 0.42, pk: 1, side: 0, centre: 0.8, edge: 1.6, slideY: -0.50, slideMax: 0.30, close: 0.04, gather: 1, flat: 0.55, lens: 0.06, blur: 0.04, sink: 0.020 },
+    b: { fov: 1.62, fovK: 0.10, tilt: -0.10, tips: 0.66, sky: 0.78, rollK: 0.32, follow: 0.9, at0: 0.68, at1: 0.36, pk: 1, side: 0, centre: 0.8, edge: 1.4, slideY: -0.58, slideMax: 0.34, close: 0.03, gather: 0.8, flat: 0.45, lens: 0.10, blur: 0.06, sink: 0.020 },
+    c: { fov: 1.60, fovK: 0.10, tilt: -0.16, tips: 0.86, sky: 0.76, rollK: 0.34, follow: 0.8, at0: 1.45, at1: 0.20, pk: 0, side: 0, centre: 0, edge: 1.25, slideY: -0.64, slideMax: 0.46, close: 0.02, gather: 0.5, flat: 0.25, lens: 0.5, blur: 0.4, sink: 0.020 },
+  };
+  // (and where the hands are carried in a tuck from the helmet, Variants 'fptuck': a low, under the line of sight; b up in front of the chin, as a racer holds them)
+  const TUCKV = G.tuckVersions = { a: [-0.14, -0.03], b: [-0.09, 0.01] };
+  const hasV = typeof Variants !== 'undefined';
+  if (hasV) { Variants.def('tips', '雪板尖机位', [['a', '贴板'], ['b', '大腿'], ['c', '头盔']], 'a'); Variants.def('fptuck', '俯冲手位', [['a', '压低'], ['b', '面前']], 'a'); }
+  const tipV = () => TIPV[hasV && Variants.val.tips] || TIPV.a, tuckV = () => TUCKV[hasV && Variants.val.fptuck] || TUCKV.a;
+  Object.assign(VD.tips, tipV()); VD.fp.armT = tuckV().slice();
+  G.views = [{ id: 'chase', name: '追尾' }, { id: 'fp', name: '第一人称' }, { id: 'tips', name: '雪板尖' }, { id: 'low', name: '贴雪' }, { id: 'high', name: '俯瞰' }, { id: 'left', name: '左侧' }, { id: 'right', name: '右侧' }, { id: 'front', name: '正面' }, { id: 'far', name: '远摄' }];
   G.view = 'chase';
 
   const wrap = a => a - TAU * Math.round(a / TAU);
@@ -33,8 +57,9 @@
   const B = { init: false, px: 0, pz: 0, yaw: 0, cyaw: 0, lean: 0, kick: 0, gy: 0, gv: 0, gPrev: 0, gInit: true, pit: 0, pInit: true, res: [0, 0, 0], focus: 7.5, near0: 0, shk: 0 };
   const look = G.look = { yaw: 0, pit: 0, ty: 0, tp: 0, idle: 9, hold: false, keys: {}, drag: null, touch: new Map(), two: false, on: false };
   // what is wanted, and where the rig has got to: tp = the third-person view underneath ('chase' = the chase camera itself once rigOn is false),
-  // tw = seconds since the rig was sent back to the chase camera, fpc = how far the lens is into the helmet (0..1)
-  let want = null, snap = false, tp = 'chase', rigOn = false, tw = 9, fpc = 0, fpOn = false;
+  // tw = seconds since the rig was sent back to the chase camera, fpc = how far the lens is into the helmet (0..1), tpc = how far it has gone on
+  // from the helmet down to its place over the skis (0..1: the view of the ski tips is reached through the helmet, and left through it)
+  let want = null, snap = false, tp = 'chase', rigOn = false, tw = 9, fpc = 0, fpOn = false, tpc = 0, tipOn = false;
   const mk = () => ({ p: [0, 0, 0], f: [0, 0, -1], fov: 1, roll: 0 });
   const D = mk(), R = mk(), C = mk(), O = mk(), CH = mk(), rel = mk(); let relOK = false;
 
@@ -171,14 +196,17 @@
 
   // ---- first person
   const F = { init: true, yaw: 0, pit: 0, roll: 0, hy: 0, hv: 0, hPrev: 0 }, pz = {}, HEAD0 = [0, 1.45, -0.2];
-  function fpPose(dt, o, cyw, vyaw, k) {
-    const v = VD.fp, p = root.pos;
+  const FV = {}, FK = ['fov', 'fovK', 'tilt', 'tips', 'sky', 'rollK', 'follow'];
+  function fpPose(dt, o, cyw, vyaw, k, tk) {
+    const v = FV, p = root.pos; for (const q of FK) v[q] = lerp(VD.fp[q], VD.tips[q], tk);
     // where the head is this frame (the figure is only posed after the camera, so its own record of itself is a frame old: 0.4 m at speed)
     // (should the figure ever be put together some other way, the view still has to stand: then the head is taken where the figure last had it, or where a head is)
     let sv = null, J = null; try { sv = Skier.solve(Object.assign(pz, Skier.P0, G.pose)); J = sv.J.head; } catch (_) { sv = null; }
     if (!J) { let w = null; try { w = Skier.world; } catch (_) { } J = w && w.J && w.J.head || HEAD0; sv = null; }
     const Y = v3.norm(root.nrm), X = v3.norm(v3.cross(Y, v3.mul(root.fwd, -1))), Z = v3.cross(X, Y);
-    const hx = p[0] + X[0] * J[0] + Y[0] * J[1] + Z[0] * J[2], hy = p[1] + X[1] * J[0] + Y[1] * J[1] + Z[1] * J[2] + v.up, hz = p[2] + X[2] * J[0] + Y[2] * J[1] + Z[2] * J[2];
+    // (the place over the skis rides with the snow under the skier and goes a little way over with the body in a turn)
+    const T = VD.tips, tq = tk * T.pk, tx = T.side * clamp(G.pose.lean || 0, -1.2, 1.2), jx = lerp(J[0], tx, tq), jy = lerp(J[1] + VD.fp.up, T.at0, tq), jz = lerp(J[2], -T.at1, tq);
+    const hx = p[0] + X[0] * jx + Y[0] * jy + Z[0] * jz, hy = p[1] + X[1] * jx + Y[1] * jy + Z[1] * jz, hz = p[2] + X[2] * jx + Y[2] * jy + Z[2] * jz;
     // the eyes look down the valley and go most of the way with the skis, a little late (the head stays quiet while the skis swing under it)
     const yT = B.cyaw + clamp((vyaw - B.cyaw) * v.follow, -1.0, 1.0);
     // ...and rest on the snow a few lengths ahead, further off the faster it goes: so they drop over a crest and into a landing, and lift at a rise
@@ -187,11 +215,14 @@
     // as long as that leaves a band of sky along the top
     // (how far below the level the tips lie is counted along the way the eyes face: with the head low and forward over them, or the skis swung
     // across, they are much further down the picture than their bare distance says)
-    let ta = 0; const fv = v.fov + v.fovK * k + B.kick, th = Math.tan(fv / 2), qs = Math.sin(qy), qc = Math.cos(qy);
+    let ta = 0, tn2 = 0; const fv = v.fov + v.fovK * k + B.kick, th = Math.tan(fv / 2), qs = Math.sin(qy), qc = Math.cos(qy), first = F.init || dt <= 0, mt = [0, 0, 0];       // (mt: half way between the two tips, from the lens)
     for (let i = 0; i < 2; i++) {
       const m = sv && sv.F && Skier.B && sv.F[i ? Skier.B.footR : Skier.B.footL]; if (!m) { ta += 0.52; continue; }
       const a = m[12] + m[4] * 0.125 - m[8] * 0.96, b = m[13] + m[5] * 0.125 - m[9] * 0.96, c = m[14] + m[6] * 0.125 - m[10] * 0.96;
       const dx = p[0] + X[0] * a + Y[0] * b + Z[0] * c - hx, dy = p[1] + X[1] * a + Y[1] * b + Z[1] * c - hy, dz = p[2] + X[2] * a + Y[2] * b + Z[2] * c - hz; ta += 0.5 * Math.atan2(-dy, Math.max(dx * qs - dz * qc, 0.05));
+      // (for that the tips are taken at the snow, on the skis' own lines: where their upper ends are goes over with their edges)
+      const ex = m[4] * 0.125, ey = m[5] * 0.125, ez = m[6] * 0.125;
+      mt[0] += 0.5 * (dx - X[0] * ex - Y[0] * ey - Z[0] * ez); mt[1] += 0.5 * (dy - X[1] * ex - Y[1] * ey - Z[1] * ez); mt[2] += 0.5 * (dz - X[2] * ex - Y[2] * ey - Z[2] * ez); tn2++;
     }
     const pT = clamp(Math.max(Math.min(Math.atan2(gq + 0.3 - hy, Lg) + v.tilt, Math.atan(v.tips * th) - ta), -Math.atan(v.sky * th)), -1.0, 0.3);
     if (F.init || dt <= 0) { F.yaw = yT; F.pit = pT; F.roll = -G.pose.lean * v.rollK; F.hy = hy; F.hv = 0; F.init = false; }
@@ -209,9 +240,19 @@
     // a head that bows or turns carries its eyes out over the chest: the further below the line of the skis they point (looking down at them, or at a
     // landing coming up) or the further round to the side, the further the lens leaves the middle of the helmet for the goggles, and the skier's own collar
     // and shoulders stay behind it (seen from the middle they would be cut open by the near plane, right under the lens)
-    const tn = v.turn * Math.max(smooth(0.3, 0.85, Math.asin(clamp(root.fwd[1], -1, 1)) - pt), smooth(0.05, 0.5, al)), fl = Math.hypot(root.fwd[0], root.fwd[2]) || 1;
+    const tn = VD.fp.turn * (1 - tq) * Math.max(smooth(0.3, 0.85, Math.asin(clamp(root.fwd[1], -1, 1)) - pt), smooth(0.05, 0.5, al)), fl = Math.hypot(root.fwd[0], root.fwd[2]) || 1;
     o.p[0] = hx + root.fwd[0] / fl * tn; o.p[1] = F.hy; o.p[2] = hz + root.fwd[2] / fl * tn;
     o.fov = fv; o.roll = F.roll * (1 - 0.6 * smooth(0.3, 0.95, al)) + vnoise1(t * 13, 8) * sh * 0.6;
+    // the lens over the skis rides between them: it is moved across (along the skier's own left-to-right) until the two tips stand either side of the
+    // middle of the picture's foot, so that when it tips with a turn it is about them that it tips, and the swing of the skis under a lens that turns
+    // a little later than they do does not carry them off to one side. (Most of the way, and a tenth of a second late: what the skis do stays theirs)
+    let cx = 0;
+    if (tq > 0 && tn2 === 2 && T.centre > 0) {
+      const f = o.f, rl = Math.hypot(f[0], f[2]) || 1, r0 = [-f[2] / rl, 0, f[0] / rl], u0 = v3.cross(r0, f), cr = Math.cos(o.roll), sr = Math.sin(o.roll), r = [r0[0] * cr + u0[0] * sr, r0[1] * cr + u0[1] * sr, r0[2] * cr + u0[2] * sr];
+      const den = v3.dot(X, r); if (Math.abs(den) > 0.3) cx = clamp((mt[0] * r[0] + (mt[1] + hy - F.hy) * r[1] + mt[2] * r[2]) / den, -0.5, 0.5) * T.centre * tq;
+    }
+    F.cx = first ? cx : damp(F.cx || 0, cx, 10, dt);
+    o.p[0] += X[0] * F.cx; o.p[1] += X[1] * F.cx; o.p[2] += X[2] * F.cx;
   }
   // in first person the hands are carried where a helmet camera sees them: a little higher and further forward, and in a tuck out in front of the chin.
   // It is added to what the game asked of the arms this frame, after it asked: nothing of it is kept (and should a pose ever not be asked afresh, what was
@@ -242,11 +283,11 @@
     const shc = 0.010 * k * k + G.shake;
     CH.p[0] = pos[0]; CH.p[1] = pos[1]; CH.p[2] = pos[2]; CH.f[0] = f[0]; CH.f[1] = f[1]; CH.f[2] = f[2]; CH.fov = cam.fov > 0 ? cam.fov : 1; CH.roll = (cam.roll || 0) + vnoise1(G.t * 13, 3) * shc * 0.5;
     // ---- a change of view asked for since the last frame
-    if (snap) { want = G.view; fpc = want === 'fp' ? 1 : 0; F.init = true; }
+    if (snap) { want = G.view; fpc = want === 'fp' || want === 'tips' ? 1 : 0; tpc = want === 'tips' ? 1 : 0; F.init = true; }
     if (want) {
-      if (want === 'fp') { if (fpc <= 0) F.init = true; fpOn = true; }
+      if (want === 'fp' || want === 'tips') { if (fpc <= 0) F.init = true; fpOn = true; tipOn = want === 'tips'; }
       else {
-        fpOn = false;
+        fpOn = false; tipOn = false;
         if (fpc >= 0.999 || snap) { tp = want; rigOn = want !== 'chase'; tw = 9; if (rigOn) place(); }           // from inside the helmet none of the rig shows: it is simply put where it is wanted
         else if (want === 'chase') { if (rigOn && tp !== 'chase') tw = 0; tp = 'chase'; }
         else {
@@ -257,10 +298,18 @@
       want = null;
     }
     snap = false;
-    fpc = clamp(fpc + (fpOn ? rdt : -rdt) / 0.42, 0, 1);
+    // (down to the skis only once the lens is nearly in the helmet, and out of the helmet only once it is most of the way back up from them)
+    tpc = clamp(tpc + (tipOn && fpc > 0.6 ? rdt : -rdt) / 0.36, 0, 1);
+    fpc = clamp(fpc + (fpOn || tpc > 0.35 ? rdt : -rdt) / 0.42, 0, 1);
+    const tk = smooth(0, 1, tpc);
+    // (a version chosen while it shows is gone over to in a third of a second, not jumped to)
+    { const tv = tipV(), T = VD.tips, e = 1 - Math.exp(-7 * rdt); for (const q in tv) T[q] += (tv[q] - T[q]) * e; const a = tuckV(), b = VD.fp.armT; b[0] += (a[0] - b[0]) * e; b[1] += (a[1] - b[1]) * e; }
+    // how much more than elsewhere this view would have the picture's edges tear at speed (1 = as everywhere)
+    G.viewEdge = 1 + (VD.tips.edge - 1) * tk * smooth(0.7, 1, fpc);
     // nothing of ours showing: the chase camera goes on as it was
     const rc = Render.cam; if (!B.near0) B.near0 = rc.near || 0.25;
     if (armsOn || fpc > 0) fpArms(smooth(0, 1, fpc));
+    if (typeof Fpv !== 'undefined') Fpv.tick(dt, fpc, tk);       // (the arms, poles and skis made for these two views: 07d_fpv.js)
     if (!rigOn && fpc <= 0 && !look.on) { if (typeof App !== 'undefined') App.state.focus = 0; B.focus = 7.5; relOK = false; rc.near = B.near0; return false; }
     // ---- third person: the chase camera, the rig, or (on the way home) the rig handing over to the chase camera
     if (!rigOn) copy(D, CH);
@@ -297,7 +346,7 @@
     // ---- first person, and the way into it: up over the helmet, then down into the eyes
     let out = D;
     if (fpc > 0) {
-      fpPose(dt, C, cyw, vyaw, k);
+      fpPose(dt, C, cyw, vyaw, k, tk);
       if (fpc >= 1) out = C;
       else {
         const sa = smooth(0, 0.75, fpc), sb = smooth(0.5, 1, fpc), so = smooth(0.15, 0.85, fpc), hov = 0.42;
@@ -312,7 +361,8 @@
     // (inside the helmet the picture is drawn from closer in, so that the hands and the poles just in front of the lens are whole; not before the lens
     // is inside, or the top of the helmet would show for a moment on the way down)
     rc.near = B.near0 + (VD.fp.near - B.near0) * smooth(0.7, 1, fpc);
-    Render.setCamera(out.p, [out.p[0] + out.f[0], out.p[1] + out.f[1], out.p[2] + out.f[2]], [0, 1, 0], out.fov, out.roll);
+    // (a tree gone by close tips the lens a little: the flinch, 07c_feel.js)
+    Render.setCamera(out.p, [out.p[0] + out.f[0], out.p[1] + out.f[1], out.p[2] + out.f[2]], [0, 1, 0], out.fov, out.roll + (typeof Feel !== 'undefined' && Feel.roll || 0));
     return true;
   };
 })();
