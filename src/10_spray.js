@@ -88,8 +88,30 @@ fn glintShade(uv: vec2f, shp: vec4f, col: vec4f) -> vec4f {
 }
 `;
 
+// The flight of thrown snow in closed form: nothing is stored but the launch, so it runs backwards, slows with the game clock and costs nothing.
+// Two motions added together:
+//  the THROW, along the launch direction, braked by the air the snow has to drag along with it: dv/dt = -v/tb - v*v/L. That is quadratic: a
+//    sheet that leaves the edge at 10 m/s has lost half its speed in a few tenths of a second and creeps to a stop L*ln(1 + s0*tb/L) from the ski;
+//  the FALL: gravity (and the wind) as they act on something that starts at rest in the air and nears its terminal speed vs with the time
+//    constant vs/g. A clot (vs 7 m/s) is nowhere near that speed before it lands: -g*t*t/2, a true arc. Smoke (vs 0.3 m/s) sifts down from the start.
+// (before this the only gravity was the terminal speed of a linear drag: everything, clots included, rose and fell at a tenth of g)
+const FLIGHT_SSL = `
+struct Fly { pos: vec3f, vel: vec3f, run: vec3f, }
+fn snowFly(p0: vec3f, v0: vec3f, t: f32, L: f32, tb: f32, vs: f32, wk: f32) -> Fly {
+  var f: Fly;
+  let s0: f32 = length(v0); let dir: vec3f = v0 / max(s0, 1e-4);
+  let eb: f32 = exp(-t / tb); let q: f32 = s0 * tb / L * (1.0 - eb);
+  let ts: f32 = max(vs / 9.81, 0.03); let es: f32 = exp(-t / ts);
+  let vT: vec3f = U.wind.xyz * wk + vec3f(0.0, -vs, 0.0);
+  f.run = dir * (L * log(1.0 + q));                                     // the path of the throw so far
+  f.pos = p0 + f.run + vT * (t - ts * (1.0 - es));
+  f.vel = dir * (s0 * eb / (1.0 + q)) + vT * (1.0 - es);
+  return f;
+}
+`;
+
 const Spray = (() => {
-  const P = { NP: 6144, NG: 16384, PF: 16, GF: 12, gain: 1, bump: 1.0, tear: 1.0, speck: 1.0, keyhole: 1.0, nearBlur: 0.75, shutter: true, streakMax: 0.06, crumb: 1.0, grainShutter: 4.0, shadows: true, enabled: true, stats: { puffs: 0, grains: 0 } };
+  const P = { NP: 6144, NG: 16384, PF: 16, GF: 12, gain: 1, reach: 1.0, clots: 0.40, lens: 1.3, bump: 1.0, tear: 1.0, speck: 1.0, keyhole: 1.0, nearBlur: 0.75, shutter: true, streakMax: 0.06, crumb: 1.0, grainShutter: 4.0, shadows: true, enabled: true, stats: { puffs: 0, grains: 0 } };
   let gfx, puffBuf, grainBuf, puffCPU, grainCPU, pipePuff, pipePuffSun, pipeComp, pipeGrain, accTex, accT, sunTex, sunT, hw = 0, hh = 0;
   let ph = 0, gh = 0;                                    // ring heads
   const dirtyP = [], dirtyG = [];                        // [first, count] ranges written since the last upload
@@ -101,7 +123,7 @@ const Spray = (() => {
     puffCPU = new Float32Array(P.NP * P.PF); grainCPU = new Float32Array(P.NG * P.GF);
     puffBuf = gfx.buffer(puffCPU, 'vertex', true); grainBuf = gfx.buffer(grainCPU, 'vertex', true);
     pipePuff = gfx.pipeline({
-      name: 'sprayPuff', lib: [SL.common, SL.depth, SL.shadow, SL.sprayTau, GROUND_SSL, PUFF_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'add4',
+      name: 'sprayPuff', lib: [SL.common, SL.depth, SL.shadow, SL.sprayTau, GROUND_SSL, FLIGHT_SSL, PUFF_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'add4',
       buffers: [{ instanced: true, attrs: [['a0', 'vec4f'], ['a1', 'vec4f'], ['a2', 'vec4f'], ['a3', 'vec4f']] }],
       varyings: { uv: 'vec2f', d0: 'vec4f', d1: 'vec4f', d2: 'vec4f' }, uniforms: { hx: 'vec4f', hx2: 'vec4f' },
       textures: { tH: 'fetch', tDepth: 'depth', tDetail: '2d', tShadow: 'shadow', tSunTau: '2d' },
@@ -110,7 +132,7 @@ const Spray = (() => {
     // the same puffs seen from the sun: optical depth and its depth moments, accumulated into a small map that follows the skier
     sunTex = gfx.texture({ w: Render.sprayRes, h: Render.sprayRes, format: 'rgba16f', filter: 'linear', wrap: 'clamp' }); sunT = gfx.target({ color: sunTex }); P.sunTex = sunTex;
     pipePuffSun = gfx.pipeline({
-      name: 'spraySun', lib: [SL.common, GROUND_SSL, PUFF_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'add4', colorFormat: 'rgba16f',
+      name: 'spraySun', lib: [SL.common, GROUND_SSL, FLIGHT_SSL, PUFF_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'add4', colorFormat: 'rgba16f',
       buffers: [{ instanced: true, attrs: [['a0', 'vec4f'], ['a1', 'vec4f'], ['a2', 'vec4f'], ['a3', 'vec4f']] }],
       varyings: { uv: 'vec2f', d0: 'vec4f' }, uniforms: { hx: 'vec4f' }, textures: { tH: 'fetch' },
       vs: PUFF_SUN_VS, fs: PUFF_SUN_FS,
@@ -120,7 +142,7 @@ const Spray = (() => {
       depth: false, depthTest: false, cull: 'none', blend: 'trans', vs: VS_FULLSCREEN, fs: SPRAY_COMP_FS,
     });
     pipeGrain = gfx.pipeline({
-      name: 'sprayGrain', lib: [SL.common, SL.depth, SL.shadow, SL.sprayTau, GROUND_SSL, GLINT_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'trans',
+      name: 'sprayGrain', lib: [SL.common, SL.depth, SL.shadow, SL.sprayTau, GROUND_SSL, FLIGHT_SSL, GLINT_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'trans',
       buffers: [{ instanced: true, attrs: [['a0', 'vec4f'], ['a1', 'vec4f'], ['a2', 'vec4f']] }],
       varyings: { uv: 'vec2f', shp: 'vec4f', col: 'vec4f', cc: 'vec4f' }, uniforms: { hx: 'vec4f', gp: 'vec4f' },
       textures: { tH: 'fetch', tDepth: 'depth', tShadow: 'shadow', tSunTau: '2d' },
@@ -143,20 +165,24 @@ const Spray = (() => {
   };
 
   function mark(list, i) { const l = list[list.length - 1]; if (l && l[0] + l[1] === i) l[1]++; else list.push([i, 1]); }
-  // launch record of one puff. p, v: world space. f: fineness 0 (coarse, heavy) .. 1 (smoke)
-  P.puff = function (t0, px, py, pz, vx, vy, vz, f, r0, dens, stretch, lifeK) {
+  // launch record of one puff. p, v: world space. f: fineness 0 (a heavy clot) .. 1 (smoke).
+  // Two numbers decide how it flies (see puffState): how far the air lets its throw carry (a clot ploughs on for metres; the fine part of
+  // the sheet has to drag the air along and is stopped within `brake` metres: more for a thick sheet than for a wisp), and the speed it
+  // falls at once the air has it (a clot 7 m/s: it never gets there, it flies a true arc under gravity; smoke 0.3 m/s: it hangs and sifts down)
+  P.puff = function (t0, px, py, pz, vx, vy, vz, f, r0, dens, stretch, lifeK, brake) {
     const o = Render.origin, i = ph * P.PF, c = puffCPU, u = rnd();
     c[i] = px - o[0]; c[i + 1] = py - o[1]; c[i + 2] = pz - o[2]; c[i + 3] = t0;
     c[i + 4] = vx; c[i + 5] = vy; c[i + 6] = vz; c[i + 7] = u;
-    c[i + 8] = lerp(1.25, 3.0, f); c[i + 9] = lerp(2.0, 0.28, f); c[i + 10] = lerp(0.8, 3.3, f) * (0.75 + 0.5 * rnd()) * (lifeK || 1); c[i + 11] = r0;
+    c[i + 8] = lerp(brake || 1.0, 6.0, Math.pow(1 - f, 2.5)); c[i + 9] = 0.28 + 6.9 * Math.pow(1 - f, 2.6); c[i + 10] = lerp(0.8, 3.3, f) * (0.75 + 0.5 * rnd()) * (lifeK || 1); c[i + 11] = r0;
     c[i + 12] = lerp(0.07, 0.30, f) * (0.7 + 0.6 * rnd()); c[i + 13] = dens; c[i + 14] = f; c[i + 15] = stretch;
     mark(dirtyP, ph); ph = (ph + 1) % P.NP; P.stats.puffs++;
   };
-  P.grain = function (t0, px, py, pz, vx, vy, vz, f, power, lifeK) {
+  // one crystal or crumb. f: 0 a crumb the size of a hazelnut (flies an arc, down in half a second) .. 1 a flake (rides the air of the sheet, sifts down)
+  P.grain = function (t0, px, py, pz, vx, vy, vz, f, power, lifeK, brake) {
     const o = Render.origin, i = gh * P.GF, c = grainCPU;
     c[i] = px - o[0]; c[i + 1] = py - o[1]; c[i + 2] = pz - o[2]; c[i + 3] = t0;
     c[i + 4] = vx; c[i + 5] = vy; c[i + 6] = vz; c[i + 7] = rnd();
-    c[i + 8] = lerp(0.45, 2.4, f); c[i + 9] = lerp(9.0, 0.55, f); c[i + 10] = lerp(0.9, 4.2, f) * (0.7 + 0.6 * rnd()) * (lifeK || 1); c[i + 11] = power;
+    c[i + 8] = lerp(brake || 1.2, 8.0, (1 - f) * (1 - f)); c[i + 9] = 0.45 + 8.5 * Math.pow(1 - f, 2.2); c[i + 10] = lerp(0.9, 4.2, f) * (0.7 + 0.6 * rnd()) * (lifeK || 1); c[i + 11] = power;
     mark(dirtyG, gh); gh = (gh + 1) % P.NG; P.stats.grains++;
   };
   function upload(buf, cpu, list, stride) {
@@ -171,30 +197,46 @@ const Spray = (() => {
   P.clear = function () { puffCPU.fill(0); grainCPU.fill(0); dirtyP.length = 0; dirtyG.length = 0; dirtyP.push([0, P.NP]); dirtyG.push([0, P.NG]); };
 
   // ---- emission: called once per physics substep (120 Hz) so trails stay continuous at any frame rate
-  const tmp = { I: 0 };
   P.intensity = 0;
+  const was = [0, 0, 0];      // the skier's velocity a moment ago (a fall throws snow on the way it WAS going)
+  let airEnd = -9;            // when the skier was last in the air
   P.onStep = function (S, H, t) {
     const sp = S.speed;
+    for (let i = 0; i < 3; i++) was[i] = damp(was[i], S.v[i], 12, H);
+    if (S.air) airEnd = t;
     if (!S.contact || sp < 1.2) { P.intensity = damp(P.intensity, 0, 12, H); return; }
     const g = 9.81, N = S.load / g, lat = Math.abs(S.aReac) / g, skid = Math.abs(Math.sin(S.beta));
     // how hard the edges are moving snow: a whisper when gliding, a wall when the skis are thrown sideways
     const pw = 0.6 + 0.6 * S.powder;
     // (it grows with the load: skis that are merely turned across the track, with no weight on them yet, move very little snow)
-    const I = N * (0.05 * pw + 0.78 * Math.pow(lat, 1.3) + 1.25 * skid * (0.15 + 0.85 * sat(lat))) * smooth(1.5, 13, sp) * pw;
+    const inten = (N, lat) => N * (0.05 * pw + 0.78 * Math.pow(lat, 1.3) + 1.25 * skid * (0.15 + 0.85 * sat(lat))) * smooth(1.5, 13, sp) * pw, I = inten(N, lat);
     P.intensity = damp(P.intensity, I, 30, H);
     const turn = S.aReac >= 0 ? 1 : -1, n = S.n, tt = S.t, rr = S.r, cb = Math.cos(S.beta), sb = Math.sin(S.beta);
     // ski axes on the snow: f along the skis, o across them toward the OUTSIDE of the turn (where the bases face)
     const fx = tt[0] * cb + rr[0] * sb, fy = tt[1] * cb + rr[1] * sb, fz = tt[2] * cb + rr[2] * sb;
     const ox = -turn * (rr[0] * cb - tt[0] * sb), oy = -turn * (rr[1] * cb - tt[1] * sb), oz = -turn * (rr[2] * cb - tt[2] * sb);
-    const stance = Game.pose.stance * 0.5, v = S.v;
-    const ve = clamp(sp * (0.06 + 0.33 * sat(lat / 1.3) + 0.30 * skid), 1.0, 8.0);
-    const straight = sat(1 - lat / 0.22) * sat(1 - skid / 0.1);
-    const hard = sat(I * 2.2);
+    // (the inside ski runs a little ahead of the outside one, as the figure and its tracks have it)
+    const stance = Game.pose.stance * 0.5, lead = -turn * (Game.pose.lead || 0), v = S.v;
+    // How fast the edge throws: about as fast as it is ploughing sideways through the snow (a carving edge still cuts outward a little),
+    // more where the snow is squeezed out from under the base. Real spray is quick: the wall beside a hard turn is up in a tenth of a second
+    const Nq = Math.min(N, 2.8), latq = lat * Nq / Math.max(N, 1e-3);
+    const ve = clamp(sp * (0.08 + 0.42 * sat(latq / 1.5) + 0.85 * skid), 1.2, 15);
+    const straight = sat(1 - latq / 0.22) * sat(1 - skid / 0.1), tailP = smooth(0.2, 0.8, straight);
+    // touchdown: for a moment the load is the impact, many times the skier's weight. That snow goes out as the two fans of `slap`; the edge
+    // has not ploughed anywhere yet, and when it does it is with the load a turn can have, not the impact's. (Without this, landing with
+    // any lean on threw the sheet of the hardest turn there is, all of it to one side, and that one-sided wall WAS the landing.)
+    // The sound still hears the full `intensity`.
+    const Iq = inten(Nq, latq) * smooth(0.12, 0.5, t - airEnd);
+    const hard = sat(Iq * 2.2);
     // (the blow of a fall or a landing is a spike of load, not a turn: it does not throw a hundred times the snow)
-    const Ie = Math.min(I, 3.2);
-    accP = Math.min(accP + (70 + 1700 * Math.pow(Ie, 0.9)) * H * P.gain, 60); accG = Math.min(accG + (90 + 4600 * Math.pow(Ie, 0.85)) * H * P.gain, 160);
-    // (thrown outward more than upward: a fan that leaves the edge low and wide, its crest about shoulder high in the hardest turn)
-    const base = S.h, elBase = lerp(0.45, 0.78, hard);
+    const Ie = Math.min(Iq, 3.2), X = 0.12 + 0.5 * hard + 0.55 * sat(Iq);
+    // (running straight, the tails still drag a plume out of the snow: enough lumps per metre of track that it is one plume, at any speed)
+    accP = Math.min(accP + (70 + 1700 * Math.pow(Ie, 0.9) + 13 * sp * tailP * smooth(5, 12, sp)) * H * P.gain, 60); accG = Math.min(accG + (90 + 4600 * Math.pow(Ie, 0.85)) * H * P.gain, 160);
+    // a thick sheet has the mass to push further through the air before it is braked: the harder the turn, the taller the curtain it leaves
+    const Ls = P.reach * (0.75 + 1.95 * Math.pow(sat(Ie / 2.6), 0.7));
+    // (it leaves the edge low and across the ski, steeper where the skis are thrown sideways and the snow piles against the bases;
+    // a skidding ski ploughs along its whole length, a carving one sheds from under the foot back)
+    const base = S.h, elBase = lerp(0.42, lerp(0.62, 0.92, sat(skid / 0.5)), hard), alMax = lerp(0.42, 0.88, sat(skid / 0.3));
     // The edge throws a SHEET, not a cloud: direction and speed vary smoothly along the ski and in time, so neighbouring lumps fly together
     // and the curtain shows fingers and scallops along its crest. A minority is loose mist that fills in around it and lingers.
     // (the fingers come and go: a stretch of even spray, then a few tall ones, never a comb)
@@ -205,57 +247,106 @@ const Spray = (() => {
     };
     while (accP >= 1) {
       accP -= 1;
-      const u1 = rnd(), u2 = rnd(), u3 = rnd(), u4 = rnd(), jt = rnd() * H;
-      // outside ski does most of the work; when gliding straight both tails smoke a little
-      let side = (rnd() < 0.74 ? 1 : -1); let out = 1;
-      if (straight > 0.5 && rnd() < straight) { side = rnd() < 0.5 ? 1 : -1; out = side; }
-      const al = lerp(-0.86, 0.42, u1 * u1 * 0.4 + u1 * 0.6);                     // along the ski: tail .. just ahead of the boot
-      const lx = fx * al + ox * (side * stance + 0.05 * out), ly = fy * al + oy * (side * stance + 0.05 * out), lz = fz * al + oz * (side * stance + 0.05 * out);
-      const px = S.p[0] + lx - v[0] * jt, pz = S.p[2] + lz - v[2] * jt, py = base - (n[0] * (lx - v[0] * jt) + n[2] * (lz - v[2] * jt)) / n[1] + 0.04;
-      const mist = u2 < 0.26, fg = sheet(al, t - jt);
-      let f, el, sv, dens, carry, r0, jit;
-      if (mist) {
-        f = 0.75 + 0.25 * rnd(); el = lerp(0.35, 1.35, u3); sv = Math.min(5.0, ve * (0.25 + 0.6 * u4)); carry = 0.12 + 0.3 * rnd();
-        dens = 1.5 * (0.12 + 0.5 * hard + 0.55 * sat(I)); r0 = lerp(0.07, 0.12, rnd()); jit = 1.3;
+      const u1 = rnd(), u2 = rnd(), u3 = rnd(), u4 = rnd(), jt = rnd() * H, tail = rnd() < tailP;
+      // the outside ski does most of the work. Running straight, the snow pressed under each ski springs up behind its tail and is left
+      // there: a low rooster tail, taller the faster the skis go
+      const side = tail ? (rnd() < 0.5 ? 1 : -1) : (rnd() < 0.74 ? 1 : -1);
+      const al = tail ? -0.78 - 0.14 * u1 : lerp(-0.86, alMax, u1 * u1 * 0.4 + u1 * 0.6) + side * lead, lo = side * stance + (tail ? (u3 - 0.5) * 0.09 : 0.05);
+      const lx = fx * al + ox * lo - v[0] * jt, lz = fz * al + oz * lo - v[2] * jt;
+      const px = S.p[0] + lx, pz = S.p[2] + lz, py = base - (n[0] * lx + n[2] * lz) / n[1] + 0.04;
+      if (tail) {
+        const up = (0.5 + 0.085 * sp) * (0.45 + u4), c = 0.08 + 0.2 * rnd(), sw = (u2 - 0.5) * 0.9;
+        P.puff(t - jt, px, py, pz, v[0] * c + n[0] * up + ox * sw, v[1] * c + n[1] * up + oy * sw, v[2] * c + n[2] * up + oz * sw, 0.7 + 0.3 * rnd(), lerp(0.05, 0.09, rnd()), 0.3 + 0.6 * smooth(8, 26, sp) + 2.0 * X, 1, 1, 0.8);
+        continue;
+      }
+      // the sheet here and now: the angle it leaves at and the speed of its rim
+      const fg = sheet(al, t - jt), vr = ve * (0.55 + 0.6 * fg) * 1.1, elS = elBase + 0.34 * (fg - 0.5);
+      let f, el, sv, dens, carry, r0, jit, lifeK = 1, brake = Ls;
+      if (u2 < 0.13) {
+        // loose mist torn off the sheet: slow, any direction, soon stopped
+        f = 0.8 + 0.2 * rnd(); el = lerp(0.3, 1.3, u3); sv = vr * (0.15 + 0.4 * u4); carry = 0.10 + 0.25 * rnd();
+        dens = 1.5 * X; r0 = lerp(0.07, 0.12, rnd()); jit = 1.2; brake = Ls * 0.6;
+      } else if (u2 < 0.13 + P.clots * hard) {
+        // the dense heart of the sheet: clots that fly true arcs, lead its rim and break up within the second (the crisp edge, then the streaks)
+        f = 0.4 * Math.pow(rnd(), 0.9); el = elS + (u3 - 0.5) * 0.16; sv = vr * (0.5 + 0.5 * Math.pow(u4, 0.45));
+        carry = 0.07 + 0.18 * fg * rnd() + 0.2 * skid * rnd();
+        dens = lerp(7.6, 4.6, f / 0.4) * X; r0 = lerp(0.04, 0.075, rnd()) * (0.75 + 0.55 * sat(Iq)); jit = 0.35; lifeK = 0.7;
       } else {
-        f = Math.max(Math.pow(rnd(), 0.9) * 0.75, 1 - hard);
+        // its fine part, which is most of what is seen: thrown with the rest, braked by the air within a metre or two, and left hanging: the curtain
         // (not a membrane: most of the snow goes out with the crest, the rest at every speed below it, and that fills the wall under it)
-        el = elBase + 0.34 * (fg - 0.5) + (u3 - 0.5) * 0.22;
-        sv = Math.min(8.2, ve * (0.50 + 0.62 * fg) * 1.14 * (0.28 + 0.72 * Math.pow(u4, 0.45)));
-        carry = 0.10 + 0.30 * fg * rnd() + 0.22 * skid * rnd();
-        dens = lerp(7.6, 3.2, f) * (0.12 + 0.5 * hard + 0.55 * sat(I)); r0 = lerp(0.04, 0.075, rnd()) * (0.75 + 0.55 * sat(I)); jit = 0.45;
+        f = Math.max(0.62 + 0.38 * rnd(), 1 - hard); el = elS + (u3 - 0.5) * 0.30; sv = vr * (0.42 + 0.58 * Math.pow(u4, 0.6));
+        carry = 0.07 + 0.18 * fg * rnd() + 0.2 * skid * rnd();
+        dens = lerp(4.2, 2.6, sat((f - 0.62) / 0.38)) * X; r0 = lerp(0.05, 0.09, rnd()) * (0.75 + 0.55 * sat(Iq)); jit = 0.5; brake = Ls * (0.75 + 0.5 * rnd());
       }
       const ce = Math.cos(el), se = Math.sin(el);
-      const vx = v[0] * carry + (ox * out * ce + n[0] * se) * sv + (rnd() - 0.5) * jit, vy = v[1] * carry + (oy * out * ce + n[1] * se) * sv + rnd() * 0.4 * jit + 0.2, vz = v[2] * carry + (oz * out * ce + n[2] * se) * sv + (rnd() - 0.5) * jit;
-      P.puff(t - jt, px, py, pz, vx, vy, vz, f, r0, dens, 1, 1);
+      const vx = v[0] * carry + (ox * ce + n[0] * se) * sv + (rnd() - 0.5) * jit, vy = v[1] * carry + (oy * ce + n[1] * se) * sv + rnd() * 0.4 * jit, vz = v[2] * carry + (oz * ce + n[2] * se) * sv + (rnd() - 0.5) * jit;
+      P.puff(t - jt, px, py, pz, vx, vy, vz, f, r0, dens, 1, lifeK, brake);
     }
     while (accG >= 1) {
       accG -= 1;
-      const u1 = rnd(), u3 = rnd(), u4 = rnd(), jt = rnd() * H;
-      let side = (rnd() < 0.74 ? 1 : -1); let out = 1;
-      if (straight > 0.5 && rnd() < straight) { side = rnd() < 0.5 ? 1 : -1; out = side; }
-      const al = lerp(-0.86, 0.5, u1);
-      const lx = fx * al + ox * (side * stance + 0.05 * out), lz = fz * al + oz * (side * stance + 0.05 * out);
-      const px = S.p[0] + lx - v[0] * jt, pz = S.p[2] + lz - v[2] * jt, py = base - (n[0] * (lx - v[0] * jt) + n[2] * (lz - v[2] * jt)) / n[1] + 0.03;
-      // grains ride the same sheet but scatter wider and outrun it: the glitter along its crest and ahead of it
+      const u1 = rnd(), u3 = rnd(), u4 = rnd(), jt = rnd() * H, tail = rnd() < tailP;
+      const side = tail ? (rnd() < 0.5 ? 1 : -1) : (rnd() < 0.74 ? 1 : -1);
+      const al = tail ? -0.78 - 0.14 * u1 : lerp(-0.86, alMax + 0.08, u1) + side * lead, lo = side * stance + (tail ? (u3 - 0.5) * 0.09 : 0.05);
+      const lx = fx * al + ox * lo - v[0] * jt, lz = fz * al + oz * lo - v[2] * jt;
+      const px = S.p[0] + lx, pz = S.p[2] + lz, py = base - (n[0] * lx + n[2] * lz) / n[1] + 0.03;
+      if (tail) {
+        const up = (0.6 + 0.10 * sp) * (0.3 + 1.2 * u4), c = 0.08 + 0.3 * rnd(), sw = (rnd() - 0.5) * 1.6;
+        P.grain(t - jt, px, py, pz, v[0] * c + n[0] * up + ox * sw, v[1] * c + n[1] * up + oy * sw, v[2] * c + n[2] * up + oz * sw, rnd(), 1.2 + 3.0 * rnd() * rnd(), 1, 0.9);
+        continue;
+      }
+      // grains ride the same sheet but scatter wider, and the heavy ones outrun it: the glitter along its crest and ahead of it
       const f = rnd(), fg = sheet(al, t - jt);
       const el = elBase + 0.34 * (fg - 0.5) + (u3 - 0.5) * 0.7, ce = Math.cos(el), se = Math.sin(el);
-      const sv = Math.min(10.5, ve * (0.50 + 0.62 * fg) * (0.7 + 0.9 * Math.pow(u4, 1.6)));
-      const carry = 0.12 + 0.5 * rnd() * rnd() + 0.25 * skid * rnd();
-      const vx = v[0] * carry + (ox * out * ce + n[0] * se) * sv + (rnd() - 0.5) * 1.2, vy = v[1] * carry + (oy * out * ce + n[1] * se) * sv + rnd() * 0.8, vz = v[2] * carry + (oz * out * ce + n[2] * se) * sv + (rnd() - 0.5) * 1.2;
-      P.grain(t - jt, px, py, pz, vx, vy, vz, f, 1.2 + 3.0 * rnd() * rnd(), 1);
+      const sv = ve * (0.55 + 0.6 * fg) * 1.1 * (0.45 + 0.75 * Math.pow(u4, 1.3));
+      const carry = 0.10 + 0.4 * rnd() * rnd() + 0.2 * skid * rnd();
+      const vx = v[0] * carry + (ox * ce + n[0] * se) * sv + (rnd() - 0.5) * 1.2, vy = v[1] * carry + (oy * ce + n[1] * se) * sv + rnd() * 0.8, vz = v[2] * carry + (oz * ce + n[2] * se) * sv + (rnd() - 0.5) * 1.2;
+      P.grain(t - jt, px, py, pz, vx, vy, vz, f, 1.2 + 3.0 * rnd() * rnd(), 1, Ls * (0.8 + 0.5 * rnd()));
     }
   };
-  // a ring of snow kicked up by a landing or a fall
-  P.burst = function (t, p, v, n, power) {
-    const np = Math.round(26 * power), ng = Math.round(160 * power);
+  // a landing, or a fall: the skis come down flat and the snow under them has one way out: sideways from under each ski, along its whole
+  // length, low and fast, raked forward by the skis that were riding on it. Two fans, one off each ski, and the skier rides out from between
+  // them (what is squeezed toward the middle meets its opposite number and goes up and forward: a small spurt between the tips). Nor is it
+  // over in an instant: the skis sink in over a tenth of a second, a couple of metres of track, so it is laid along the track as they go.
+  // p: on the snow under the skier, v: the way the skis are travelling, n: slope normal, power: 0.3 a hop .. 2.2 a hard landing
+  P.slap = function (t, p, v, n, power) {
+    const vn = v[0] * n[0] + v[1] * n[1] + v[2] * n[2], tx = v[0] - n[0] * vn, ty = v[1] - n[1] * vn, tz = v[2] - n[2] * vn, sp = Math.hypot(tx, ty, tz);
+    const fx = sp > 0.3 ? tx / sp : 0, fy = sp > 0.3 ? ty / sp : 0, fz = sp > 0.3 ? tz / sp : -1;
+    let rx = fy * n[2] - fz * n[1], ry = fz * n[0] - fx * n[2], rz = fx * n[1] - fy * n[0]; const rl = Math.hypot(rx, ry, rz) || 1; rx /= rl; ry /= rl; rz /= rl;
+    const stance = Game.pose.stance * 0.5, base = Course.height(p[0], p[2], 0.5), T = 0.08 + 0.04 * power;
+    const np = Math.round(140 * power), ng = Math.round(260 * power), jet = 3.0 + 3.6 * power, reach = 0.9 + 0.75 * power;
+    // (skis that come down on their edges have their bases turned outward: more of it goes that way)
+    const lean = Game.s.lean || 0, pOut = 0.5 - 0.3 * Math.sign(lean) * sat(Math.abs(lean) / 0.5);
     for (let i = 0; i < np + ng; i++) {
-      const a = rnd() * TAU, el = lerp(0.15, 1.0, rnd()), s = lerp(1.2, 5.5, rnd()) * (0.6 + 0.5 * power), ce = Math.cos(el);
-      const dx = Math.cos(a) * ce, dz = Math.sin(a) * ce, dy = Math.sin(el);
-      const px = p[0] + dx * 0.25, pz = p[2] + dz * 0.25, py = p[1] + 0.05;
-      const vx = v[0] * 0.35 + dx * s, vy = dy * s + 0.3, vz = v[2] * 0.35 + dz * s;
-      if (i < np) P.puff(t, px, py, pz, vx, vy, vz, Math.pow(rnd(), 0.6), lerp(0.12, 0.26, rnd()), 1.6, 0.6, 1);
-      else P.grain(t, px, py, pz, vx * 1.3, vy * 1.5, vz * 1.3, rnd(), 0.6 + 1.4 * rnd(), 1);
+      const pf = i < np, mid = rnd() < 0.15, side = rnd() < pOut ? 1 : -1, tau = T * Math.pow(rnd(), 1.6), u = rnd();
+      // where along the ski it comes out (tail .. shovel), and on which side of it
+      const al = lerp(-0.8, 0.95, rnd()), lo = mid ? (rnd() - 0.5) * stance * 1.6 : side * (stance + 0.05 + 0.04 * rnd());
+      // which way: across the ski and raked forward (the spurt in the middle straight ahead), low: the harder it is squeezed the flatter it leaves
+      const az = mid ? 1.57 - rnd() * 0.4 : lerp(0.15, 1.0, rnd()), el = mid ? lerp(0.3, 0.8, u) : lerp(0.12, 0.62, u * (0.5 + 0.5 * u));
+      const s = jet * (mid ? 0.6 : 1) * (pf ? 0.45 + 0.55 * Math.sqrt(rnd()) : 0.4 + 0.9 * rnd()), carry = (mid ? 0.35 : 0.2) + 0.25 * rnd();
+      const ce = Math.cos(el), se = Math.sin(el), ca = Math.cos(az) * side * ce, sa = Math.sin(az) * ce;
+      const lx = fx * al + rx * lo + tx * tau, lz = fz * al + rz * lo + tz * tau;
+      const px = p[0] + lx, pz = p[2] + lz, py = base - (n[0] * lx + n[2] * lz) / n[1] + 0.04;
+      const vx = tx * carry + (rx * ca + fx * sa + n[0] * se) * s, vy = ty * carry + (ry * ca + fy * sa + n[1] * se) * s, vz = tz * carry + (rz * ca + fz * sa + n[2] * se) * s;
+      if (pf) {
+        const clot = rnd() < 0.35, f = clot ? 0.4 * rnd() : 0.6 + 0.4 * rnd();
+        P.puff(t + tau, px, py, pz, vx, vy, vz, f, lerp(0.06, 0.11, rnd()) * (0.8 + 0.2 * power), (clot ? 5.5 : 3.2) * (0.55 + 0.45 * Math.min(power, 1.5)), 1, clot ? 0.7 : 0.9, reach * (0.7 + 0.6 * rnd()));
+      } else P.grain(t + tau, px, py, pz, vx * 1.15, vy * 1.3 + 0.3, vz * 1.15, rnd(), 0.6 + 1.6 * rnd() * rnd(), 1, reach * (0.9 + 0.6 * rnd()));
+    }
+  };
+  P.burst = P.slap;      // (the old name, from when this was a ring thrown out round one point)
+  // a fall (into a tree): the skis are stopped but the snow they were ploughing is not: the same two fans, thrown on the way the skier WAS going
+  P.fall = function (t, p, n, power) { P.slap(t, p, [was[0] * 0.6, was[1] * 0.6, was[2] * 0.6], n, power); };
+  // a double-pole push: the two tips go in beside the skis, about level with the toes: a pinch of snow each, flicked back as the basket bites
+  P.poles = function (t, root, stance) {
+    const f = root.fwd, n = root.nrm, rx = f[1] * n[2] - f[2] * n[1], rz = f[0] * n[1] - f[1] * n[0], d = (stance || 0.3) * 0.5 + 0.24;
+    for (const sd of [-1, 1]) {
+      const x = root.pos[0] + f[0] * 0.25 + rx * sd * d, z = root.pos[2] + f[2] * 0.25 + rz * sd * d, y = Course.height(x, z, 0.5) + 0.03;
+      for (let i = 0; i < 20; i++) {
+        const a = rnd() * TAU, c = 0.25 + 0.5 * rnd(), up = 0.5 + 1.1 * rnd();
+        const vx = -f[0] * 0.5 + rx * sd * 0.3 + Math.cos(a) * c, vz = -f[2] * 0.5 + rz * sd * 0.3 + Math.sin(a) * c;
+        if (i < 5) P.puff(t, x, y, z, vx, up, vz, 0.6 + 0.4 * rnd(), lerp(0.035, 0.06, rnd()), 2.4, 1, 0.4, 0.35);
+        else P.grain(t, x, y, z, vx * 1.6, up * 1.6, vz * 1.6, rnd(), 0.5 + 1.2 * rnd(), 0.6, 0.5);
+      }
     }
   };
 
@@ -289,7 +380,7 @@ const Spray = (() => {
   };
   P.offscreen = function (R) {
     gfx.beginPass(accT, { color: [0, 0, 0, 0] });
-    if (P.enabled) gfx.draw(pipePuff, { u: { hx: P.hb.xf, hx2: [P.nearBlur, P.shutter && R.motionBlur !== false && R.dt > 0 ? Post.shutter / Math.max(R.dt, 1 / 240) : 0, P.streakMax, 0] }, tex: { tH: P.hb.tex, tDepth: R.depth, tDetail: Tex.detail, tShadow: R.shadowTex, tSunTau: sunTex }, vb: [puffBuf], count: 4, instances: P.NP });
+    if (P.enabled) gfx.draw(pipePuff, { u: { hx: P.hb.xf, hx2: [P.nearBlur, P.shutter && R.motionBlur !== false && R.dt > 0 ? Post.shutter / Math.max(R.dt, 1 / 240) : 0, P.streakMax, P.lens] }, tex: { tH: P.hb.tex, tDepth: R.depth, tDetail: Tex.detail, tShadow: R.shadowTex, tSunTau: sunTex }, vb: [puffBuf], count: 4, instances: P.NP });
     gfx.endPass();
   };
   P.fx = function (R) {
@@ -302,17 +393,19 @@ const Spray = (() => {
 })();
 
 const PUFF_SSL = `
-struct PuffS { pos: vec3f, vel: vec3f, r: f32, dens: f32, lf: f32, t: f32, }
-// closed-form flight of one puff: launch velocity bleeding off into wind drift + slow settling. dens = optical depth at its centre (0 = dead).
+struct PuffS { pos: vec3f, vel: vec3f, sm: vec3f, r: f32, dens: f32, lf: f32, t: f32, }
+// one puff now: thrown, braked, then hanging and sifting down (snowFly). dens = optical depth at its centre (0 = dead).
+// a2 = (how far the air lets its throw carry, the speed it falls at in the end, life, radius at launch), a3 = (growth, optical depth, fineness, stretch)
 fn puffState(a0: vec4f, a1: vec4f, a2: vec4f, a3: vec4f) -> PuffS {
-  var s: PuffS; s.pos = vec3f(0.0); s.vel = vec3f(0.0); s.r = 0.0; s.dens = 0.0; s.lf = 0.0; s.t = 0.0;
+  var s: PuffS; s.pos = vec3f(0.0); s.vel = vec3f(0.0); s.sm = vec3f(0.0); s.r = 0.0; s.dens = 0.0; s.lf = 0.0; s.t = 0.0;
   let t: f32 = U.camPos.w - a0.w; let life: f32 = a2.z;
   if (t <= 0.0 || t >= life) { return s; }
-  let k: f32 = a2.x; let seed: f32 = a1.w; let fine: f32 = a3.z;
-  let vT: vec3f = U.wind.xyz * (0.3 + 0.7 * fine) + vec3f(0.0, -a2.y, 0.0);
-  let e: f32 = exp(-k * t);
-  var pos: vec3f = a0.xyz + vT * t + (a1.xyz - vT) * ((1.0 - e) / k);
-  s.vel = vT + (a1.xyz - vT) * e;
+  let seed: f32 = a1.w; let fine: f32 = a3.z;
+  let fy: Fly = snowFly(a0.xyz, a1.xyz, t, a2.x, mix(2.2, 0.45, fine), a2.y, 0.3 + 0.7 * fine);
+  var pos: vec3f = fy.pos; s.vel = fy.vel;
+  // thrown snow is drawn out along its path (the quick part of a lump outruns the slow part) and stays drawn out once the air has stopped
+  // it: a lump leaves the edge compact, is a streak a metre out, and hangs as a strand
+  s.sm = fy.run * (0.16 * a3.w);
   let wob: f32 = 0.20 * fine * smoothstep(0.15, 1.8, t);
   pos += wob * vec3f(sin(seed * 91.7 + t * 1.9), 0.6 * sin(seed * 47.3 + t * 1.4), cos(seed * 71.1 + t * 1.6));
   let r: f32 = a2.w + a3.x * pow(t, 0.72);
@@ -341,12 +434,12 @@ fn vert(a: VIn) -> VOut {
   let rel: vec3f = pos - U.camPos.xyz; let zc: f32 = dot(rel, U.camFwd.xyz);
   if (zc < 0.35) { return v; }
   // it dissolves before it reaches the lens: the curtain is something to look at, not to be blinded by
-  var dens: f32 = s.dens * smoothstep(1.3, 4.6, zc);
+  var dens: f32 = s.dens * smoothstep(M.hx2.w, M.hx2.w * 3.0 + 0.7, zc);
   if (dens < 0.002) { return v; }
-  let sv: vec2f = vec2f(dot(s.vel, U.camRight.xyz), dot(s.vel, U.camUp.xyz)); let sl: f32 = length(sv);
+  let sv: vec2f = vec2f(dot(s.sm, U.camRight.xyz), dot(s.sm, U.camUp.xyz)); let sl: f32 = length(sv);
   var ax: vec2f = vec2f(1.0, 0.0);
-  if (sl > 0.05) { ax = sv / sl; }
-  let st0: f32 = 1.0 + min(sl * 0.22, 3.0) * exp(-s.t * 1.4) * a.a3.w;
+  if (sl > 1e-3) { ax = sv / sl; }
+  let st0: f32 = 1.0 + min(sl / r, 3.2);
   // the shutter: snow hanging in the air goes by the lens like everything else does. A lump two strides from the camera is not a ball
   // standing in the picture: it is a streak along the way it went past (half that path, in metres at its own depth)
   let c0: vec4f = U.viewProj * vec4f(pos, 1.0); let c1: vec4f = U.prevViewProj * vec4f(pos - s.vel * U.misc.z, 1.0);
@@ -546,13 +639,12 @@ fn vert(a: VIn) -> VOut {
   var g: GlintV = glintCull(); var cc: vec4f = vec4f(0.0);
   if (t > 0.0 && t < life) {
     let corner: vec2f = vec2f(f32(a.vid & 1u), f32((a.vid >> 1u) & 1u)) * 2.0 - 1.0;
-    let k: f32 = a.a2.x; let seed: f32 = a.a1.w;
-    let vT: vec3f = U.wind.xyz * saturate(k * 0.4) + vec3f(0.0, -a.a2.y, 0.0);
-    let e: f32 = exp(-k * t);
-    var pos: vec3f = a.a0.xyz + vT * t + (a.a1.xyz - vT) * ((1.0 - e) / k);
-    let vel: vec3f = vT + (a.a1.xyz - vT) * e;
+    // (a2 = how far the air lets its throw carry, the speed it falls at in the end, life, light: a crumb flies an arc, a flake rides the sheet's air)
+    let seed: f32 = a.a1.w; let vs: f32 = a.a2.y; let wk: f32 = saturate(1.2 - vs * 0.25);
+    let fy: Fly = snowFly(a.a0.xyz, a.a1.xyz, t, a.a2.x, 0.65 + 0.2 * vs, vs, wk);
+    var pos: vec3f = fy.pos; let vel: vec3f = fy.vel;
     // flutter of the light flakes
-    let fl: f32 = saturate(k * 0.4) * smoothstep(0.2, 1.5, t) * 0.10;
+    let fl: f32 = wk * smoothstep(0.2, 1.5, t) * 0.10;
     pos += fl * vec3f(sin(seed * 191.7 + t * 3.1), 0.5 * sin(seed * 77.3 + t * 2.3), cos(seed * 131.1 + t * 2.7));
     if (pos.y > groundH(pos) + 0.015) {
       let lf: f32 = t / life;

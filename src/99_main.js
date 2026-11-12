@@ -85,22 +85,16 @@ function tick(dt, draw) {
   Render.computeGlobals(App.t, dt, st);
   for (const ev of Game.events) {
     Sound.event(ev);
-    if (ev.type === 'land') Spray.burst(App.t, Game.root.pos, S.v, S.n, clamp(ev.v / 5, 0.3, 2.2));
-    else if (ev.type === 'push') App.strides = [[App.t + 0.05, -1], [App.t + 0.42, 1]];
+    if (ev.type === 'land') Spray.slap(App.t, Game.root.pos, S.v, S.n, clamp(ev.v / 5, 0.3, 2.2));
+    else if (ev.type === 'pole') Spray.poles(App.t, Game.root, Game.pose.stance);
     // snow knocked off the boughs
     else if (ev.type === 'brush' || ev.type === 'crash') {
       const p = Game.root.pos, dx = ev.x - p[0], dz = ev.z - p[2], l = Math.hypot(dx, dz) || 1, k = Math.min(1, 0.9 / l);
       Spray.sift(App.t, [p[0] + dx * k, p[1] + 1.5, p[2] + dz * k], S.v, ev.type === 'crash' ? 1.6 : 0.8);
-      if (ev.type === 'crash') Game.shake = Math.max(Game.shake, 0.05);
+      if (ev.type === 'crash') { Game.shake = Math.max(Game.shake, 0.05); Spray.fall(App.t, p, S.n, clamp(ev.v / 5, 0.3, 2.2)); }
     }
   }
   Game.events.length = 0;
-  // pushing off: each of the two strides throws a small spurt of snow back and out from the edge it drives off (low, so the skier stays clear)
-  if (App.strides && App.strides.length && App.t >= App.strides[0][0]) {
-    const side = App.strides.shift()[1], p = Game.root.pos, sp = Math.hypot(S.v[0], S.v[2]) || 1, fx = S.v[0] / sp, fz = S.v[2] / sp;
-    const x = p[0] - fz * side * 0.42 - fx * 0.35, z = p[2] + fx * side * 0.42 - fz * 0.35;
-    if (Game.mode === 'run') Spray.kick(App.t, [x, Course.height(x, z, 0.5), z], [S.v[0] * 0.3 - fz * side * 1.1, 0.4, S.v[2] * 0.3 + fx * side * 1.1], 0.8);
-  }
   Sound.frame();
   for (const f of App.onTick) f(dt, draw !== false);
   if (draw !== false) Render.render();
