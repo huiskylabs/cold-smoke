@@ -393,11 +393,14 @@ const Grains = (() => {
       let dt = e.t - lastT; lastT = e.t; dt = dt > 0 && dt < 0.1 ? dt : 1 / 120;
       accC += Math.pow(rate, 0.9) * 12000 * (0.7 + 0.6 * pw) * dt;
       const sk = k === 'skid' ? 1 : 0, hard = Math.max(0, rate - 0.35);
-      accK += Math.pow(hard, 1.3) * 26 * (0.5 + 0.9 * pw + 0.5 * sk) * dt;
+      // (deep snow comes away in lumps: the owner's photo of a powder turn is full of them)
+      accK += Math.pow(hard, 1.3) * 26 * (0.5 + 2.6 * pw * pw + 0.5 * sk) * dt;
       // the granules: the sugar the edge scrapes off the surface, a few millimetres to a centimetre and a half, thrown in a sheet that
       // leads the cloud and outlines it. Most of what a camera close to a fast turn sees as 'particles' is these (the owner: the spray at
       // speed was all fog, no grain). Small solid specks, lit and shaded, smeared over the shutter; they fall back without a mark
       // (on packed snow nearly all of what the edge throws is this sugar: the spray's own puffs leave it to these)
+      // (and gliding fast on packed snow, even a light turn kicks some off the tails. sp here is the throw, about a sixth of the skier's speed)
+      accG += 220 * smooth(3, 6, sp) * (1 - smooth(0.25, 0.9, pw)) * gritN() * dt;
       accG += Math.pow(rate, 1.1) * 1800 * (0.6 + 0.6 * pw + 0.6 * (1 - smooth(0.25, 0.9, pw))) * smooth(2, 8, sp) * gritN() * dt;
       if (accG >= 1) {
         const n = Math.min(Math.floor(accG), 320); accG -= Math.floor(accG);

@@ -99,7 +99,7 @@ const Render = (() => {
   // shadow: into the shadow map. opaque/transparent: inside the scene pass (colour + depth).
   // offscreen: own render passes that may sample scene depth. fx: drawn over the finished scene (no depth attachment, depth is sampled).
   R.passes = { shadow: [], pre: [], opaque: [], transparent: [], offscreen: [], fx: [] };
-  R.sprayRange = 16; R.sprayRes = 512;
+  R.sprayRange = 24; R.sprayRes = 512;
   R.cloudWind = [-5.5, -2.5]; R.cloudShade = 0.86; R.cloudCover = 0.60; R.exposureBias = 1; R.lampPower = 37;   // (the shadows are read at the point plus cloudWind * time, so it points upwind: they drift with the wind and the cumulus, toward +x)
   R.onResize = [];
   R.render = function () {
