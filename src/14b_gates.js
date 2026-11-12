@@ -618,6 +618,9 @@ fn frag(v: VOut) -> FOut {
   rho = max(rho, 0.34 * mid * smoothstep(0.50, 0.68, str.z) * exp(-max(q - 0.3 * v.st.w, 0.0) / 0.55) * step(0.0, q) * (1.0 - smoothstep(0.85, 1.20, q)));
   // it stops where the walker stopped; a line down the hill fades out toward its upper end
   rho *= smoothstep(0.0, 0.7, 0.5 * len - abs(p) + (fine.z - 0.5) * 0.5) * mix(1.0, smoothstep(-0.52, -0.05, p / len), v.sd.y);
+  // (the walker sprays the top and the edges; on the steep walls of the kicker the dye only runs a little way down, it does not streak)
+  let nw: vec3f = normalize(cross(dpdx(v.wp), dpdy(v.wp)));
+  rho *= smoothstep(0.45, 0.75, abs(nw.y));
   rho *= v.sd.z * M.off.w * (1.0 - fogAmount(v.wp));
   // (a dye takes its share of the light at every grain it passes: thin, it is a pale cyan; thick, a deep blue)
   o.color = vec4f(pow(vec3f(0.075, 0.31, 0.86), vec3f(saturate(rho) * 1.05)), 1.0);

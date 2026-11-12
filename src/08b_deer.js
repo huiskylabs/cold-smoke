@@ -289,7 +289,7 @@ const Deer = (() => {
   // than the skier; when the skier draws level they run flat out beside for a few seconds, looking across, then break away into the forest
   const pc = {}, tn = {}, rnd = RNG(90210);
   const open = s => { const c = Course.at(s, pc); return c.hw > 13 && (c.glade || 0) < 0.25 && (c.gul || 0) < 0.3 && (c.ridge || 0) < 0.5; };
-  D.vMax = 26;
+  D.vMax = 17;   // (a deer bounds at 13-17 m/s at most, never as fast as a racing skier)
   D.spawn = function (opt = {}) {
     const S = Game.s, s0 = -S.p[2], c = Course.at(s0, pc), u = S.p[0] - c.cx, vs = Math.max(-S.v[2], 4);
     const side = opt.side || (Math.abs(u) > 2 ? -sign(u) : (rnd() < 0.5 ? -1 : 1));          // the side with more room

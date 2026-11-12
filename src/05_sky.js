@@ -195,13 +195,14 @@ const Sky = (() => {
   };
 
   S.nebDay = 0.55; S.nebNight = 0.33; S.nebSat = 0.45; S.polar = 0.34; S.glare = 0.075;
+  Variants.def('moon', '夜里的月亮', [['a', '月牙（原样）'], ['b', '盈凸（月光和亮度相符）']], 'b');
   S.draw = function () {
     Vista.updateShadow(); const b = Nebula.basis(), md = S.moonDir(), cam = Render.cam.pos;
     // strobes: two quick white flashes and a slow red beacon
     const ph = (Render.time * 0.9) % 1, strobe = (ph < 0.045 || (ph > 0.13 && ph < 0.175)) ? 1 : 0, beacon = Math.pow(Math.max(0, Math.sin(Render.time * 4.2)), 8);
     gfx.draw(pipeSky, { u: { p: [S.nebDay, S.nebNight * S.nebNightK, S.polar * lerp(0.5, 1, S.milk), lerp(1.0, S.nebSat, S.milk)], nr: b.nr, nu: b.nu, nf: b.nf,
       sd: [S.disc[0], S.disc[1], S.disc[2], S.isMoon ? 0 : 1], mo: [md[0], md[1], md[2], S.moonVis], hi: [S.sunHi[0], S.sunHi[1], S.sunHi[2], S.night], fr: [S.sunFar[0], S.sunFar[1], S.sunFar[2], strobe + 0.5 * beacon],
-      pa: PL.on ? [PL.x - cam[0], PL.z - cam[2], S.hiAlt, 1] : [0, 0, S.hiAlt, 0], pb: [PL.hx, PL.hz, PL.len, PL.v], pc: [PL.cut, S.glare, 0, 0], cs: [Clouds.sea.f, Clouds.sea.oA, Clouds.sea.oB, 0] },
+      pa: PL.on ? [PL.x - cam[0], PL.z - cam[2], S.hiAlt, 1] : [0, 0, S.hiAlt, 0], pb: [PL.hx, PL.hz, PL.len, PL.v], pc: [PL.cut, S.glare, (Variants.val.moon === 'b' ? 1 : 0) * S.night, 0], cs: [Clouds.sea.f, Clouds.sea.oA, Clouds.sea.oB, 0] },
       tex: { tSky: lutTex, tNebA: Nebula.texA, tNebB: Nebula.texB, tDetail: Tex.detail, tFarA: Vista.farA, tFarB: Vista.farB, tCityA: Vista.cityA, tCityB: Vista.cityB, tCitySh: Vista.shTex, tSeaA: Clouds.sea.A, tSeaB: Clouds.sea.B }, count: 3 });
   };
   return S;
@@ -297,7 +298,8 @@ fn moonDisc(d: vec3f) -> vec3f {
   if (edge > 0.0) {
     let z: f32 = sqrt(max(1.0 - r2, 0.0)); let n: vec3f = vec3f(q.x, q.y, z);
     // the sun is below and beyond it: only the lower limb is lit
-    let lit: f32 = smoothstep(-0.02, 0.10, dot(n, normalize(vec3f(0.10, -0.80, -0.59))));
+    // (by night the moon has swung round, away from the sun far below: it is gibbous and lights the snow as such; at sunset still a crescent)
+    let lit: f32 = smoothstep(-0.02, 0.10, dot(n, normalize(mix(vec3f(0.10, -0.80, -0.59), vec3f(0.18, -0.62, 0.76), M.pc.z))));
     let seas: f32 = texLod(tDetail, q * 0.11 + vec2f(0.31, 0.72), 0.0).z; let fine: f32 = texLod(tDetail, q * 0.45 + vec2f(0.6, 0.1), 0.0).w;
     let alb: f32 = (0.55 + 0.45 * smoothstep(0.35, 0.60, seas)) * (0.85 + 0.3 * fine);
     col += (vec3f(1.0, 0.96, 0.88) * (lit * 11.0 * (0.55 + 0.45 * z)) + vec3f(0.50, 0.62, 0.90) * 0.085) * (alb * edge * (1.06 - 0.06 * hz));
