@@ -705,7 +705,7 @@ fn frag(v: VOut) -> FOut {
       let sl: vec4f = sparkLayer(wxz + vec2f(1.3, 7.7), c0, N, normalize(V + Ld), ja, jb, idet);
       // (snow that faces the lamp from close by, the wall of a gully, takes many times what the open slope takes at a grazing angle: the eye
       // and the film both give way there, so it is a bright bank with its relief still in it and not a white disc)
-      let lk: f32 = 1.25 / (1.0 + ll.x * nl / 0.20);
+      let lk: f32 = 1.25 / (1.0 + ll.x * nl / 0.45);
       col += ll * (mix(albedo, vec3f(0.16, 0.15, 0.14), rock) * (nl * trW * lk) + sl.rgb * (26.0 * U.fx.y * spFade * (1.0 - rock)));
     }
   }

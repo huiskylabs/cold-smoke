@@ -80,7 +80,7 @@ fn twiLight(N: vec3f) -> vec3f { let h: vec2f = normalize(U.sunDir.xz + vec2f(1e
 // The fall-off is that of a broad reflector, not a bare point: the snow at the ski tips is not burnt out, and the pool lies a few lengths
 // ahead, where the skier is looking. It throws no shadows of its own: nothing stands between it and what it looks at.
 // (the spot has no rim: it thins away over a wide angle, so that on a bank close ahead it is a glow and not a disc with an edge)
-fn lampCone(c: f32) -> f32 { let s: f32 = smoothstep(0.80, 0.998, c); return 0.06 * smoothstep(0.30, 0.85, c) + s * s; }
+fn lampCone(c: f32) -> f32 { let s: f32 = smoothstep(0.80, 0.998, c); return 0.06 * smoothstep(0.30, 0.85, c) + s * s + 0.9 * pow(smoothstep(0.955, 0.999, c), 3.0); }   // (an LED's hot centre over its flood)
 fn lampLight(wp: vec3f) -> vec3f {
   if (U.lamp.w <= 0.0) { return vec3f(0.0); }
   let d: vec3f = wp - U.lamp.xyz; let r2: f32 = dot(d, d);
