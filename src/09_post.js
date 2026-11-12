@@ -4,8 +4,9 @@ const Post = (() => {
   // set every frame by 07c_feel.js, which also sets `shutter` and `blurMax` above (longer and further at speed, as much shorter as time is slower).
   // speed 0..1: toward the top of it red and blue part by `fringe` at the corners and the sides of the frame darken. slow 0..1: slow motion.
   // wet: snow melting on the glass (how much is left 0..1, for how many seconds, which scatter of beads, where it came from: x -1 left .. 1 right,
-  // y 0..1 from below; wetNew 1..0: still snow, not yet melted)
-  Object.assign(P, { speed: 0, fringe: 0.005, slow: 0, wet: 0, wetAge: 0, wetSeed: 0, wetBias: [0, 0], wetNew: 0 });
+  // y 0..1 from below; wetNew 1..0: still snow, not yet melted). chat: the tremble of the skis on the snow, as where the scene is read from
+  // this frame (whole pixels across and down, and a turn about the middle of the frame in radians)
+  Object.assign(P, { speed: 0, fringe: 0.005, slow: 0, wet: 0, wetAge: 0, wetSeed: 0, wetBias: [0, 0], wetNew: 0, chat: [0, 0, 0] });
   let gfx, pDown0, pDown, pUp, pComp, pVis, pMask, pRad, pMB, visTex, visT, visInit = false, W = 0, H = 0;
   let rayA, rayAT, rayB, rayBT;
 
@@ -81,7 +82,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   }
   o.color = vec4f(acc / 12.0, 0.0, 1.0); return o; }` }, sweep));
     pComp = gfx.pipeline({
-      name: 'composite', lib: [SL.common, SL.hash, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', w: 'vec4f', wb: 'vec4f' }, textures: { tScene: '2d', tBloom: '2d', tDepth: 'depth', tVis: '2d', tRay: '2d' },
+      name: 'composite', lib: [SL.common, SL.hash, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', w: 'vec4f', wb: 'vec4f', sh: 'vec4f' }, textures: { tScene: '2d', tBloom: '2d', tDepth: 'depth', tVis: '2d', tRay: '2d' },
       colorFormat: 'canvas', depth: false, depthTest: false, cull: 'none', vs: VS_FULLSCREEN, fs: COMPOSITE_FS,
     });
     // the shutter stays open for a moment while the mountain goes by: every point of the picture is smeared along the path it took
@@ -148,7 +149,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     for (let i = 1; i < m.length; i++) { gfx.beginPass(m[i].t, { color: [0, 0, 0, 1] }); gfx.draw(pDown, { u: { p: [1 / m[i - 1].w, 1 / m[i - 1].h, 0, 0] }, tex: { tA: m[i - 1].tex }, count: 3 }); gfx.endPass(); }
     for (let i = m.length - 2; i >= 0; i--) { gfx.beginPass(m[i].t, {}); gfx.draw(pUp, { u: { p: [1 / m[i + 1].w, 1 / m[i + 1].h, 1.0, 0] }, tex: { tA: m[i + 1].tex }, count: 3 }); gfx.endPass(); }
     gfx.beginPass(null, { color: [0, 0, 0, 1] });
-    gfx.draw(pComp, { u: { p: [P.exposure, 1 / m.length, P.rayBase * P.rays, P.rayOcc * P.rays], q: [P.satPre, P.satPost, P.flare, P.rayFall], r: [P.burst, P.ghosts, P.slow, P.speed], w: [P.wet, P.wetAge, P.wetSeed, P.fringe], wb: [P.wetBias[0], P.wetBias[1], P.wetNew, 0] }, tex: { tScene: sceneTex, tBloom: m[0].tex, tDepth: depthTex, tVis: visTex, tRay: rayA }, count: 3 });
+    gfx.draw(pComp, { u: { p: [P.exposure, 1 / m.length, P.rayBase * P.rays, P.rayOcc * P.rays], q: [P.satPre, P.satPost, P.flare, P.rayFall], r: [P.burst, P.ghosts, P.slow, P.speed], w: [P.wet, P.wetAge, P.wetSeed, P.fringe], wb: [P.wetBias[0], P.wetBias[1], P.wetNew, 0], sh: [P.chat[0] / W, P.chat[1] / H, P.chat[2], 0] }, tex: { tScene: sceneTex, tBloom: m[0].tex, tDepth: depthTex, tVis: visTex, tRay: rayA }, count: 3 });
     gfx.endPass();
   };
   return P;
@@ -256,8 +257,11 @@ fn lensWet(uv: vec2f) -> Wet {
 fn frag(v: VOut) -> FOut { var o: FOut;
   let vv: vec2f = texLod(tVis, vec2f(0.5), 0.0).xy;
   let c: vec2f = v.uv - 0.5; let asp: f32 = U.camUp.w;
+  // the skis rubbing on the snow shake the camera, not the glass: the scene is read a whole pixel or so aside (07c_feel.js; never a part
+  // of one, which would soften it) and turned by a hair about the middle of the frame. Beads, flare and the dark corners stay where they are
+  let sk: vec2f = M.sh.xy + M.sh.z * vec2f(-c.y / asp, c.x * asp);
   // (the sharp picture is read a little way off inside a bead, the glow from well beyond it: a bead takes in a wide field)
-  var uv: vec2f = v.uv; var uvb: vec2f = v.uv; var wt: Wet = wetNone();
+  var uv: vec2f = v.uv + sk; var uvb: vec2f = uv; var wt: Wet = wetNone();
   if (M.w.x > 0.004) { wt = lensWet(v.uv); uv += wt.d; uvb = clamp(uvb + wt.f, vec2f(0.0), vec2f(1.0)); }
   var col: vec3f = texLod(tScene, uv, 0.0).rgb;
   // at speed the glass shows its faults: toward the sides of the frame red and blue part company. (Two more looks at the scene, and only
