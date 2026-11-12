@@ -200,7 +200,7 @@ const Sky = (() => {
   };
 
   S.nebDay = 0.55; S.nebNight = 0.33; S.nebSat = 0.45; S.polar = 0.34; S.glare = 0.075;
-  Variants.def('moon', '夜里的月亮', [['a', '月牙（原样）'], ['b', '盈凸（月光和亮度相符）']], 'b');
+  Variants.def('moon', '夜里的月亮', [['a', '月牙'], ['b', '盈凸']], 'b');
   S.draw = function () {
     Vista.updateShadow(); const b = Nebula.basis(), md = S.moonDir(), cam = Render.cam.pos;
     // strobes: two quick white flashes and a slow red beacon

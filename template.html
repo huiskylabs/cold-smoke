@@ -200,7 +200,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #app:not(.desk) #swp { top: calc(var(--gt) + 46px); }          /* (clear of the drop number beside the pill) */
 /* the versions the owner picks between, one row each under a small heading. The sheet never runs off the screen: the rows above keep their
    height and this part takes what is left, scrolling by itself when that is not enough (a fade at the edge says there is more) */
-#swp { display: flex; flex-direction: column; max-height: calc(var(--ch) - var(--gt) - 34px - var(--gb)); }
+#swp { display: flex; flex-direction: column; max-height: calc(var(--ch) - var(--gt) - 34px - var(--gb) - 72px);   /* (clear of the 落差 counter in the lower right) */ }
 #app:not(.desk) #swp { max-height: calc(var(--ch) - var(--gt) - 46px - var(--gb)); }
 #swp > .row { flex: none; } #swp .row.two { flex-wrap: wrap; }
 #swp .vers { display: flex; flex-direction: column; min-height: 0; } #swp .vers[hidden] { display: none; }
