@@ -264,7 +264,7 @@ fn under(p: vec2f, dl: vec2f, c: vec2f, h: vec2f) -> vec4f {
 // (xl, sm: of a ski going sideways the whole strip counts as its low edge, which lies at xl)
 fn lowest(g: vec4f, sphi: f32, cphi: f32, lift: f32, xl: f32, sm: f32) -> f32 {
   let dy: f32 = g.w - g.y; let qm: vec2f = mix(g.xy, g.zw, saturate(-g.y / select(dy, 1e-6, abs(dy) < 1e-6)));
-  let kt: f32 = 0.03 * (1.0 - sm);
+  let kt: f32 = 0.015 * (1.0 - sm);   // (the tail kick of skiMesh in 08_skier.js)
   return min(min(skiBase(vec2f(mix(g.x, xl, sm), g.y), sphi, cphi, lift, kt), skiBase(vec2f(mix(g.z, xl, sm), g.w), sphi, cphi, lift, kt)), skiBase(vec2f(mix(qm.x, xl, sm), qm.y), sphi, cphi, lift, kt));
 }
 // the floor is pressed snow, not a planed board: it keeps a little of the lumps it was made of (lz), base and edges draw fine lines in it

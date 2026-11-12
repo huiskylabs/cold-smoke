@@ -351,7 +351,7 @@ fn skiPress(wp: vec3f, C: vec4f, A: vec4f, B: vec4f) -> f32 {
   let Nn: vec3f = cross(B.xyz, A.xyz); let ny: f32 = max(Nn.y, 0.25);
   let yp: f32 = C.y - (Nn.x * (wp.x - C.x) + Nn.z * (wp.z - C.z)) / ny;                 // the plane of the base over (or under) this spot
   let r: vec3f = vec3f(wp.x, yp, wp.z) - C.xyz; let a: f32 = dot(r, A.xyz); let b: f32 = dot(r, B.xyz);
-  let rise: f32 = 0.125 * pow(smoothstep(0.62, 0.96, a), 1.7) + 0.03 * sq(smoothstep(0.66, 0.80, -a)) + 0.5 * mix(0.008, 0.020, smoothstep(0.80, 0.25, abs(a - 0.05)));
+  let rise: f32 = 0.125 * pow(smoothstep(0.62, 0.96, a), 1.7) + 0.015 * sq(smoothstep(0.66, 0.80, -a)) + 0.5 * mix(0.008, 0.020, smoothstep(0.80, 0.25, abs(a - 0.05)));
   let wd: f32 = 0.049 + 0.009 * smoothstep(0.15, 0.78, -a) + 0.015 * smoothstep(0.15, 0.78, a);
   // (M.tb.z: how far ahead of the boot the snow is open over the ski. One riding deep runs under the snow from there to its shovel)
   // (it gives way over two quads' width beside the ski: any sharper, and the line of the snow along the ski's side comes out in steps)
