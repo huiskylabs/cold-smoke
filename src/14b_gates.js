@@ -10,14 +10,14 @@ const GATE_K = { FH: 3.2, LS: 1.2, LFY: 0.186, LI: 0.90 };      // flag height; 
 const Gates = (() => {
   const G = { enabled: true, far: 520, band: 80, back: 260, pre: 40, vLand: 21, lanterns: 1, dye: 1, wind: [1.2, 0.4], markers: null, stats: { gates: 0, flags: 0, tris: 0 } };
   // the flag: its height, where the pole starts to bend over, the bend's two radii and its sweep, the foot of the sail; the cloth's grid
-  // Two cuts of it. 'b' (the default): a feather flag as they stand on a slopestyle course, a 2.9 m pole and a teardrop sail 2.1 m long and
-  // 0.65 m across at its widest, narrow at its foot and rounded over the bend of the pole. 'a': the first cut, a 3.2 m pole with a sail
+  // Two cuts of it. 'b' (the default): a feather flag as they stand on a slopestyle course, a 2.55 m pole and a teardrop sail 1.7 m long and
+  // half a metre across at its widest, narrow at its foot and rounded over the bend of the pole. 'a': the first cut, a 3.2 m pole with a sail
   // nearly as wide at its foot as at its head (from a little way off it read as an orange board stood in the snow)
   // (per cut: height of the pole's top, where it starts to bend, the bend's sideways radius, its sweep, the foot of the sail, the free
   // corner at the foot (out, up), how far the free edge bellies out, and where the chevrons sit: first, step, half width, how steep)
   const CUTS = {
     a: { FH: 3.2, YA: 2.25, RX: 0.40, TH1: 2.15, Y0: 0.50, cx: 0.74, cy: 0.84, bel: 0.12, bp: 0.8, ch: [1.34, 0.37, 0.058, 0.60] },
-    b: { FH: 2.9, YA: 2.10, RX: 0.33, TH1: 2.20, Y0: 0.72, cx: 0.30, cy: 1.02, bel: 0.34, bp: 0.70, ch: [1.40, 0.27, 0.042, 0.42] },
+    b: { FH: 2.55, YA: 1.90, RX: 0.27, TH1: 2.20, Y0: 0.80, cx: 0.22, cy: 1.06, bel: 0.25, bp: 0.70, ch: [1.30, 0.22, 0.034, 0.36] },
   };
   const NA = 16, NB = 56;
   if (typeof Variants !== 'undefined') Variants.def('flag', '跳台旗', [['a', '宽旗'], ['b', '羽毛旗']], 'b');
@@ -93,7 +93,7 @@ const Gates = (() => {
     // the lantern, from the snow up: the tank, the burner, the globe, the chimney under its hood
     lathe([[0.078, -0.060], [0.078, 0.076], [0.071, 0.089], [0.042, 0.098], [0.031, 0.100]], 12, 2);           // (the tank goes on down under the snow: on steep ground its underside must not show)
     lathe([[0.031, 0.100], [0.033, 0.104], [0.033, 0.116], [0.027, 0.120]], 10, 2);
-    lathe([[0.029, 0.118, 0], [0.045, 0.131, 0.15], [0.056, 0.151, 0.40], [0.055, 0.172, 0.62], [0.045, 0.192, 0.85], [0.034, 0.205, 1]], 12, 3);
+    lathe([[0.029, 0.118, 0], [0.039, 0.131, 0.15], [0.045, 0.151, 0.40], [0.045, 0.172, 0.62], [0.039, 0.192, 0.85], [0.034, 0.205, 1]], 12, 3);
     lathe([[0.036, 0.203], [0.041, 0.208], [0.041, 0.226], [0.051, 0.231], [0.045, 0.243], [0.025, 0.256], [0.010, 0.262], [0, 0.263]], 10, 2);
     // its frame: the two air tubes that run from the tank up either side of the globe and in under the hood, and the bail over the top
     const wire = (pts, r, NR) => {
@@ -105,7 +105,10 @@ const Gates = (() => {
       for (let j = 0; j < pts.length - 1; j++) for (let k = 0; k < NR; k++) { const a = v0 + j * NR + k, b = v0 + j * NR + (k + 1) % NR; I.push(a, b, a + NR, b, b + NR, a + NR); }
     };
     for (const sx of [-1, 1]) wire([[sx * 0.072, 0.082, 0], [sx * 0.084, 0.108, 0], [sx * 0.088, 0.150, 0], [sx * 0.087, 0.192, 0], [sx * 0.078, 0.219, 0], [sx * 0.060, 0.234, 0], [sx * 0.044, 0.238, 0]], 0.0062, 5);
-    { const pts = []; for (let i = 0; i <= 12; i++) { const a = PI * i / 12; pts.push([-0.089 * Math.cos(a), 0.196 + 0.112 * Math.sin(a), -0.034 * Math.sin(a)]); } wire(pts, 0.0030, 4); }
+    { const pts = []; for (let i = 0; i <= 12; i++) { const a = PI * i / 12; pts.push([-0.089 * Math.cos(a), 0.196 + 0.112 * Math.sin(a), -0.034 * Math.sin(a)]); } wire(pts, 0.0035, 4); }
+    // the guard round the globe: four bars and three hoops of wire, so the glass sits in a cage and never shows as a bare ball
+    for (let b = 0; b < 4; b++) { const a = (b + 0.5) * PI / 2, c = Math.cos(a), sn = Math.sin(a); wire([[c * 0.040, 0.112, sn * 0.040], [c * 0.053, 0.135, sn * 0.053], [c * 0.055, 0.162, sn * 0.055], [c * 0.052, 0.190, sn * 0.052], [c * 0.042, 0.208, sn * 0.042]], 0.0042, 4); }
+    for (const [y, r] of [[0.128, 0.051], [0.162, 0.056], [0.194, 0.050]]) { const pts = []; for (let i = 0; i <= 16; i++) { const a = TAU * i / 16 + 0.1; pts.push([Math.cos(a) * r, y, Math.sin(a) * r]); } wire(pts, 0.0034, 4); }
     return { V: new Float32Array(V), I: new Uint32Array(I), nDrift };
   }
 
@@ -375,7 +378,7 @@ fn flagWave(a: f32, x: f32, y: f32, t: f32, ph: f32, gain: f32) -> f32 {
   // (and the wind fills the sail: it bellies out from the pole to the free edge, deepest across its middle, more as the wind blows)
   return g * (e * (0.078 * sin(th - 0.45 * cos(th)) + 0.030 * sin(x * 15.0 - y * 4.3 - t * 23.0 + ph * 2.3))
             + a * (0.085 * a * sin(x * 4.2 + y * 1.3 - t * 6.4 + ph * 0.7) + 0.075 * sin(y * 1.9 - t * 2.6 + ph * 1.3))
-            + 0.085 * sin(3.1416 * a) * (0.8 + 0.2 * sin(t * 1.1 + ph)));
+            + 0.11 * sin(3.1416 * a) * (0.8 + 0.2 * sin(t * 1.1 + ph)));
 }
 fn turnAbout(p: vec3f, k: vec3f, ang: f32) -> vec3f { let c: f32 = cos(ang); return p * c + cross(k, p) * sin(ang) + k * (dot(k, p) * (1.0 - c)); }
 // rmin: the least radius the pole is drawn with; px: metres to a pixel where the flag stands (0 = do not care)
@@ -431,9 +434,9 @@ fn frag(v: VOut) -> FOut {
     // creases, and the knit of the cloth
     let cr: vec4f = tex(tDetail, v.mp.xy * vec2f(0.55, 0.31) + v.mp.w * 3.0);
     // (a sail pulled on its pole wrinkles in long folds that fan out from the sleeve and slant down toward the free edge; they move as it flaps)
-    let fw: f32 = (a * 1.0 - y * 0.55) * 21.0 + 1.6 * cr.z + U.camPos.w * 1.7 + v.mp.w * 13.0;
+    let fw: f32 = (a * 1.0 - y * 0.55) * 14.0 + 1.6 * cr.z + U.camPos.w * 1.7 + v.mp.w * 13.0;
     let fold: f32 = cos(fw) * (0.30 + 0.70 * a) * (1.0 - a * 0.5) * smoothstep(0.02, 0.15, a);
-    N = normalize(N + (vec3f(cr.x, cr.y, 0.5) - 0.5) * 0.30 + (vec3f(wv.x, wv.y, 0.5) - 0.5) * 0.10 + vec3f(0.55, -0.30, 0.0) * (fold * 0.22 * (1.0 - smoothstep(0.8, 2.5, fwidth(fw)))));
+    N = normalize(N + (vec3f(cr.x, cr.y, 0.5) - 0.5) * 0.30 + (vec3f(wv.x, wv.y, 0.5) - 0.5) * 0.10 + vec3f(0.55, -0.30, 0.0) * (fold * 0.60 * (1.0 - smoothstep(0.8, 2.5, fwidth(fw)))));
     // the banner: an orange field, a dark sleeve round the pole, white chevrons pointing down, a doubled hem
     let ew: f32 = max(0.006, 0.6 * px);
     let sleeve: f32 = 1.0 - smoothstep(0.060 - ew * 1.4, 0.060 + ew * 1.4, a);
@@ -448,8 +451,10 @@ fn frag(v: VOut) -> FOut {
     // reads as a darker line round the sail, as a real one does
     let hw: f32 = max(0.035, 1.2 * ew);
     let hem: f32 = max(smoothstep(1.0 - hw - 0.012, 1.0 - hw, a), 1.0 - smoothstep(0.010, 0.022, b)) * (1.0 - sleeve);
-    var alb: vec3f = mix(vec3f(0.80, 0.232, 0.019), vec3f(0.80, 0.80, 0.76), chev) * (1.0 - 0.22 * hem);
-    var thr: vec3f = mix(vec3f(0.50, 0.152, 0.008), vec3f(0.50, 0.47, 0.41), chev) * (1.0 - 0.62 * hem) * (0.86 + 0.28 * wv.w);
+    // (printed polyester, not a safety-vest orange: a red-orange with some grey in it; in the folds' troughs it lies in its own shade)
+    let trough: f32 = (1.0 - 0.45 * saturate(-fold) * (1.0 - smoothstep(0.8, 2.5, fwidth(fw)))) * (0.80 + 0.20 * smoothstep(0.05, 0.35, a));
+    var alb: vec3f = mix(vec3f(0.58, 0.21, 0.09), vec3f(0.78, 0.77, 0.73), chev) * (1.0 - 0.22 * hem) * trough;
+    var thr: vec3f = mix(vec3f(0.56, 0.18, 0.04), vec3f(0.50, 0.47, 0.41), chev) * (1.0 - 0.62 * hem) * (0.86 + 0.28 * wv.w);
     alb = mix(alb, vec3f(0.016, 0.018, 0.022), sleeve); thr *= 1.0 - sleeve;
     // snow blown onto the foot of the sail
     let dusty: f32 = (1.0 - smoothstep(0.52, 1.05, y)) * smoothstep(0.50, 0.68, wv.z * 0.6 + cr.w * 0.4 + 0.22 * (1.0 - smoothstep(0.5, 0.8, y)));
@@ -461,8 +466,8 @@ fn frag(v: VOut) -> FOut {
     // all where the line of sight runs on toward the sun
     // (light that meets the cloth on the slant has farther to go through the weave: every fold shows as a darker band. On the lit side
     // the nylon has a soft sheen)
-    let fwd: f32 = pow(saturate(dot(-V, L)), 8.0);
-    let tk: f32 = saturate(0.06 - ndl * 1.06); let thru: f32 = tk * tk * (0.6 + 0.4 * tk) * (1.0 + fwd);
+    let fwd: f32 = pow(saturate(dot(-V, L)), 5.0);
+    let tk: f32 = saturate(0.06 - ndl * 1.06); let thru: f32 = tk * tk * (0.6 + 0.4 * tk) * (0.30 + 2.4 * fwd);
     let sheen: f32 = 0.20 * pow(saturate(dot(N, normalize(V + L))), 22.0) * saturate(ndl * 3.0) * (1.0 - sleeve);
     col = alb * (U.sunCol.rgb * (saturate((ndl + 0.12) / 1.12) * sh) + amb)
         + thr * (U.sunCol.rgb * (thru * sh) + ambB * 0.9) + U.sunCol.rgb * (sheen * sh);
@@ -538,8 +543,8 @@ fn frag(v: VOut) -> FOut {
       let fr: f32 = 0.04 + 0.96 * pow(1.0 - ndv, 5.0); let vv: f32 = v.pm.y;
       let stub: f32 = (1.0 - smoothstep(0.16, 0.34, vv)) * smoothstep(0.62, 0.86, ndv);
       let thru: vec3f = gateSnow(vec3f(0.0, 1.0, 0.0), V, sh, 0.75) * vec3f(0.60, 0.70, 0.68) * (0.30 + 0.70 * ndv);
-      col = mix(thru, vec3f(0.03) * amb, stub) * (1.0 - fr) + env * (fr * 0.8);
-      col += U.sunCol.rgb * (sh * (1.6 * pow(max(dot(N, Hh), 0.0), 220.0) + 0.10 * pow(max(dot(N, Hh), 0.0), 12.0)));
+      col = mix(thru, vec3f(0.03) * amb, stub) * (1.0 - fr) + env * (fr * 0.45);
+      col += U.sunCol.rgb * (sh * (0.9 * pow(max(dot(N, Hh), 0.0), 220.0) + 0.05 * pow(max(dot(N, Hh), 0.0), 12.0)));
       // (on a round globe the normal says where across it the eye is looking: the flame is a tear of light standing on the wick,
       // leaning and shivering; the glass about it glows)
       let band: f32 = smoothstep(0.0, 0.30, vv) * (1.0 - smoothstep(0.50, 1.0, vv));
@@ -658,7 +663,7 @@ fn frag(v: VOut) -> FOut {
   rho *= smoothstep(0.0, 0.7, 0.5 * len - abs(p) + (fine.z - 0.5) * 0.5) * mix(1.0, smoothstep(-0.52, -0.05, p / len), v.sd.y);
   // (the walker sprays the top and the edges; on the steep walls of the kicker the dye only runs a little way down, it does not streak)
   let nw: vec3f = normalize(cross(dpdx(v.wp), dpdy(v.wp)));
-  rho *= smoothstep(0.70, 0.90, abs(nw.y));
+  rho *= smoothstep(0.84, 0.95, abs(nw.y));
   // (seen along the snow, the light that comes back from it has mostly been thrown off the tops of the grains, which the dye has
   // hardly reached: at a grazing look the colour fades toward the snow's own)
   let ndv: f32 = abs(dot(nw, normalize(U.camPos.xyz - v.wp)));

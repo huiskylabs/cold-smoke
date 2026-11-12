@@ -305,13 +305,15 @@ const Course = ((vn1, vn2, h2U) => {
     const fb = C.feats.get(Math.floor(s / 32));
     if (fb) for (let i = 0; i < fb.length; i++) {
       const f = fb[i], t = (s - f.s) / f.len; if (t < -0.2 || t > 2.6) continue;
-      // (a marked jump is a cut wedge with steep sides, half as wide as the hump it replaces: the sides are what the eye finds from above)
-      const lat = f.mark ? smooth(f.wid * 0.5 + 1.7, f.wid * 0.5, Math.abs(u - f.u)) : smooth(f.wid, f.wid * 0.45, Math.abs(u - f.u)); if (lat <= 0) continue;
+      // (a marked jump is a built wedge, half as wide as the hump it replaces: its sides are shovelled and packed to a batter of about 45-55
+      // degrees, rounded over at the shoulder and run out into the snow at the toe, as a park crew shapes them. The sides are what the eye
+      // finds from above)
+      const lat = f.mark ? smooth(f.wid * 0.5 + 3.3, f.wid * 0.5 - 0.3, Math.abs(u - f.u)) : smooth(f.wid, f.wid * 0.45, Math.abs(u - f.u)); if (lat <= 0) continue;
       let k;
       // run-in ramp. A marked jump is a built takeoff: it steepens all the way to its lip, so that with the sun ahead its face is in shade and
       // its edge is drawn against the lit snow beyond (the others are rounded humps that only unweight the skis)
       if (t < 1) k = t <= 0 ? 0 : f.mark ? Math.pow(t, 1.9) : t * t * (3 - 2 * t) * (0.55 + 0.45 * t);
-      else { const q = (t - 1) * f.len; k = q < 1.4 ? 1 - smooth(0, 1.4, q) * 1.25 : -0.25 * (1 - smooth(1.4, 20, q)); }   // lip, then a dug-out landing
+      else { const q = (t - 1) * f.len, qb = f.mark ? 3.4 : 1.4; k = q < qb ? 1 - smooth(0, qb, q) * 1.25 : -0.25 * (1 - smooth(qb, 20, q)); }   // lip, then a dug-out landing (a marked one's back is packed to a slope too, not a wall)
       h += f.h * k * lat;
     }
     return h;
@@ -402,7 +404,7 @@ const Course = ((vn1, vn2, h2U) => {
       for (let i = 0; i < fb.length; i++) {
         const f = fb[i]; if (!f.mark) continue;
         const sl = f.s + f.len * 0.94; if (Math.floor(sl / 32) !== b) continue;      // (a jump lies in several buckets: counted in the one that holds its lip)
-        if (f.mx === undefined) { f.mx = at(sl, _py).cx + f.u; f.mx0 = at(f.s + 1, _py).cx + f.u; f.mo = f.wid * 0.5 + 2.6; f.mh = 3.5 + 0.7 * ((f.s * 0.37) % 1); }
+        if (f.mx === undefined) { f.mx = at(sl, _py).cx + f.u; f.mx0 = at(f.s + 1, _py).cx + f.u; f.mo = f.wid * 0.5 + 3.4; f.mh = 3.5 + 0.7 * ((f.s * 0.37) % 1); }
         fn(f.mx - f.mo, -sl, f.mh, f.s * 1.3); fn(f.mx + f.mo, -sl + 0.6, f.mh * 0.9, f.s * 2.9);
         fn(f.mx0 - f.mo, -f.s - 1, f.mh * 0.82, f.s * 4.1); fn(f.mx0 + f.mo, -f.s - 1.5, f.mh * 0.95, f.s * 5.3);
       }
