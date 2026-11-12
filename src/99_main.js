@@ -150,7 +150,7 @@ function govern(now, raw) {
 App.gov = Gov;
 function reportError(e) {
   console.error(e && e.message ? e.message : e); if (e && e.vs) console.log(e.vs.slice(0, 20000)); if (e && e.fs) console.log(e.fs.slice(0, 20000));
-  const el = document.getElementById('fatal'); if (el) { el.hidden = false; el.textContent = String(e && e.message ? e.message : e); }
+  const el = document.getElementById('fatal'); if (el) { el.hidden = false; el.textContent = I18N.t(String(e && e.message ? e.message : e)); }
 }
 
 // ---- which mountain. A seed in the address names it: #seed-<n>, or ?seed=<n> (inside the frame the game is published in only a plain hash
@@ -259,7 +259,7 @@ window.__ski = {
   reset(s0) { Game.reset(s0); Game.mode = 'title'; },
   // set the time of day: seconds into the 10-minute day, or a name (day, golden, sunset, dusk, night, dawn, sunrise)
   tod(t) { Sky.setClock(typeof t === 'string' ? Sky.times[t] : t); Sky.update(); Clouds.baked = false; Vista.shadowElev = -9; Vista.updateShadow(true); return +Sky.sunElev.toFixed(4); },
-  game: () => Game, input: () => Input, app: () => App, ui: () => UI,
+  game: () => Game, input: () => Input, app: () => App, ui: () => UI, i18n: () => I18N,
   get m() { return { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Skier, Tex, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Atmo, Deer, View, Variants, Weather, Grains }; },
 };
 App.fit = fit;

@@ -154,7 +154,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #bar { position: absolute; right: calc(var(--gr) - 6px); top: calc(var(--gt) - 8px); display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(5, 8, 13, .26); box-shadow: inset 0 0 0 1px rgba(244, 247, 251, .10);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); opacity: 0; visibility: hidden; transition: opacity .8s ease, visibility 0s linear .8s; }
 #bar.on { opacity: 1; visibility: visible; transition: opacity .8s ease, visibility 0s; }
-#app.menuopen #bar { opacity: 0; visibility: hidden; transition: opacity .25s ease, visibility 0s linear .25s; }          /* (the menu has its own 声音与全屏) */
+#app.menuopen #bar { opacity: 0; visibility: hidden; transition: opacity .25s ease, visibility 0s linear .25s; }          /* (the menu has its own 设置: sound, full screen, language) */
 #bar button { display: none; width: 40px; height: 40px; padding: 0; margin: 0; border: 0; border-radius: 50%; background: none; color: var(--snow); cursor: pointer; opacity: .86; transition: background .2s ease, color .2s ease; }
 #bar button.on, #app.run #mn { display: block; }
 #bar svg { width: 19px; height: 19px; display: block; margin: auto; fill: none; stroke: currentColor; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round; }
@@ -338,6 +338,23 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
    beside the speed instead, up in the sky, its foot level with the speed's) */
 #app.short:not(.desk) #seg { top: calc(var(--gt) + 4px); left: calc(var(--gl) + var(--spd) * 1.8 + 22px); }
 #app.wide.short #title { gap: clamp(14px, calc(var(--ch) * .055), 30px); padding-bottom: calc(var(--gb) + var(--ch) * .09); }
+/* ---- English (#app.en, set by I18N): the Song lines become a light Latin serif, and the wide spacing that suits single characters is drawn in */
+#app.en { --f-song: "Cormorant Garamond", "Noto Serif SC", Georgia, "Times New Roman", serif; }
+#app.en #title .tag { font-size: clamp(16px, 4.4vmin, 20px); letter-spacing: .14em; margin-right: -.14em; font-style: italic; }
+#app.en.wide #title .tag { font-size: clamp(16px, 3.2vmin, 28px); }
+#app.en #go { letter-spacing: .3em; text-indent: .3em; font-size: 20px; text-transform: uppercase; }
+#app.en.wide #go { font-size: clamp(16px, 3.1vmin, 22px); }
+#app.en .cta .how, #app.en .cta .fine, #app.en #hint span, #app.en #say b { letter-spacing: .06em; }
+#app.en #seg b { letter-spacing: .04em; font-weight: 500; font-size: clamp(30px, 8.6vmin, 42px); }
+#app.en.wide #seg b { font-size: clamp(28px, 7vmin, 52px); }
+#app.en #day .t { letter-spacing: .12em; font-weight: 500; }
+#app.en #menu nav button { letter-spacing: .04em; font-weight: 500; font-size: calc(var(--mf) * 1.08); }
+#app.en #menu nav button.sm { font-size: calc(var(--mf) * .86); }
+#app.en #menu nav button.xs { font-family: var(--f-ui); font-size: 11px; letter-spacing: .2em; font-weight: 400; }
+#app.en #menu .note, #app.en #menu .keys, #app.en #menu .chips button, #app.en #menu .cards button, #app.en #menu .tiles button { letter-spacing: .03em; }
+#app.en #menu .vrow > span { width: 9em; letter-spacing: .02em; } #app.en #menu .vrow button, #app.en #menu .vgrp > i { letter-spacing: .04em; } #app.en #menu .vrow button { white-space: nowrap; }
+#app.en #pause b { letter-spacing: .1em; margin-right: -.1em; }
+#app.en #tuck { font-size: 12px; letter-spacing: .06em; text-indent: .06em; } #app.en #jump { font-size: 15px; letter-spacing: .04em; }
 @media (prefers-reduced-motion: reduce) { #go::after, #hint i::before, #hint i::after { animation: none; } }
 #fatal { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); font: 12px/1.4 ui-monospace, Menlo, monospace; color: #ffb4a8; background: rgba(40, 8, 4, .9); white-space: pre-wrap; z-index: 99; max-height: 40%; overflow: auto; }
 </style>
@@ -391,7 +408,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
       <button type="button" data-sec="mt">换一座山</button>
       <i class="msep"></i>
       <button type="button" class="sm" data-sec="keys">操作说明</button>
-      <button type="button" class="sm" data-sec="opt">声音与全屏</button>
+      <button type="button" class="sm" data-sec="opt">设置</button>
       <button type="button" class="sm" id="m-top">回到山顶</button>
       <button type="button" class="xs" data-sec="vers">版本对比</button>
     </nav>
@@ -414,7 +431,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
         </div>
         <div class="keys hand-only"><b>按住拖动</b><span>左右拖动转弯，拖过刻度就切雪</span><b>跳</b><span>按住蓄力，松开起跳</span><b>加速</b><span>按住压低，慢的时候自动撑杖</span><b>机位</b><span>换视角</span><b>两指拖动</b><span>环顾四周</span></div>
         <p class="note desk-only">Shift + 字母 往回切换。</p></section>
-      <section data-sec="opt"><h4>SOUND · 声音与全屏<kbd>M</kbd><kbd>F</kbd></h4><div class="chips opts"><button type="button" id="o-snd" aria-pressed="true">声音 开</button><button type="button" id="o-fs" aria-pressed="false">全屏</button></div>
+      <section data-sec="opt"><h4>SETTINGS · 设置<kbd>M</kbd><kbd>F</kbd></h4><div class="chips opts"><button type="button" id="o-snd" aria-pressed="true">声音 开</button><button type="button" id="o-fs" aria-pressed="false">全屏</button><button type="button" id="o-lang" lang="en">English</button></div>
         <p class="note">画面和声音全部由代码实时生成，戴上耳机更好。</p></section>
       <section data-sec="vers"><div class="vhead"><h4>VERSIONS · 版本对比<kbd>`</kbd></h4><span class="note">给验收用，不是游戏的一部分 · 小圆点是推荐的版本</span><button type="button" class="pill vreset" id="sw-vreset" data-vreset="1">恢复推荐</button></div>
         <div class="vgrid" id="sw-vrows"></div></section>
@@ -433,7 +450,9 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 (() => {
   const add = href => { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href; (document.head || document.documentElement).appendChild(l); };
   add('https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&display=swap');
-  add('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;500;700&display=swap&text=' + encodeURIComponent('雪迹出发一个人，座山直往下开阔大坡陡树林起伏雪槽跳台深粉脊蘑菇日落继续滑天色与气视角路段偶遇换操作说明声音全屏回到顶版本对比'));
+  // (in English the lines set in Song are set in a light Latin serif instead: fetched always, a few kilobytes, so a switch of language has it ready)
+  add('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;500;700&display=swap');
+  add('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;500;700&display=swap&text=' + encodeURIComponent('雪迹出发一个人，座山直往下开阔大坡陡树林起伏雪槽跳台深粉脊蘑菇日落继续滑天色与气视角路段偶遇换操作说明声音全屏回到顶版本对比设置'));
 })();
 /*__JS__*/
 })();

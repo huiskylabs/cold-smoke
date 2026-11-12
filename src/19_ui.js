@@ -2,6 +2,7 @@
 const UI = (() => {
   const U = { state: 'load', segIdx: -1, hintT: 0, hintKind: null, acc: 0, shown: { spd: -1, drop: -1 }, tod: 'auto', open: false };
   const $ = id => document.getElementById(id);
+  const T = s => I18N.t(s), EN = () => I18N.en();          // (the words shown: see 00a_i18n.js)
   const SEG_EN = { bowl: 'OPEN BOWL', steeps: 'THE STEEPS', glade: 'GLADE', rollers: 'ROLLERS', gully: 'GULLY', kickers: 'KICKERS', powder: 'DEEP POWDER', ridge: 'RIDGE', moguls: 'MOGULS' };
   // the hours the day can be turned to, in the order the sun goes through them (keys of Sky.times)
   const TIMES = [['day', '白天'], ['golden', '傍晚'], ['sunset', '日落'], ['dusk', '黄昏'], ['night', '夜晚'], ['dawn', '黎明']];
@@ -13,11 +14,12 @@ const UI = (() => {
   U.init = function () {
     el = { app: $('app'), veil: $('veil'), shade: $('shade'), load: $('load'), fill: $('load-fill'), stage: $('load-stage'), title: $('title'), go: $('go'), how: $('how'), hud: $('hud'),
       seg: $('seg'), segEn: $('seg-en'), segCn: $('seg-cn'), hint: $('hint'), hintT: $('hint-t'), spd: $('spd'), tach: $('tach'), drop: $('drop'), snd: $('snd'), fs: $('fs'),
-      bar: $('bar'), mn: $('mn'), menu: $('menu'), nav: $('menu').querySelector('nav'), pane: $('mpane'), mk: $('m-k'), mGo: $('m-go'), mTop: $('m-top'), oSnd: $('o-snd'), oFs: $('o-fs'),
+      bar: $('bar'), mn: $('mn'), menu: $('menu'), nav: $('menu').querySelector('nav'), pane: $('mpane'), mk: $('m-k'), mGo: $('m-go'), mTop: $('m-top'), oSnd: $('o-snd'), oFs: $('o-fs'), oLang: $('o-lang'),
       time: $('sw-time'), kinds: $('sw-seg'), ev: $('sw-ev'), view: $('sw-view'), seed: $('sw-seed'), more: $('more'), drop2: $('drop2'), vw: $('vw'),
       say: $('say'), sayK: $('say-k'), sayV: $('say-v'), cut: $('cut'), jump: $('jump'), tuck: $('tuck'),
       pause: $('pause'), pauseS: $('pause-s'), pauseT: $('pause-t'), steer: $('steer') };
     el.moreView = el.more.querySelector('[data-sec="view"]');
+    I18N.capture(el.app); I18N.on(relang);
     U.layout();
     el.go.addEventListener('click', e => { e.stopPropagation(); U.go(); });
     // the whole picture is the button (the corner's glyphs, the title's other buttons and the menu keep their presses to themselves)
@@ -71,10 +73,10 @@ const UI = (() => {
     el.app.style.setProperty('--cw', V.w + 'px'); el.app.style.setProperty('--ch', V.h + 'px');
     // (inside a frame, as on claude.ai, the phone's tilt is refused: there the finger is the only way, so the title says only that)
     let framed = false; try { framed = window.self !== window.top; } catch (e) { framed = true; }
-    el.how.textContent = !hh ? '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速' : framed ? '按住屏幕左右拖动转弯 · 右下角 跳 / 加速' : '倾斜手机或按住屏幕左右拖动转弯 · 右下角 跳 / 加速';
+    el.how.textContent = T(!hh ? '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速' : framed ? '按住屏幕左右拖动转弯 · 右下角 跳 / 加速' : '倾斜手机或按住屏幕左右拖动转弯 · 右下角 跳 / 加速');
     U.hh = hh;
   };
-  U.stage = function (f, name) { if (!el) return; el.fill.style.transform = 'scaleX(' + f.toFixed(3) + ')'; if (name) el.stage.textContent = name; };
+  U.stage = function (f, name) { if (!el) return; el.fill.style.transform = 'scaleX(' + f.toFixed(3) + ')'; if (name) el.stage.textContent = T(name); };
   // first frame is on the canvas: let it come up out of the dark, then set the title over it
   U.ready = function () {
     if (!el) return; U.state = 'title';
@@ -111,8 +113,8 @@ const UI = (() => {
   };
   function showHint(kind) {
     U.hintKind = kind; el.hint.className = kind + ' on';
-    el.hintT.textContent = kind === 'tilt' ? '像握方向盘一样倾斜手机' : kind === 'drag' ? '按住屏幕，左右拖动' : kind === 'pace' ? '连着转弯，把雪扬起来'
-      : kind === 'moves' ? (U.hh ? '按住「跳」蓄力，松开起跳' : '空格 跳（按住蓄力） · ↓ 加速') : '← →  或  A D  转弯';
+    el.hintT.textContent = T(kind === 'tilt' ? '像握方向盘一样倾斜手机' : kind === 'drag' ? '按住屏幕，左右拖动' : kind === 'pace' ? '连着转弯，把雪扬起来'
+      : kind === 'moves' ? (U.hh ? '按住「跳」蓄力，松开起跳' : '空格 跳（按住蓄力） · ↓ 加速') : '← →  或  A D  转弯');
   }
   // per displayed frame
   U.frame = function (dt) {
@@ -137,7 +139,7 @@ const UI = (() => {
     const sg = Course.segAt(-S.p[2] + 2.5 * Math.max(0, -S.v[2]));
     if (sg.idx < U.segIdx - 1) U.segIdx = -1;
     if (sg.idx > U.segIdx && since > 1.6 && !dayUp()) {
-      U.segIdx = sg.idx; el.segCn.textContent = SEG_NAMES[sg.type] || ''; el.segEn.textContent = (sg.idx + 1 < 10 ? '0' : '') + (sg.idx + 1) + ' · ' + (SEG_EN[sg.type] || '');
+      U.segIdx = sg.idx; segCard(sg);
       // (on a phone held flat the card stands beside the speed, in the sky over the city, and goes sooner: the horizon is the picture there)
       segHold(el.app.classList.contains('short') && !el.app.classList.contains('desk') ? 2.5 : 3.6);
     }
@@ -149,7 +151,7 @@ const UI = (() => {
     const bar = typeof Game.flow === 'number' ? sat(Game.flow) : Math.min(1, kmh / 130);
     if (kmh !== U.shown.spd) { U.shown.spd = kmh; el.spd.textContent = kmh; }
     if (bar !== U.shown.bar) { U.shown.bar = bar; el.tach.style.transform = 'scaleX(' + bar.toFixed(3) + ')'; }
-    if (drop !== U.shown.drop) { U.shown.drop = drop; el.drop.textContent = drop.toLocaleString('en-US'); el.drop2.textContent = '· 落差 ' + drop.toLocaleString('en-US') + ' M'; }
+    if (drop !== U.shown.drop) { U.shown.drop = drop; el.drop.textContent = drop.toLocaleString('en-US'); el.drop2.textContent = '· ' + T('落差') + ' ' + drop.toLocaleString('en-US') + ' M'; }
   };
 
   // ================================================================ splits, and the day card
@@ -224,7 +226,7 @@ const UI = (() => {
     // the result of the run just left, under the name of the one being entered (named now if it has not been yet: a skier who slowed short of the line)
     if (SP.res && !dayUp()) {
       const r = SP.res, sg = Course.segAt(-Game.s.p[2]); SP.res = null;
-      if (sg.idx > U.segIdx) { U.segIdx = sg.idx; el.segCn.textContent = SEG_NAMES[sg.type] || ''; el.segEn.textContent = (sg.idx + 1 < 10 ? '0' : '') + (sg.idx + 1) + ' · ' + (SEG_EN[sg.type] || ''); }
+      if (sg.idx > U.segIdx) { U.segIdx = sg.idx; segCard(sg); }
       splitLine(r); segHold(3.2); el.seg.classList.add('res'); el.app.classList.add('res');
     }
     if (SP.segT > -1) {
@@ -237,22 +239,24 @@ const UI = (() => {
     if (SP.day) dayFrame(dt);
   }
   // 陡坡 · 28.4 s · 132 km/h ▲ · 飞行 38 m
+  // the card of a run: its number and its name (in English the name is the big line, and the number stands alone over it)
+  function segCard(sg) { const n = (sg.idx + 1 < 10 ? '0' : '') + (sg.idx + 1); el.segCn.textContent = T(SEG_NAMES[sg.type] || ''); el.segEn.textContent = EN() ? n : n + ' · ' + (SEG_EN[sg.type] || ''); }
   function splitLine(r) {
     const line = document.createElement('span'), add = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt) e.textContent = txt; line.appendChild(e); return e; };
     const fig = (lab, v, u) => { add('i', 'd', '·'); if (lab) add('em', 'k', lab); line.appendChild(document.createTextNode(v)); if (u) add('u', null, u); };
-    add('em', 'k', SEG_NAMES[r.type] || '');
+    add('em', 'k', T(SEG_NAMES[r.type] || ''));
     if (r.t < 60) fig('', r.t.toFixed(1), 's'); else fig('', Math.floor(r.t / 60) + ':' + (r.t % 60).toFixed(1).padStart(4, '0'), '');
     fig('', String(r.kv), 'km/h'); if (r.upV) add('i', 'up');
-    if (r.ka > 0) { fig('飞行 ', String(r.ka), 'm'); if (r.upA) add('i', 'up'); }
+    if (r.ka > 0) { fig(T('飞行 '), String(r.ka), 'm'); if (r.upA) add('i', 'up'); }
     el.split.textContent = ''; el.split.appendChild(line);
   }
   // DAY 1 · SUNSET / 日落 / the run so far: 落差, 距离, 极速, and the longest flight if there was one
   function dayShow(q) {
     const R = SP.run, F = [[Math.max(0, R.drop), 0, '落差 M'], R.dist < 1000 ? [Math.max(0, R.dist), 0, '距离 M'] : [R.dist / 1000, 1, '距离 KM'], [R.v * 3.6, 0, '极速 KM/H']];
     if (R.air > 0) F.push([R.air, 0, '飞行 M']);
-    el.dayK.textContent = 'DAY ' + q.day + ' · ' + (q.rise ? 'SUNRISE' : 'SUNSET'); el.dayT.textContent = q.rise ? '日出' : '日落';
+    el.dayK.textContent = 'DAY ' + q.day + (EN() ? '' : ' · ' + (q.rise ? 'SUNRISE' : 'SUNSET')); el.dayT.textContent = T(q.rise ? '日出' : '日落');
     el.dayF.textContent = ''; const d = SP.day = { t: 0, f: [] };
-    for (const [v, dp, lab] of F) { const w = document.createElement('div'), b = document.createElement('b'), s = document.createElement('span'); b.textContent = fmt(v, dp); s.textContent = lab; w.appendChild(b); w.appendChild(s); el.dayF.appendChild(w); d.f.push({ el: b, v, dp, k: -1 }); }
+    for (const [v, dp, lab] of F) { const w = document.createElement('div'), b = document.createElement('b'), s = document.createElement('span'); b.textContent = fmt(v, dp); s.textContent = T(lab); w.appendChild(b); w.appendChild(s); el.dayF.appendChild(w); d.f.push({ el: b, v, dp, k: -1 }); }
     // (each figure keeps the width of its whole value while it runs up to it, so nothing beside it moves)
     for (const f of d.f) f.el.style.minWidth = f.el.offsetWidth + 'px';
     for (const f of d.f) f.el.textContent = fmt(0, f.dp);
@@ -287,8 +291,8 @@ const UI = (() => {
     right: '<path d="M27 11h-6M24 8l-3 3 3 3"/><circle cx="11" cy="7" r="2.2"/><path d="M11 9v7M7 19h8"/>', front: '<circle cx="15" cy="7" r="2.6"/><path d="M15 10v6M10 12l5-2 5 2M11 19h8"/>',
     far: '<circle cx="15" cy="11" r="7"/><path d="M15 2v4M15 16v4M6 11h4M20 11h4"/>' };
   function initSwitch() {
-    el.time.appendChild(mkBtn('自动', 'time', 'auto')); for (const [id, name] of TIMES) el.time.appendChild(mkBtn(name, 'time', id));
-    for (const k of Object.keys(SEG_TYPES)) el.kinds.appendChild(mkBtn(SEG_NAMES[k] || k, 'seg', k));
+    el.time.appendChild(mkBtn(T('自动'), 'time', 'auto')); for (const [id, name] of TIMES) el.time.appendChild(mkBtn(T(name), 'time', id));
+    for (const k of Object.keys(SEG_TYPES)) el.kinds.appendChild(mkBtn(T(SEG_NAMES[k] || k), 'seg', k));
     el.mn.addEventListener('click', e => { e.stopPropagation(); U.menu(); if (e.detail) el.mn.blur(); });
     el.more.addEventListener('click', e => { e.stopPropagation(); const b = e.target.closest('button'); if (b) U.menu(b.dataset.sec); });
     // the column on the left: a part to open, or one of the ways out
@@ -299,7 +303,7 @@ const UI = (() => {
       if (d.sec && b.parentNode === el.nav) { show(d.sec); return; }
       if (d.time) U.setTime(d.time); else if (d.seg) U.gotoKind(d.seg); else if (d.view) U.setView(d.view); else if (d.new) U.newMountain();
       else if ('animal' in d) { U.animal(d.animal); U.menu(false); } else if (d.plane) { U.plane(); U.menu(false); }
-      else if (b === el.oSnd) U.sound(!Sound.on); else if (b === el.oFs) U.fullscreen();
+      else if (b === el.oSnd) U.sound(!Sound.on); else if (b === el.oFs) U.fullscreen(); else if (b === el.oLang) I18N.set(EN() ? 'zh' : 'en');
       else if (d.vn) { const V = varMod(); if (V) try { V.set(d.vn, d.vid); } catch (err) { console.warn(err); } paint(); }
       else if (d.vreset) { const V = varMod(); if (V && V.reset) try { V.reset(); } catch (err) { console.warn(err); } paint(); }
       else if (d.wx) U.setWeather(d.wx);
@@ -350,7 +354,7 @@ const UI = (() => {
     if (on && U.state === 'run') holdOn();
     U.open = on; if (on) { if (!el.pane.querySelector('section.on')) show(sec); paint(); el.say.classList.remove('on'); sayT = 0; }
     const run = U.state === 'run';
-    el.mk.textContent = run ? 'PAUSED · 暂停' : 'MENU · 菜单'; el.mGo.textContent = run ? '继续滑' : '出发'; el.mTop.hidden = !run;
+    el.mk.textContent = T(run ? 'PAUSED · 暂停' : 'MENU · 菜单'); el.mGo.textContent = T(run ? '继续滑' : '出发'); el.mTop.hidden = !run;
     el.menu.classList.toggle('on', on); el.menu.setAttribute('aria-hidden', on ? 'false' : 'true'); el.mn.setAttribute('aria-expanded', on ? 'true' : 'false');
     el.app.classList.toggle('menuopen', on);          // (the thumbs' buttons step aside under it)
     if (U.state === 'title') el.title.classList.toggle('on', !on);          // (the title's own words make way for it, and come back)
@@ -360,12 +364,12 @@ const UI = (() => {
   // (the old name of the open/close, kept for anything that still calls it)
   U.openSwitch = function (on) { if (on === false || (on == null && U.open)) U.menu(false); else U.menu(true); };
   // what a key changed, said once (the open menu shows it itself)
-  function say(k, v) { if (!el || U.open) return; el.sayK.textContent = k; el.sayV.textContent = v || ''; el.say.classList.add('on'); sayT = 2.4; }
+  function say(k, v) { if (!el || U.open) return; el.sayK.textContent = EN() ? I18N.EN['say:' + k] || T(k) : k; el.sayV.textContent = T(v || ''); el.say.classList.add('on'); sayT = 2.4; }
   function flash(b) { if (!b) return; b.classList.add('hit'); clearTimeout(b._t); b._t = setTimeout(() => b.classList.remove('hit'), 1500); }
   // which of the named hours the clock is nearest to
   function hour() { const C = Sky.cycle, c = ((Sky.clock % C) + C) % C; let best = TIMES[0][0], bd = 1e9; for (const [id] of TIMES) { let d = Math.abs(c - Sky.times[id]); d = Math.min(d, C - d); if (d < bd) { bd = d; best = id; } } return best; }
   const views = () => Game.views && Game.views.length && Game.setView ? Game.views : null;
-  const viewName = () => { const vs = views(); if (!vs) return ''; const v = vs.find(q => q.id === Game.view) || vs[0]; return v.name || String(v.id); };
+  const viewName = () => { const vs = views(); if (!vs) return ''; const v = vs.find(q => q.id === Game.view) || vs[0]; return v.name || String(v.id); };          // (said through T by say)
   // the menu as things stand: the hour held (or, with the clock running, the hour it has reached), the run being skied, the view, the
   // mountain, and whatever of animals, weather and versions this build has
   let vwSig = null;
@@ -377,23 +381,35 @@ const UI = (() => {
     const F = fauna(), ks = F && F.kinds && F.kinds.length ? F.kinds : [{ id: '', name: '鹿' }], sig = ks.map(k => k.id + ':' + k.name).join();
     if (sig !== evSig) {
       evSig = sig; el.ev.textContent = '';
-      for (const k of ks) el.ev.appendChild(mkBtn(k.name, 'animal', k.id));
+      for (const k of ks) el.ev.appendChild(mkBtn(T(k.name), 'animal', k.id));
       const s = document.createElement('i'); s.className = 'sep'; el.ev.appendChild(s);
-      el.ev.appendChild(mkBtn('航班', 'plane', '1'));
+      el.ev.appendChild(mkBtn(T('航班'), 'plane', '1'));
     }
     const vs = views(), vsig = vs ? vs.map(v => v.id).join() : '';
     if (vsig !== vwSig) {
       vwSig = vsig; el.view.textContent = '';
-      for (const v of vs || []) { const b = mkBtn('', 'view', v.id); b.innerHTML = '<svg viewBox="0 0 30 22" aria-hidden="true">' + (VIEW_ICON[v.id] || VIEW_ICON.chase) + '</svg>'; const t = document.createElement('span'); t.textContent = v.name || v.id; b.appendChild(t); el.view.appendChild(b); }
+      for (const v of vs || []) { const b = mkBtn('', 'view', v.id); b.innerHTML = '<svg viewBox="0 0 30 22" aria-hidden="true">' + (VIEW_ICON[v.id] || VIEW_ICON.chase) + '</svg>'; const t = document.createElement('span'); t.textContent = T(v.name || v.id); b.appendChild(t); el.view.appendChild(b); }
       el.vw.hidden = !vs; el.nav.querySelector('[data-sec="view"]').hidden = !vs; el.moreView.hidden = !vs;
     }
     for (const b of el.view.children) b.classList.toggle('on', b.dataset.view === Game.view);
     const mt = typeof App.newMountain === 'function'; el.nav.querySelector('[data-sec="mt"]').hidden = !mt;
     if (mt) { const n = '#' + Course.seed; if (el.seed.textContent !== n) el.seed.textContent = n; }
-    el.oSnd.textContent = Sound.on ? '声音 开' : '声音 关'; el.oSnd.classList.toggle('on', !!Sound.on); el.oSnd.setAttribute('aria-pressed', Sound.on ? 'true' : 'false');
+    el.oSnd.textContent = T(Sound.on ? '声音 开' : '声音 关'); el.oSnd.classList.toggle('on', !!Sound.on); el.oSnd.setAttribute('aria-pressed', Sound.on ? 'true' : 'false');
     const fsOK = !U.hh && !!document.fullscreenEnabled && !!document.documentElement.requestFullscreen, full = !!document.fullscreenElement;
-    el.oFs.hidden = !fsOK; el.oFs.classList.toggle('on', full); el.oFs.textContent = full ? '退出全屏' : '全屏';
+    el.oFs.hidden = !fsOK; el.oFs.classList.toggle('on', full); el.oFs.textContent = T(full ? '退出全屏' : '全屏');
+    if (el.oLang) el.oLang.textContent = EN() ? '中文' : 'English';
     paintVariants();
+  }
+  // the language changed (the menu's own switch): the page's fixed words are I18N's; everything written from here is written again
+  function relang() {
+    for (const b of el.time.children) b.textContent = T(b.dataset.time === 'auto' ? '自动' : (TIMES.find(q => q[0] === b.dataset.time) || [, b.dataset.time])[1]);
+    for (const b of el.kinds.children) b.textContent = T(SEG_NAMES[b.dataset.seg] || b.dataset.seg);
+    evSig = vwSig = vSig = wxSig = null;
+    U.layout();
+    const run = U.state === 'run'; el.mk.textContent = T(run ? 'PAUSED · 暂停' : 'MENU · 菜单'); el.mGo.textContent = T(run ? '继续滑' : '出发');
+    if (U.hintKind && el.hint.classList.contains('on') && !/gap|done/.test(U.hintKind)) showHint(U.hintKind);
+    if (U.state === 'run' && U.segIdx >= 0) { try { const sg = Course.segs[U.segIdx]; if (sg) segCard({ idx: U.segIdx, type: sg.type }); } catch (e) { } }
+    paint();
   }
 
   // ---- the hour. It is turned to, not cut to: the clock is run the short way round to the hour asked for in a second or two (the sun
@@ -439,10 +455,10 @@ const UI = (() => {
       groups.push(['新加的', defs.filter(d => !known.has(d.name))]);
       for (const [gn, ds] of groups) {
         if (!ds.length) continue;
-        const g = document.createElement('div'), h = document.createElement('i'); g.className = 'vgrp'; h.textContent = gn; g.appendChild(h);
+        const g = document.createElement('div'), h = document.createElement('i'); g.className = 'vgrp'; h.textContent = T(gn); g.appendChild(h);
         for (const d of ds) {
-          const row = document.createElement('div'), lab = document.createElement('span'); row.className = 'vrow'; lab.textContent = d.label; row.appendChild(lab);
-          for (const [id, name] of d.opts) { const b = mkBtn(name, 'vn', d.name); b.dataset.vid = id; if (id === d.def) { b.classList.add('rec'); b.title = '推荐'; } row.appendChild(b); }
+          const row = document.createElement('div'), lab = document.createElement('span'); row.className = 'vrow'; lab.textContent = T(d.label); row.appendChild(lab);
+          for (const [id, name] of d.opts) { const b = mkBtn(T(name), 'vn', d.name); b.dataset.vid = id; if (id === d.def) { b.classList.add('rec'); b.title = T('推荐'); } row.appendChild(b); }
           g.appendChild(row);
         }
         el.vrows.appendChild(g);
@@ -453,7 +469,7 @@ const UI = (() => {
     for (const b of el.vrows.querySelectorAll('button')) { const on = !!V && V.val[b.dataset.vn] === b.dataset.vid; b.classList.toggle('on', on); if (on && !b.classList.contains('rec')) all = false; }
     el.vreset.classList.toggle('idle', all);
     const W = wxMod(), ls = W ? W.levels : [], ws = ls.map(l => l[0] + ':' + l[1]).join();
-    if (ws !== wxSig) { wxSig = ws; el.wxc.textContent = ''; for (const [id, name] of ls) el.wxc.appendChild(mkBtn(name, 'wx', id)); el.wx.hidden = !W; }
+    if (ws !== wxSig) { wxSig = ws; el.wxc.textContent = ''; for (const [id, name] of ls) el.wxc.appendChild(mkBtn(T(name), 'wx', id)); el.wx.hidden = !W; }
     if (W) for (const b of el.wxc.children) b.classList.toggle('on', b.dataset.wx === W.level);
   }
 
@@ -585,7 +601,7 @@ const UI = (() => {
   // the picture itself is gone (the graphics device was taken away: the loop tells us). Nothing can be drawn again from here: say so, start over on a tap
   U.lost = function () {
     if (!el || U.gone) return; hold = null; if (U.open) U.menu(false); U.gone = true; U.paused = false; letGo(); hush(0, 0.05);
-    el.pause.classList.add('lost', 'on'); el.pause.setAttribute('aria-hidden', 'false'); el.pauseS.textContent = '画面断开了'; el.pauseT.textContent = '点一下重新上山';
+    el.pause.classList.add('lost', 'on'); el.pause.setAttribute('aria-hidden', 'false'); el.pauseS.textContent = T('画面断开了'); el.pauseT.textContent = T('点一下重新上山');
   };
 
   // per displayed frame, on the title page as in a run. dt is the frame's own (real) time: these are the interface's clocks, not the world's
