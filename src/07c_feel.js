@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------- feel: what the skiing does to the lens and to the air
 // Nothing is drawn here. Once a frame (from tick, before the frame's globals are worked out) this sets what the lens in 09_post.js and
 // the renderer's weather hooks read: how fast (a longer shutter, colour fringes and darker edges toward the sides of the frame, a tremor
-// in the camera), snow thrown onto the glass by a landing, a bough or a fall, the air of each kind of run, and the look of slow motion.
+// in the camera), snow thrown onto the glass by a landing, a bough or a fall, the air of each kind of run, the look of slow motion, and the
+// tremble of the picture while the skis rub on the snow.
 // All of it is eased and runs on the game's time, so in slow motion it slows with the world; only the glass dries in real seconds.
 const Feel = (() => {
   const F = { speed: 0, slow: 0, timeK: 1, air: [1, 1, 1], base: [1, 1, 0.00016], wrote: [], goal: 0, pend: null, since: 99, runT: 0, px: 0, pz: 0, init: false };
@@ -14,6 +15,19 @@ const Feel = (() => {
   // (the haze is a far one: what shows is the slopes beyond going pale)
   F.AIR = { ridge: [5, 1, 1], glade: [1, 2.5, 1], powder: [1, 2.5, 1], gully: [1, 1, 4] };
   const PLAIN = [1, 1, 1], HOOK = ['drift', 'dust', 'fogDensity'], DAY = [1, 1, 0.00016];
+  // snow chatter: while the skis rub on the snow the picture trembles, just enough to feel it. `chatter` 0..1 is how hard they rub (set
+  // every frame below). chatPx: the furthest the picture is ever knocked, either way, in pixels of a picture 1280 wide (a wider one is
+  // knocked as many more pixels, the same share of the frame; a narrower one the same pixels, because a knock cannot be less than one
+  // and fewer of them would not be felt); 0 switches the tremble off. chatRot: a turn about the middle of the frame to go with it, as
+  // what it moves the far edge by, in parts of chatPx. It is off: at this size a turn moves every part of the picture by less than a
+  // pixel, so it can only be drawn by reading the scene between its pixels, and that costs more sharpness than the turn can be seen
+  // (0.25 takes 3 to 13% of the fine detail off the frame, on and off, for a movement of at most a third of a pixel at the edges)
+  F.chatter = 0; F.chatPx = 1.4; F.chatRot = 0;
+  // every snow has its grain: [how fast the picture rings (Hz), how soon a knock has died (damping, 0..1), knocks a second, how far]. Packed
+  // and icy snow (the open bowl, the steeps, the ridge) is a fine fast grain; deep powder softer and slower; where the bumps of a mogul
+  // field stand, and over rollers, there are fewer knocks and harder ones
+  F.GRAIN = { packed: [15, 0.3, 50, 1], powder: [9, 0.5, 30, 0.75], rough: [12, 0.3, 9, 1.15] };
+  const CH = F.chat = { lv: 0, con: 0, rough: 0, acc: 0, n: 0, q: [0, 0, 0, 0, 0, 0] }, clip = v => v / Math.sqrt(Math.sqrt(1 + v * v * v * v));
 
   // snow reaches the glass: how much (0..1: it is also how long it stays, 1 = F.dry seconds), from which side of the frame (-1 left .. 1 right)
   // and how much of it from below (0..1). On dry glass it lands as a new scatter of beads; on wet glass the ones there swell again
@@ -77,6 +91,39 @@ const Feel = (() => {
     F.goal = Math.max(0, F.goal - rdt / F.dry);
     Post.wet = Post.wet < F.goal ? Math.min(F.goal, Post.wet + rdt / 0.07) : F.goal;
     if (Post.wet > 0) Post.wetAge += rdt; Post.wetNew = Math.max(0, Post.wetNew - rdt / 0.3);       // (it lands as snow, white, and has melted in a third of a second)
+
+    // ---- snow chatter. How hard the skis rub is read from the physics: what a skid brakes with (its force S.aSkid, the part of it that
+    // lies along the way the skier is going) and what the edges hold in a carve (S.aCarve). Both carry the load on the legs; both grow
+    // with speed. Skis running flat give a breath of it, more over bumps; off the snow or standing there is none. These are the things the
+    // snow's sound is made of (lean, the angle of the skid, load, speed: 18_sound.js), so the eye and the ear agree. It comes up in 40 ms,
+    // dies away in 150, and leaves with the snow in a few frames, as the sound does.
+    {
+      const g = 9.81, v3 = Math.hypot(S.v[0], S.v[1], S.v[2]), on = run && S.contact !== false && !S.air, pw = sat(((S.powder || 0) - 0.3) / 0.7);
+      const rg = Course.segAt(-S.p[2]).type === 'rollers' ? 1 : Course.bumps ? Course.bumps(S.p[0], S.p[2]) : 0;
+      const fS = (S.aSkid || 0) * Math.abs(Math.sin(S.beta || 0)) / g, fC = Math.abs(S.aCarve || 0) / g, fN = Math.min((S.load || 0) / g, 1.5);
+      const drive = on ? sat(smooth(1, 15, v3) * (1.6 * fS + 0.45 * fC) + 0.06 * smooth(5, 30, v3) * fN * (1 - 0.7 * pw) * (1 + 1.5 * CH.rough)) : 0;
+      if (cut) { CH.lv = CH.con = CH.acc = CH.n = 0; CH.q.fill(0); }
+      CH.rough = cut ? rg : damp(CH.rough, rg, 3, dt);
+      CH.lv = damp(CH.lv, drive, drive > CH.lv ? 25 : 6.7, dt); CH.con = damp(CH.con, on ? 1 : 0, on ? 40 : 28, dt);
+      F.chatter = CH.lv * CH.con > 1e-3 ? CH.lv * CH.con : 0;
+      // the tremble itself. The picture is a small sprung mass that the snow knocks at random moments, and what is drawn is how fast it
+      // is moving: so it never drifts (every knock swings back), and it is no steady hum. It runs on a clock of its own, 240 steps to a
+      // second of the game's time: the same tremble at any frame rate, slowed with the world, and still the moment time stands still
+      const G = F.GRAIN, k = i => lerp(lerp(G.packed[i], G.powder[i], pw), G.rough[i], CH.rough), q = CH.q;
+      const Hc = 1 / 240, zt = k(1), w = TAU * k(0) * Hc, r = 1 / Math.sqrt(1 - zt * zt), E = Math.exp(-zt * w), c = E * Math.cos(w / r), s = E * Math.sin(w / r), p = Math.min(1, k(2) * Hc), a = 0.873 * Math.sqrt(4 * zt * w / p);
+      CH.acc += dt; let n = Math.min(12, Math.floor(CH.acc / Hc)); CH.acc -= n * Hc; if (CH.acc > Hc) CH.acc = 0;
+      for (; n > 0; n--) for (let i = 0; i < 6; i += 2) {
+        const x = q[i], y = q[i + 1], h = hash1(CH.n++); q[i] = (c + zt * r * s) * x + r * s * y; q[i + 1] = -r * s * x + (c - zt * r * s) * y;
+        if (h < p) q[i + 1] += a * (h < 0.5 * p ? -1 : 1) * (0.5 + hash1(CH.n++));
+      }
+      // onto the picture (Post.chat: pixels across, pixels down, the turn in radians). It is moved by whole pixels only: a part of a
+      // pixel can only be drawn by reading the scene between its pixels, and that softens it (a fifth of the fine detail gone, on and off
+      // from frame to frame). So where less than a pixel is asked for, the picture is knocked a whole one, less often: the threshold
+      // keeps the mean square what was asked, down to a tenth of a pixel or so, below which nothing moves at all
+      const amp = F.chatPx * F.chatter * k(3), rms = amp * Math.max(Render.W, 1280) / 1280 / 2.8, T = 0.5 * Math.pow(sat(rms / 0.3), 0.6);
+      for (let i = 0; i < 2; i++) { const d = rms * 2.8 * clip(q[2 * i + 1] / 2.8); Post.chat[i] = sign(d) * Math.floor(Math.abs(d) + 1 - T); }
+      Post.chat[2] = F.chatRot * amp / 640 * clip(q[5] / 2.8);
+    }
   };
   return F;
 })();
