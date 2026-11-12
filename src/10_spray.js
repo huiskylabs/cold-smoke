@@ -157,7 +157,8 @@ const Spray = (() => {
   // a point of light makes. rho = how much of the radius is still solid.
   let cz: f32 = v.shp.z; let rt: f32 = sqrt(max(1.0 - cz * cz, 0.0)); let rho: f32 = max(rt - cz, 0.0) / max(rt + cz, 1e-3);
   let a: f32 = smoothstep(r, min(r * rho, r - max(1.0, r * 0.3)), d) * min(1.0, v.cc.a / (0.3 + 0.7 * rho * rho));
-  o.color = vec4f(g.rgb + v.cc.rgb * a, 1.0 - a); return o; }`,
+  // (by night a crumb is light, not pepper: it takes little of what is behind it, so a dim one is nothing on lit snow, never a dark blue fleck)
+  o.color = vec4f(g.rgb + v.cc.rgb * a, 1.0 - a * mix(1.0, 0.15, M.gp.z)); return o; }`,
     });
     P.pipes = [pipePuff, pipePuffSun, pipeComp, pipeGrain];
   };
@@ -614,16 +615,24 @@ fn frag(v: VOut) -> FOut {
   // ring round this pixel is cloud, pushed about by the world noise), and inside it is torn into tufts and peppered with crystals at
   // any distance (a dark veil out of focus still shows its grain against the lamp; it is the bright day veil that goes smooth)
   if (M.r.y > 0.0) {
-    let rr: f32 = (6.0 + 5.0 * w2) / M.p.y; let ra: f32 = w1 * 6.2832; var cov: f32 = 0.0;
-    for (var j: i32 = 0; j < 6; j++) {
-      let an: f32 = ra + f32(j) * 1.0472; let rj: f32 = rr * (1.0 + 0.6 * f32(j & 1));
-      cov += 1.0 - exp(-1.5 * texLod(tSpray, v.uv + vec2f(cos(an) * M.p.y / M.p.x, sin(an)) * rj, 0.0).x);
+    // (two rings: a near one for the grain of the edge, a wide one, centred a little above, so the whole outline is eaten in and the top of
+    // a curtain thins away into the dark instead of ending on a cut-out line; the wide ring is a share of the picture, not of texels, so
+    // a curtain that fills half the frame from close by is eroded as much as a far one)
+    let ra: f32 = w1 * 6.2832; var cs: f32 = 0.0; var cw: f32 = 0.0; let ax: f32 = M.p.y / M.p.x;
+    let rs: f32 = (6.0 + 5.0 * w2) / M.p.y; let rw: f32 = 0.035 + 0.035 * w3;
+    for (var j: i32 = 0; j < 8; j++) {
+      let an: f32 = ra + f32(j) * 0.7854; let dv: vec2f = vec2f(cos(an) * ax, sin(an));
+      cs += 1.0 - exp(-1.5 * texLod(tSpray, v.uv + dv * (rs * (1.0 + 0.6 * f32(j & 1))), 0.0).x);
+      cw += 1.0 - exp(-1.2 * texLod(tSpray, v.uv + vec2f(0.0, -0.7 * rw) + dv * rw, 0.0).x);
     }
-    cov = cov / 6.0;
-    let em: f32 = smoothstep(0.30, 0.95, cov + (wn - 0.5) * 0.6);
+    // (a pixel on the very rim sees about half its ring in cloud: the mask must already be at nothing there, or the rim is a step)
+    let cov: f32 = min(cs / 8.0, 0.25 + cw / 8.0);
+    let em: f32 = smoothstep(0.50, 1.0, cov + (wn - 0.5) * 0.6);
     let tuft: f32 = mix(0.25, 1.6, smoothstep(0.30, 0.66, wn)) * mix(0.55, 1.35, smoothstep(0.35, 0.75, w3));
     let grit: f32 = mix(1.0, spk, 0.45);
-    tau *= mix(1.0, em * tuft * grit, M.r.y);
+    // (and however thick it is, the eroded band stays see-through: a thick cloud times a thin mask is still a wall with a sharp rim)
+    let tq: f32 = min(tau * em * tuft * grit, 0.05 + 4.0 * em * em);
+    tau = mix(tau, tq, M.r.y);
   }
   if (tau < 0.00002) { return o; }
   let T: f32 = exp(-tau);
@@ -678,7 +687,10 @@ fn frag(v: VOut) -> FOut {
     var cn: vec3f = moon * (min(ph, 1.4) * S1n * 0.8 + (1.0 - Tn) * mix(0.16, 0.55 * wrapD, smoothstep(0.25, 1.8, tn)));
     // the dark around it: the sky, and the moonlit slope it hangs over, which is the largest light there is by night (a veil over that
     // snow has that snow's brightness, give or take: shaded with the sky alone it stood on the slope as a wall of dark smoke)
-    cn += (U.ambSky.rgb * (1.1 + 0.6 * up) + U.ambGnd.rgb * 0.95 + moon * (0.05 * deep)) * (1.0 - Tn);
+    // (but it is only what the cloud takes out of the snow behind it, given back: the cloud itself takes out little (see To below), so
+    // this is a faint grey haze over the dark, and over lit snow next to nothing: it neither darkens that snow nor paints it blue)
+    let ambN: vec3f = U.ambSky.rgb * (1.1 + 0.6 * up) + U.ambGnd.rgb * 0.95;
+    cn += (mix(ambN, vec3f(luma(ambN)), 0.6) * 0.45 + moon * (0.05 * deep)) * (1.0 - Tn);
     // the town: a trace of its warmth in whatever hangs toward it
     cn += vec3f(1.0, 0.50, 0.42) * (0.0045 * U.skyP.z * (0.35 + 0.65 * sq(saturate(dot(d.xz, M.c.xy)))) * (1.0 - Tn));
     // the headlamp. It is the one light close enough to show how much snow there is, so it sees all of it (not the thinned veil).
@@ -689,15 +701,20 @@ fn frag(v: VOut) -> FOut {
       // (the cone, and round the skier what the lamp spills sideways and what its pool on the snow throws back up: the turn's own snow is
       // beside and behind the lamp, never in its cone, and without this the skier's light did not touch the snow the skier throws)
       let dl: vec3f = P1 - U.lamp.xyz; let r2: f32 = dot(dl, dl); let cl: f32 = dot(dl, U.lampDir.xyz) / sqrt(max(r2, 1e-4));
-      let E: vec3f = lampLight(P1) + vec3f(1.0, 0.85, 0.64) * (U.lamp.w * 0.035 * smoothstep(-0.6, 0.3, cl) / (r2 + 6.0));
+      // (the spill is a glow, not a flood: at full strength it lit the whole near curtain behind the skier to one flat grey slab)
+      let E: vec3f = lampLight(P1) + vec3f(1.0, 0.85, 0.64) * (U.lamp.w * 0.013 * smoothstep(-0.6, 0.3, cl) / (r2 + 6.0));
       let ml: f32 = dot(d, -dl) / sqrt(max(r2, 1e-4));
       // (the peak is held down: unheld, the whole cloud burnt out to one white shape against the lamp, thick and thin alike. Held, the thick
       // of it stands dark in a bright rim, as snow against a light does. And it is in thin snow that single crystals show)
       let phl: f32 = min((0.50 * hg(ml, 0.86) + 0.38 * hg(ml, 0.40) + 0.12 * hg(ml, -0.30)) * 12.566, 3.5);
-      let glit: f32 = smoothstep(0.74, 1.0, s1) * smoothstep(0.45, 1.0, s2) * 8.0 * sharp * (1.0 - 0.6 * smoothstep(0.6, 2.5, tau));
-      cn += E * ((phl * tau * T + (1.0 - T) * mix(0.30, 0.60, saturate(0.5 - 0.5 * ml))) * (1.0 + glit));
+      let glit: f32 = smoothstep(0.74, 1.0, s1) * smoothstep(0.45, 1.0, s2) * 8.0 * max(sharp, 0.6) * (1.0 - 0.6 * smoothstep(0.6, 2.5, tau));
+      // (lit snow in the air is crystals and tufts, lit unevenly: the same world noise the edge is torn by, so it is never one even face)
+      let tl: f32 = mix(0.30, 1.5, smoothstep(0.30, 0.70, wn));
+      cn += E * ((phl * tau * T + (1.0 - T) * mix(0.30, 0.60, saturate(0.5 - 0.5 * ml))) * (tl + glit));
     }
-    col = mix(col, cn, M.r.y); To = mix(T, Tn, M.r.y);
+    // the night cloud is light added, not a dye: it takes at most a tenth of what is behind it (real crystals off the lamp are all but
+    // clear; it was its absorption, at full strength, that laid a dark blue smear over the lit kicker)
+    col = mix(col, cn, M.r.y); To = mix(T, 1.0 - 0.10 * (1.0 - Tn), M.r.y);
   }
   o.color = vec4f(col, To);
   return o;
