@@ -257,7 +257,9 @@
     // a helmet camera shivers a little at speed and takes a landing in the neck: both as turns of the head, not as travel
     const sh = 0.28 * B.shk, t = G.t, ly = clamp(look.yaw, -0.95, 0.95), al = Math.abs(ly);
     // (looking to the side, the eyes come up off the snow toward the far slope)
-    const yw = F.yaw + ly + vnoise1(t * 15, 6) * sh, pt = clamp(F.pit * (1 - 0.5 * smooth(0.2, 0.95, al)) + look.pit + vnoise1(t * 17, 7) * sh, -1.3, 1.0);
+    // (and bows a little with the trunk through the drive of a double-pole stroke, after the hands going down)
+    const dq = G.pose.dp || 0, dip = dq > 0 ? Math.sin(Math.PI * sat((dq - 0.20) / 0.50)) * (1 - sat(G.pose.tuck || 0)) * (1 - smooth(0.14, 0.5, Math.abs(G.pose.lean || 0))) : 0;
+    const yw = F.yaw + ly + vnoise1(t * 15, 6) * sh, pt = clamp(F.pit * (1 - 0.5 * smooth(0.2, 0.95, al)) + look.pit + vnoise1(t * 17, 7) * sh - 0.045 * dip * (1 - tk), -1.3, 1.0);
     setF(o, yw, pt);
     // a head that bows or turns carries its eyes out over the chest: the further below the line of the skis they point (looking down at them, or at a
     // landing coming up) or the further round to the side, the further the lens leaves the middle of the helmet for the goggles, and the skier's own collar

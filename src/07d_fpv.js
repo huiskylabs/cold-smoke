@@ -284,7 +284,12 @@ const Fpv = (() => {
       PH.v = [v[0], v[1], v[2]];
     } else if (!S) PH.a[0] = PH.a[1] = PH.a[2] = 0;
     const tuck = sat(ps.tuck || 0), own = PH.own, fq = ps.dp || 0, dropK = smooth(0, 0.7, F.tk || 0);
-    const rch = fq > 0 ? smooth(0, 0.075, fq) * smooth(0.188, 0.095, fq) * (1 - tuck) * (1 - sat(ps.air || 0)) * (1 - smooth(0.14, 0.5, Math.abs(ps.lean || 0))) : 0;
+    // (a double-pole stroke seen from the helmet: the figure plants its hands at hip height half an arm ahead, which from the eyes is below the
+    // picture, and in the drive the head goes forward over them faster than they go back. So for this view the hands are carried higher and
+    // further forward through the reach, still so as the tips go in (the pole goes on through where its tip was planted: below the picture), and
+    // let down and out over the first part of the drive, out of the picture's lower corners. rch: how much, by the stroke's phase; dr: the drive)
+    const dpOK = fq > 0 ? (1 - tuck) * (1 - sat(ps.air || 0)) * (1 - smooth(0.14, 0.5, Math.abs(ps.lean || 0))) : 0;
+    const rch = dpOK > 0 ? smooth(0, 0.12, fq) * smooth(0.50, 0.24, fq) * dpOK : 0, dr = dpOK > 0 ? smooth(0.22, 0.46, fq) * smooth(0.62, 0.50, fq) * dpOK : 0;
     for (let k = 0; k < 2; k++) {
       const A = SD[k], sg = A.sg, n = sg > 0 ? 'R' : 'L', hold = sat(J['planted' + n] || 0);
       const Sh = mir(J['sh' + n], sg), Eh = mir(J['elbow' + n], sg), G0 = mir(J['grip' + n], sg), d0 = mir(J['poleD' + n], sg), T = mir(J['tip' + n], sg), acc = mir(PH.a, sg);
@@ -298,13 +303,11 @@ const Fpv = (() => {
         for (let i = 0; i < 2; i++) { const to = clamp(-(i ? acc[2] : acc[0]) * 0.011 - A.ov[i ? 2 : 0] * 0.35, -0.16, 0.16) * fr; A.pdv[i] = (A.pdv[i] + wp * wp * (to - A.pd[i]) * dt) / (1 + 2 * zp * wp * dt + wp * wp * dt * dt); A.pd[i] = clamp(A.pd[i] + A.pdv[i] * dt, -0.22, 0.22) * (hold >= 1 ? 0 : 1); }
       }
       let G1 = v3.mad(G0, A.o, own), d = v3.norm([d0[0] + A.pd[0] * own, d0[1], d0[2] + A.pd[1] * own]);
-      // (the reach of a double-pole stroke is carried higher and further out than the figure makes it, as the stance is (07b_views.js), so that
-      // from the helmet the hands are seen to come up before they drive down; it is given back before the tips go in)
-      if (rch > 0) { G1[1] += 0.13 * rch * own; G1[2] -= 0.10 * rch * own; }
       // (on the way down to the view of the ski tips the hands are let down and back, out of the picture behind the lens, before they are left out)
       if (dropK > 0) { G1[0] += 0.10 * dropK; G1[1] -= 0.45 * dropK; G1[2] += 0.32 * dropK; }
       // (a hand on a planted pole stays the pole's length from where the tip went in)
       if (hold > 0) { const dv = v3.sub(G1, T), l = v3.len(dv) || 1, l0 = v3.len(v3.sub(G0, T)); G1 = v3.lerp(G1, v3.mad(T, dv, l0 / l), hold); }
+      if (rch > 0 || dr > 0) { G1[0] += (0.15 * rch + 0.16 * dr) * own; G1[1] += 0.21 * rch * own; G1[2] -= (0.16 * rch + 0.22 * dr) * own; }
       solveArm(A, Sh, G1, d, Eh, hold, T, dt);
       A.init = false; A.hold = hold;
       A.M = A.M || []; for (let i = 0; i < 4; i++) A.M[i] = sg > 0 ? A.m[i] : flipM(A.m[i]);
