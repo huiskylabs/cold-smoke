@@ -77,6 +77,10 @@ const Render = (() => {
     // snapping in absolute space so shadows don't crawl: include the origin offset
     const ox = v3.dot(o, lx), oy = v3.dot(o, ly);
     cx = Math.round((cx + ox) / tex) * tex - ox; cy = Math.round((cy + oy) / tex) * tex - oy;
+    // (a light that moves turns that grid about the world's origin, and far down the mountain it slid most of a texel a frame under the
+    // shadows, which boiled: when the light has turned, the grid's phase is carried along so that it stays put where the camera is)
+    { const P = R.snapP || (R.snapP = { lx, ly, x: 0, y: 0 }), a = v3.add(ctr, o); P.x = (P.x + v3.dot(a, v3.sub(lx, P.lx))) % tex; P.y = (P.y + v3.dot(a, v3.sub(ly, P.ly))) % tex; P.lx = lx; P.ly = ly;
+      cx = Math.round((v3.dot(ctr, lx) + ox - P.x) / tex) * tex - ox + P.x; cy = Math.round((v3.dot(ctr, ly) + oy - P.y) / tex) * tex - oy + P.y; }
     const eye = v3.add(v3.add(v3.mul(lx, cx), v3.mul(ly, cy)), v3.mul(lz, cz + 600));
     const lview = [lx[0], ly[0], lz[0], 0, lx[1], ly[1], lz[1], 0, lx[2], ly[2], lz[2], 0, -v3.dot(lx, eye), -v3.dot(ly, eye), -v3.dot(lz, eye), 1];
     const svp = m4.mul(m4.ortho(-rng, rng, -rng, rng, 1, 1200), lview);
