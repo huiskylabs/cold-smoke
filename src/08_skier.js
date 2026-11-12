@@ -71,7 +71,7 @@ const Skier = (() => {
   // trunk and head; lead, stance, lift*, pitch*: where the skis are; arm*: offsets of the hands; plant*: the pole touch at a turn; dp: phase of a double-pole
   // stroke (0 = none); grab*: that hand takes hold of the same-side ski beside the binding
   const P0 = { lean: 0, edge: 0, crouch: 0.21, tuck: 0, air: 0, sep: 0, headYaw: 0, lead: 0, stance: 0.31, fore: 0, armL: [0, 0, 0], armR: [0, 0, 0], swing: 0, liftL: 0, liftR: 0, pitchL: 0, pitchR: 0, plantL: 0, plantR: 0, dp: 0, grabL: 0, grabR: 0 };
-  const SEC0 = { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: null };
+  const SEC0 = { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: null, idle: null };
 
   // ---- the double-pole stroke (pose.dp = phase): reach 0..PLANT, tips in the snow PLANT..REL while the body goes past them, release, recover
   const DP = { PLANT: 0.22, REL: 0.62, T: 0.95, V: 3.5, TIPY: -0.04 };
@@ -101,6 +101,9 @@ const Skier = (() => {
     const gL = smooth(0, 1, p.grabL || 0), gR = smooth(0, 1, p.grabR || 0), gM = Math.max(gL, gR), gS = gR - gL;
     const f = clamp(p.dp || 0, 0, 1), dpw = f > 0 ? (1 - smooth(0, 0.7, tuck)) * (1 - air) * (1 - gM) * (1 - smooth(0.14, 0.5, Math.abs(lean))) : 0;   // (nobody double-poles on one edge)
     const PL = LEN.pole, J = {}, F = new Array(K.NB);
+    // standing at ease (see update): rest 0..1 with the pole tips set down at T (u: one lifted, to be set down afresh), up: the trunk more upright, br: a
+    // breath drawn 0..1, sh: the weight on the left (-1) or right (+1) ski, hy, hp, ty: where head and shoulders are turned, sx: the body's slow sway
+    const id = sec.idle || null, ish = id ? id.sh : 0, ibr = id ? id.br : 0;
     // feet (ski frames): rolled onto their edges; the inside ski leads
     const fb = basis(0, 0, edge), lift = 0.05 * Math.abs(Math.sin(edge));
     const fbL = p.pitchL ? basis(0, -p.pitchL, edge) : fb, fbR = p.pitchR ? basis(0, -p.pitchR, edge) : fb;
@@ -116,19 +119,20 @@ const Skier = (() => {
     // value a moment later, cT, so legs that are driven up or let out in a frame or two work under a quiet upper body; cF: the same, only just behind)
     const c = ce(c0), dpy = dpw > 0 ? 0.8 * 0.38 * (sat(P0.crouch + cs) - ce0(c0)) : 0, cT = sec.ct ? ce(c0 + sec.ct) : c, cF = sec.cf ? ce(c0 + sec.cf) : c;
     let H = 1.085 - 0.38 * c - 0.06 * smooth(0.7, 1, c) - 0.11 * tuck - 0.05 * gM;
-    const hinge0 = 0.36 + 0.46 * cT + 0.70 * tuck - 0.14 * air * (1 - gM) + 0.42 * gM * (1 - tuck) + (dpw > 0 ? dpw * spl(DP_H, f) : 0);
+    const hinge0 = 0.36 + 0.46 * cT + 0.70 * tuck - 0.14 * air * (1 - gM) + 0.42 * gM * (1 - tuck) + (dpw > 0 ? dpw * spl(DP_H, f) : 0) + (id ? id.up : 0);
     // (the trunk folds no lower than the thighs it comes to lie on: pressed deeper while it is folded right over, the hips sink and the back comes up, as
     // when a compression is soaked up in a tuck; reaching for a ski in the air, the knees part and let the chest down between them)
     const hmax = PI / 2 + Math.asin(clamp((1.085 - 0.38 * cF - 0.06 * smooth(0.7, 1, cF) - 0.11 * tuck - 0.05 * gM - 0.58) / LEN.thigh, -1, 1)) - 0.66 + 0.45 * gM;
     const hinge = smin(Math.min(hinge0, 1.42), hmax, 0.12), crunch = (dpw > 0 ? dpw * spl(DP_A, f) : 0) + 0.22 * gM;
     // pelvis: the body line from the snow contact tilts by the lean; hips move inside the turn (angulation). A ski boot lets the shin tip forward only so
     // far, so a deep crouch does not push the knees on: it sits back, hips behind the heels, and the trunk folds forward over the thighs to balance
-    const pb = basis((p.sep || 0) * 0.35, hinge * 0.5, lean * 0.62 + gS * 0.10);
+    // (at ease with the weight on one ski: the hips are over it and that hip stands the higher, the other leg let go a little, the shoulders tipped back level)
+    const pb = basis((p.sep || 0) * 0.35, hinge * 0.5, lean * 0.62 + gS * 0.10 - 0.075 * ish);
     let pel, hipL, hipR, zP = 0;
     for (let it = 0; it < 6; it++) {
       const D0 = Math.min(H - LEN.hipD - LEN.ankle, 0.8385), flex = smin(Math.acos(clamp(D0 / (LEN.thigh + LEN.shin), -1, 1)), 0.54, 0.15), dy = D0 - LEN.shin * Math.cos(flex);
       zP = -LEN.shin * Math.sin(flex) + Math.sqrt(Math.max(0, LEN.thigh * LEN.thigh - dy * dy)) - 0.012 - (p.fore || 0) * 0.06 + (dpw > 0 ? dpw * spl(DP_Z, f) : 0);
-      pel = [H * Math.sin(lean) + 0.07 * sl, H * Math.cos(lean) + (liftL + liftR) * 0.5, zP];
+      pel = [H * Math.sin(lean) + 0.07 * sl + 0.045 * ish, H * Math.cos(lean) + (liftL + liftR) * 0.5, zP];
       hipL = v3.add(v3.mad(pel, pb.X, -LEN.hipW), v3.mul(pb.Y, -LEN.hipD)); hipR = v3.add(v3.mad(pel, pb.X, LEN.hipW), v3.mul(pb.Y, -LEN.hipD));
       // (a leg is never locked straight: the last few centimetres are given up softly)
       const over = Math.max(v3.len(v3.sub(hipL, J.ankleL)), v3.len(v3.sub(hipR, J.ankleR))) - (LEN.thigh + LEN.shin) * 0.975;
@@ -156,15 +160,16 @@ const Skier = (() => {
     J.footL = v3.mad(J.ankleL, fbl.Y, -LEN.ankle); J.footR = v3.mad(J.ankleR, fbr.Y, -LEN.ankle);
     // torso: hinged forward at the hips, more upright sideways than the legs, rotated toward the fall line (separation)
     // (a turn begins with the whole body tipping in; only as it tightens do the hips drop inside while the shoulders stay nearer level)
-    const leanT = lean * lerp(0.74, 0.40, smooth(0.25, 0.72, Math.abs(lean))) + sec.roll + gS * 0.26, sep = (p.sep || 0) + sec.yaw;
-    const up2 = Math.min(hinge * 1.15 + 0.06 + crunch, 1.74);
+    const leanT = lean * lerp(0.74, 0.40, smooth(0.25, 0.72, Math.abs(lean))) + sec.roll + gS * 0.26 + (id ? 0.03 * ish + id.sx : 0), sep = (p.sep || 0) + sec.yaw + (id ? id.ty : 0);
+    const up2 = Math.min(hinge * 1.15 + 0.06 + crunch - 0.035 * ibr, 1.74);      // (a breath drawn straightens the upper back...)
     const t1 = basis(sep * 0.7, hinge, leanT), t2 = basis(sep, up2, leanT * 0.82);
-    J.chest = v3.mad(pel, t1.Y, LEN.spine); J.neck = v3.mad(J.chest, t2.Y, LEN.chest);
+    J.chest = v3.mad(pel, t1.Y, LEN.spine + 0.004 * ibr); J.neck = v3.mad(J.chest, t2.Y, LEN.chest);
     // (shoulders come forward and together when the arms are in front of the face)
     const prot = 0.035 * tuck + 0.02 * gM;
     J.shL = v3.add(v3.add(v3.mad(J.neck, t2.X, -LEN.shW + prot * 0.5), v3.mul(t2.Y, -LEN.shD)), v3.mul(t2.Z, -prot)); J.shR = v3.add(v3.add(v3.mad(J.neck, t2.X, LEN.shW - prot * 0.5), v3.mul(t2.Y, -LEN.shD)), v3.mul(t2.Z, -prot));
+    if (ibr) { J.shL = v3.add(J.shL, fr(t2, -0.003 * ibr, 0.012 * ibr, 0.004 * ibr)); J.shR = v3.add(J.shR, fr(t2, 0.003 * ibr, 0.012 * ibr, 0.004 * ibr)); }      // (...and lifts the shoulders)
     // head: eyes stay near level and look where the skier is going; folded right over, the neck cranes back as far as a neck goes
-    const hp = Math.max(0.05 + 0.10 * cT + 0.02 * tuck + sec.head, up2 - 1.0), hb = basis((p.sep || 0) + (p.headYaw || 0), hp, lean * 0.10), nY = v3.norm(v3.add(t2.Y, hb.Y));
+    const hp = Math.max(0.05 + 0.10 * cT + 0.02 * tuck + sec.head + (id ? id.hp : 0), up2 - 1.0), hb = basis((p.sep || 0) + (p.headYaw || 0) + (id ? id.hy : 0), hp, lean * 0.10), nY = v3.norm(v3.add(t2.Y, hb.Y));
     J.skull = v3.mad(J.neck, nY, LEN.neck); J.head = v3.add(v3.mad(J.skull, hb.Y, LEN.head), v3.mul(hb.Z, -0.015));
     // body shapes the hands and the poles have to stay out of
     const caps = [[hipL, J.kneeL, 0.115, 0.095], [hipR, J.kneeR, 0.115, 0.095], [J.kneeL, J.ankleL, 0.09, 0.085], [J.kneeR, J.ankleR, 0.09, 0.085], [v3.add(v3.mad(hipL, pb.Z, 0.03), v3.mul(pb.X, 0.035)), v3.add(v3.mad(hipR, pb.Z, 0.03), v3.mul(pb.X, -0.035)), 0.15, 0.15],
@@ -212,6 +217,11 @@ const Skier = (() => {
       // rides up over it if it must; then it is left behind and comes round to trail again, without swinging out a second time)
       const plant = sat((side < 0 ? p.plantL : p.plantR) || 0), ps = plant * plant * (3 - 2 * plant), pin = smooth(0.6, 1, ps), pp = sec.pl && dpw <= 0 ? sec.pl[side < 0 ? 0 : 1] : null;
       let planted = 0, tipT = null, low = 0, deep = 0, uo = 0, ur = 0, Tm = null, hp = null;
+      // at ease: the pole stands in the snow where it was set down and the hand rests on its grip, so a breath or a shift of weight turns the pole about
+      // its tip and does not drag it. (The first stroke of the run has taken the pole over before it is half way to its own plant)
+      const rs = id && id.T ? id.rest * (1 - tuck) * (1 - air) * (1 - g) * (1 - sat(plant * 4)) * (1 - smooth(0, 0.16, f)) : 0;
+      if (rs > 0) { const k = side < 0 ? 0 : 1, T = id.T[k], tp = [T[0], lerp(DP.TIPY, 0.05, id.u[k]), T[1]], dv = v3.sub(t, tp), l = v3.len(dv) || 1;
+        t = v3.mad(t, dv, clamp(PL - l, -0.06, 0.06) / l * rs); tipT = tp; planted = rs; low = rs; d = nlerp(d, v3.norm(v3.sub(tp, t)), rs); }
       if (plant > 0) {
         const ft = side < 0 ? J.footL : J.footR, sw = Math.sin(PI * Math.pow(ps, 1.45)), out = smin(-smin(-side * (ft[0] + side * 0.10 - t[0]), 0, 0.04), 0.12, 0.06);
         const rb = Math.sqrt(Math.max(PL * PL - Math.pow(t[1] + 0.015, 2), 0) + 0.02);     // (how far out the tip has to pass, with the hand at its highest)
@@ -273,7 +283,11 @@ const Skier = (() => {
       // elbows hang: down and a little out and back, never winged out sideways
       // (down when the arm reaches forward, back when it hangs, out when it is stretched behind: each counts for as much as it is square to the arm)
       const ax = v3.norm(v3.sub(t, sh)), sq = (v, w) => { const q = v3.sub(v, v3.mul(ax, v3.dot(v, ax))); return v3.mul(q, w * v3.dot(q, q)); };
-      const ep = v3.add(v3.add(sq(fr(hl, side * 0.25, -1, 0.25), 1), sq(fr(hl, 0, 0, 1), 0.35)), sq(fr(hl, side, 0, 0.2), lerp(0.15, 0.10, tuck)));
+      // (in a double-pole stroke the hand goes back past the hip and comes forward again under the shoulder. "Down" is square to an arm that points
+      // back, so the elbow swung round under it within three frames, and round again on the way forward: there the elbow stays above and behind the arm,
+      // where the drive left it. kb: how far the hand of a stroke is behind its shoulder)
+      const kb = dpw > 0 ? dpw * smooth(0, 0.45, v3.dot(ax, hl.Z)) : 0;
+      const ep = v3.add(v3.add(sq(kb > 0 ? fr(hl, side * lerp(0.25, 0.08, kb), lerp(-1, 1, kb), 0.25) : fr(hl, side * 0.25, -1, 0.25), 1), sq(fr(hl, 0, 0, 1), 0.35)), sq(fr(hl, side, 0, 0.2), lerp(0.15, 0.10, tuck)));
       let e = ik2(sh, t, LEN.uarm, LEN.farm + LEN.grip, ep);
       { const q = pushOut(e, 0.055, side, 7); if (q !== e) e = ik2(sh, t, LEN.uarm, LEN.farm + LEN.grip, v3.sub(q, v3.lerp(sh, t, 0.5))); }
       if (planted > 0 && tipT) d = nlerp(d, v3.norm(v3.sub(tipT, t)), planted);
@@ -313,7 +327,7 @@ const Skier = (() => {
     F[B.poleL] = frameXY(J.gripL, v3.mul(J.poleDL, -1), [1, 0, 0]); F[B.poleR] = frameXY(J.gripR, v3.mul(J.poleDR, -1), [1, 0, 0]);
     // (what the stroke did this time: where the tips are held, how far along the hands are, whether a tip has gone out of reach)
     const dp = dpw > 0 && hL.T ? { T: [hL.T, hR.T], u: [hL.u, hR.u], out: dpOut || Math.max(hL.ur, hR.ur) > 1 } : null;
-    return { J, F, hb, t1, t2, pb, fbL: fbl, fbR: fbr, caps, c, hinge, up2, dp, hp: [hL.hp, hR.hp] };
+    return { J, F, hb, t1, t2, pb, fbL: fbl, fbR: fbr, caps, c, hinge, up2, dp, hp: [hL.hp, hR.hp], br: ibr };
   }
   // collision shapes of a pose, for looking at (tests)
   K.debugCaps = function (pose) {
@@ -351,6 +365,8 @@ const Skier = (() => {
     half(M, B.elbowL, B.uarmL, B.farmL, bj.elbowL, j.elbowL); half(M, B.elbowR, B.uarmR, B.farmR, bj.elbowR, j.elbowR);
     half(M, B.seatL, B.pelvis, B.thighL, bj.hipL, j.hipL); half(M, B.seatR, B.pelvis, B.thighR, bj.hipR, j.hipR);
     half(M, B.shL, B.chest, B.uarmL, bj.shL, j.shL); half(M, B.shR, B.chest, B.uarmR, bj.shR, j.shR);
+    // (a breath drawn: the ribs open, more from front to back than across)
+    if (s.br) M[B.chest] = m4.mul(m4.mul(F[B.chest], [1 + 0.018 * s.br, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 + 0.035 * s.br, 0, 0, 0, 0, 1]), invBind[B.chest]);
     return M;
   }
   K.skin = function (pose, sec) { const s = solve(Object.assign({}, P0, pose), sec); return { M: skinMats(s), J: s.J, s }; };
@@ -630,16 +646,81 @@ const Skier = (() => {
   // ---- between the poses it is asked for the body has a little life of its own: the trunk trails the legs into a turn and folds after them when they
   // are driven up under it, hands and pack ride on, and all of it settles again within a few tenths of a second (game time: App.t)
   const spr = (s, to, w, z, dt) => { s[1] = (s[1] + w * w * (to - s[0]) * dt) / (1 + 2 * z * w * dt + w * w * dt * dt); s[0] += s[1] * dt; return s[0]; };
-  const st = { t: 0, pose: null, root: null, pos: [0, 0, 0], lean: [0, 0], cf: [0, 0], crouch: [0, 0], f0: 0, dp: null, pp: [null, null], pq: [0, 0], sec: { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: [null, null] } };
+  const st = { t: 0, pose: null, root: null, pos: [0, 0, 0], lean: [0, 0], cf: [0, 0], crouch: [0, 0], f0: 0, dp: null, pp: [null, null], pq: [0, 0], sec: { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: [null, null], idle: null } };
   // root: {pos (world, on the snow), fwd (unit, along the skis), nrm (snow normal)}; pose: see P0 (anything left out is as in P0)
   const cur = Object.assign({}, P0);
   K.pose = cur; K.world = { J: null, root: null };
+  // ---- waiting at the top of the run (the title page) the figure stands at ease, and it is alive: it breathes, and in the cold the breath shows; now
+  // and then it moves its weight to the other ski, looks out at the city or across the valley, lifts a pole and sets it down again. None of it is meant
+  // to be noticed. w: how much of it is on. It comes and goes by a spring, so the run begins out of it without a seam: the poles stay in the snow where
+  // they stood (W: the places of their tips in the world), the hands leave them behind, and the pose has everything back within half a second.
+  // breath, vapour: how deep it breathes and how thick the breath shows (1.2 and 1 as it stands)
+  const idle = K.idle = { w: [0, 0], t: 0, W: null, base: [[0, 0], [0, 0]], breath: 1.2, vapour: 1, ph: 0.30, per: 3.7, fl: 0, puff: 0, sh: [0, 0], shT: 0, shN: 6, hy: [0, 0], hp: [0, 0], ty: [0, 0], gy: 0, gp: 0, gN: 2.4, gH: 0, gS: 1, n: 0,
+    u: [0, 0], rk: -1, rq: 0, rN: 10, rS: 0, rA: null, rB: null, rnd: RNG(4127), sec: { rest: 0, T: [[0, 0], [0, 0]], u: [0, 0], up: 0, br: 0, sh: 0, hy: 0, hp: 0, ty: 0, sx: 0 } };
+  function ease(root, pose, cut, dt, X, Z, toW) {
+    // (only ever the game's own figure: one that is posed to be looked at, as the test pages do, stands as it is told)
+    const I = idle, e = I.sec, r = I.rnd, on = typeof Game !== 'undefined' && root === Game.root && pose === Game.pose && Game.mode === 'title';
+    // (the poles taken up: they are set down afresh where the figure stands when it next stands at ease, and not lifted again straight away)
+    const up = () => { I.W = null; I.rk = -1; I.u[0] = I.u[1] = 0; if (I.rN < 8) I.rN = 8; };
+    if (cut) { I.w[0] = on ? 1 : 0; I.w[1] = 0; up(); I.sh[1] = I.hy[1] = I.hp[1] = I.ty[1] = 0; } else if (dt > 0) spr(I.w, on ? 1 : 0, 7, 1, dt);
+    const w = I.w[0] > 0.9995 ? 1 : I.w[0] < 5e-4 ? 0 : I.w[0];
+    if (!(w > 0)) { up(); I.fl = 0; return null; }
+    if (dt > 0) {
+      if (on) {
+        I.t += dt;
+        // a breath: in over a second and a half, out over nearly two, a pause; no two quite the same length
+        I.ph += dt / I.per; if (I.ph >= 1) { I.ph -= 1; I.per = 3.4 + 0.7 * r(); }
+        // the weight: on both skis or more on one, moved every seven to fifteen seconds
+        if ((I.shN -= dt) <= 0) { I.shN = 7 + 8 * r(); I.shT = I.shT ? (r() < 0.4 ? 0 : -sign(I.shT) * (0.7 + 0.3 * r())) : (r() < 0.5 ? -1 : 1) * (0.7 + 0.3 * r()); }
+        // a look away: out at the city, across the valley to one side and the next time to the other, now and then down at the skis; held for two or
+        // three seconds, then back to the run below (gy, gp: where to, as a turn and a nod of the head)
+        if (I.gH > 0) { if ((I.gH -= dt) <= 0) { I.gy = I.gp = 0; I.gN = 5 + 6 * r(); } }
+        else if ((I.gN -= dt) <= 0) {
+          const q = I.n++ ? r() : 0, az = (typeof Vista !== 'undefined' && Vista.cityAz != null ? Vista.cityAz : 0.14) - Math.atan2(root.fwd[0], -root.fwd[2]);
+          if (q < 0.45) { I.gy = clamp(Math.atan2(Math.sin(az), Math.cos(az)) + 0.22 * (r() - 0.2), -0.9, 0.9); I.gp = -0.16; }
+          else if (q < 0.86) { I.gS = -I.gS; I.gy = I.gS * (0.45 + 0.3 * r()); I.gp = -0.13; }
+          else { I.gy = 0.12 * (r() - 0.5); I.gp = 0.22; }
+          I.gH = (q < 0.86 ? 1.8 : 1.2) + 1.6 * r();
+        }
+        // a pole lifted and set down again, a hand's breadth from where it stood: the one the weight is not on, or else each in its turn (u: how far
+        // it is off the snow)
+        if (I.rk < 0) { if ((I.rN -= dt) <= 0 && I.W) { const k = I.rk = I.sh[0] > 0.2 ? 0 : I.sh[0] < -0.2 ? 1 : (I.rS = 1 - I.rS), b = I.base[k]; I.rq = 0; I.rA = I.W[k]; I.rB = toW([b[0] + 0.06 * (r() - 0.5), DP.TIPY, b[1] + 0.08 * (r() - 0.5)]); } }
+        else { const k = I.rk, q = Math.min(I.rq += dt / 1.15, 1), sn = Math.sin(PI * q); I.u[k] = sn * sn; I.W[k] = v3.lerp(I.rA, I.rB, smooth(0.12, 0.88, q)); if (q >= 1) { I.rk = -1; I.rN = 13 + 12 * r(); } }
+      } else I.shT = I.gy = I.gp = 0;
+      spr(I.sh, I.shT, 2.3, 1, dt); spr(I.hy, I.gy, 5.2, 1, dt); spr(I.hp, I.gp, 4.6, 1, dt); spr(I.ty, I.gy * 0.17, 3.1, 1, dt);
+    }
+    // (fl: the air going out, strongest as the breath is let go)
+    const p = I.ph, br = p < 0.42 ? smoother(0, 0.40, p) : 1 - smoother(0.44, 0.92, p), c0 = cur.crouch, s0 = cur.swing, aL = cur.armL, aR = cur.armR;
+    I.fl = on ? smooth(0.44, 0.49, p) * (1 - smooth(0.52, 0.72, p)) : 0;
+    // at ease (k: how far, a: with the life in it or without): taller on the legs and more upright, the head down toward the run, the hands lower and
+    // nearer the hips, on the grips of poles that stand in the snow; never quite still
+    const put = (k, a) => {
+      cur.crouch = lerp(c0, 0.13, k); cur.swing = s0 * (1 - k);
+      cur.armL = [aL[0] - 0.02 * k, aL[1] + (0.03 * a * I.u[0] - 0.05) * k, aL[2] + 0.16 * k]; cur.armR = [aR[0] + 0.02 * k, aR[1] + (0.03 * a * I.u[1] - 0.05) * k, aR[2] + 0.16 * k];
+      e.up = (-0.12 + a * 0.006 * vnoise1(I.t * 0.19, 12)) * k; e.sx = a * 0.006 * vnoise1(I.t * 0.23, 11) * k; e.br = a * I.breath * br * k; e.sh = a * I.sh[0] * k;
+      e.hy = a * I.hy[0] * k; e.hp = (0.13 + a * I.hp[0]) * k; e.ty = a * I.ty[0] * k; e.u[0] = a * I.u[0]; e.u[1] = a * I.u[1];
+    };
+    // (set down in another place without a cut, as when another mountain is laid under the same start: the poles are not left standing where the old
+    // snow was. Standing still, a tip is never further from its place than a re-plant moves it)
+    if (I.W && on) for (let k = 0; k < 2; k++) { const d = v3.sub(I.W[k], root.pos); if (Math.hypot(v3.dot(d, X) - I.base[k][0], v3.dot(d, Z) - I.base[k][1]) > 0.08) { up(); break; } }
+    // where the poles are set down: beside the boots, out from under the hands and a little behind them (found from where the hands are when at ease)
+    if (!I.W) { put(1, 0); e.rest = 0; const s = solve(cur, Object.assign({}, SEC0, { idle: e })); I.W = [0, 1].map(k => { const g = k ? s.J.gripR : s.J.gripL, d = Math.sqrt(Math.max(LEN.pole * LEN.pole - Math.pow(g[1] - DP.TIPY, 2), 0.02)), b = I.base[k] = [g[0] + (k ? 0.55 : -0.55) * d, g[2] + 0.835 * d]; return toW([b[0], DP.TIPY, b[1]]); }); }
+    // (and only as far as the pose is one to stand in: none of it shows on a body that is laid over, folded up, in the air or holding a ski)
+    const k = w * (1 - sat(cur.tuck * 3)) * (1 - sat(cur.air * 3)) * (1 - smooth(0.04, 0.2, Math.abs(cur.lean))) * (1 - sat((cur.grabL || 0) + (cur.grabR || 0)));
+    put(k, 1); e.rest = k; I.fl *= k;
+    for (let k = 0; k < 2; k++) { const d = v3.sub(I.W[k], root.pos); e.T[k][0] = v3.dot(d, X); e.T[k][1] = v3.dot(d, Z); }
+    return e;
+  }
   K.update = function (root, pose, origin) {
     for (const k in P0) cur[k] = P0[k]; Object.assign(cur, pose);
     const now = typeof App !== 'undefined' && App.t === App.t ? App.t : 0, sec = st.sec, f = clamp(cur.dp || 0, 0, 1);
     let dt = now - st.t;
     // a new pose object, a new place or a gap in time: nothing to carry over
     const cut = st.pose !== pose || st.root !== root || !(dt >= 0) || dt > 0.25 || v3.len(v3.sub(root.pos, st.pos)) > 6;
+    const Y = v3.norm(root.nrm), Z0 = v3.mul(root.fwd, -1), X = v3.norm(v3.cross(Y, Z0)), Z = v3.cross(X, Y);
+    const toW = q => [root.pos[0] + X[0] * q[0] + Y[0] * q[1] + Z[0] * q[2], root.pos[1] + X[1] * q[0] + Y[1] * q[1] + Z[1] * q[2], root.pos[2] + X[2] * q[0] + Y[2] * q[1] + Z[2] * q[2]];
+    // (standing at ease changes what the pose asks for: before anything is made of it)
+    sec.idle = ease(root, pose, cut, cut ? 0 : dt, X, Z, toW);
     if (cut) { st.lean = [cur.lean, 0]; st.cf = [cur.crouch, 0]; st.crouch = [cur.crouch, 0]; st.dp = null; st.pp[0] = st.pp[1] = null; st.f0 = f; dt = 0; }
     st.t = now; st.pose = pose; st.root = root; st.pos[0] = root.pos[0]; st.pos[1] = root.pos[1]; st.pos[2] = root.pos[2];
     if (dt > 0) { spr(st.lean, cur.lean, 11, 0.8, dt); spr(st.crouch, cur.crouch, 13, 0.7, dt); spr(st.cf, cur.crouch, 40, 1, dt); }
@@ -647,8 +728,6 @@ const Skier = (() => {
     // (ct, cf: how far the trunk's two readings of the crouch are behind the legs' at this moment: see solve)
     sec.roll = clamp(dl * 0.45, -0.14, 0.14); sec.ct = clamp(-dc, -0.6, 0.6); sec.cf = clamp(st.cf[0] - cur.crouch, -0.6, 0.6); sec.drop = clamp(dl * 0.10, -0.04, 0.04) * quiet;
     sec.hand[1] = clamp(dc * 0.16, -0.05, 0.07) * quiet; sec.hand[2] = clamp(-dc * 0.06, -0.03, 0.03) * quiet;
-    const Y = v3.norm(root.nrm), Z0 = v3.mul(root.fwd, -1), X = v3.norm(v3.cross(Y, Z0)), Z = v3.cross(X, Y);
-    const toW = q => [root.pos[0] + X[0] * q[0] + Y[0] * q[1] + Z[0] * q[2], root.pos[1] + X[1] * q[0] + Y[1] * q[1] + Z[1] * q[2], root.pos[2] + X[2] * q[0] + Y[2] * q[1] + Z[2] * q[2]];
     // double-pole stroke: once the tips are in they belong to the snow, not to the skier: their place is kept in the world and handed back in the
     // skier's frame, until the stroke lets go (or a hand cannot reach its pole any more) and a new stroke begins
     if (!(f > 0) || f < st.f0 - 1e-6) st.dp = null;
@@ -676,6 +755,11 @@ const Skier = (() => {
           D.u = s.dp.u; D.d = [s.J.poleDL[0], s.J.poleDL[1], s.J.poleDL[2], s.J.poleDR[0], s.J.poleDR[1], s.J.poleDR[2]]; if (s.dp.out) D.rel = f; } }
     }
     st.f0 = f;
+    // the breath shows: as the air is let go, a few small puffs of vapour from the mouth, one after the other, pushed forward and a little down
+    if (sec.idle && idle.fl > 0.02 && dt > 0 && typeof Spray !== 'undefined' && Spray.breath && (idle.puff -= dt) <= 0) {
+      const hb = s.hb, r = idle.rnd, m = v3.add(s.J.head, fr(hb, 0, -0.07, -0.13)), a = toW(m), b = toW(v3.add(m, fr(hb, 0.3 * (r() - 0.5), -0.15 + 0.2 * (r() - 0.5), -1))), sp = 0.5 + 0.3 * r();
+      idle.puff = 0.07 + 0.03 * r(); Spray.breath(now, a, [(b[0] - a[0]) * sp, (b[1] - a[1]) * sp, (b[2] - a[2]) * sp], 2.4 * idle.fl * idle.vapour);
+    }
     const R = m4.fromBasis(X, Y, Z, [root.pos[0] - origin[0], root.pos[1] - origin[1], root.pos[2] - origin[2]]), M = skinMats(s);
     for (let i = 0; i < K.NB; i++) boneData.set(m4.mul(R, M[i]), i * 16);
     if (gfx) gfx.updateTexture(boneTex, 0, 0, 4, 32, boneData);
@@ -685,6 +769,7 @@ const Skier = (() => {
   };
   // model-space point -> render space (for effects that attach to the body)
   K.toWorld = function (p) { return m4.tp(K.world.root, p); };
+  K.sec = st.sec;      // (what update last handed to solve besides the pose: tests draw a figure from it)
   K.draw = function (shadowTex, skyTex) { gfx.draw(pipe, { u: { p: [0, 0, 0, 0] }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count }); };
   K.drawShadow = function () { gfx.draw(pipeShadow, { u: { p: [0, 0, 0, 0] }, tex: { tBones: boneTex }, vb: [vb, vb2], ib, count }); };
   return K;
