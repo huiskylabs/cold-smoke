@@ -122,7 +122,7 @@ const Spray = (() => {
   // the owner's choice: what a fast turn throws. a: the soft cloud as it was (a bank of fog behind the skis at speed); b: as real snow has it
   // (on packed snow a low fan of sugar and crumbs that is down within the second, a thin veil over it; deep powder still a cloud);
   // c: between. P.oldK: 1 for a, 0 for b
-  if (typeof Variants !== 'undefined') Variants.def('spray', '扬雪', [['a', '雪雾（旧）'], ['b', '颗粒（真实）'], ['c', '折中']], 'b');
+  if (typeof Variants !== 'undefined') Variants.def('spray', '扬雪', [['a', '雪雾（旧）'], ['b', '颗粒（真实）'], ['c', '折中']], 'a');
   P.oldK = () => { const v = typeof Variants !== 'undefined' ? Variants.val.spray : 'b'; return v === 'a' ? 1 : v === 'c' ? 0.5 : 0; };
   // height (k) and how long the fine part hangs (l), from how soft the snow is (0 packed .. 1 deep powder)
   P.curtainK = function (powder) {
