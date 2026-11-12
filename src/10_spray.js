@@ -111,7 +111,7 @@ fn snowFly(p0: vec3f, v0: vec3f, t: f32, L: f32, tb: f32, vs: f32, wk: f32) -> F
 `;
 
 const Spray = (() => {
-  const P = { NP: 6144, NG: 16384, PF: 16, GF: 12, gain: 1, reach: 1.0, clots: 0.40, lens: 1.3, bump: 1.0, tear: 1.0, speck: 1.0, keyhole: 1.0, nearBlur: 0.75, shutter: true, streakMax: 0.06, crumb: 1.0, grainShutter: 4.0, face: 0, grainy: true, shadows: true, enabled: true, moonMix: 0, night: null, nt: 0, stats: { puffs: 0, grains: 0 } };
+  const P = { NP: 6144, NG: 16384, PF: 16, GF: 12, gain: 1, reach: 1.0, clots: 0.22, lens: 1.3, bump: 1.0, tear: 1.0, speck: 1.0, keyhole: 1.0, nearBlur: 0.75, shutter: true, streakMax: 0.06, crumb: 1.0, grainShutter: 4.0, face: 0, grainy: true, shadows: true, enabled: true, moonMix: 0, night: null, nt: 0, stats: { puffs: 0, grains: 0 } };
   // the owner's choice: how much the moon shows of the snow in the air by night (the headlamp's share is the same in both). a: thin and dark blue,
   // the lamp carries it; b: the moon lights the curtain too, silver-blue. (P.night: null = by the sun's height; a number holds it, for tests)
   if (typeof Variants !== 'undefined') Variants.def('nspray', '夜间雪雾', [['a', '暗蓝头灯'], ['b', '月光亮些']], 'a');
@@ -119,6 +119,11 @@ const Spray = (() => {
   // is down within half a second; a slash in deep powder a wall of 1.5-3 m that hangs for seconds. a: tall everywhere (as it was);
   // b: as real snow has it; c: between (about a metre on packed snow, and it does not hang long)
   if (typeof Variants !== 'undefined') Variants.def('curtain', '雪幕高度', [['a', '处处都高'], ['b', '按雪况'], ['c', '折中']], 'c');
+  // the owner's choice: what a fast turn throws. a: the soft cloud as it was (a bank of fog behind the skis at speed); b: as real snow has it
+  // (on packed snow a low fan of sugar and crumbs that is down within the second, a thin veil over it; deep powder still a cloud);
+  // c: between. P.oldK: 1 for a, 0 for b
+  if (typeof Variants !== 'undefined') Variants.def('spray', '扬雪', [['a', '雪雾（旧）'], ['b', '颗粒（真实）'], ['c', '折中']], 'b');
+  P.oldK = () => { const v = typeof Variants !== 'undefined' ? Variants.val.spray : 'b'; return v === 'a' ? 1 : v === 'c' ? 0.5 : 0; };
   // height (k) and how long the fine part hangs (l), from how soft the snow is (0 packed .. 1 deep powder)
   P.curtainK = function (powder) {
     const v = typeof Variants !== 'undefined' ? Variants.val.curtain : 'c', s = smooth(0.25, 0.9, powder);
@@ -196,12 +201,13 @@ const Spray = (() => {
   // Two numbers decide how it flies (see puffState): how far the air lets its throw carry (a clot ploughs on for metres; the fine part of
   // the sheet has to drag the air along and is stopped within `brake` metres: more for a thick sheet than for a wisp), and the speed it
   // falls at once the air has it (a clot 7 m/s: it never gets there, it flies a true arc under gravity; smoke 0.3 m/s: it hangs and sifts down)
-  P.puff = function (t0, px, py, pz, vx, vy, vz, f, r0, dens, stretch, lifeK, brake) {
+  // (vsO, LO: when given, the speed it falls at and how far the air lets its throw carry, as they are: sugar on packed snow is neither a clot nor smoke)
+  P.puff = function (t0, px, py, pz, vx, vy, vz, f, r0, dens, stretch, lifeK, brake, vsO, LO, gK) {
     const o = Render.origin, i = ph * P.PF, c = puffCPU, u = rnd();
     c[i] = px - o[0]; c[i + 1] = py - o[1]; c[i + 2] = pz - o[2]; c[i + 3] = t0;
     c[i + 4] = vx; c[i + 5] = vy; c[i + 6] = vz; c[i + 7] = u;
-    c[i + 8] = lerp(brake || 1.0, 6.0, Math.pow(1 - f, 2.5)); c[i + 9] = 0.28 + 6.9 * Math.pow(1 - f, 2.6); c[i + 10] = lerp(0.8, 3.3, f) * (0.75 + 0.5 * rnd()) * (lifeK || 1); c[i + 11] = r0;
-    c[i + 12] = lerp(0.07, 0.30, f) * (0.7 + 0.6 * rnd()); c[i + 13] = dens; c[i + 14] = f; c[i + 15] = stretch;
+    c[i + 8] = LO || lerp(brake || 1.0, 6.0, Math.pow(1 - f, 2.5)); c[i + 9] = vsO || 0.28 + 6.9 * Math.pow(1 - f, 2.6); c[i + 10] = lerp(0.8, 3.3, f) * (0.75 + 0.5 * rnd()) * (lifeK || 1); c[i + 11] = r0;
+    c[i + 12] = lerp(0.07, 0.30, f) * (0.7 + 0.6 * rnd()) * (gK || 1); c[i + 13] = dens; c[i + 14] = f; c[i + 15] = stretch;
     mark(dirtyP, ph); ph = (ph + 1) % P.NP; P.stats.puffs++;
   };
   // a breath in cold air (the skier waiting at the top of the run): a little vapour pushed out a hand's breadth from the mouth. It does not fall: it
@@ -255,7 +261,8 @@ const Spray = (() => {
     // How fast the edge throws: about as fast as it is ploughing sideways through the snow (a carving edge still cuts outward a little),
     // more where the snow is squeezed out from under the base. Real spray is quick: the wall beside a hard turn is up in a tenth of a second
     const Nq = Math.min(N, 2.8), latq = lat * Nq / Math.max(N, 1e-3);
-    const ve = clamp(sp * (0.08 + 0.42 * sat(latq / 1.5) + 0.85 * skid), 1.2, 15);
+    // (a clean carve on packed snow moves little: 1-4 m/s off the edge. Soft snow and a skid throw it far harder)
+    const OK = P.oldK(), soft = smooth(0.25, 0.9, S.powder || 0), ve = clamp(sp * (0.08 + lerp(lerp(0.22, 0.42, OK), 0.42, soft) * sat(latq / 1.5) + 0.85 * skid), 1.2, 15);
     const straight = sat(1 - latq / 0.22) * sat(1 - skid / 0.1), tailP = smooth(0.2, 0.8, straight);
     // touchdown: for a moment the load is the impact, many times the skier's weight. That snow goes out as the two fans of `slap`; the edge
     // has not ploughed anywhere yet, and when it does it is with the load a turn can have, not the impact's. (Without this, landing with
@@ -274,8 +281,10 @@ const Spray = (() => {
     // How tall also goes with the snow: hard snow comes off as a low fan of grains, deep powder as a wall (P.curtainK)
     const CK = P.curtainK(S.powder || 0), hk = CK[0], lk = CK[1];
     // fast on packed snow, what the edges throw is mostly grains (10b_grains.js), and the smoke is a thin veil over them: at 90 km/h and more,
-    // half the fine part and half the trail behind the tails (the owner: at speed the spray read as nothing but a bank of fog)
-    const fogK = P.fogMul * lerp(1, 0.5, smooth(10, 25, Math.hypot(S.v[0], S.v[1], S.v[2])) * (1 - smooth(0.25, 0.9, S.powder || 0)));
+    // a third of the fine part and of the trail behind the tails (the owner: at speed the spray read as nothing but a bank of fog. Measured: the
+    // bank was mostly the clots below, ~1000 dense puffs alive at once, and the fine part, all within 6 m of a chase camera that drives into it)
+    const fogK = P.fogMul * lerp(1, lerp(0.3, 0.5, OK), smooth(10, 25, Math.hypot(S.v[0], S.v[1], S.v[2])) * (1 - smooth(0.25, 0.9, S.powder || 0)));
+    const pk = (1 - soft) * (1 - OK);
     const Ls = P.reach * (0.75 + 1.95 * Math.pow(sat(Ie / 2.6), 0.7)) * hk;
     // (it leaves the edge low and across the ski, steeper where the skis are thrown sideways and the snow piles against the bases;
     // a skidding ski ploughs along its whole length, a carving one sheds from under the foot back)
@@ -311,26 +320,33 @@ const Spray = (() => {
       }
       // the sheet here and now: the angle it leaves at and the speed of its rim
       const fg = sheet(al, t - jt), vr = ve * (0.55 + 0.6 * fg) * 1.1, elS = elBase + 0.34 * (fg - 0.5);
-      let f, el, sv, dens, carry, r0, jit, lifeK = 1, brake = Ls;
+      let f, el, sv, dens, carry, r0, jit, lifeK = 1, brake = Ls, vsO = 0, LO = 0, gK = 1;
       if (u2 < 0.13) {
         // loose mist torn off the sheet: slow, any direction, soon stopped
         f = 0.8 + 0.2 * rnd(); el = lerp(0.3, 1.3, u3); sv = vr * (0.15 + 0.4 * u4); carry = 0.10 + 0.25 * rnd();
-        dens = 1.5 * X * fogK; r0 = lerp(0.07, 0.12, rnd()); jit = 1.2; brake = Ls * 0.6;
-      } else if (u2 < 0.13 + P.clots * hard) {
+        dens = 1.5 * X * fogK * (1 - 0.4 * pk); r0 = lerp(0.07, 0.12, rnd()); jit = 1.2; brake = Ls * 0.6;
+      } else if (u2 < 0.13 + P.clots * lerp(1, 1.8, OK) * hard) {
         // the dense heart of the sheet: clots that fly true arcs, lead its rim and break up within the second (the crisp edge, then the streaks)
         f = 0.4 * Math.pow(rnd(), 0.9); el = elS + (u3 - 0.5) * 0.16; sv = vr * (0.5 + 0.5 * Math.pow(u4, 0.45));
         carry = 0.07 + 0.18 * fg * rnd() + 0.2 * skid * rnd();
-        dens = lerp(7.6, 4.6, f / 0.4) * X * (0.4 + 0.6 * fogK); r0 = lerp(0.04, 0.075, rnd()) * (0.75 + 0.55 * sat(Iq)); jit = 0.35; lifeK = 0.7;
+        dens = lerp(7.6, 4.6, f / 0.4) * X * lerp(0.2 + 0.4 * fogK, 0.4 + 0.6 * fogK, OK); r0 = lerp(lerp(0.035, 0.04, OK), lerp(0.065, 0.075, OK), rnd()) * (0.75 + 0.55 * sat(Iq)); jit = 0.35; lifeK = lerp(0.38, 0.7, OK);
       } else {
         // its fine part, which is most of what is seen: thrown with the rest, braked by the air within a metre or two, and left hanging: the curtain
         // (not a membrane: most of the snow goes out with the crest, the rest at every speed below it, and that fills the wall under it)
+        // (on packed snow there is little dust to tear off: what the edge throws is sugar, a millimetre or two, that falls at a metre or two a
+        // second and is down within the second. Only in soft snow is the fine part smoke that hangs)
         f = Math.max(0.62 + 0.38 * rnd(), 1 - hard); el = elS + (u3 - 0.5) * 0.30; sv = vr * (0.42 + 0.58 * Math.pow(u4, 0.6));
         carry = 0.07 + 0.18 * fg * rnd() + 0.2 * skid * rnd();
         dens = lerp(4.2, 2.6, sat((f - 0.62) / 0.38)) * X * fogK; r0 = lerp(0.05, 0.09, rnd()) * (0.75 + 0.55 * sat(Iq)); jit = 0.5; brake = Ls * (0.75 + 0.5 * rnd());
+        if (rnd() < pk * 0.85) {
+          // sugar: on packed snow most of it. Each grain is braked by the air on its own (a few tenths of a metre), falls at one to two metres a
+          // second and is down within the second: a low granular fan, not a curtain
+          f = 0.36 + 0.06 * rnd(); vsO = 0.9 + 1.1 * rnd(); LO = 0.25 + 0.35 * rnd(); lifeK = 0.42; dens *= 0.4; r0 *= 0.7; gK = 0.3; jit = 0.6;
+        }
       }
       const ce = Math.cos(el), se = Math.sin(el);
       const vx = v[0] * carry + (ox * ce + n[0] * se) * sv + (rnd() - 0.5) * jit, vy = v[1] * carry + (oy * ce + n[1] * se) * sv + rnd() * 0.4 * jit, vz = v[2] * carry + (oz * ce + n[2] * se) * sv + (rnd() - 0.5) * jit;
-      P.puff(t - jt, px, py, pz, vx, vy, vz, f, r0, dens, 1, lifeK * (f > 0.5 ? lk * (0.4 + 0.6 * fogK) : 1), brake);
+      P.puff(t - jt, px, py, pz, vx, vy, vz, f, r0, dens, 1, lifeK * (f > 0.5 ? lk * (0.4 + 0.6 * fogK) : 1), brake, vsO, LO, gK);
     }
     while (accG >= 1) {
       accG -= 1;
