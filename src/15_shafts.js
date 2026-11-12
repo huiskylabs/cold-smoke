@@ -88,7 +88,13 @@ fn frag(v: VOut) -> FOut {
     let rel: vec3f = U.lamp.xyz - U.camPos.xyz; let tc: f32 = dot(rel, d);
     let D: f32 = sqrt(max(dot(rel, rel) - tc * tc, 0.0) + 30.0);
     let nearL: f32 = smoothstep(2.6, 1.0, length(rel)) * saturate(M.r.z / 0.012 - 1.0);      // (heavy snow raises lampAir over 0.012: then, lamp at the lens, its first metres of air are thinned: a cone ahead, not a ball)
-    let th0: f32 = atan2(-tc, D); let th1: f32 = atan2(min(zf * len, 80.0) - tc, D);
+    // (a lens in front of the skier, the lamp turned toward it: the beam's first metres lie between the lens and the figure, and drawn there they
+    // fogged the whole figure. There the march starts just past the lamp: the beam shows beyond the skier, the figure is seen clear and the lamp is
+    // a small bright point on the helmet. With the lens at the lamp, or behind it, nothing changes)
+    let tEnd: f32 = min(zf * len, 80.0);
+    let facing: f32 = smoothstep(0.05, 0.45, dot(U.lampDir.xyz, -rel) / max(length(rel), 1e-3)) * smoothstep(1.2, 2.2, length(rel));
+    let tS: f32 = min(facing * max(tc + 0.6, 0.0), tEnd);
+    let th0: f32 = atan2(tS - tc, D); let th1: f32 = atan2(tEnd - tc, D);
     var a: f32 = 0.0;
     for (var i: i32 = 0; i < 6; i++) {
       let t: f32 = tc + D * tan(mix(th0, th1, (f32(i) + jit) / 6.0));
