@@ -52,6 +52,7 @@ const UI = (() => {
     addEventListener('orientationchange', () => setTimeout(() => { U.layout(); if (App.ready && App.fit) App.fit(); if (App.redraw) App.redraw(); }, 60));
     Input.onFlip = () => U.layout();
     initSwitch();
+    initSplits();
   };
   // how the frame lies: wide or tall, turned or not; the stylesheet does the rest
   U.layout = function () {
@@ -96,6 +97,7 @@ const UI = (() => {
     Input.zeroPending = true; U.keepAwake();
     launch();
     U.state = 'run'; U.t0 = performance.now(); U.segIdx = -1; U.hintT = 0; U.hintKind = null; U.tiltAsked = asked;
+    newRun();
     el.shade.classList.add('run'); el.hud.classList.add('on'); el.app.classList.add('run');
   };
   function showHint(kind) {
@@ -125,10 +127,11 @@ const UI = (() => {
     // short of the line has already been told; a skier put somewhere else altogether is told afresh)
     const sg = Course.segAt(-S.p[2] + 2.5 * Math.max(0, -S.v[2]));
     if (sg.idx < U.segIdx - 1) U.segIdx = -1;
-    if (sg.idx > U.segIdx && since > 1.6) {
+    if (sg.idx > U.segIdx && since > 1.6 && !dayUp()) {
       U.segIdx = sg.idx; el.segCn.textContent = SEG_NAMES[sg.type] || ''; el.segEn.textContent = (sg.idx + 1 < 10 ? '0' : '') + (sg.idx + 1) + ' · ' + (SEG_EN[sg.type] || '');
-      el.seg.classList.add('on'); clearTimeout(U.segTimer); U.segTimer = setTimeout(() => el.seg.classList.remove('on'), 3600);
+      segHold(3.6);
     }
+    spFrame(dt);
     // numbers, ten times a second
     U.acc += dt; if (U.acc < 0.1) return; U.acc = 0;
     const kmh = Math.round(Math.hypot(S.v[0], S.v[1], S.v[2]) * 3.6), drop = Math.max(0, Math.round(Game.drop));
@@ -138,6 +141,119 @@ const UI = (() => {
     if (bar !== U.shown.bar) { U.shown.bar = bar; el.tach.style.transform = 'scaleX(' + bar.toFixed(3) + ')'; }
     if (drop !== U.shown.drop) { U.shown.drop = drop; el.drop.textContent = drop.toLocaleString('en-US'); }
   };
+
+  // ================================================================ splits, and the day card
+  // A run is given a shape. Each stretch of the mountain, once skied, leaves one quiet line under the name of the next: the time it took, the
+  // fastest it was skied, the longest flight in it, and a small amber rise beside a figure that beats the best of that kind of run today (the
+  // first of a kind sets its best without a word). At sunset and at sunrise a card sums up the run so far. The figures are the game's own,
+  // gathered on its clock in App.onTick (so the slow motion of a jump and the tests' fast-forward count them right); when they show, and for how
+  // long, is the interface's, on real time. Only skiing counts: a change of place (a switch, another mountain) carries nothing across it, so a
+  // switch never makes a result, and a stretch counts only if it was skied from its top (the gate, or where a switch sets the skier down).
+  // The bests of each kind last as long as the page (another mountain, the gate again: kept); the run so far starts again at 出发.
+  const SP = U.sp = { cur: null, p: [0, 0, 0], seed: 0, air: false, to: null, best: {}, run: null, res: null, segT: -1, day: null, dayQ: null, days: 1, clock: null, nat: 0 };
+  const JUMP_T = 0.75;          // s off the snow before a flight is a jump, not a hop off a bump (the slow motion of a jump takes hold from 0.6 s, whole at 1)
+  const freshRun = () => ({ t: 0, dist: 0, drop: 0, v: 0, air: 0 });
+  const fmt = (v, dp) => dp ? v.toFixed(dp) : Math.round(v).toLocaleString('en-US');
+  const dayUp = () => !!SP.day && SP.day.t < 5;
+  function initSplits() {
+    el.split = $('split'); el.day = $('day'); el.dayK = $('day-k'); el.dayT = $('day-t'); el.dayF = $('day-f');
+    SP.run = freshRun(); App.onTick.push(spTick);
+  }
+  // 出发: a new run (the bests of each kind stay)
+  function newRun() {
+    Object.assign(SP, { run: freshRun(), cur: null, res: null, segT: -1, day: null, dayQ: null, days: 1, clock: null });
+    el.day.classList.remove('on', 'held'); el.seg.classList.remove('res'); el.app.classList.remove('res', 'daycard');
+  }
+  // the skier has been put somewhere else: what was being measured goes, and so does a result not yet shown
+  function spSettle() { SP.cur = null; SP.res = null; el.seg.classList.remove('res'); el.app.classList.remove('res'); }
+  // the card of a run stays up t seconds from now (or longer, if it already would); brought up afresh, it comes without the last result
+  function segHold(t) { if (SP.segT <= 0) { el.seg.classList.remove('res'); el.app.classList.remove('res'); } el.seg.classList.add('on'); SP.segT = Math.max(SP.segT, t); }
+
+  // ---- on the game's clock, every step of it (dt is the world's time: slowed in the air, none while the run is set down)
+  function spTick(dt) {
+    if (!(dt > 0)) return;
+    const S = Game.s, p = S.p, run = Game.mode === 'run';
+    // sunset and sunrise, as the day reaches them by itself. A clock turned or held by a switch is not the day going by: a mark counts only
+    // once the clock has run on its own for a second before it (so neither a switch nor letting the clock go again on the mark brings a card)
+    { const ck = Sky.clock, C = Sky.cycle || 600, own = run && Sky.rate !== 0 && U.tod === 'auto' && !ease;
+      if (!own || SP.clock == null || ck < SP.clock || ck - SP.clock > 2) SP.nat = ck;
+      else for (const rise of [false, true]) {
+        const m0 = rise ? Sky.times.sunrise : Sky.times.sunset, m = m0 + C * Math.floor((ck - m0) / C);
+        if (m > SP.clock && m >= SP.nat + 1) { if (rise) SP.days++; if (SP.run.t >= 20) SP.dayQ = { rise, day: SP.days, w: 0 }; }
+      }
+      SP.clock = ck; }
+    if (!run) { SP.cur = null; return; }
+    // put somewhere else (a switch, another mountain, a run begun): measure afresh from here
+    if (!SP.cur || SP.seed !== Course.seed || Math.hypot(p[0] - SP.p[0], p[1] - SP.p[1], p[2] - SP.p[2]) > 6) { spBegin(); return; }
+    const R = SP.run, c = SP.cur, v = Math.hypot(S.v[0], S.v[1], S.v[2]);
+    R.t += dt; R.dist += SP.p[2] - p[2]; R.drop += SP.p[1] - p[1]; if (v > R.v) R.v = v;
+    // a flight: from where the skis left the snow to where they came down, in a straight line
+    if (S.air && !SP.air) SP.to = p.slice();
+    else if (!S.air && SP.air && SP.to) { const d = Math.hypot(p[0] - SP.to[0], p[1] - SP.to[1], p[2] - SP.to[2]); if ((S.airT || 0) >= JUMP_T) { if (d > c.air) c.air = d; if (d > R.air) R.air = d; } SP.to = null; }
+    SP.air = !!S.air; SP.p[0] = p[0]; SP.p[1] = p[1]; SP.p[2] = p[2];
+    // over the line into the next run: the one left is done (if it was skied from its top, and for more than a moment)
+    const sg = Course.segAt(-p[2]);
+    if (sg.idx > c.idx) { if (sg.idx === c.idx + 1 && c.whole && c.t > 3) spFinish(c); SP.cur = { idx: sg.idx, type: sg.type, whole: sg.idx === c.idx + 1, t: 0, v: 0, air: 0 }; }
+    const k = SP.cur; k.t += dt; if (v > k.v) k.v = v;
+  }
+  // (a stretch counts from its top: from within its first 80 m, which takes in the gate at 14 m and where a switch sets the skier down)
+  function spBegin() {
+    const S = Game.s, s = -S.p[2], sg = Course.segAt(s);
+    SP.cur = { idx: sg.idx, type: sg.type, whole: s - sg.s0 < 80, t: 0, v: 0, air: 0 };
+    SP.p = S.p.slice(); SP.seed = Course.seed; SP.air = !!S.air; SP.to = null;
+  }
+  // a best is a figure shown higher than the best shown before for that kind of run (time is not compared: no two runs of a kind are the same length)
+  function spFinish(c) {
+    const b = SP.best[c.type] || (SP.best[c.type] = { v: 0, air: 0 }), kv = Math.round(c.v * 3.6), ka = Math.round(c.air);
+    SP.res = { type: c.type, t: c.t, kv, ka, upV: b.v > 0 && kv > Math.round(b.v * 3.6), upA: ka > 0 && b.air > 0 && ka > Math.round(b.air) };
+    if (c.v > b.v) b.v = c.v; if (c.air > b.air) b.air = c.air;
+  }
+
+  // ---- per displayed frame of a run (real time)
+  function spFrame(dt) {
+    // the result of the run just left, under the name of the one being entered (named now if it has not been yet: a skier who slowed short of the line)
+    if (SP.res && !dayUp()) {
+      const r = SP.res, sg = Course.segAt(-Game.s.p[2]); SP.res = null;
+      if (sg.idx > U.segIdx) { U.segIdx = sg.idx; el.segCn.textContent = SEG_NAMES[sg.type] || ''; el.segEn.textContent = (sg.idx + 1 < 10 ? '0' : '') + (sg.idx + 1) + ' · ' + (SEG_EN[sg.type] || ''); }
+      splitLine(r); segHold(3.2); el.seg.classList.add('res'); el.app.classList.add('res');
+    }
+    if (SP.segT > -1) {
+      const was = SP.segT; SP.segT -= dt;
+      if (was > 0 && SP.segT <= 0) el.seg.classList.remove('on');
+      if (SP.segT <= -1) { el.seg.classList.remove('res'); el.app.classList.remove('res'); }          // (closed again once the card has gone)
+    }
+    // the day card when its hour comes: once the name of a run is out of the way (eight seconds at the most), never over it
+    if (SP.dayQ && !SP.day) { SP.dayQ.w += dt; if (SP.segT <= -1 || SP.dayQ.w > 8) { dayShow(SP.dayQ); SP.dayQ = null; } }
+    if (SP.day) dayFrame(dt);
+  }
+  // 陡坡 · 28.4 s · 132 km/h ▲ · 飞行 38 m
+  function splitLine(r) {
+    const line = document.createElement('span'), add = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt) e.textContent = txt; line.appendChild(e); return e; };
+    const fig = (lab, v, u) => { add('i', 'd', '·'); if (lab) add('em', 'k', lab); line.appendChild(document.createTextNode(v)); if (u) add('u', null, u); };
+    add('em', 'k', SEG_NAMES[r.type] || '');
+    if (r.t < 60) fig('', r.t.toFixed(1), 's'); else fig('', Math.floor(r.t / 60) + ':' + (r.t % 60).toFixed(1).padStart(4, '0'), '');
+    fig('', String(r.kv), 'km/h'); if (r.upV) add('i', 'up');
+    if (r.ka > 0) { fig('飞行 ', String(r.ka), 'm'); if (r.upA) add('i', 'up'); }
+    el.split.textContent = ''; el.split.appendChild(line);
+  }
+  // DAY 1 · SUNSET / 日落 / the run so far: 落差, 距离, 极速, and the longest flight if there was one
+  function dayShow(q) {
+    const R = SP.run, F = [[Math.max(0, R.drop), 0, '落差 M'], R.dist < 1000 ? [Math.max(0, R.dist), 0, '距离 M'] : [R.dist / 1000, 1, '距离 KM'], [R.v * 3.6, 0, '极速 KM/H']];
+    if (R.air > 0) F.push([R.air, 0, '飞行 M']);
+    el.dayK.textContent = 'DAY ' + q.day + ' · ' + (q.rise ? 'SUNRISE' : 'SUNSET'); el.dayT.textContent = q.rise ? '日出' : '日落';
+    el.dayF.textContent = ''; const d = SP.day = { t: 0, f: [] };
+    for (const [v, dp, lab] of F) { const w = document.createElement('div'), b = document.createElement('b'), s = document.createElement('span'); b.textContent = fmt(v, dp); s.textContent = lab; w.appendChild(b); w.appendChild(s); el.dayF.appendChild(w); d.f.push({ el: b, v, dp, k: -1 }); }
+    // (each figure keeps the width of its whole value while it runs up to it, so nothing beside it moves)
+    for (const f of d.f) f.el.style.minWidth = f.el.offsetWidth + 'px';
+    for (const f of d.f) f.el.textContent = fmt(0, f.dp);
+    el.day.classList.remove('on', 'held'); void el.day.offsetWidth; el.day.classList.add('on'); el.app.classList.add('daycard');
+  }
+  function dayFrame(dt) {
+    const d = SP.day; d.t += dt;
+    for (let i = 0; i < d.f.length; i++) { const f = d.f[i], k = sat((d.t - 0.95 - 0.12 * i) / 0.85); if (k !== f.k) { f.k = k; f.el.textContent = fmt(f.v * (1 - Math.pow(1 - k, 3)), f.dp); } }
+    if (d.t >= 5 && el.day.classList.contains('on')) { el.day.classList.remove('on'); el.app.classList.remove('daycard'); }
+    if (d.t >= 6.4) SP.day = null;
+  }
 
   // ================================================================ direct switches
   // What the mountain otherwise shows only to those who ski long enough can be asked for: the hour of the day, each kind of run, the
@@ -230,6 +346,7 @@ const UI = (() => {
     try { if (Tracks.reset) Tracks.reset(); if (Spray.clear) Spray.clear(); } catch (e) { }
     try { const F = fauna(); if (F && F.reset) F.reset(); else if (Deer.herd) Deer.herd.length = 0; } catch (e) { }
     App.strides = null; App.lookYaw = null; U.segIdx = -1;
+    spSettle();
   }
   // the next run of a kind, ahead of where the skier is
   function nextOfKind(type) {
@@ -312,6 +429,7 @@ const UI = (() => {
     U.paused = true; pausedAt = performance.now(); App.paused = true; back = null; App.resumeK = 1;
     U.openSwitch(false); letGo(); Input.drag = null; Input.keys = {}; gy.on = false; el.steer.classList.remove('on'); el.say.classList.remove('on'); sayT = 0;
     hush(0, 0.05);          // (a time constant: all but gone in 0.15 s)
+    el.day.classList.add('held');          // (the day card steps aside while the run is set down; its clock stops with the run's, and it comes back for the rest)
     card(true); return true;
   };
   // The world is let go gently: at three tenths of its speed, up to all of it over 0.8 s. That factor is the interface's own, App.resumeK,
@@ -321,6 +439,7 @@ const UI = (() => {
     if (!el || !U.paused || U.gone) return false;
     U.paused = false; card(false); U.t0 += performance.now() - pausedAt;
     App.resumeK = 0.3; back = { t: 0 }; Input.zeroPending = true; Input.drag = null; Input.keys = {};
+    el.day.classList.remove('held');
     App.paused = false; hush(Sound.on ? Sound.level : 0, 0.12); U.keepAwake(); return true;
   };
   // (the run is still set down while the picture goes to black, so the page's own clock times that; it comes back by frames, as every cut does)
@@ -330,6 +449,7 @@ const UI = (() => {
     card(false); el.cut.classList.add('slow'); el.cut.style.opacity = 1; cut = { t: 0, stage: 9, n: 0, fn: null };
     setTimeout(() => {
       el.cut.classList.remove('slow');
+      if (App.swapping) App.swapping.run = false;          // (another mountain still being laid out behind its veil must not set off down it under the title)
       try { Game.reset(); Game.mode = 'title'; } catch (e) { console.warn(e); }
       settle(); Input.drag = null; Input.keys = {}; U.state = 'title'; U.paused = false; back = null; App.resumeK = 1;
       el.app.classList.remove('run'); el.hud.classList.remove('on'); el.shade.classList.remove('run'); el.hint.classList.remove('on'); el.seg.classList.remove('on'); el.title.classList.add('on'); U.hintKind = null;
