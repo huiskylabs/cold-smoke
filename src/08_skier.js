@@ -212,7 +212,8 @@ const Skier = (() => {
       { const tp = v3.mad(t, d, PL), o = off(tp); d = v3.norm(v3.sub(v3.mad(tp, nl, -smin(-o, -0.20, 0.06) - o), t)); }
       if (air > 0) d = nlerp(d, v3.norm([side * 0.34, -0.22, 0.92]), air * 0.8);
       // tuck: clamped under the arm, the shaft runs back past the outside of the hip and rises to end behind and above the seat
-      if (tuck > 0) { const tt = v3.add(pel, fr(pl, side * 0.30, 0.08, 0.36)), tw = smooth(0, 1, tuck); d = nlerp(d, v3.norm(v3.sub(tt, t)), tw); }
+      // (wide enough of the hip to clear the jacket, whose hem stands out past the hip's own shape: 0.30 put the shaft through it)
+      if (tuck > 0) { const tt = v3.add(pel, fr(pl, side * 0.54, 0.16, 0.36)), tw = smooth(0, 1, tuck); d = nlerp(d, v3.norm(v3.sub(tt, t)), tw); }
       d[1] += 0.10 * Math.sin((p.swing || 0) * side) * (1 - tuck) * (1 - dpw); d = v3.norm(d);
       // the plant: the basket swings forward and goes in beside its own ski, about level with the ski tip. The body may still be laid over the other
       // way, in the turn that is ending: it is the ski the pole belongs beside, so the hand reaches out over it and down, having risen a little to

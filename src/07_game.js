@@ -86,6 +86,11 @@ const Game = (() => {
   // the chase camera when the picture is wide (the way the game is meant to be held): how low the skier sits in the frame, lens, distance, height
   // (wd, wh, wf: among trees it comes that much nearer (m), lower (m) and wider (rad): see cam.wood)
   G.camL = { k: 0.52, kf: 0.74, f0: 0.98, f1: 1.18, d0: 4.3, d1: 3.8, h0: 1.35, h1: 1.1, wd: 1.3, wh: 0.25, wf: 0.06 };
+  // the hands and poles while skiing (see updatePose): a as before (hands low, the plant only in slow linked turns); b: hands ahead at the belt,
+  // a plant at every edge change; c: the same, carried higher and wider, the outside hand thrown on round the turn (a freeride look)
+  // HANDS: [wider, higher, further forward, higher and further forward for the outside hand, the same for the inside one] in metres, added to the stance's own
+  const HANDS = { a: [0, 0, 0, 0, 0, 0, 0], b: [0.03, 0.07, 0.07, 0.04, 0.05, 0.12, 0.10], c: [0.06, 0.12, 0.10, 0.08, 0.09, 0.16, 0.12] }, PL_LEAD = 0.16, PL_HOLD = 0.14;
+  if (typeof Variants !== 'undefined') Variants.def('poles', '持杖', [['a', '原样'], ['b', '手在前'], ['c', '更舒展']], 'b');
   // (the lens among trees is the owner's to choose. a: as it was. b: it closes up, and a tree in its way fades before it is reached.
   // c: it stays where it was, and only the fading is early. 14_trees.js reads the same choice for the fading)
   if (typeof Variants !== 'undefined') Variants.def('wood', '林间镜头', [['a', '现在的'], ['b', '贴近'], ['c', '原位淡树']], 'b');
@@ -588,18 +593,33 @@ const Game = (() => {
     pose.liftL = q.lL; pose.liftR = q.lR; pose.pitchL = q.pL; pose.pitchR = q.pR; pose.grabL = q.gL; pose.grabR = q.gR;
     // the pole plant: as one turn is let go the new inside pole swings forward, and its basket touches the snow beside the ski tip at the
     // moment the edges change; then it is left behind. (A gentle change of direction gets half a swing and no touch.)
-    const quiet = (1 - sat(pose.tuck * 3)) * smooth(3, 7, sp) * (1 - fl.aK) * (1 - sat(S.crash * 5)) * (1 - dpK) * (1 - sat(Math.abs(q.yaw) * 3));
+    const quiet = (Variants.val.poles === 'a' ? 1 - sat(pose.tuck * 3) : 1 - sat((pose.tuck - 0.25) * 2.5)) * smooth(3, 7, sp) * (1 - fl.aK) * (1 - sat(S.crash * 5)) * (1 - dpK) * (1 - sat(Math.abs(q.yaw) * 3));
+    // (when: timed to the edge change itself, not to how fast the lean goes. The body's own lean is watched heading through zero, and the plant is
+    // asked for PL_LEAD seconds before it gets there, however quick the change (a mogul line changes edges three times a second): the basket is in
+    // the snow as the edges change and stays a moment while the body goes past it. A turn must have been a turn (pk: the most it leaned) to earn one)
+    if (dt > 0) { const lv = fl.lnV = damp(fl.lnV || 0, (fl.lean - (fl.lnP == null ? fl.lean : fl.lnP)) / dt, 25, dt); fl.lnP = fl.lean; fl.plT = (fl.plT || 0) + dt;
+      const sn = Math.sign(fl.lean); if (!fl.plSg) fl.plSg = sn; if (sn === fl.plSg) fl.plPk = Math.max(fl.plPk || 0, Math.abs(fl.lean));
+      const sg = fl.plSg, tc = sn === sg ? (fl.lean * lv < 0 ? Math.abs(fl.lean / lv) : 9) : Math.abs(fl.lean) < 0.25 ? 0 : 9;   // (crossed already, between two steps: at once)
+      if (sg && tc < PL_LEAD) { const pk = fl.plPk || 0; fl.plSg = -sg; fl.plPk = 0; if (pk > 0.14) { fl.plS = -sg; fl.plT = 0; fl.plDur = tc + PL_HOLD; fl.plK = lerp(0.62, 1, smooth(0.14, 0.32, pk)); } } }
+    const plWant = side => Variants.val.poles === 'a' ? quiet * sat(side * S.leanV * 0.75 - 0.15) * smooth(0.62, 0.20, -side * S.lean) * smooth(0.20, 0.03, side * S.lean)
+      : fl.plS === side && fl.plT < (fl.plDur || 0) ? quiet * fl.plK : 0;
+    // hands ahead: a skier carries the hands in front and a little wide, at the height of the belt, the outside hand reaching on round the turn;
+    // the inside one forward and up, ready for its plant; never trailing down by the knees (act: how much the skiing stance is on: not in a tuck, a stroke, the air or a fall)
+    const act = (1 - smooth(0.2, 0.8, pose.tuck)) * (1 - dpK) * (1 - fl.aK) * (1 - sat(S.crash * 5)) * smooth(2, 6, sp), sLn = Math.sin(fl.lean * cy);
+    { const H = HANDS[Variants.val.poles] || HANDS.b; if (!fl.ha) fl.ha = H.slice(); for (let i = 0; i < 7; i++) fl.ha[i] = damp(fl.ha[i], H[i], 5, kd); }     // (a version switched in play eases over)
     // hands, beyond what the stance gives them: low and back as the body sinks before a jump, forward and apart to meet the landing,
     // forward and down as a hard one is taken up, and wherever the trick wants them
-    const hk = 1 - dpK, hy = (-0.05 * fl.prep + 0.03 * fl.reach - 0.07 * fl.soak) * hk, hz = (0.08 * fl.prep - 0.10 * fl.reach - 0.12 * fl.soak) * hk, hx = (0.05 * fl.reach + 0.02 * fl.soak) * hk;
+    // (a landing: the hands go forward and up for balance as the legs take it, not down to the knees)
+    const hk = 1 - dpK, hy = (-0.05 * fl.prep + 0.05 * fl.reach + 0.04 * fl.soak) * hk, hz = (0.08 * fl.prep - 0.12 * fl.reach - 0.16 * fl.soak) * hk, hx = (0.05 * fl.reach + 0.04 * fl.soak) * hk;
     const grabs = typeof Skier !== 'undefined' && Skier.P0 && 'grabL' in Skier.P0;     // (does the figure know how to take hold of a ski? if not, the hand is at least sent there)
     for (const side of [-1, 1]) {
       // (wanted from the last third of the old turn until the new edges have just begun to bite: a touch, not a prop to lean on)
-      const key = side < 0 ? 'plantL' : 'plantR', want = quiet * sat(side * S.leanV * 0.75 - 0.15) * smooth(0.62, 0.20, -side * S.lean) * smooth(0.20, 0.03, side * S.lean);
+      const key = side < 0 ? 'plantL' : 'plantR', want = plWant(side);
       // (it is asked for at a stroke; the hand sets off after it through a spring, without a jerk)
       pose[key] = sat(spring(fl, side < 0 ? 'plL' : 'plR', want, want > (pose[key] || 0) ? 26 : 18, dt * k));
       const a = side < 0 ? pose.armL : pose.armR, pl = pose[key], g = grabs ? 0 : side < 0 ? q.gL : q.gR;
-      a[0] = side * (0.03 * pl + hx - 0.13 * g) + (side < 0 ? q.ax : q.bx) * hk; a[1] = 0.03 * pl + hy - 0.6 * g + (side < 0 ? q.ay : q.by) * hk; a[2] = -0.10 * pl + hz + 0.32 * g + (side < 0 ? q.az : q.bz) * hk;
+      const out = sat(-side * sLn * 1.6), inn = sat(side * sLn * 1.6), ac = act * (1 - g), HA = fl.ha;
+      a[0] = side * (0.03 * pl + hx - 0.13 * g + HA[0] * ac) + (side < 0 ? q.ax : q.bx) * hk; a[1] = 0.03 * pl + hy - 0.6 * g + (HA[1] + HA[3] * out + HA[5] * inn) * ac + (side < 0 ? q.ay : q.by) * hk; a[2] = -0.10 * pl + hz + 0.32 * g - (HA[2] + HA[4] * out + HA[6] * inn) * ac + (side < 0 ? q.az : q.bz) * hk;
     }
     pose.swing = (Math.sin(G.t * 2.3) * 0.25 + S.leanV * 0.12) * hk;
     if (crash > 0.001) { const wb = Math.sin(crash * 22) * crash; pose.armL[1] += 0.18 * crash + 0.05 * wb; pose.armR[1] += 0.18 * crash - 0.05 * wb; pose.sep += wb * 0.25; }

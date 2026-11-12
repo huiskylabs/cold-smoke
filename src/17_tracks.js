@@ -16,7 +16,7 @@ const Tracks = (() => {
   // how far a ski beds itself into firm snow is the owner's to choose (m, standing; the soft snow lying on the pack comes on top)
   const VS = typeof Variants !== 'undefined' ? Variants : null, SINK = { a: 0.006, b: 0.013, c: 0.022 };
   if (VS) VS.def('sink', '入雪深浅', [['a', '浅'], ['b', '适中'], ['c', '深']], 'b');
-  const prev = [null, null], trail = [], ft = [[0, 0, 0, 0], [0, 0, 0, 0]];
+  const prev = [null, null], plPrev = [0, 0], trail = [], ft = [[0, 0, 0, 0], [0, 0, 0, 0]];
   const su = { p: [0, 0, 0, 0], e: null, w: [0, 0, 0, 0], s: [0, -1, 0, 0] }, wu = { p: [0, 0, 0, 0], c: null }, LIT0 = [0, 1, 0, 0];      // (LIT0: no wall toward the sun, all of the sky, level snow)
   // what the terrain is told each frame (render space): the box the trail lies in, each ski (point under the boot + half width, axis toward
   // the tip + tail length, axis across + tip length; 0 = no ski) and each leg (knee, hip, with the thickness of shin and thigh)
@@ -112,6 +112,15 @@ const Tracks = (() => {
       cpu[o + 12] = th; cpu[o + 13] = ot[3] ? ot[1] : 99; cpu[o + 14] = (firm + soft) * 0.6; cpu[o + 15] = 0;
       cpu[o + 16] = fz - ot[2]; cpu[o + 17] = ldr; cpu[o + 18] = pw; cpu[o + 19] = mar;
     }
+    // a pole planted leaves a hole: the tip's, with the basket's ring pressed round it (d.w = 1 marks such a stamp; one per plant, so it costs nothing)
+    const Wk = typeof Skier !== 'undefined' && Skier.world;
+    for (let k = 0; k < 2; k++) { const pl = Wk && Wk.J ? (k ? Wk.J.plantedR : Wk.J.plantedL) || 0 : 0, tp = Wk && (k ? Wk.tipR : Wk.tipL);
+      if (pl >= 0.99 && !(plPrev[k] >= 0.99) && tp && Math.hypot(tp[0] - px, tp[2] - pz) < REACH) {
+        if (count === MAXI) { cpu.copyWithin(0, FL * MAXI / 2); wpos.copyWithin(0, MAXI); count = MAXI / 2; base += MAXI / 2; }
+        const o = count * FL; wpos[count * 2] = tp[0]; wpos[count * 2 + 1] = tp[2]; count++; cpu.fill(0, o, o + FL);
+        cpu[o] = fract(tp[0] / LN.span); cpu[o + 1] = fract(tp[2] / LN.span); cpu[o + 2] = fract(tp[0] / LF.span); cpu[o + 3] = fract(tp[2] / LF.span);
+        cpu[o + 4] = A[0]; cpu[o + 5] = A[2]; cpu[o + 13] = 99; cpu[o + 15] = 1; cpu[o + 19] = 0.04; }
+      plPrev[k] = pl; }
     skidK += (skd - skidK) * (1 - Math.exp(-mv / 0.25));       // how much the skis are going sideways now (as 'skid' in the stamp)
     if (vT > 0) vT--;
   };
@@ -214,7 +223,9 @@ fn trackQuad(a0: vec4f, a1: vec4f, vid: u32, mU: f32, mV: f32, sunReach: f32) ->
 const TRACK_STAMP_VS = `
 fn vert(a: VIn) -> VOut {
   var v: VOut;
-  let t: TrkV = trackQuad(a.a0, a.a1, a.vid, mix(a.a4.w, 0.03 + abs(a.a3.x), M.p.z), mix(0.14, 0.03, M.p.z) + 0.1 * abs(a.a3.x), 0.0);
+  var t: TrkV = trackQuad(a.a0, a.a1, a.vid, mix(a.a4.w, 0.03 + abs(a.a3.x), M.p.z), mix(0.14, 0.03, M.p.z) + 0.1 * abs(a.a3.x), 0.0);
+  // (a pole's hole: a quad of a hand's breadth round the tip, no more: margins that undo the ski's own length)
+  if (a.a3.w > 0.5) { t = trackQuad(a.a0, a.a1, a.vid, 0.09 - SKI_HW, -0.68, 0.0); }
   v.clip = t.clip; v.q = t.q; v.w = t.w; v.c = a.a2; v.d = a.a3; v.e = a.a4;
   return v;
 }`;
@@ -278,6 +289,15 @@ fn floorAt(R: f32, wq: f32, lz: f32, skid: f32, pw: f32) -> f32 {
 }
 fn frag(v: VOut) -> FOut {
   var o: FOut;
+  // a pole's hole (d.w = 1): the narrow hole of the tip, and round it the dish the basket pressed with a groove at its rim. Written in the cut
+  // pass only, over whatever lies there: the plant goes in beside the skis, on snow they have not been over
+  if (v.d.w > 0.5) {
+    if (M.p.z < 0.5) { discard; }
+    let r: f32 = length(v.q.xy); if (r > 0.062) { discard; }
+    let R: f32 = -0.07 * sq(1.0 - smoothstep(0.004, 0.016, r)) - 0.009 * (1.0 - smoothstep(0.035, 0.058, r)) - 0.011 * exp(-sq((r - 0.05) / 0.006));
+    o.color = vec4f(vec3f(M.e.x + R * M.e.y), smoothstep(0.062, 0.05, r));
+    return o;
+  }
   // where this spot lay in the ski's frame a step ago: the ski came the stretch q.zw and turned by d.x, so each spot has its own way under it
   let p: vec2f = v.q.xy; let pe: vec2f = p + v.q.zw; let cs: vec2f = vec2f(cos(v.d.x), sin(v.d.x));
   let dl: vec2f = vec2f(cs.x * pe.x - cs.y * pe.y, cs.y * pe.x + cs.x * pe.y) - p; let ll: f32 = max(length(dl), 1e-4);
