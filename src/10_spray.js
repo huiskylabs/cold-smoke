@@ -141,7 +141,7 @@ const Spray = (() => {
   //       rate (how much snow this step, 0..2), powder (0..1), r:[x,z] right axis, f:[x,z] forward axis }   (world space)
   // A listener that throws is dropped from that one call, never from the game.
   P.onEmit = [];
-  P.fogMul = 1;
+  P.fogMul = 1; P.plume = 1;
   // how dark the thrown snow is from the sun's side (its shadow on the slope and the shaded face of the curtain). The owner's photos from above
   // show blue shadows and a shaded side to every plume: at 1 a plume from above was white all over
   P.shadowK = 2;
@@ -357,6 +357,23 @@ const Spray = (() => {
       const vx = v[0] * carry + (ox * ce + n[0] * se) * sv + (rnd() - 0.5) * jit, vy = v[1] * carry + (oy * ce + n[1] * se) * sv + rnd() * 0.4 * jit, vz = v[2] * carry + (oz * ce + n[2] * se) * sv + (rnd() - 0.5) * jit;
       P.puff(t - jt, px, py, pz, vx, vy, vz, f, r0 * pwR, dens, 1, lifeK * (f > 0.5 ? lk * (0.4 + 0.6 * fogK) * (1 + 0.4 * pwS) : 1), brake, vsO, LO, gK);
     }
+    // The plume (the owner's photos from above, R2 and R6): in soft snow a hard turn throws a wall of fine snow steeply up off the outside ski,
+    // left standing along the arc where it was thrown, two or three metres tall. It is big and slow to spread, so it hangs for three or four
+    // seconds, goes off with the wind and throws a long blue shadow on the slope. Only in soft snow: on packed snow the fan stays low
+    // (the chase camera drives through what is left behind; a wall there was the fog bank the owner disliked)
+    const plK = soft * smooth(0.35, 1.3, Iq) * P.plume;
+    accU = Math.min(accU + 320 * plK * H * P.gain, 12); P.stats.plume = (P.stats.plume || 0) + 320 * plK * H;
+    while (accU >= 1) {
+      accU -= 1;
+      const jt = rnd() * H, al = lerp(-0.75, 0.45, rnd()), lo = stance + 0.08 + 0.1 * rnd();
+      const lx = fx * al + ox * lo - v[0] * jt, lz = fz * al + oz * lo - v[2] * jt;
+      const px = S.p[0] + lx, pz = S.p[2] + lz, py = base - (n[0] * lx + n[2] * lz) / n[1] + 0.1;
+      // (steeper than the sheet, and as fast as its rim: the crest of the wall; it is left behind the skier, not carried along)
+      const fg = sheet(al, t - jt), el = lerp(0.5, 1.25, rnd()) - 0.15 * (1 - fg), ce = Math.cos(el), se = Math.sin(el);
+      const sv = ve * (0.7 + 0.5 * fg) * (0.6 + 0.6 * rnd()), c = 0.04 + 0.1 * rnd();
+      const vx = v[0] * c + (ox * ce + n[0] * se) * sv + (rnd() - 0.5) * 0.8, vy = v[1] * c + (oy * ce + n[1] * se) * sv, vz = v[2] * c + (oz * ce + n[2] * se) * sv + (rnd() - 0.5) * 0.8;
+      P.puff(t - jt, px, py, pz, vx, vy, vz, 0.9 + 0.1 * rnd(), lerp(0.2, 0.36, rnd()), (2.4 + 1.8 * fg) * Math.min(X, 1.2), 1, 1.25, Ls * (1.2 + 0.6 * rnd()), 0, 0, 0.6);
+    }
     while (accG >= 1) {
       accG -= 1;
       const u1 = rnd(), u3 = rnd(), u4 = rnd(), jt = rnd() * H, tail = rnd() < tailP;
@@ -413,7 +430,7 @@ const Spray = (() => {
     }
     P.face = faceEnv(t);
   };
-  let accB = 0, faceT0 = -9, faceN = 0;
+  let accU = 0, accB = 0, faceT0 = -9, faceN = 0;
   // the lens lets the snow right up to it for a moment after a face shot: in a tenth of a second, held a third, gone in half a second more
   function faceEnv(t) { const a = t - faceT0; return a < 0 ? 0 : smooth(0, 0.1, a) * (1 - smooth(0.4, 0.95, a)); }
   // a landing, or a fall: the skis come down flat and the snow under them has one way out: sideways from under each ski, along its whole
