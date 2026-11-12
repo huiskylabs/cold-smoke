@@ -428,7 +428,9 @@ const UI = (() => {
   // ---- the weather (Weather, where this build has it: its own levels, eased by itself), beside the hour; X steps through it
   const wxMod = () => { try { return typeof Weather !== 'undefined' && Weather && Array.isArray(Weather.levels) && Weather.levels.length && typeof Weather.set === 'function' ? Weather : null; } catch (e) { return null; } };
   U.setWeather = function (id) {
-    const W = wxMod(); if (!W || !live()) return; const l = W.levels.find(q => q[0] === id); if (!l) return;
+    const W = wxMod(); if (!W || !live()) return;
+    if (id === 'auto') { if (W.setAuto) W.setAuto(true); paint(); say('天气', '自动'); return; }
+    const l = W.levels.find(q => q[0] === id); if (!l) return;
     try { W.set(id); } catch (e) { console.warn(e); }
     paint(); say('天气', l[1]);
   };
@@ -469,8 +471,8 @@ const UI = (() => {
     for (const b of el.vrows.querySelectorAll('button')) { const on = !!V && V.val[b.dataset.vn] === b.dataset.vid; b.classList.toggle('on', on); if (on && !b.classList.contains('rec')) all = false; }
     el.vreset.classList.toggle('idle', all);
     const W = wxMod(), ls = W ? W.levels : [], ws = ls.map(l => l[0] + ':' + l[1]).join();
-    if (ws !== wxSig) { wxSig = ws; el.wxc.textContent = ''; for (const [id, name] of ls) el.wxc.appendChild(mkBtn(T(name), 'wx', id)); el.wx.hidden = !W; }
-    if (W) for (const b of el.wxc.children) b.classList.toggle('on', b.dataset.wx === W.level);
+    if (ws !== wxSig) { wxSig = ws; el.wxc.textContent = ''; if (W && W.setAuto) el.wxc.appendChild(mkBtn(T('自动'), 'wx', 'auto')); for (const [id, name] of ls) el.wxc.appendChild(mkBtn(T(name), 'wx', id)); el.wx.hidden = !W; }
+    if (W) for (const b of el.wxc.children) b.classList.toggle('on', W.auto ? b.dataset.wx === 'auto' : b.dataset.wx === W.level);
   }
 
   // ---- a change of place is a cut, and is shown as one: the picture dips to black, the skier is put there, the picture comes back.

@@ -4,7 +4,7 @@
 // across the sun and lets it out for a while. The far city and ranges fade to shapes behind the falling snow; the run ahead stays readable.
 // Every so often lightning flickers inside the cloud (two or three strokes within a third of a second; sometimes a bolt is seen far off): its
 // light is what lights the slope, and its thunder rolls in later by its distance, muffled by the snow. All of it runs on the game's clock.
-//   Weather.levels, .level, .set(id) (eases there), .set(id, true) (there at once), .flash(opt) (lightning now), .sun(v) (tests: hold the sun
+//   Weather.levels, .level, .auto / .setAuto(on) (turns by itself, the default), .set(id) (eases there and holds it), .set(id, true) (there at once), .flash(opt) (lightning now), .sun(v) (tests: hold the sun
 //   out 0 / in 1, null to let it go)
 //   For others to read: .k (0 light .. 1 heavy), .kc (cloud), .ks (snowfall), .v (how hidden the sun is under the cloud), .wind (a factor for
 //   the wind that grows with speed: 1 in light snow), .hush (0..1: how much of the high end of far sounds the falling snow swallows)
@@ -51,15 +51,26 @@ const Weather = (() => {
   // (the break is a tear stretched along the drift, ST times longer than it is wide: H[2] is its half length, the sky draws it the same way)
   const ST = 3, sunIn = H => 1 - H[3] * smooth(H[2] + E, H[2] - E, Math.hypot(H[0], H[1] * ST));
 
+  // ---- 自动 (the default): the weather turns by itself, as the hour and the meetings do. A long spell of the fine snow (2.5-5 min), then the
+  // cloud rolls in over half a minute and it snows hard for a minute or two, then it clears the same slow way. Picking 小雪 or 大雪 holds it.
+  W.auto = true; W.next = 150; W.rampAuto = 30;
+  const AR = RNG(40961);
+  W.setAuto = function (on) { W.auto = on !== false; if (W.auto) W.next = (typeof App !== 'undefined' ? App.t : 0) + (W.level === 'heavy' ? 60 + 60 * AR() : 90 + 120 * AR()); return W.auto; };
+  function autoStep(t) {
+    if (W.next - t > 400) W.next = t + 150;             // (the clock was started again: a new mountain)
+    if (!W.auto || t < W.next) return;
+    W.level = W.level === 'heavy' ? 'light' : 'heavy';
+    W.next = t + (W.level === 'heavy' ? 60 + 90 * AR() : 150 + 150 * AR());
+  }
   W.set = function (id, now) {
     if (!W.levels.some(l => l[0] === id)) return W.level;
-    W.level = id;
+    W.level = id; W.auto = false;
     if (now) { W.k = id === 'heavy' ? 1 : 0; W.ex = null; W.mix(); }
     return W.level;
   };
   W.sun = function (v) { W.hold = v == null ? null : +v; W.hole = holeAt(App.t); W.v = sunIn(W.hole); W.ex = null; };
   W.mix = function () { W.kc = smoother(0, 0.75, W.k); W.ks = smoother(0.2, 1, W.k); };
-  { const m = /[?&]wx=(\w+)/.exec(typeof location !== 'undefined' ? location.search : ''); if (m) W.set(m[1], true); }
+  { const q = typeof location !== 'undefined' ? location.search : '', m = /[?&]wx=(\w+)/.exec(q); if (m) W.set(m[1], true); if (/[?&]manual\b/.test(q)) W.auto = false; }   // (test renders hold the weather)
 
   // ---- lightning. Two or three return strokes down the same channel within a third of a second, each a blink of a few hundredths of a
   // second with a short glow after it. In the cloud at az/el, `dist` metres off; with a bolt, its channel is seen from the cloud base down.
@@ -88,8 +99,9 @@ const Weather = (() => {
     const t = App.t, P = W.P, KP = KIND[kind()], kp = 1 - Math.exp(-dt / 1.5);
     for (const n of NUM) P[n] += (KP[n] - P[n]) * kp;
     // toward the chosen weather, at an even pace: the cloud leads, the snowfall follows (and on the way back the snow eases before the sky clears)
-    const tgt = W.level === 'heavy' ? 1 : 0;
-    if (W.k !== tgt) W.k = tgt > W.k ? Math.min(tgt, W.k + dt / W.ramp) : Math.max(tgt, W.k - dt / W.ramp);
+    autoStep(t);
+    const tgt = W.level === 'heavy' ? 1 : 0, rp = W.auto ? W.rampAuto : W.ramp;
+    if (W.k !== tgt) W.k = tgt > W.k ? Math.min(tgt, W.k + dt / rp) : Math.max(tgt, W.k - dt / rp);
     W.mix();
     // the break nearest the sun: carried along smoothly (and so also when the kind of snow is changed)
     const H = holeAt(t), kh = 1 - Math.exp(-dt / 0.6); for (let i = 0; i < 4; i++) W.hole[i] += (H[i] - W.hole[i]) * kh;
