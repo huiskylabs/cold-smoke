@@ -111,7 +111,7 @@ fn snowFly(p0: vec3f, v0: vec3f, t: f32, L: f32, tb: f32, vs: f32, wk: f32) -> F
 `;
 
 const Spray = (() => {
-  const P = { NP: 6144, NG: 16384, PF: 16, GF: 12, gain: 1, reach: 1.0, clots: 0.22, lens: 1.3, bump: 1.0, tear: 1.0, speck: 1.0, keyhole: 1.0, nearBlur: 0.75, shutter: true, streakMax: 0.06, crumb: 1.0, grainShutter: 4.0, face: 0, grainy: true, shadows: true, enabled: true, moonMix: 0, night: null, nt: 0, stats: { puffs: 0, grains: 0 } };
+  const P = { NP: 12288, NG: 16384, PF: 16, GF: 12, gain: 1, reach: 1.0, clots: 0.22, lens: 1.3, bump: 1.0, tear: 1.0, speck: 1.0, keyhole: 1.0, nearBlur: 0.75, shutter: true, streakMax: 0.06, crumb: 1.0, grainShutter: 4.0, face: 0, grainy: true, shadows: true, enabled: true, moonMix: 0, night: null, nt: 0, stats: { puffs: 0, grains: 0 } };
   // the owner's choice: how much the moon shows of the snow in the air by night (the headlamp's share is the same in both). a: thin and dark blue,
   // the lamp carries it; b: the moon lights the curtain too, silver-blue. (P.night: null = by the sun's height; a number holds it, for tests)
   if (typeof Variants !== 'undefined') Variants.def('nspray', '夜间雪雾', [['a', '暗蓝头灯'], ['b', '月光亮些']], 'a');
@@ -142,6 +142,9 @@ const Spray = (() => {
   // A listener that throws is dropped from that one call, never from the game.
   P.onEmit = [];
   P.fogMul = 1;
+  // how dark the thrown snow is from the sun's side (its shadow on the slope and the shaded face of the curtain). The owner's photos from above
+  // show blue shadows and a shaded side to every plume: at 1 a plume from above was white all over
+  P.shadowK = 2;
   const LF0 = [0, 0, 0, 0], LF1 = [0, 0, 0, 0], liftU = () => { if (typeof Tracks === 'undefined' || !Tracks.liftU) return LF0; const u = Tracks.liftU(), o = (typeof Render !== 'undefined' && Render.origin) || LF0; LF1[0] = u[0] - o[0]; LF1[1] = u[1] - o[2]; LF1[2] = u[2]; LF1[3] = u[3]; return LF1; };
   function emit(kind, t, p, v, spread, rate, powder, r, f) {
     if (!P.onEmit.length) return;
@@ -275,8 +278,12 @@ const Spray = (() => {
     // (running straight, the tails still drag a plume out of the snow: enough lumps per metre of track that it is one plume, at any speed)
     // (a turn does not throw one even band of snow along its arc: it comes off the edge in a few thick sheets with thin stretches between,
     // two to four to a turn)
+    // In soft snow the same mass goes out as fewer, bigger lumps (2.6x fewer, 1.6x across: the optical depth is the same). At 5000-9000 puffs a
+    // second the ring of puffs was used up in about a second, so a powder plume was overwritten before it could hang (the owner's photos: plumes
+    // that hang over the whole arc for seconds), and the many small ones ran together into one smooth wall instead of billows
+    const pwS = smooth(0.25, 0.9, S.powder || 0), pwN = 1 / (1 + 1.6 * pwS), pwR = 1 + 0.6 * pwS;
     const ch = vnoise1(t * 3.1, 71) * 0.5 + 0.5, chunk = 1.25 * (0.32 + 1.3 * ch * ch);
-    accP = Math.min(accP + (70 + 1700 * Math.pow(Ie, 0.9) * chunk + 13 * sp * tailP * smooth(5, 12, sp)) * H * P.gain, 60); accG = Math.min(accG + (90 + 4600 * Math.pow(Ie, 0.85) * (0.4 + 0.6 * chunk)) * H * P.gain, 160);
+    accP = Math.min(accP + (70 + 160 * smooth(8, 22, sp) * (1 - soft) + 1700 * Math.pow(Ie, 0.9) * chunk * pwN + 13 * sp * tailP * smooth(5, 12, sp)) * H * P.gain, 60); accG = Math.min(accG + (90 + 4600 * Math.pow(Ie, 0.85) * (0.4 + 0.6 * chunk)) * H * P.gain, 160);
     // a thick sheet has the mass to push further through the air before it is braked: the harder the turn, the taller the curtain it leaves.
     // How tall also goes with the snow: hard snow comes off as a low fan of grains, deep powder as a wall (P.curtainK)
     const CK = P.curtainK(S.powder || 0), hk = CK[0], lk = CK[1];
@@ -315,7 +322,7 @@ const Spray = (() => {
       const px = S.p[0] + lx, pz = S.p[2] + lz, py = base - (n[0] * lx + n[2] * lz) / n[1] + 0.04;
       if (tail) {
         const up = (0.5 + 0.085 * sp) * (0.45 + u4), c = 0.08 + 0.2 * rnd(), sw = (u2 - 0.5) * 0.9;
-        P.puff(t - jt, px, py, pz, v[0] * c + n[0] * up + ox * sw, v[1] * c + n[1] * up + oy * sw, v[2] * c + n[2] * up + oz * sw, 0.7 + 0.3 * rnd(), lerp(0.05, 0.09, rnd()), (0.3 + 0.6 * smooth(8, 26, sp) + 2.0 * X) * fogK, 1, 1, 0.8);
+        P.puff(t - jt, px, py, pz, v[0] * c + n[0] * up + ox * sw, v[1] * c + n[1] * up + oy * sw, v[2] * c + n[2] * up + oz * sw, 0.7 + 0.3 * rnd(), lerp(0.05, 0.09, rnd()), (0.3 + 0.6 * smooth(8, 26, sp) + 2.0 * X) * Math.max(fogK, 0.6), 1, 1, 0.8);
         continue;
       }
       // the sheet here and now: the angle it leaves at and the speed of its rim
@@ -341,12 +348,14 @@ const Spray = (() => {
         if (rnd() < pk * 0.85) {
           // sugar: on packed snow most of it. Each grain is braked by the air on its own (a few tenths of a metre), falls at one to two metres a
           // second and is down within the second: a low granular fan, not a curtain
-          f = 0.36 + 0.06 * rnd(); vsO = 0.9 + 1.1 * rnd(); LO = 0.25 + 0.35 * rnd(); lifeK = 0.42; dens *= 0.4; r0 *= 0.7; gK = 0.3; jit = 0.6;
+          f = 0.36 + 0.06 * rnd(); vsO = 0.9 + 1.1 * rnd(); LO = 0.25 + 0.35 * rnd(); lifeK = 0.42; r0 *= 0.7; gK = 0.3; jit = 0.6;
+          // (not thinned with speed as the smoke is: a light turn at speed still kicks a small low puff of it off the skis, the owner's photo R5)
+          dens = lerp(4.2, 2.6, sat((f - 0.62) / 0.38)) * Math.max(X, 0.7) * 0.4;
         }
       }
       const ce = Math.cos(el), se = Math.sin(el);
       const vx = v[0] * carry + (ox * ce + n[0] * se) * sv + (rnd() - 0.5) * jit, vy = v[1] * carry + (oy * ce + n[1] * se) * sv + rnd() * 0.4 * jit, vz = v[2] * carry + (oz * ce + n[2] * se) * sv + (rnd() - 0.5) * jit;
-      P.puff(t - jt, px, py, pz, vx, vy, vz, f, r0, dens, 1, lifeK * (f > 0.5 ? lk * (0.4 + 0.6 * fogK) : 1), brake, vsO, LO, gK);
+      P.puff(t - jt, px, py, pz, vx, vy, vz, f, r0 * pwR, dens, 1, lifeK * (f > 0.5 ? lk * (0.4 + 0.6 * fogK) * (1 + 0.4 * pwS) : 1), brake, vsO, LO, gK);
     }
     while (accG >= 1) {
       accG -= 1;
@@ -505,7 +514,7 @@ const Spray = (() => {
     gfx.beginPass(sunT, { color: [0, 0, 0, 0] });
     // night: 0 by day, at golden hour and at dusk (they keep the look they had), 1 once the sun is well under (see the end of SPRAY_COMP_FS)
     P.nt = P.night != null ? P.night : smooth(-0.07, -0.16, Sky.sunElev);
-    if (P.enabled && P.shadows) gfx.draw(pipePuffSun, { u: { hx: hb.xf, sn: [1 - 0.6 * P.nt, 0, 0, 0], lf: liftU() }, tex: { tH: hb.tex }, vb: [puffBuf], count: 4, instances: P.NP });
+    if (P.enabled && P.shadows) gfx.draw(pipePuffSun, { u: { hx: hb.xf, sn: [(1 - 0.6 * P.nt) * P.shadowK, 0, 0, 0], lf: liftU() }, tex: { tH: hb.tex }, vb: [puffBuf], count: 4, instances: P.NP });
     gfx.endPass();
   };
   // (a phone draws the rim of the curtain with one noise instead of two: P.grainy off there and whenever the governor has had to shrink the picture)
