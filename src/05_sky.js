@@ -46,8 +46,8 @@ const Sky = (() => {
         o.color = vec4f(c, 1.0); return o; }`,
     });
     pipeSky = gfx.pipeline({
-      name: 'sky', lib: [SL.common, SL.hash, SL.fog, NEBULA_SSL, vistaSSL(), CLOUDSEA_SSL, CIRRUS_SSL, NIGHT_SSL, CONTRAIL_SSL, weatherSkySSL()], buffers: [], varyings: { uv: 'vec2f' },
-      uniforms: { p: 'vec4f', nr: 'vec4f', nu: 'vec4f', nf: 'vec4f', sd: 'vec4f', mo: 'vec4f', hi: 'vec4f', fr: 'vec4f', pa: 'vec4f', pb: 'vec4f', pc: 'vec4f', cs: 'vec4f',
+      name: 'sky', lib: [SL.common, SL.hash, SL.fog, NEBULA_SSL, vistaSSL(), CLOUDSEA_SSL, CIRRUS_SSL, NIGHT_SSL, CONTRAIL_SSL, ANTISOLAR_SSL, weatherSkySSL()], buffers: [], varyings: { uv: 'vec2f' },
+      uniforms: { p: 'vec4f', nr: 'vec4f', nu: 'vec4f', nf: 'vec4f', sd: 'vec4f', mo: 'vec4f', hi: 'vec4f', fr: 'vec4f', pa: 'vec4f', pb: 'vec4f', pc: 'vec4f', cs: 'vec4f', ab: 'vec4f',
         wa: 'vec4f', wb: 'vec4f', wc: 'vec4f', wd: 'vec4f', we: 'vec4f', wf: 'vec4f', wg: 'vec4f' },
       textures: { tSky: '2d', tNebA: '2d', tNebB: '2d', tDetail: '2d', tFarA: '2d', tFarB: '2d', tCityA: '2d', tCityB: '2d', tCitySh: '2d', tSeaA: '2d', tSeaB: '2d' }, depthFunc: 'lequal', depthWrite: false, cull: 'none',
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let uv: vec2f = vec2f(f32((a.vid << 1u) & 2u), f32(a.vid & 2u)); v.clip = vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, 1.0, 1.0); v.uv = uv; return v; }`,
@@ -59,6 +59,7 @@ const Sky = (() => {
         // the haze band at the horizon: milky and bright by day rather than yellow (at sunset it keeps all its colour)
         let hz: f32 = smoothstep(0.16, 0.0, d.y);
         col = mix(col, vec3f(luma(col)) * vec3f(1.03, 1.0, 1.0), 0.55 * hz * U.sunDir.w);
+        col = antiSolar(d, col);
         let ang: f32 = acos(clamp(mu, -1.0, 1.0));
         // polariser on the lens: sky light scattered at right angles to the sun is strongly polarised, so the blue deepens away from the sun
         col *= 1.0 - M.p.z * (1.0 - mu * mu) * smoothstep(-0.02, 0.32, d.y);
@@ -153,6 +154,11 @@ const Sky = (() => {
     S.ambGnd = [0, 1, 2].map(c => 0.5 * (S.sunCol[c] * (up * 0.9 + 0.2 * smooth(-0.05, 0.15, Math.sin(S.elev))) + S.ambSky[c] * 0.8));
     // the band of bright sky low on the sun's bearing: after sunset it is what lights the slope that faces it
     { const a = Atmo.scatter(dirOf(0.02), sun, S.alt), b = Atmo.scatter(dirOf(0.06), sun, S.alt); S.twi = [0, 1, 2].map(c => (a[c] + b[c]) * 0.5 * S.E * S.twiK); }
+    // the sky opposite the sun (ANTISOLAR_SSL): how bright the air is there 8 degrees up, where the earth's shadow stands, how strong the
+    // pink band over it and the blue band of the shadow itself are. The band shows from the last minutes of the sun on the skyline until the
+    // shadow has climbed into it and the sky has gone dark
+    { const ce = Math.cos(0.14), a8 = [-Math.sin(S.az) * ce, Math.sin(0.14), Math.cos(S.az) * ce];
+      S.anti = [-2.2 * e - 0.02, smooth(0.115, 0.035, e) * smooth(-0.14, -0.045, e), smooth(0.02, -0.025, e) * smooth(-0.22, -0.11, e), lum3(Atmo.scatter(a8, sun, S.alt)) + 0.004]; }
     // the lens opens as the light goes, but not all the way: dusk should feel like dusk
     const lum = c => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2], L = lum(S.sunCol) * 0.33 + lum(S.ambSky) * 1.9 + lum(S.twi) * 0.5;
     S.sceneL = L; S.exposure = clamp(S.expDay * Math.pow(S.keyL / L, S.expGamma), S.expDay, 2.6);
@@ -209,7 +215,7 @@ const Sky = (() => {
     const wx = typeof Weather !== 'undefined' ? Weather.sky : null, wk = wx && Weather.sunK != null ? Weather.sunK : 1;
     gfx.draw(pipeSky, { u: { p: [S.nebDay, S.nebNight * S.nebNightK, S.polar * lerp(0.5, 1, S.milk), lerp(1.0, S.nebSat, S.milk)], nr: b.nr, nu: b.nu, nf: b.nf,
       sd: [S.disc[0], S.disc[1], S.disc[2], S.isMoon ? 0 : 1], mo: [md[0], md[1], md[2], S.moonVis], hi: [S.sunHi[0], S.sunHi[1], S.sunHi[2], S.night], fr: [S.sunFar[0] * wk, S.sunFar[1] * wk, S.sunFar[2] * wk, strobe + 0.5 * beacon],
-      pa: PL.on ? [PL.x - cam[0], PL.z - cam[2], S.hiAlt, 1] : [0, 0, S.hiAlt, 0], pb: [PL.hx, PL.hz, PL.len, PL.v], pc: [PL.cut, S.glare, (Variants.val.moon === 'b' ? 1 : 0) * S.night, 0], cs: [Clouds.sea.f, Clouds.sea.oA, Clouds.sea.oB, 0],
+      pa: PL.on ? [PL.x - cam[0], PL.z - cam[2], S.hiAlt, 1] : [0, 0, S.hiAlt, 0], pb: [PL.hx, PL.hz, PL.len, PL.v], pc: [PL.cut, S.glare, (Variants.val.moon === 'b' ? 1 : 0) * S.night, 0], cs: [Clouds.sea.f, Clouds.sea.oA, Clouds.sea.oB, 0], ab: S.anti,
       wa: wx ? wx.wa : [0, 0, 0, 0], wb: wx ? wx.wb : [0, 0, 0, 0], wc: wx ? wx.wc : [0, 0, 0, 0], wd: wx ? wx.wd : [0, 0, 0, 0], we: wx ? wx.we : [0, 0, 0, 0], wf: wx ? wx.wf : [0, 0, 0, 0], wg: wx ? wx.wg : [0, 0, 0, 0] },
       tex: { tSky: lutTex, tNebA: Nebula.texA, tNebB: Nebula.texB, tDetail: Tex.detail, tFarA: Vista.farA, tFarB: Vista.farB, tCityA: Vista.cityA, tCityB: Vista.cityB, tCitySh: Vista.shTex, tSeaA: Clouds.sea.A, tSeaB: Clouds.sea.B }, count: 3 });
   };
@@ -413,9 +419,50 @@ fn cirrus(d: vec3f, mu: f32) -> vec4f {
   let wv: vec2f = tex(tDetail, q * vec2f(0.045, 0.09) + vec2f(0.21, 0.63)).xy - 0.5;
   let n1: f32 = tex(tDetail, vec2f(q.x * 0.022, q.y * 0.26) + wv * 0.055).z;
   let n2: f32 = tex(tDetail, vec2f(q.x * 0.075, q.y * 0.80) + wv * 0.10 + vec2f(0.37, 0.11)).z;
-  let cov: f32 = smoothstep(0.40, 0.60, tex(tDetail, q * vec2f(0.012, 0.030) + vec2f(0.55, 0.20)).z);
-  let a: f32 = cov * smoothstep(0.36, 0.72, n1 * 0.62 + n2 * 0.38 + 0.10 * cov) * smoothstep(0.015, 0.14, d.y) * U.cloudP.z * 0.62;
-  let lit: vec3f = M.hi.rgb * (0.50 + 3.2 * hg(mu, 0.75) + 0.6 * hg(mu, 0.25)) + U.ambSky.rgb * 0.9;
-  return vec4f(lit * a, a);
+  let sw: f32 = smoothstep(-0.55, 0.75, mu);
+  let cv: f32 = tex(tDetail, q * vec2f(0.012, 0.030) + vec2f(0.55, 0.20)).z;
+  let cov: f32 = smoothstep(mix(0.36, 0.40, sw), mix(0.78, 0.60, sw), cv);
+  // toward the sun it glows as a veil; away from it the same ice is only seen where it is thickest, so there it is drawn as fibres (combed
+  // threads, sharper and sparser), never as a lid over the blue
+  let fib: f32 = n1 * 0.62 + n2 * 0.38 + 0.10 * cov;
+  let n3: f32 = tex(tDetail, vec2f(q.x * 0.16, q.y * 2.1) + wv * 0.16 + vec2f(0.71, 0.43)).z;
+  // (away from the sun every edge is soft at every scale: the fine streaks only modulate the veil, the veil fades in and out over a wide range)
+  let thr: f32 = mix(mix(0.25, 1.0, smoothstep(0.30, 0.85, n3)), 1.0, sw);
+  let a: f32 = cov * sq(smoothstep(mix(0.34, 0.36, sw), mix(0.86, 0.72, sw), fib)) * thr * smoothstep(0.015, 0.14, d.y) * U.cloudP.z * mix(0.30, 0.62, sw);
+  // ice scatters the sunlight it is in toward the eye even opposite the sun (a weak back lobe): high up it keeps the sun after the land has
+  // lost it, so at sundown the threads glow gold over the sun and pink over the band opposite. Little sky light, so it never reads grey
+  let lit: vec3f = M.hi.rgb * (0.55 + 3.2 * hg(mu, 0.75) + 0.6 * hg(mu, 0.25) + (1.0 + 2.2 * M.ab.y) * hg(-mu, 0.35)) + U.ambSky.rgb * 0.45;
+  // thin ice hides little of the sky behind it: it adds its own light and takes away only a part of what is behind (the alpha returned is
+  // that part)
+  return vec4f(lit * a, a * 0.45);
+}
+`;
+
+// ---- the half of the sky opposite the sun. The table above is single scattering: away from the sun it is a deep blue that brightens only in
+// the last few degrees over the horizon, which the mountain hides. Light scattered more than once (and the haze) carries that pale horizon a
+// good way up, so it is spread up here. With the sun on the skyline the earth throws its shadow up into the air opposite: a slate-blue band
+// on the horizon (rising as the sun sinks), and over it the Belt of Venus, air still lit by the reddened last sun, a pink band low over it
+// fading into the blue. M.ab: (height of the shadow's edge rad, band strength, shadow strength, the table's light there before exposure)
+const ANTISOLAR_SSL = `
+fn antiSolar(d: vec3f, c0: vec3f) -> vec3f {
+  var col: vec3f = c0;
+  let dh: vec2f = normalize(d.xz + vec2f(1e-5, 0.0)); let sh: vec2f = normalize(U.sunDir.xz + vec2f(1e-5, 0.0));
+  let ca: f32 = dot(dh, sh);
+  let w: f32 = smoothstep(0.35, -0.85, ca);                     // how far round from the sun (1 opposite it)
+  let el: f32 = asin(clamp(d.y, -1.0, 1.0));
+  // the pale horizon, carried up
+  let hzc: vec3f = skyLut0(vec3f(d.x, 0.035, d.z));
+  // (toward a pale clean blue of the horizon's brightness: the table's own horizon is a greenish white, which mixed into the blue reads teal)
+  let hzb: vec3f = vec3f(0.80, 0.92, 1.12) * luma(hzc);
+  col = mix(col, max(hzb, col), pow(smoothstep(1.2, 0.0, el), 1.4) * mix(0.22, 0.66, w));
+  let L: f32 = M.ab.w * U.skyP.x;
+  // the earth's shadow: slate blue below its soft edge
+  let r: f32 = el - M.ab.x;
+  let shd: f32 = smoothstep(0.035, -0.012, r) * M.ab.z * w;
+  col = mix(col, vec3f(0.56, 0.68, 1.06) * (L * 0.62), shd);
+  // the Belt of Venus over it, densest a few degrees above the edge, melting into the blue by 20 degrees
+  let bel: f32 = smoothstep(-0.015, 0.07, r) * exp(-max(r - 0.08, 0.0) / 0.45) * M.ab.y * 0.8 * w;
+  col = mix(col, vec3f(1.34, 0.78, 0.92) * (L * 2.4), bel);
+  return col;
 }
 `;
