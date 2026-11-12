@@ -25,6 +25,7 @@ async function boot(stage) {
   { const t0 = performance.now(); Deer.init(gfx); if (DEV) console.log('deer', Math.round(performance.now() - t0) + 'ms', Deer.mesh.nv + ' verts'); }
   await step(0.44, '种树');
   { const t0 = performance.now(); Trees.init(gfx); if (DEV) console.log('trees', Math.round(performance.now() - t0) + 'ms', Math.round(Trees.stats.tris) + ' tris'); }
+  Gates.init(gfx);
   await step(0.56, '点亮星云');
   Spray.init(gfx); Dust.init(gfx); Nebula.init(gfx, +QS.get('nebres') || (gfx.caps.maxTex >= 4096 && (navigator.deviceMemory || 8) >= 4 ? 1536 : 768)); Clouds.init(gfx, +QS.get('cloudres') || 0); Shafts.init(gfx); Tracks.init(gfx);
   await step(0.64, '调音');
@@ -38,11 +39,15 @@ async function boot(stage) {
   Render.passes.fx.push(R => Dust.fx(R));
   Game.onStep = (S, H) => Spray.onStep(S, H, App.t - (Game.t - Game.stepT));
   Render.passes.shadow.push(() => { if (App.skierRoot) Skier.drawShadow(); Deer.drawShadow(); Trees.drawShadow(); });
+  Render.passes.shadow.push(() => Gates.drawShadow());
   Render.passes.pre.push(R => Spray.pre(R)); Render.passes.pre.push(() => Tracks.pre());
   Render.passes.opaque.push(R => { if (App.skierRoot) Skier.draw(R.shadowTex, Sky.lut); Deer.draw(R.shadowTex, Sky.lut); Trees.draw(R); });
+  Render.passes.opaque.push(R => Gates.draw(R));
   Render.passes.transparent.push(R => Clouds.draw(R)); Render.passes.transparent.push(R => Trees.drawGhost(R));
+  Render.passes.transparent.push(R => Gates.drawOver(R));
   await step(0.70, '调光');
   const pipes = [].concat(Sky.pipes, Terrain.pipes, Post.pipes, Skier.pipes, Deer.pipes, Trees.pipes, Spray.pipes, Dust.pipes, Nebula.pipes, Clouds.pipes, Shafts.pipes, Tracks.pipes);
+  pipes.push(...Gates.pipes);
   for (let i = 0; i < pipes.length; i++) { const p = pipes[i]; if (gfx.finishPipelineAsync) await gfx.finishPipelineAsync(p); else gfx.finishPipeline(p); if (stage && !manual && i % 6 === 5) await step(0.70 + 0.16 * (i + 1) / pipes.length, null); }
   await step(0.87, '铺雪');
   fit();
@@ -66,6 +71,7 @@ function tick(dt, draw) {
   if (draw !== false) Terrain.update(cp[0], cp[2]);
   Skier.update(Game.root, Game.pose, Render.origin);
   Trees.update(Render.cam, Render.origin, Render.W / Render.H, Game.root.pos, dt);
+  Gates.update(Render.cam, Render.origin, Game.root.pos, dt, App.t);
   Deer.update(dt, App.t);
   st.speed = S.speed; st.lean = S.lean; st.playerPos = Game.root.pos; st.air = S.air;
   // the headlamp sits on the forehead and looks where the skier is looking: down the mountain along the line being skied (the head stays
@@ -146,6 +152,7 @@ window.__ski = {
     Terrain.update(pos[0], pos[2]);
     if (App.skierRoot) Skier.update(App.skierRoot, App.skierPose, Render.origin);
     Trees.update(Render.cam, Render.origin, Render.W / Render.H);
+    Gates.update(Render.cam, Render.origin, null, 0, App.t);
     Render.computeGlobals(App.t, 1 / 60, App.state); for (const f of App.onTick) f(0, true); Render.render();
   },
   skier(x, z, yaw, pose) {
@@ -201,6 +208,7 @@ window.__ski = {
   get m() { return { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Skier, Tex, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Atmo, Deer, View }; },
 };
 App.fit = fit;
+window.__ski.gates = Gates;
 addEventListener('resize', () => { if (typeof UI !== 'undefined' && UI.layout) UI.layout(); if (App.ready && !QS.get('w')) fit(); });
 if (QS.has('manual') && !QS.has('ui')) document.getElementById('app').classList.add('bare');
 else {
