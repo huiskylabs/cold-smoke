@@ -282,15 +282,38 @@
   // (in the air the figure flings its hands wide, out of this picture: from inside the helmet they are kept in front, a little out to either side and
   // up for balance, so a jump is seen to be a jump; not the hand that has gone down to take hold of a ski)
   const AR = [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]]; let armsOn = false;
-  function fpArms(w) {
+  function fpArms(w, dt) {
     const ps = G.pose, v = VD.fp, tk = sat(ps.tuck || 0), ay = (v.arm[0] + v.armT[0] * tk) * w, az = -(v.arm[1] + v.armT[1] * tk) * w, ai = sat(Math.max((ps.air || 0) / 0.5, G.flight ? G.flight.w || 0 : 0)) * w;
     for (let i = 0; i < 2; i++) {
       const a = i ? ps.armR : ps.armL, m = AR[i]; if (!a || !(a.length >= 3)) continue;
       if (a[0] === m[4] && a[1] === m[2] && a[2] === m[3]) { a[0] = m[5]; a[1] = m[0]; a[2] = m[1]; }
       const g = ai * (1 - sat((i ? ps.grabR : ps.grabL) || 0)), sd = i ? 1 : -1;
-      m[5] = a[0]; m[0] = a[1]; m[1] = a[2]; a[0] -= sd * 0.34 * g; a[1] += ay + 0.02 * g; a[2] += az - 0.14 * g; m[4] = a[0]; m[2] = a[1]; m[3] = a[2];
+      // (laid over in a hard turn, the body leans far more than the lens rolls with it, and the outside hand, carried round the turn, comes up and
+      // across into the middle of the picture with the whole sleeve behind it. From the helmet it is kept down at its own corner: out, lower, and
+      // not so far forward; the turn shows in the hands rising and dropping a little, not in one of them reaching across. oc: how far outside)
+      const oc = sat(-sd * Math.sin(ps.lean || 0) * 1.4) * (1 - tk) * (1 - ai) * w;
+      // what that leaves (the hand swinging up for the pole plant as the turn changes, the inside hand lifted by the slope rising under it) is kept
+      // down where the picture shows it: where the glove came out in the last frame, if above or inside its corner, it is drawn down and out a
+      // little more over the next frames, and let back as it settles inside it (soon, should it be going out past the picture's edge). And should
+      // the elbow come up right in front of the lens (the forearm then points into it and its cuff fills a corner), the hand is reached a little
+      // further forward, which straightens the arm and takes the elbow away from the lens (game time; nothing the skier's way down depends on)
+      const c = FC[i]; if (dt > 0) { const gp = gripNdc(i ? 'gripR' : 'gripL'), el = gripNdc(i ? 'elbowR' : 'elbowL'), on = gp && w > 0.5 && !ai,
+          e = on ? Math.max(0, gp[1] + 0.42) * 2.2 + Math.max(0, 0.52 - sd * gp[0]) * 1.6 : 0, en = on && el && sd * el[0] < 1.4 && el[1] > -1.3 ? (0.34 - el[2]) * 14 : -1;
+        c.v = clamp(c.v + ((e > 0 ? e * 5 : on && (sd * gp[0] > 0.86 || gp[1] < -0.92) ? -1.4 - Math.max(0, sd * gp[0] - 0.86) * 12 : -0.3) - (on ? 0 : 1.5)) * dt, 0, 1);
+        c.n = clamp(c.n + (en > 0 ? en * 5 : -0.6) * dt, 0, 1); }
+      const fc = smooth(0, 1, c.v) * (1 - ai) * w, fn = smooth(0, 1, c.n) * (1 - ai) * w;
+      m[5] = a[0]; m[0] = a[1]; m[1] = a[2]; a[0] += sd * (0.40 * oc + 0.20 * fc - 0.34 * g); a[1] += ay + 0.02 * g - 0.15 * oc - 0.26 * fc; a[2] += az - 0.14 * g + 0.12 * oc + 0.10 * fc - 0.22 * fn; m[4] = a[0]; m[2] = a[1]; m[3] = a[2];
     }
     armsOn = w > 0;
+  }
+  const FC = [{ v: 0, n: 0 }, { v: 0, n: 0 }];
+  // where a joint of the figure came out on the screen in the last frame drawn: [x, y] from -1 to 1 and its depth in metres (null when behind the lens or not yet posed)
+  function gripNdc(n) {
+    const J = Skier.world && Skier.world.J, c = Render.cam; if (!J || !J[n] || !c || !c.fwd || !(c.fovY > 0)) return null;
+    const q = Skier.toWorld(J[n]), o = Render.origin || [0, 0, 0], d = [q[0] + o[0] - c.pos[0], q[1] + o[1] - c.pos[1], q[2] + o[2] - c.pos[2]];
+    const z = d[0] * c.fwd[0] + d[1] * c.fwd[1] + d[2] * c.fwd[2]; if (!(z > 0.05)) return null;
+    const t = Math.tan(c.fovY / 2), A = Render.W / Math.max(1, Render.H);
+    return [(d[0] * c.right[0] + d[1] * c.right[1] + d[2] * c.right[2]) / z / t / A, (d[0] * c.up[0] + d[1] * c.up[1] + d[2] * c.up[2]) / z / t, z];
   }
 
   function reinit() { B.init = true; B.cyaw = B.yaw = Course.yawAt(-S.p[2]); B.lean = S.lean; B.kick = G.fovKick; B.gInit = true; B.pInit = true; B.flOK = false; B.res[0] = B.res[1] = B.res[2] = 0; F.init = true; relOK = false; if (rigOn && tp !== 'chase') place(); else { rigOn = false; tw = 9; } }
@@ -333,7 +356,7 @@
     G.viewEdge = 1 + (VD.tips.edge - 1) * tk * smooth(0.7, 1, fpc);
     // nothing of ours showing: the chase camera goes on as it was
     const rc = Render.cam; if (!B.near0) B.near0 = rc.near || 0.25;
-    if (armsOn || fpc > 0) fpArms(smooth(0, 1, fpc));
+    if (armsOn || fpc > 0) fpArms(smooth(0, 1, fpc), rdt);
     // (the lens is where the head is but goes on looking down the valley: should the figure be turned or tipped well away from that (a spin or a
     // somersault already under way when this view was taken up, or riding switch after it; this view itself only gets tricks that keep the body
     // upright and facing forward, see pickTrick), it would look out through the back of its own hood. Then the figure is left out, and the arms of this view
