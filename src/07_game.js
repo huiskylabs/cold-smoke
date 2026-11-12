@@ -922,7 +922,11 @@ const Game = (() => {
     const ox = vnoise1(t * 17, 1) * sh, oy = vnoise1(t * 19, 2) * sh;
     // pushed aside by a tree, the lens turns back toward the skier so the figure never leaves the frame
     cam.pull = 0;   // off (the owner: no glances at animals; the lens stays on the skier)                 // something worth a glance beside us
-    const ly = yo - (cam.jSide || 1) * 0.27 * cam.jw * 0.6 * (1 - (cam.ja || 0)) + Math.atan2(-cam.dodge, lerp(dist, hd, cam.wood)) * 0.9 + Math.atan2(-sway, dist) * 0.85 + (portrait ? 0 : (cam.tLook - cam.tPsi) * cam.idle) + cam.pull;
+    // (dA: what these two turns take the lens's distance to be. `dist` is measured from the point the lens follows, which trails the skier
+    // by sp / 16 s: past about 140 km/h in a tuck (sooner, closing up among trees) it goes below nothing, and an atan2 of nothing over
+    // less than nothing is half a turn. That was the lens thrown round to look back up the hill, the skier gone (the owner, 2026-11-12))
+    const dA = Math.max(dist, 0.5);
+    const ly = yo - (cam.jSide || 1) * 0.27 * cam.jw * 0.6 * (1 - (cam.ja || 0)) + Math.atan2(-cam.dodge, Math.max(lerp(dA, hd, cam.wood), 0.5)) * 0.9 + Math.atan2(-sway, dA) * 0.85 + (portrait ? 0 : (cam.tLook - cam.tPsi) * cam.idle) + cam.pull;
     const cp = Math.cos(cam.pitch), f = [Math.sin(ly) * cp, Math.sin(cam.pitch), -Math.cos(ly) * cp];
     cam.fwd = f;
     // (a tree gone by close, untouched: the lens ducks a finger's breadth and tips away from it, as 07c_feel.js has worked out; both
