@@ -84,7 +84,11 @@ const Game = (() => {
   const still = () => { S.charge = S.tuckIn = S.airK = S.dp = S.leg = 0; S.betaV = 0; S.bite = GRAV; S.jOn = false; S.jT = 0; S.jLock = true; S.popT = -1; S.popV = 0; S.lift = false; S.dpGo = 0; S.owe = 0; S.load = GRAV; S.airT = 0; S.landV = 0; S.off = 0; S.hdOff = 0; };
   still();
   // the chase camera when the picture is wide (the way the game is meant to be held): how low the skier sits in the frame, lens, distance, height
-  G.camL = { k: 0.52, kf: 0.74, f0: 0.98, f1: 1.18, d0: 4.3, d1: 3.8, h0: 1.35, h1: 1.1 };
+  // (wd, wh, wf: among trees it comes that much nearer (m), lower (m) and wider (rad): see cam.wood)
+  G.camL = { k: 0.52, kf: 0.74, f0: 0.98, f1: 1.18, d0: 4.3, d1: 3.8, h0: 1.35, h1: 1.1, wd: 1.3, wh: 0.25, wf: 0.06 };
+  // (the lens among trees is the owner's to choose. a: as it was. b: it closes up, and a tree in its way fades before it is reached.
+  // c: it stays where it was, and only the fading is early. 14_trees.js reads the same choice for the fading)
+  if (typeof Variants !== 'undefined') Variants.def('wood', '林间镜头', [['a', '现在的'], ['b', '贴近'], ['c', '原位淡树']], 'b');
   // on the title page the lens looks a little to the left of the figure: the words stand on that side, the picture gathers on the other
   G.titleYaw = -0.13;
   const cam = G.cam = { pos: [0, 3, 8], yaw: 0, roll: 0, fov: 1.3, anchor: [0, 0, 0], pitch: -0.2, side: 0, gy: 0, init: false, fwd: [0, 0, -1] };
@@ -667,12 +671,21 @@ const Game = (() => {
     // (the point the lens follows trails the skier by a sixteenth of a second: most of that is taken back out of the distance, or the figure would shrink as the speed went up)
     // on a steep pitch the lens rides higher and nearer, and so looks down the fall line: the slope is seen to drop away under the skier
     { const s0 = -p[2], sl = (Course.at(s0 - 14, _ca).baseY - Course.at(s0 + 14, _cb).baseY) / 28; cam.steep = damp(cam.steep || 0, smooth(0.44, 0.58, sl), 1.2, dt * q); }
+    // among trees (a glade; the woods off the edge of a run) the lens closes up on the skier, sits lower and opens a touch: cam.wood, 0..1.
+    // Four metres back its line cuts the corners of the skier's own, through the boughs the skier has just gone round; close behind, it goes
+    // where the skier went. It comes on a second ahead of the trees and goes off more slowly behind them. On an open run nothing changes
+    // (nothing at all: the last ten-thousandth of its going, a tenth of a millimetre of the lens's place, is not waited for)
+    // (The groups of trees that stand out on an open run are left to 14_trees.js: tried, a lens that closed up for each of them was on
+    // the move two thirds of a powder run)
+    // (Only in version b of the owner's choice: switched to another, it goes off as it does behind the last tree)
+    { const s0 = -p[2], c = Course.at(s0, _ca), e = Math.abs(p[0] - c.cx) - c.hw, to = typeof Variants !== 'undefined' && Variants.val.wood !== 'b' ? 0 : Math.max(smooth(0.15, 0.75, Math.max(c.glade, Course.at(s0 + sp, _cb).glade)), smooth(4, 16, e) * smooth(0.3, 0.7, c.forest));
+      spring(cam, 'wood', to, to > (cam.wood || 0) ? 2 : 0.9, dt * q); if (!to && cam.wood < 1e-4) cam.wood = cam.woodV = 0; }
     // (each stroke of a double-pole push gives the lens a small pull: it falls back a hand's breadth and opens a touch as the skier drives. Where the physics has no strokes yet, leaving the gate gives one such pull)
     const drive = spring(cam, 'drv', S.dp > 0 ? bell(0.22, 0.36, 0.5, 0.7, S.dp) : cam.launch || 0, 9, dt * q); cam.launch = damp(cam.launch || 0, 0, 3.5, dt);
     // (in the air it draws back a little, the more the higher the skier is over the snow, but never by much: the figure has to stay
     // large enough for the trick to be read. cam.hA: that height, as the lens takes it, a little late)
     spring(cam, 'hA', first ? 0 : Math.max(0, fl.fr - fl.sg), 5, dt * q);
-    const dist = (portrait ? lerp(5.6, 5.0, k) : lerp(CL.d0, CL.d1, k)) - 0.75 * Math.min(sp, 46) / 16 - 0.45 * cam.steep + 0.3 * kc + smin(0.3 * cam.hA, 1.4, 0.7) + 0.12 * drive, hC = (portrait ? lerp(1.6, 1.3, k) : lerp(CL.h0, CL.h1, k)) - 0.3 * cam.low + 0.6 * cam.steep;
+    const dist = (portrait ? lerp(5.6, 5.0, k) : lerp(CL.d0, CL.d1, k)) - 0.75 * Math.min(sp, 46) / 16 - 0.45 * cam.steep + 0.3 * kc + smin(0.3 * cam.hA, 1.4, 0.7) + 0.12 * drive - CL.wd * cam.wood, hC = (portrait ? lerp(1.6, 1.3, k) : lerp(CL.h0, CL.h1, k)) - 0.3 * cam.low + 0.6 * cam.steep - CL.wh * cam.wood;
     const dx = Math.sin(cam.yaw), dz = -Math.cos(cam.yaw), rx = Math.cos(cam.yaw), rz = Math.sin(cam.yaw);
     const a = cam.anchor;
     a[0] = damp(a[0], p[0], 16, dt * q); a[2] = damp(a[2], p[2], 16, dt * q); a[1] = damp(a[1], fl.fr, 9, dt * q);
@@ -686,7 +699,9 @@ const Game = (() => {
         const la = i * 1.6, qx = cx + dx * la, qz = cz + dz * la; Course.nearTree(qx, qz, tnc);
         if (tnc.ok) { const R = tnc.h * 0.24 + 0.8; if (tnc.d < R) { const mi = ((qx - tnc.x) * rx + (qz - tnc.z) * rz >= 0 ? 1 : -1) * (R - tnc.d) * (1 - i * 0.22); if (Math.abs(mi) > Math.abs(m)) m = mi; } }
       }
-      cam.dodge = damp(cam.dodge || 0, m, m ? 14 : 3.5, dt * q); cx += rx * cam.dodge; cz += rz * cam.dodge; }
+      // (not among trees, cam.wood: there it would be stepping aside all the time, off the skier's line and into the next one's boughs,
+      // and the trees it steps round are out of the picture before it reaches them: 14_trees.js takes out what stands against the lens)
+      cam.dodge = damp(cam.dodge || 0, m * (1 - cam.wood), m ? 14 : 3.5, dt * q); cx += rx * cam.dodge; cz += rz * cam.dodge; }
     // height: follow the snow under the camera with a spring that tracks a steady descent exactly (no lag on a constant slope) but rounds off bumps
     // (gy: the snow under the lens with the bumps of a mogul field left out, as the lens has always taken it. Coming down behind a jump
     // it can meet that floor, so there the floor stands as far above it as the bumps do: mF)
@@ -735,7 +750,7 @@ const Game = (() => {
     // (the lens kick, G.fovKick: a heavy landing sets it, and the lens opens a touch within a tenth of a second and closes again. It is
     // taken through a spring and added outside the slow follow of the lens: quick, and still without a corner)
     spring(cam, 'fk', G.fovKick, 14, dt);
-    const fovT = (portrait ? lerp(1.30, 1.50, k) : lerp(CL.f0, CL.f1, k) + 0.10 * smooth(29, 41, sp)) + 0.05 * kc + 0.035 * drive; cam.fovB = damp(first ? fovT : cam.fovB, fovT, 3, dt * q); cam.fov = cam.fovB + cam.fk;
+    const fovT = (portrait ? lerp(1.30, 1.50, k) : lerp(CL.f0, CL.f1, k) + 0.10 * smooth(29, 41, sp)) + 0.05 * kc + 0.035 * drive + CL.wf * cam.wood; cam.fovB = damp(first ? fovT : cam.fovB, fovT, 3, dt * q); cam.fov = cam.fovB + cam.fk;
     // frame the skier in the lower part of the picture, whatever the slope is doing
     // (a wide picture is framed by the snow under the skis, which sits a fixed way up from its lower edge; standing at the start there is a
     // little more room under it. So in the air nothing has to be decided: the lens keeps looking at the snow, the skier leaves it and
@@ -752,7 +767,7 @@ const Game = (() => {
     const ox = vnoise1(t * 17, 1) * sh, oy = vnoise1(t * 19, 2) * sh;
     // pushed aside by a tree, the lens turns back toward the skier so the figure never leaves the frame
     cam.pull = damp(cam.pull || 0, typeof Deer !== 'undefined' && Deer.pull ? Deer.pull : 0, 1.4, dt);                 // something worth a glance beside us
-    const ly = cam.yaw + Math.atan2(-cam.dodge, dist) * 0.9 + Math.atan2(-sway, dist) * 0.85 + (portrait ? 0 : G.titleYaw * cam.idle) + cam.pull;
+    const ly = cam.yaw + Math.atan2(-cam.dodge, lerp(dist, hd, cam.wood)) * 0.9 + Math.atan2(-sway, dist) * 0.85 + (portrait ? 0 : G.titleYaw * cam.idle) + cam.pull;
     const cp = Math.cos(cam.pitch), f = [Math.sin(ly) * cp, Math.sin(cam.pitch), -Math.cos(ly) * cp];
     cam.fwd = f;
     // (a tree gone by close, untouched: the lens ducks a finger's breadth and tips away from it, as 07c_feel.js has worked out; both

@@ -638,7 +638,7 @@ const Trees = (() => {
   // ---- which trees, at which level (render space = world - origin).
   // Chunks are visited nearest first, so the cards are roughly front to back and a full buffer only ever drops the farthest trees.
   const candA = [], candO = new Int32Array(640), candD = new Float32Array(640), order = new Uint16Array(640), selI = new Uint16Array(640), selF = new Float32Array(640 * 3);
-  let candN = 0, ring = null, r0c = 0, r1c = 0;
+  let candN = 0, ring = null, r0c = 0, r1c = 0; const lensP = [0, 0], lensV = [0, 0], manP = [0, 0], manV = [0, 0];
   function ringTable() {
     const n = Math.ceil(T.far / CS) + 1, a = [];
     for (let dz = -n; dz <= n; dz++) for (let dx = -n; dx <= n; dx++) a.push([dx, dz, Math.hypot(dx, dz)]);
@@ -651,6 +651,12 @@ const Trees = (() => {
     if (!ring || ring.far !== T.far) ringTable();
     dt = dt > 0 && dt < 0.1 ? dt : 0;
     const px = cam.pos[0], pz = cam.pos[2], fl = Math.hypot(cam.fwd[0], cam.fwd[2]) || 1, fx = cam.fwd[0] / fl, fz = cam.fwd[2] / fl, R = T.far, R2 = R * R;
+    // (the lens's own speed over the map and the skier's, for the fade of what stands against the lens or between the two, below. Put
+    // somewhere else at a stroke, they have none; and none where the lens rides on the skier, first person: what it is about to meet the
+    // skier is about to meet, and that is seen until it is met. None either in version a of the owner's choice, 07_game.js: the rule as it was)
+    if (dt) { const lx = px - lensP[0], lz = pz - lensP[1], mx = player ? player[0] - manP[0] : 0, mz = player ? player[2] - manP[1] : 0, old = typeof Variants !== 'undefined' && Variants.val.wood === 'a';
+      const ok = !old && Math.hypot(lx, lz) < 70 * dt && Math.hypot(mx, mz) < 70 * dt ? (player ? smooth(0.8, 2.2, Math.hypot(player[0] - px, player[2] - pz)) : 1) / dt : 0; lensV[0] = lx * ok; lensV[1] = lz * ok; manV[0] = mx * ok; manV[1] = mz * ok; }
+    lensP[0] = px; lensP[1] = pz; if (player) { manP[0] = player[0]; manP[1] = player[2]; }
     // the view as a wedge on the map, widened by a tree's width and by the reach of its shadow across the view. (A tree that only throws
     // its shadow into the picture from outside does it as a card: meshes are for what the lens can see.)
     const thx = Math.tan(cam.fovY / 2) * Math.max(aspect || 0.5, 0.3) * 1.15 + 0.06, mrg = 13, mrgM = 7;
@@ -706,9 +712,14 @@ const Trees = (() => {
             // A tree whose boughs stand between the lens and the skier, or right against the lens (where they would only be a wall across
             // the picture), is taken out: it fades quickly and evenly, stays out while it is in the way, and comes back once it is clear.
             // (Its shadow stays on the snow.) It is a decision per tree, held with some slack, so no tree hangs half-seen.
-            const rx = x - px, rz = z - pz, de = d + 0.5 * Math.max(rx * fx + rz * fz - 2, 0) - 0.08 * h;
+            // (At speed it would still be half there when it filled the frame: it is judged by where the lens will be at any moment
+            // of the 0.16 s its going takes. tq: the moment of that stretch at which the lens is nearest it; standing still, now: and
+            // the rule is then, to the last digit, the one it was)
+            const rx = x - px, rz = z - pz, tq = clamp((rx * lensV[0] + rz * lensV[1]) / (lensV[0] * lensV[0] + lensV[1] * lensV[1] || 1), 0, 0.16), qx = rx - lensV[0] * tq, qz = rz - lensV[1] * tq;
+            const de = (tq ? Math.hypot(qx, qz) : d) + 0.5 * Math.max(qx * fx + qz * fz - 2, 0) - 0.08 * h;
             let dl = 1e9;
-            if (player) { const ax = player[0] - px, az = player[2] - pz, tt = clamp((rx * ax + rz * az) / (ax * ax + az * az || 1), 0.02, 1); dl = Math.hypot(rx - ax * tt, rz - az * tt) / h; }
+            // (the skier's end of that line is where the skier will be by then: a tree about to be brushed past is out before it hides the figure)
+            if (player) { const ax = player[0] + manV[0] * 0.16 - px, az = player[2] + manV[1] * 0.16 - pz, tt = clamp((rx * ax + rz * az) / (ax * ax + az * az || 1), 0.02, 1); dl = Math.hypot(rx - ax * tt, rz - az * tt) / h; }
             const key = x * 8191 + z; let e = veil.get(key);
             if (!e) { e = [1, false]; e[1] = dl < 0.17 || de < 4.5; e[0] = e[1] ? 0 : 1; }
             else { e[1] = e[1] ? !(dl > 0.24 && de > 5.3) : (dl < 0.17 || de < 4.5); e[0] = dt ? clamp(e[0] + (e[1] ? -dt / 0.16 : dt / 0.35), 0, 1) : (e[1] ? 0 : 1); }
