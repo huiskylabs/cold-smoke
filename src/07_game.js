@@ -105,7 +105,7 @@ const Game = (() => {
   // carries the sun and the city across the picture. Steeps: high and long, down the fall line. Ridge: low, the horizon low, swung out over
   // one of the two drops. Gully: low between the walls. Glade: close, as it was. The open runs between are swung wide, three-quarter views
   const SHOTS = { steeps: [-0.2, -0.08, 0, 0.06], ridge: [-0.35, 0.03, 0.12, 0.32], gully: [-0.3, 0.05, 0.03, 0], glade: [0, 0, 0, 0], bowl: [0.15, -0.05, 0, 0.34], powder: [0.3, -0.02, 0.05, 0.24], rollers: [-0.2, 0.03, 0.08, 0.2], moguls: [0.25, -0.03, -0.02, 0.14], kickers: [0, 0, 0, 0.12] }, SH0 = [0, 0, 0, 0];
-  if (typeof Variants !== 'undefined') Variants.def('shots', '分段机位', [['a', '现在的'], ['b', '按路段变化']], 'b');
+  if (typeof Variants !== 'undefined') Variants.def('shots', '分段机位', [['a', '现在的'], ['b', '按路段变化']], 'a');
   // on the title page, with no sun ahead, the lens looks a little to the left of the valley (and the skier stands on the right third, see updateCamera)
   G.titleYaw = -0.05;
   const cam = G.cam = { pos: [0, 3, 8], yaw: 0, roll: 0, fov: 1.3, anchor: [0, 0, 0], pitch: -0.2, side: 0, gy: 0, init: false, fwd: [0, 0, -1] };
@@ -757,10 +757,10 @@ const Game = (() => {
     // two either way. (Nothing moves the skier: only the picture turns)
     { const s0 = -p[2], c = Course.at(s0, _ca), eo = Math.abs(p[0] - c.cx) - c.hw, to = G.mode === 'run' ? smooth(3, 16, eo) * lerp(0.2, 1, smooth(8, 3.5, sp)) : 0;
       spring(cam, 'lost', first ? 0 : to, to > (cam.lost || 0) ? 1.6 : 1.0, dt * q);
-      if (cam.lost > 1e-3) { const cR = Course.at(s0 + 30, _cb), ry = Math.atan2(cR.cx - p[0], 30); cam.ryaw = clamp(ry - cyw, -0.9, 0.9); } }
+      if (cam.lost > 1e-3) { const cR = Course.at(s0 + 30, _cb), ry = Math.atan2(cR.cx - p[0], 30); cam.ryaw = clamp(ry - cyw, -0.3, 0.3); } }
     const lost = cam.lost || 0, cyl = cyw + lost * (cam.ryaw || 0);
     cam.cyaw = damp(cam.cyaw == null || first ? cyl : cam.cyaw, cyl, 1.3, dt * q);
-    cam.yaw = damp(cam.yaw, cam.cyaw + clamp((vyaw - cam.cyaw) * 0.55 * (1 - 0.7 * lost), -0.7, 0.7), 2.4, dt * q);
+    cam.yaw = damp(cam.yaw, cam.cyaw + clamp((vyaw - cam.cyaw) * 0.55 * (1 - 0.3 * lost), -0.7, 0.7), 2.4, dt * q);
     // drift toward the inside of the turn: the curtain hangs just outside the track, and from in here the lens looks along its lit face instead of flying through it
     cam.side = damp(cam.side, S.lean * 0.55 + S.beta * 0.5, 2.2, dt * q);
     cam.roll = damp(cam.roll, -S.lean * 0.20, 5, dt * q);
