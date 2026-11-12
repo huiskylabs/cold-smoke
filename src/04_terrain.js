@@ -664,7 +664,9 @@ fn frag(v: VOut) -> FOut {
   // skis, boots and legs on the snow: x the sun they take, y the sky
   var skS: vec2f = vec2f(1.0);
   // (worked out for the snow where the map has it, not where the mesh has it: the mesh draws a wall in facets)
-  if (pd < 2.4) { skS = contactShade(wp + vec3f(0.0, trC - v.misc.y, 0.0), L); }
+  // (not for skis riding IN deep powder (M.tb.w): they are under the snow there, and their outline worked out on the snow above them came
+  // out as a dark square box beside each tip. What sticks out of the snow, the tips, the shadow map has; owner 2026-11-12)
+  if (pd < 2.4 && M.tb.w < 0.98) { skS = mix(contactShade(wp + vec3f(0.0, trC - v.misc.y, 0.0), L), vec2f(1.0), smoothstep(0.1, 0.6, M.tb.w)); }
   let N: vec3f = normalize(vec3f(-slope.x, 1.0, -slope.y));
   let ndl: f32 = dot(N, L);
   let nv: f32 = max(dot(N, V), 0.0);
