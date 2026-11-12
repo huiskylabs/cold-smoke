@@ -87,6 +87,7 @@ fn frag(v: VOut) -> FOut {
   if (U.lamp.w > 0.0 && M.r.z > 0.0) {
     let rel: vec3f = U.lamp.xyz - U.camPos.xyz; let tc: f32 = dot(rel, d);
     let D: f32 = sqrt(max(dot(rel, rel) - tc * tc, 0.0) + 30.0);
+    let nearL: f32 = smoothstep(2.6, 1.0, length(rel)) * saturate(M.r.z / 0.012 - 1.0);      // (heavy snow raises lampAir over 0.012: then, lamp at the lens, its first metres of air are thinned: a cone ahead, not a ball)
     let th0: f32 = atan2(-tc, D); let th1: f32 = atan2(min(zf * len, 80.0) - tc, D);
     var a: f32 = 0.0;
     for (var i: i32 = 0; i < 6; i++) {
@@ -95,7 +96,7 @@ fn frag(v: VOut) -> FOut {
       let dl: vec3f = p - U.lamp.xyz;
       let hgt: f32 = max(p.y - station(p).x, 0.0);
       let wn: f32 = tnoise3(p * (M.q.w * 2.3) + M.q.xyz * 2.3);
-      a += lampCone(dot(dl, U.lampDir.xyz) / sqrt(max(dot(dl, dl), 1e-4))) * exp(-hgt * M.p.y) * (0.55 + 0.9 * smoothstep(0.25, 0.80, wn));
+      a += lampCone(dot(dl, U.lampDir.xyz) / sqrt(max(dot(dl, dl), 1e-4))) * exp(-hgt * M.p.y) * (0.55 + 0.9 * smoothstep(0.25, 0.80, wn)) * mix(1.0, smoothstep(1.0, 12.0, t), nearL);
     }
     air += vec3f(1.0, 0.85, 0.64) * (U.lamp.w * M.r.z * a * (th1 - th0) / (6.0 * D));
   }

@@ -504,7 +504,7 @@ function vistaSSL() {
   const V = Vista, f = x => (Number.isInteger(x) ? x.toFixed(1) : String(+x.toFixed(7)));
   const a = V.cityAz, D = V.cityDist, C = [D * Math.sin(a), -D * Math.cos(a)], Uu = [Math.cos(a), Math.sin(a)], Ww = [Math.sin(a), -Math.cos(a)];
   return cityAirSSL() + `
-fn vistaHaze(d: vec3f) -> vec3f { let h: vec3f = skyLut(normalize(vec3f(d.x, 0.022, d.z))); return mix(h, vec3f(luma(h)) * vec3f(1.03, 1.0, 1.0), 0.55 * U.sunDir.w); }
+fn vistaHaze(d: vec3f) -> vec3f { let h: vec3f = skyLut(normalize(vec3f(d.x, 0.022, d.z))); return mix(mix(h, vec3f(luma(h)) * vec3f(1.03, 1.0, 1.0), 0.55 * U.sunDir.w), M.wa.rgb * 1.3, M.wa.w); }   // (under heavy snow's overcast the air is its grey: 05b_weather.js)
 // mip level for a panorama whose texels subtend 'texel' radians
 fn vistaLod(texel: f32) -> f32 { return max(log2(2.0 * U.camRight.w * U.res.w / texel), 0.0); }
 fn farRanges(d: vec3f, colIn: vec3f) -> vec3f {
