@@ -735,10 +735,12 @@ const Game = (() => {
     const ly = cam.yaw + Math.atan2(-cam.dodge, dist) * 0.9 + Math.atan2(-sway, dist) * 0.85 + (portrait ? 0 : G.titleYaw * cam.idle) + cam.pull;
     const cp = Math.cos(cam.pitch), f = [Math.sin(ly) * cp, Math.sin(cam.pitch), -Math.cos(ly) * cp];
     cam.fwd = f;
-    const pos = [cam.pos[0] + rx * ox, cam.pos[1] + oy, cam.pos[2] + rz * ox];
+    // (a tree gone by close, untouched: the lens ducks a finger's breadth and tips away from it, as 07c_feel.js has worked out; both
+    // come and go without a corner, and the other viewpoints are handed the same lens)
+    const fe = typeof Feel !== 'undefined' ? Feel : null, pos = [cam.pos[0] + rx * ox, cam.pos[1] + oy - (fe && fe.dip || 0), cam.pos[2] + rz * ox];
     // other viewpoints (07b_views.js) take the lens over here; the chase camera above keeps running underneath, so switching back is seamless
     if (G.viewCam && G.viewCam(dt, cam, pos, f)) return;
-    Render.setCamera(pos, v3.add(pos, f), [0, 1, 0], cam.fov, cam.roll + vnoise1(t * 13, 3) * sh * 0.5);
+    Render.setCamera(pos, v3.add(pos, f), [0, 1, 0], cam.fov, cam.roll + vnoise1(t * 13, 3) * sh * 0.5 + (fe && fe.roll || 0));
   }
 
   // push off: a couple of skating strides' worth of speed straight down the fall line
