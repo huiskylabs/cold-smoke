@@ -799,7 +799,9 @@ const Game = (() => {
       // hop seen from behind. Only off the kickers of a kicker run: the hops of a mogul field stay as they were)
       const pr = fl.pred || 0, kick = Course.segAt(s0).type === 'kickers', air = fl.on && !S.contact ? Math.max(smooth(0.85, 1.05, pr), kick ? 0.5 * smooth(0.55, 0.75, pr) : 0) : 0, quick = air > 0 && air < 0.55; to = Math.max(to, air);
       if ((cam.jw || 0) < 0.01 && to > 0) { const c = Course.at(s0, _cb); cam.jSide = p[0] > c.cx ? -1 : 1; }
-      spring(cam, 'jw', to, to > (cam.jw || 0) ? (quick ? 3.6 : 1.8) : 1.4, dt * q); spring(cam, 'ja', air, air > (cam.ja || 0) ? (quick ? 6 : 4) : 1.6, dt * q); }
+      spring(cam, 'jw', to, to > (cam.jw || 0) ? (quick ? 3.6 : 1.8) : 1.4, dt * q); spring(cam, 'ja', air, air > (cam.ja || 0) ? (quick ? 6 : 4) : 1.6, dt * q);
+      // the owner (2026-11-12): the lens must never swing to the side on its own at a jump. Off: it stays behind the skier.
+      cam.jw = 0; cam.ja = 0; }
     // the title page: the lens looks toward the sun or the moon, whichever lights the scene (when it is up and somewhere ahead; else a little left of the valley), and is swung
     // round the figure until the skier stands on the right third, across the picture from the words. tLook: where it looks, tPsi: the
     // way from the lens to the skier. Both glide (the sun moves; the window can change shape)
