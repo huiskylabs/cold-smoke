@@ -492,7 +492,7 @@ const Game = (() => {
     fl.air = S.air;
     if (fl.on) {
       // (the acceleration the body really has, whatever step() does with gravity and drag: the forecast follows it)
-      if (n && fl.vp) { const r = 1 - Math.exp(-8 * n * H); for (let i = 0; i < 3; i++) fl.a[i] += ((v[i] - fl.vp[i]) / (n * H) - fl.a[i]) * r; }
+      if (n && fl.vp) { const hh = n * (G.hs || H), r = 1 - Math.exp(-8 * hh); for (let i = 0; i < 3; i++) fl.a[i] += ((v[i] - fl.vp[i]) / hh - fl.a[i]) * r; }
       if (n) fl.vp = [v[0], v[1], v[2]];
       fl.t = S.airT + acc; fl.rem = airLeft(P[0], P[1], P[2], v[0], v[1], v[2], fl.a, 4, legP()); fl.pred = fl.t + fl.rem; fl.big = smooth(0.25, 0.45, fl.pred);
       // what to do with it: chosen once, in the first moments (what was planned on the way in, if the air is there for it)
@@ -551,7 +551,7 @@ const Game = (() => {
     if (fl.on) {
       const h0 = Course.height(P[0], P[2], 0.5), gx = (Course.height(P[0] + 0.5, P[2], 0.5) - h0) / 0.5, gz = (Course.height(P[0], P[2] + 0.5, 0.5) - h0) / 0.5;
       vr = v[1] - gx * v[0] - gz * v[2];
-      if (vr > -0.5) { let hm = 0; const T = Math.min(fl.rem || 0, 3); for (let t = 0; t <= T; t += 0.05) hm = Math.max(hm, P[1] + v[1] * t - 4.905 * t * t - Course.height(P[0] + v[0] * t, P[2] + v[2] * t, 0.5)); fl.Hpk = Math.max(fl.Hpk || 0, hm); }
+      if (vr > -0.5) { let hm = 0; const T = Math.min(fl.rem || 0, 3); for (let t = 0; t <= T; t += 0.1) hm = Math.max(hm, P[1] + v[1] * t - 4.905 * t * t - Course.height(P[0] + v[0] * t, P[2] + v[2] * t, 0.5)); fl.Hpk = Math.max(fl.Hpk || 0, hm); }
     } else fl.Hpk = 0;
     const dep = fl.on ? G.slowMo * 0.72 * Math.pow(smooth(1.4, 5.5, fl.Hpk || 0), 1.2) * smooth(0.8, 1.0, fl.pred) * fl.fresh : 0; if (fl.on) fl.dep = dep; else fl.since += dt;
     const apex = Math.exp(-((vr / 3.2) ** 2));
@@ -987,7 +987,10 @@ const Game = (() => {
     G.t += dt; let n = 0;
     if (G.mode === 'run') {
       G.runT += dt; acc += dt;
-      while (acc >= H && n < 10) { step(H, Input.u); acc -= H; n++; G.stepT = G.t - acc; if (G.onStep) G.onStep(S, H); }
+      // (in slow motion the step shrinks with the clock: as many steps to a frame as at full speed, so the skier moves on every frame. With the
+      // step held at 1/120 s of game time, at a third of the speed a frame got one step or none by turns and the flight juddered)
+      const Hs = H * clamp(G.timeScale || 1, 0.15, 1); G.hs = Hs;
+      while (acc >= Hs - 1e-9 && n < 10) { step(Hs, Input.u); acc -= Hs; n++; G.stepT = G.t - acc; if (G.onStep) G.onStep(S, Hs); }
       if (n === 10) acc = 0;
       G.dist = -S.p[2]; G.drop = G.y0 - S.p[1]; if (S.speed > G.topSpeed) G.topSpeed = S.speed;
     }

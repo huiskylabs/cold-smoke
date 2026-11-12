@@ -122,7 +122,7 @@ const Feel = (() => {
     // ---- speed. From about 80 km/h to 145 the edges of the frame begin to tear (Post reads `speed`) and the camera trembles a little in
     // the wind: added through Game.shake, which the chase camera already reads (a blow that set it higher keeps its own).
     // (The speed through the air, not S.speed along the snow, which dips for a few steps wherever the snow under the skis tips over a lip.)
-    const kv = run ? smooth(F.v0, F.v1, Math.hypot(S.v[0], S.v[1], S.v[2])) : 0;
+    const kv = run ? smooth(F.v0, F.v1, Math.hypot(S.v[0], S.v[1], S.v[2]) * ts) : 0;      // (the speed as it looks: in slow motion the world goes by slowly, and the edges, the tremble and the wind's push go with it)
     F.speed = cut ? kv : damp(F.speed, kv, kv > F.speed ? 2.5 : 5, dt); Post.speed = F.speed;
     if (run) Game.shake = Math.max(Game.shake, F.shake * F.speed * (1 - WD.on));       // (not where the wind itself pushes the lens: see F.wind)
 
@@ -189,12 +189,14 @@ const Feel = (() => {
     // Snow that stays snow goes as fast as that air tears it off; the water of version a dries in F.dry seconds whatever the speed
     const LV = lensPick(); Post.wetLook = LV[0];
     const air = smooth(2, 25, WD.v || 0), dry = LV[0] ? lerp(LV[2], LV[3], air) : F.dry;
-    F.goal = Math.max(0, F.goal - rdt / dry);
-    Post.wet = Post.wet < F.goal ? Math.min(F.goal, Post.wet + rdt / 0.07) : F.goal;
-    if (Post.wet > 0) Post.wetAge += rdt; Post.wetNew = Math.max(0, Post.wetNew - rdt / LV[1]);       // (version a: it lands as snow, white, and has melted in a third of a second)
+    // (all on the game's clock: in slow motion the snow on the glass is torn off and melts as slowly as everything else moves; the owner
+    // wants the whole world slowed in the air, nothing left running at full speed)
+    F.goal = Math.max(0, F.goal - dt / dry);
+    Post.wet = Post.wet < F.goal ? Math.min(F.goal, Post.wet + dt / 0.07) : F.goal;
+    if (Post.wet > 0) Post.wetAge += dt; Post.wetNew = Math.max(0, Post.wetNew - dt / LV[1]);       // (version a: it lands as snow, white, and has melted in a third of a second)
     // how far the snow has been pushed out from the point the lens is heading for (the corners' blur aims at the same point). Standing it
     // creeps; at speed the crumbs a third of the way out are over the edge in about a second
-    if (Post.wet > 0) Post.wetBlow += rdt * (0.05 + 1.25 * air * air); else Post.wetBlow = 0;
+    if (Post.wet > 0) Post.wetBlow += dt * (0.05 + 1.25 * air * air); else Post.wetBlow = 0;
     Post.wetC[0] = lerp(0.5, Post.radC[0], 0.6); Post.wetC[1] = lerp(0.5, Post.radC[1], 0.6);
 
     // ---- snow chatter. How hard the skis rub is read from the physics: what a skid brakes with (its force S.aSkid, the part of it that
@@ -256,7 +258,7 @@ const Feel = (() => {
       // seen. Quick small turns of the whole picture read as a shaking camera, and make people queasy)
       WD.lp = (WD.lp || 0) + dt * (0.5 + 0.006 * WD.v); const swell = (o, sd) => 1.6 * vnoise1(WD.lp + o, sd);
       const pick = typeof Variants !== 'undefined' ? Variants.val.buffet : 'b', amp = pick === 'a' ? 0 : pick === 'c' ? F.bufC : 1;
-      WD.amp = cut ? amp : damp(WD.amp, amp, 5, rdt); WD.on = Math.min(WD.amp, 1);
+      WD.amp = cut ? amp : damp(WD.amp, amp, 5, dt); WD.on = Math.min(WD.amp, 1);
       const B = F.buffet, a = WD.amp * WD.k; B[0] = F.buf[0] * a * swell(0, 21); B[1] = F.buf[1] * a * swell(31.7, 23); B[2] = F.buf[2] * a * swell(77.1, 25);
       // the lens is turned by it here: after whichever view has set the camera this step (the chase camera, first person, any other:
       // 07_game.js, 07b_views.js), before the frame is made from it; so it is the same push in every view, and it is the scene that is
