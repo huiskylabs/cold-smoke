@@ -94,10 +94,21 @@ const Feel = (() => {
   const WD = F.wind, WIND0 = [1.2, 0, 0.4], eddy = (o, sd) => 1.75 * (vnoise1(WD.ph + o, sd) + 0.5 * vnoise1(2.13 * WD.ph + o, sd + 1));
   if (typeof Variants !== 'undefined') Variants.def('buffet', '风压抖动', [['a', '原样'], ['b', '轻'], ['c', '明显']], 'b');
 
+  // what the snow does on the glass is the owner's call (Variants 'lens'): a, it melts within a third of a second into clear beads that
+  // dry in F.dry seconds (as delivered; it read as rain); b, it stays snow, white and dry as it is below freezing, and the air going by
+  // tears it off and pushes it out over the edges of the frame, in one to three seconds at speed and slowly standing still; it hardly
+  // melts at all; c, the same, but what is left melts in a couple of seconds into a few small beads. Each version: [look (Post.wetLook),
+  // seconds for the snow to melt, seconds for all of it to go standing still, and at 25 m/s of air]
+  F.lensV = { a: [0, 0.3, 1.5, 1.5], b: [1, 14, 9, 2.6], c: [1, 1.8, 7, 2.4] };
+  if (typeof Variants !== 'undefined') Variants.def('lens', '镜头上的雪', [['a', '水珠'], ['b', '白雪被吹走'], ['c', '先白后化']], 'b');
+  const lensPick = () => F.lensV[typeof Variants !== 'undefined' && Variants.val.lens] || F.lensV.b;
+
   // snow reaches the glass: how much (0..1: it is also how long it stays, 1 = F.dry seconds), from which side of the frame (-1 left .. 1 right)
-  // and how much of it from below (0..1). On dry glass it lands as a new scatter of beads; on wet glass the ones there swell again
+  // and how much of it from below (0..1). On dry glass it lands as a new scatter of beads; on wet glass the ones there swell again.
+  // (Snow that stays snow is a new scatter once what is there has nearly gone, its last crumbs already off the glass: the scatter starts again
+  // where it lands, so a scatter that had been pushed out does not jump back to the middle while any of it still shows)
   F.splash = function (a, x, y) {
-    if (!(F.goal > 0.02)) { Post.wetSeed = (Post.wetSeed + 1) % 61; Post.wetAge = 0; Post.wetBias[0] = x || 0; Post.wetBias[1] = y || 0; }
+    if (!(F.goal > (Post.wetLook ? 0.03 : 0.02))) { Post.wetSeed = (Post.wetSeed + 1) % 61; Post.wetAge = 0; Post.wetBlow = 0; Post.wetBias[0] = x || 0; Post.wetBias[1] = y || 0; }
     F.goal = Math.max(F.goal, sat(a)); Post.wetNew = 1;
   };
 
@@ -174,9 +185,17 @@ const Feel = (() => {
     F.since += rdt;
     if (F.pend && (F.pend.t -= dt) <= 0) { const w = F.pend.w; F.splash(w * lerp(lerp(0.45, 1, smooth(1.5, 7, F.since)), 1, smooth(0.75, 1, w)), F.pend.x, F.pend.y); F.since = 0; F.pend = null; }
     // (it comes onto the glass over a few frames, not in one, and dries in real time: a held-back second does not keep the lens wet)
-    F.goal = Math.max(0, F.goal - rdt / F.dry);
+    // The air over the glass is the skier's speed and the wind together (WD.v, worked out below, last frame's: a frame late does not show).
+    // Snow that stays snow goes as fast as that air tears it off; the water of version a dries in F.dry seconds whatever the speed
+    const LV = lensPick(); Post.wetLook = LV[0];
+    const air = smooth(2, 25, WD.v || 0), dry = LV[0] ? lerp(LV[2], LV[3], air) : F.dry;
+    F.goal = Math.max(0, F.goal - rdt / dry);
     Post.wet = Post.wet < F.goal ? Math.min(F.goal, Post.wet + rdt / 0.07) : F.goal;
-    if (Post.wet > 0) Post.wetAge += rdt; Post.wetNew = Math.max(0, Post.wetNew - rdt / 0.3);       // (it lands as snow, white, and has melted in a third of a second)
+    if (Post.wet > 0) Post.wetAge += rdt; Post.wetNew = Math.max(0, Post.wetNew - rdt / LV[1]);       // (version a: it lands as snow, white, and has melted in a third of a second)
+    // how far the snow has been pushed out from the point the lens is heading for (the corners' blur aims at the same point). Standing it
+    // creeps; at speed the crumbs a third of the way out are over the edge in about a second
+    if (Post.wet > 0) Post.wetBlow += rdt * (0.05 + 1.25 * air * air); else Post.wetBlow = 0;
+    Post.wetC[0] = lerp(0.5, Post.radC[0], 0.6); Post.wetC[1] = lerp(0.5, Post.radC[1], 0.6);
 
     // ---- snow chatter. How hard the skis rub is read from the physics: what a skid brakes with (its force S.aSkid, the part of it that
     // lies along the way the skier is going) and what the edges hold in a carve (S.aCarve). Both carry the load on the legs; both grow

@@ -7,6 +7,10 @@ const Post = (() => {
   // y 0..1 from below; wetNew 1..0: still snow, not yet melted). chat: the tremble of the skis on the snow, as where the scene is read from
   // this frame (whole pixels across and down, and a turn about the middle of the frame in radians)
   Object.assign(P, { speed: 0, fringe: 0.005, slow: 0, wet: 0, wetAge: 0, wetSeed: 0, wetBias: [0, 0], wetNew: 0, chat: [0, 0, 0] });
+  // how the snow on the glass looks (Variants 'lens', set in 07c_feel.js): wetLook 0, it melts at once into clear beads (as delivered);
+  // 1, it stays snow, white crumbs that the air going by pushes out toward the edges (wetBlow: how far, as the log of how much it has
+  // spread out from wetC, the point in the frame the lens is heading for) until they are gone, and only what is left of it melts
+  Object.assign(P, { wetLook: 0, wetBlow: 0, wetC: [0.5, 0.5] });
   // also from 07c_feel.js: radial, the least streak at the very corners of the frame at speed (picture heights; 0 = none), drawn toward radC,
   // the point in the frame the lens is heading for (uv); radIn, how far out from the middle it begins (1 = the middle of a side, 1.41 a corner)
   Object.assign(P, { radial: 0, radC: [0.5, 0.5], radIn: 0.6 });
@@ -99,7 +103,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   }
   o.color = vec4f(acc / 12.0, 0.0, 1.0); return o; }` }, sweep));
     pComp = gfx.pipeline({
-      name: 'composite', lib: [SL.common, SL.hash, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', w: 'vec4f', wb: 'vec4f', sh: 'vec4f' }, textures: { tScene: '2d', tBloom: '2d', tDepth: 'depth', tVis: '2d', tRay: '2d' },
+      name: 'composite', lib: [SL.common, SL.hash, SL.noise, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', w: 'vec4f', wb: 'vec4f', sh: 'vec4f', ws: 'vec4f' }, textures: { tScene: '2d', tBloom: '2d', tDepth: 'depth', tVis: '2d', tRay: '2d' },
       colorFormat: 'canvas', depth: false, depthTest: false, cull: 'none', vs: VS_FULLSCREEN, fs: COMPOSITE_FS,
     });
     // the shutter stays open for a moment while the mountain goes by: every point of the picture is smeared along the path it took
@@ -203,7 +207,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     for (let i = m.length - 2; i >= 0; i--) { gfx.beginPass(m[i].t, {}); gfx.draw(pUp, { u: { p: [1 / m[i + 1].w, 1 / m[i + 1].h, 1.0, 0] }, tex: { tA: m[i + 1].tex }, count: 3 }); gfx.endPass(); }
     { const g = gPick(), k = 1 - Math.exp(-8 * clamp(Render.dt || 0, 0, 0.1)); P.gOld += (g[0] - P.gOld) * k; P.gNew += (g[1] - P.gNew) * k; P.white += (wPick() - P.white) * k; }
     gfx.beginPass(null, { color: [0, 0, 0, 1] });
-    gfx.draw(pComp, { u: { p: [P.exposure, 1 / m.length, P.rayBase * P.rays, P.rayOcc * P.rays], q: [P.satPre, P.satPost, P.flare, P.rayFall], r: [P.burst, P.ghosts * P.gOld, P.slow, P.speed], w: [P.wet, P.wetAge, P.wetSeed, P.fringe], wb: [P.wetBias[0], P.wetBias[1], P.wetNew, P.ghosts * P.gNew], sh: [P.chat[0] / W, P.chat[1] / H, P.chat[2], P.white] }, tex: { tScene: sceneTex, tBloom: m[0].tex, tDepth: depthTex, tVis: visTex, tRay: rayA }, count: 3 });
+    gfx.draw(pComp, { u: { p: [P.exposure, 1 / m.length, P.rayBase * P.rays, P.rayOcc * P.rays], q: [P.satPre, P.satPost, P.flare, P.rayFall], r: [P.burst, P.ghosts * P.gOld, P.slow, P.speed], w: [P.wet, P.wetAge, P.wetSeed, P.fringe], wb: [P.wetBias[0], P.wetBias[1], P.wetNew, P.ghosts * P.gNew], sh: [P.chat[0] / W, P.chat[1] / H, P.chat[2], P.white], ws: [P.wetBlow, P.wetLook, P.wetC[0], P.wetC[1]] }, tex: { tScene: sceneTex, tBloom: m[0].tex, tDepth: depthTex, tVis: visTex, tRay: rayA }, count: 3 });
     gfx.endPass();
   };
   return P;
@@ -339,11 +343,66 @@ fn wetRun(p: vec2f, seed: f32, dens: f32, sd: vec2f) -> Wet {
 fn lensWet(uv: vec2f) -> Wet {
   let asp: f32 = U.camUp.w; let p: vec2f = uv * vec2f(asp, 1.0);
   let sd: vec2f = normalize((U.sunScr.xy - uv) * vec2f(asp, 1.0) + vec2f(1e-4, 0.0));
-  let a: Wet = wetBeads(p, 4.5, M.w.z, 0.22, vec2f(0.02, 0.60), sd);                                // the beads
-  let b: Wet = wetBeads(p + vec2f(0.37, 0.19), 12.0, M.w.z + 7.0, 0.16, vec2f(0.30, 0.80), sd);     // a mist of fine ones, first to dry
-  let c: Wet = wetRun(p, M.w.z, 0.10, sd);
+  // (where the snow stays snow, the water is only what is left of it as it goes: a few small beads, no runs)
+  let k: f32 = mix(1.0, 0.3, M.ws.y);
+  let a: Wet = wetBeads(p, 4.5, M.w.z, 0.22 * k, vec2f(0.02, 0.60), sd);                            // the beads
+  let b: Wet = wetBeads(p + vec2f(0.37, 0.19), 12.0, M.w.z + 7.0, 0.16 * k, vec2f(0.30, 0.80), sd); // a mist of fine ones, first to dry
+  let c: Wet = wetRun(p, M.w.z, 0.10 * (1.0 - M.ws.y), sd);
   var w: Wet; w.d = (a.d + b.d + c.d) / vec2f(asp, 1.0); w.f = (a.f + b.f + c.f) / vec2f(asp, 1.0); w.m = min(a.m + b.m + c.m, 1.0); w.e = a.e + b.e + c.e; w.gl = a.gl + 0.6 * b.gl + c.gl;
   return w;
+}
+// ---- snow that stays snow (Variants 'lens' b and c). Below freezing what hits the glass is white and dry: crumbs of a few lumps each, with
+// frayed, grainy edges where single crystals stand out, and here and there a crystal that catches the sun. It does not melt in a moment:
+// the air going by pushes it across the glass, out from the point the lens is heading for (faster the faster the skier goes, 07c_feel.js),
+// so the middle of the frame clears first and the crumbs leave over the edges; and it shrinks as it is torn away. It is so close to the
+// lens that it is far out of focus: soft, but not clear. m: how much it covers this pixel (0..1); g: a crystal glinting there; t: the grain
+// of it, to vary its light. p: where this pixel's snow was when it landed (picture heights; the spreading is undone by the caller)
+struct Sno { m: f32, g: f32, t: f32, }
+fn snoCrumbs(p: vec2f, n: f32, seed: f32, dens: f32, life: vec2f, px: f32) -> Sno {
+  var o: Sno; o.m = 0.0; o.g = 0.0; o.t = 0.0;
+  let g: vec2f = p * n; let id: vec2f = floor(g); let f: vec2f = g - id;
+  let h: vec3f = hash33(vec3f(id, seed + 3.0)); let k: vec3f = hash33(vec3f(id, seed + 41.0));
+  // each crumb is torn away at its own moment as the snow goes, and shrinks toward it
+  let s: f32 = smoothstep(0.0, 0.22, M.w.x - mix(life.x, life.y, k.x));
+  if (s <= 0.0 || h.z > dens * wetDens((id + 0.5) / n)) { return o; }
+  let r0: f32 = mix(0.12, 0.20, k.y * k.y); let q: vec2f = f - (vec2f(2.2 * r0) + h.xy * (1.0 - 4.4 * r0));
+  // a clot of snow, not a disc: a core and four lumps of their own sizes thrown out round it, so the outline is lobed and uneven
+  var e: f32 = length(q * vec2f(1.0, mix(0.8, 1.25, h.x))) / r0;
+  for (var i: i32 = 0; i < 4; i++) {
+    let j: vec3f = hash33(vec3f(id, seed + 59.0 + f32(i) * 13.0));
+    let rl: f32 = r0 * mix(0.35, 0.80, j.z * j.z); e = min(e, length(q - (j.xy - 0.5) * r0 * 2.2) / rl);
+  }
+  e /= mix(0.35, 1.0, s);
+  // the edge frays into grains (a noise a crumb across, then single crystals). How sharp it is: as soft as the lens is out of focus,
+  // but never softer than a pixel or two
+  let fq: vec2f = (p * n) * 7.0 + h.xy * 50.0;
+  let fr: f32 = 0.55 * vnoise2(fq) + 0.30 * vnoise2(fq * 2.7 + 3.1) + 0.15 * vnoise2(fq * 7.3 + 1.7) - 0.5;
+  let grain: f32 = hash21(floor(p * 900.0 + h.xy * 97.0));
+  let ee: f32 = e + fr * 0.75 + (grain - 0.5) * 0.30 * smoothstep(0.6, 1.0, e);
+  let soft: f32 = max(0.08, px * n / r0 * 2.5);
+  // (dense in the middle, thinning toward the frayed rim, where the light comes through between the crystals)
+  o.m = smoothstep(1.0 + soft, 1.0 - soft * 1.6, ee) * mix(0.55, 1.0, smoothstep(1.0, 0.35, ee)) * mix(0.80, 0.97, k.z) * min(s * 1.6, 1.0);
+  // single crystals out in the fraying edge, and stood proud on the crumb: some catch the sun
+  let gc: vec2f = floor(p * 220.0 + h.xy * 13.0); let gh: vec3f = hash33(vec3f(gc, seed + 5.0));
+  let gd: vec2f = fract(p * 220.0 + h.xy * 13.0) - (0.25 + 0.5 * gh.xy);
+  let spec: f32 = smoothstep(0.30, 0.0, length(gd)) * step(0.82, gh.z) * smoothstep(1.45, 0.75, ee) * s;
+  o.m = max(o.m, spec * 0.7);
+  o.g = spec * step(0.93, gh.z);
+  o.t = fr + 0.6 * (grain - 0.5) * smoothstep(0.9, 0.4, ee);
+  return o;
+}
+fn lensSnow(uv: vec2f) -> Sno {
+  let asp: f32 = U.camUp.w; let c: vec2f = M.ws.zw * vec2f(asp, 1.0);
+  // undo the spreading: where this pixel's snow lay when it landed. (Torn and pushed, the far ones go faster than an even stretch would take them)
+  let p1: vec2f = uv * vec2f(asp, 1.0); let dv: vec2f = p1 - c; let rr: f32 = length(dv);
+  let p: vec2f = c + dv * exp(-M.ws.x * (0.75 + 0.5 * rr));
+  let px: f32 = 1.0 / max(U.res.y, 1.0);
+  let a: Sno = snoCrumbs(p, 2.6, M.w.z, 0.75, vec2f(0.03, 0.55), px);                // the crumbs
+  let b: Sno = snoCrumbs(p + vec2f(0.29, 0.53), 7.0, M.w.z + 17.0, 0.45, vec2f(0.15, 0.75), px);   // and a spatter of small ones
+  var o: Sno; o.m = 1.0 - (1.0 - a.m) * (1.0 - b.m); o.g = max(a.g, b.g); o.t = select(b.t, a.t, a.m > b.m);
+  // nothing in the very middle of the frame for long: the air there pushes hardest on what stands in its way (wetDens already keeps
+  // most of it off the skier)
+  return o;
 }
 fn frag(v: VOut) -> FOut { var o: FOut;
   // (the sun's visibility is eased over a few frames; once the sun is behind the lens its projected point is a mirror image in the frame,
@@ -354,8 +413,13 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   // of one, which would soften it) and turned by a hair about the middle of the frame. Beads, flare and the dark corners stay where they are
   let sk: vec2f = M.sh.xy + M.sh.z * vec2f(-c.y / asp, c.x * asp);
   // (the sharp picture is read a little way off inside a bead, the glow from well beyond it: a bead takes in a wide field)
-  var uv: vec2f = v.uv + sk; var uvb: vec2f = uv; var wt: Wet = wetNone();
-  if (M.w.x > 0.004) { wt = lensWet(v.uv); uv += wt.d; uvb = clamp(uvb + wt.f, vec2f(0.0), vec2f(1.0)); }
+  var uv: vec2f = v.uv + sk; var uvb: vec2f = uv; var wt: Wet = wetNone(); var sn: Sno; sn.m = 0.0; sn.g = 0.0; sn.t = 0.0;
+  if (M.w.x > 0.004) {
+    wt = lensWet(v.uv);
+    // (snow that has not melted is not water: no beads bend the picture where it still lies, only those of what has melted)
+    if (M.ws.y > 0.0) { sn = lensSnow(v.uv); let wk: f32 = 1.0 - M.wb.z; wt.d *= wk; wt.f *= wk; wt.m *= wk; wt.e *= wk; wt.gl *= wk; }
+    uv += wt.d; uvb = clamp(uvb + wt.f, vec2f(0.0), vec2f(1.0));
+  }
   var col: vec3f = texLod(tScene, uv, 0.0).rgb;
   // at speed the glass shows its faults: toward the sides of the frame red and blue part company. (Two more looks at the scene, and only
   // then; the middle of the picture and the skier are not touched)
@@ -376,6 +440,16 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     // (water gathers light, it does not stand in front of it: a bead is never darker than the picture it sits on)
     let lo: f32 = luma(texLod(tScene, v.uv + sk, 0.0).rgb); col *= mix(1.0, max(1.0, lo / max(luma(col), 1e-5)), wt.m);
     col = col * (1.0 + 0.45 * wt.e * (1.0 - M.wb.z) * (0.4 + 0.6 * vv.x)) + U.sunCol.rgb * (vv.x * M.q.z * (0.6 * wt.gl + wt.m * (0.015 + 0.14 * exp(-rs * 2.4))));
+  }
+  if (sn.m > 0.0) {
+    // the snow on the glass is lit by all that is in front of the lens: the scene's own glow behind it (so it is a dim grey in the shade
+    // and at night, never a white that shines on its own), the sky, and the sun from in front, which it scatters forward and glows with
+    // when the lens looks toward it. Its grain varies that a little; a crystal that catches the sun is a point of its light
+    let rs: f32 = length((U.sunScr.xy - v.uv) * vec2f(asp, 1.0));
+    // (snow scatters every colour alike: what it takes from the glow behind it comes out whiter than it went in)
+    let bl: f32 = luma(bloom);
+    let sc: vec3f = max(mix(bloom, vec3f(bl), 0.6) * 1.35, U.ambSky.rgb * 1.3 + U.sunCol.rgb * (vv.x * (0.18 + 0.6 * exp(-rs * 1.6))));
+    col = mix(col, sc * (1.0 + 0.55 * sn.t), sn.m * M.wb.z) + U.sunCol.rgb * (sn.g * M.wb.z * vv.x * M.q.z * 1.2);
   }
   col += lensFlare(v.uv, vv) * M.q.z;
   // white balance toward the low sun (sunlit snow a warm white, sky-lit shadows properly blue), exposure, then the film curve.
