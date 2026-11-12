@@ -688,13 +688,13 @@ fn frag(v: VOut) -> FOut {
     // wisps, not a sheet: what it lights is torn by the same world noise as the edge, and the rest of the cloud is all but nothing.
     // With a constant ambient fill and the moon lighting all of it evenly, the curtain behind the skier read as a grey poster)
     let wisp: f32 = smoothstep(0.42, 0.78, wn) * smoothstep(0.30, 0.70, w3);
-    var cn: vec3f = moon * ((min(ph, 1.4) * S1n * 0.8 + (1.0 - Tn) * mix(0.16, 0.55 * wrapD, smoothstep(0.25, 1.8, tn))) * (0.08 + 0.62 * wisp));
+    var cn: vec3f = moon * ((min(ph, 1.4) * S1n * 0.8 + (1.0 - Tn) * mix(0.16, 0.55 * wrapD, smoothstep(0.25, 1.8, tn))) * (0.30 + 1.40 * wisp));
     // the dark around it: the sky, and the moonlit slope it hangs over, which is the largest light there is by night (a veil over that
     // snow has that snow's brightness, give or take: shaded with the sky alone it stood on the slope as a wall of dark smoke)
     // (but it is only what the cloud takes out of the snow behind it, given back: the cloud itself takes out little (see To below), so
     // this is a faint grey haze over the dark, and over lit snow next to nothing: it neither darkens that snow nor paints it blue)
     let ambN: vec3f = U.ambSky.rgb * (1.1 + 0.6 * up) + U.ambGnd.rgb * 0.95;
-    cn += (mix(ambN, vec3f(luma(ambN)), 0.6) * 0.06 + moon * (0.05 * deep)) * ((1.0 - Tn) * (0.25 + 0.75 * wisp));
+    cn += (mix(ambN, vec3f(luma(ambN)), 0.6) * 0.18 + moon * (0.05 * deep)) * ((1.0 - Tn) * (0.25 + 0.75 * wisp));
     // the town: a trace of its warmth in whatever hangs toward it
     cn += vec3f(1.0, 0.50, 0.42) * (0.0045 * U.skyP.z * (0.35 + 0.65 * sq(saturate(dot(d.xz, M.c.xy)))) * (1.0 - Tn));
     // the headlamp. It is the one light close enough to show how much snow there is, so it sees all of it (not the thinned veil).
