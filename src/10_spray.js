@@ -177,6 +177,14 @@ const Spray = (() => {
     c[i + 12] = lerp(0.07, 0.30, f) * (0.7 + 0.6 * rnd()); c[i + 13] = dens; c[i + 14] = f; c[i + 15] = stretch;
     mark(dirtyP, ph); ph = (ph + 1) % P.NP; P.stats.puffs++;
   };
+  // a breath in cold air (the skier waiting at the top of the run): a little vapour pushed out a hand's breadth from the mouth. It does not fall: it
+  // swells, rises a little, goes off with the wind and is gone within a second. p, v: world space; dens: its optical depth as it leaves the mouth
+  P.breath = function (t0, p, v, dens) {
+    const o = Render.origin, i = ph * P.PF, c = puffCPU;
+    c[i] = p[0] - o[0]; c[i + 1] = p[1] - o[1]; c[i + 2] = p[2] - o[2]; c[i + 3] = t0; c[i + 4] = v[0]; c[i + 5] = v[1]; c[i + 6] = v[2]; c[i + 7] = rnd();
+    c[i + 8] = 0.30; c[i + 9] = -0.25; c[i + 10] = 0.8 + 0.3 * rnd(); c[i + 11] = 0.06; c[i + 12] = 0.16 + 0.04 * rnd(); c[i + 13] = dens; c[i + 14] = 0.6; c[i + 15] = 1;
+    mark(dirtyP, ph); ph = (ph + 1) % P.NP; P.stats.puffs++;
+  };
   // one crystal or crumb. f: 0 a crumb the size of a hazelnut (flies an arc, down in half a second) .. 1 a flake (rides the air of the sheet, sifts down)
   P.grain = function (t0, px, py, pz, vx, vy, vz, f, power, lifeK, brake) {
     const o = Render.origin, i = gh * P.GF, c = grainCPU;
