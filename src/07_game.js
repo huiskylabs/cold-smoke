@@ -541,8 +541,21 @@ const Game = (() => {
     // the longer the flight; half as deep when jumps come one on another (a field of rollers must not turn to treacle)
     // (it begins at 0.8 s of air and is all there at a second: a hop off the skier's own legs, 0.7 s, and the common roller, 0.77 s, are
     // left at full speed. From 0.6 s, as it was, most of those were slowed a little, and a little is neither one thing nor the other)
-    const dep = fl.on ? G.slowMo * 0.62 * smooth(0.8, 1.0, fl.pred) * fl.fresh : 0; if (fl.on) fl.dep = dep; else fl.since += dt;
-    const tsT = fl.on && S.crash <= 0 ? 1 - dep * smooth(0.03, 0.22, fl.t) * smooth(0.10, 0.42, fl.rem) : 1;
+    // (the owner, 2026-11-12: hang time. Hardly any slowing as the skis leave the lip; it deepens as the body rises and is deepest at the top of
+    // the arc, then lets go on the way down. And it goes by how high the jump is: an ordinary hop is barely slowed at all, a big air a lot)
+    // Hpk: the top of the arc over the snow under it, forecast on the way up (ballistic: what is left of the climb, vy^2/2g, carried forward
+    // to where the top will be) and held from there on
+    // (heights over the snow below, not over the sea: off a lip on a steep face the body falls all the time and still climbs away from the slope.
+    // vr: how fast it climbs from the snow under it; the top of the arc is where that is nil)
+    let vr = 0;
+    if (fl.on) {
+      const h0 = Course.height(P[0], P[2], 0.5), gx = (Course.height(P[0] + 0.5, P[2], 0.5) - h0) / 0.5, gz = (Course.height(P[0], P[2] + 0.5, 0.5) - h0) / 0.5;
+      vr = v[1] - gx * v[0] - gz * v[2];
+      if (vr > -0.5) { let hm = 0; const T = Math.min(fl.rem || 0, 3); for (let t = 0; t <= T; t += 0.05) hm = Math.max(hm, P[1] + v[1] * t - 4.905 * t * t - Course.height(P[0] + v[0] * t, P[2] + v[2] * t, 0.5)); fl.Hpk = Math.max(fl.Hpk || 0, hm); }
+    } else fl.Hpk = 0;
+    const dep = fl.on ? G.slowMo * 0.72 * Math.pow(smooth(1.4, 5.5, fl.Hpk || 0), 1.2) * smooth(0.8, 1.0, fl.pred) * fl.fresh : 0; if (fl.on) fl.dep = dep; else fl.since += dt;
+    const apex = Math.exp(-((vr / 3.2) ** 2));
+    const tsT = fl.on && S.crash <= 0 ? 1 - dep * apex * smooth(0.0, 0.15, fl.t) * smooth(0.10, 0.35, fl.rem) : 1;
     G.timeScale = clamp(spring(fl, 'ts', tsT, 20, dt / G.timeScale), 0.15, 1);          // (eased on the real clock, so a crash or an early landing brings time back without a jolt)
   }
 
