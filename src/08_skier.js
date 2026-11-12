@@ -110,7 +110,7 @@ const Skier = (() => {
     const id = sec.idle || null, ish = id ? id.sh : 0, ibr = id ? id.br : 0;
     // feet (ski frames): rolled onto their edges; the inside ski leads
     const fb = basis(0, 0, edge), lift = 0.05 * Math.abs(Math.sin(edge));
-    const fbL = p.pitchL ? basis(0, -p.pitchL, edge) : fb, fbR = p.pitchR ? basis(0, -p.pitchR, edge) : fb;
+    const fbL = p.pitchL || p.rollL ? basis(0, -(p.pitchL || 0), edge + (p.rollL || 0)) : fb, fbR = p.pitchR || p.rollR ? basis(0, -(p.pitchR || 0), edge + (p.rollR || 0)) : fb;      // (rollL/R: one ski rolled on its own, as legs spread apart in the air)
     J.footL = [-stance / 2, lift + liftL, lead]; J.footR = [stance / 2, lift + liftR, -lead];
     J.ankleL = v3.mad(J.footL, fbL.Y, LEN.ankle); J.ankleR = v3.mad(J.footR, fbR.Y, LEN.ankle);
     // how far the legs are folded: the suspension travel of the physics, 0.38 m from long to deep (the body's height over the snow is the physics' own),
@@ -164,7 +164,7 @@ const Skier = (() => {
     J.footL = v3.mad(J.ankleL, fbl.Y, -LEN.ankle); J.footR = v3.mad(J.ankleR, fbr.Y, -LEN.ankle);
     // torso: hinged forward at the hips, more upright sideways than the legs, rotated toward the fall line (separation)
     // (a turn begins with the whole body tipping in; only as it tightens do the hips drop inside while the shoulders stay nearer level)
-    const leanT = lean * lerp(0.74, 0.40, smooth(0.25, 0.72, Math.abs(lean))) + sec.roll + gS * 0.26 + (id ? 0.03 * ish + id.sx : 0), sep = (p.sep || 0) + sec.yaw + (id ? id.ty : 0);
+    const leanT = lean * lerp(0.74, 0.40, smooth(0.25, 0.72, Math.abs(lean))) + sec.roll + gS * 0.26 + (id ? 0.03 * ish + id.sx : 0) + (p.tilt || 0), sep = (p.sep || 0) + sec.yaw + (id ? id.ty : 0);
     const up2 = Math.min(hinge * 1.15 + 0.06 + crunch - 0.035 * ibr, 1.74);      // (a breath drawn straightens the upper back...)
     const t1 = basis(sep * 0.7, hinge, leanT), t2 = basis(sep, up2, leanT * 0.82);
     J.chest = v3.mad(pel, t1.Y, LEN.spine + 0.004 * ibr); J.neck = v3.mad(J.chest, t2.Y, LEN.chest);
