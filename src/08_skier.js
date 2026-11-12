@@ -858,7 +858,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
       const w = sat((-v3.dot(H.v, Z) - 6) / 20), fl = g * w * (0.022 * Math.sin(now * 47) + 0.014 * Math.sin(now * 29 + 1.3) + 0.01 * Math.sin(now * 71 + 0.4));
       H.o[0] = clamp(H.p[0] + fl, -0.02, 0.2); H.o[1] = clamp(H.r[0] + 0.6 * fl * Math.sin(now * 13), -0.12, 0.12); }
     st.t = now; st.pose = pose; st.root = root; st.pos[0] = root.pos[0]; st.pos[1] = root.pos[1]; st.pos[2] = root.pos[2];
-    if (dt > 0) { spr(st.lean, cur.lean, 11, 0.8, dt); spr(st.crouch, cur.crouch, 13, 0.7, dt); spr(st.cf, cur.crouch, 40, 1, dt); }
+    if (dt > 0) { spr(st.lean, cur.lean, 11, 0.8, dt); spr(st.crouch, cur.crouch, 7, 1, dt); spr(st.cf, cur.crouch, 40, 1, dt); }
     const dl = st.lean[0] - cur.lean, dc = cur.crouch - st.crouch[0], quiet = 1 - sat(cur.tuck * 1.5);
     // (ct, cf: how far the trunk's two readings of the crouch are behind the legs' at this moment: see solve)
     sec.roll = clamp(dl * 0.45, -0.14, 0.14); sec.ct = clamp(-dc, -0.6, 0.6); sec.cf = clamp(st.cf[0] - cur.crouch, -0.6, 0.6); sec.drop = clamp(dl * 0.10, -0.04, 0.04) * quiet;

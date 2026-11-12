@@ -255,7 +255,7 @@
     }
     F.hPrev = hy;
     // a helmet camera shivers a little at speed and takes a landing in the neck: both as turns of the head, not as travel
-    const sh = 0.0022 * k * k + 0.28 * B.shk, t = G.t, ly = clamp(look.yaw, -0.95, 0.95), al = Math.abs(ly);
+    const sh = 0.28 * B.shk, t = G.t, ly = clamp(look.yaw, -0.95, 0.95), al = Math.abs(ly);
     // (looking to the side, the eyes come up off the snow toward the far slope)
     const yw = F.yaw + ly + vnoise1(t * 15, 6) * sh, pt = clamp(F.pit * (1 - 0.5 * smooth(0.2, 0.95, al)) + look.pit + vnoise1(t * 17, 7) * sh, -1.3, 1.0);
     setF(o, yw, pt);
@@ -328,7 +328,7 @@
     B.lean = damp(B.lean, S.lean, 5, dt); B.kick = damp(B.kick, G.fovKick, 3, dt); B.shk = damp(B.shk, G.shake, 30, dt);       // (a jolt comes on over a frame or two, not in one)
     lookStep(rdt, fpOn);
     // the chase camera as it stands this frame
-    const shc = 0.010 * k * k + G.shake;
+    const shc = G.shake;       // (one-off jolts only: no constant tremor at speed, in any view)
     CH.p[0] = pos[0]; CH.p[1] = pos[1]; CH.p[2] = pos[2]; CH.f[0] = f[0]; CH.f[1] = f[1]; CH.f[2] = f[2]; CH.fov = cam.fov > 0 ? cam.fov : 1; CH.roll = (cam.roll || 0) + vnoise1(G.t * 13, 3) * shc * 0.5;
     // ---- a change of view asked for since the last frame
     if (snap) { want = G.view; fpc = want === 'fp' || want === 'tips' ? 1 : 0; tpc = want === 'tips' ? 1 : 0; F.init = true; }
@@ -370,7 +370,7 @@
     else {
       rigStep(dt, rdt, R);
       // (its own small rattle, and the same landing jolt the chase camera takes)
-      const sh = cur.buzz * k * k + B.shk, t = G.t, rx = Math.cos(R.yawRaw), rz = Math.sin(R.yawRaw), ox = vnoise1(t * 17, 4) * sh, oy = vnoise1(t * 19, 5) * sh;
+      const sh = B.shk, t = G.t, rx = Math.cos(R.yawRaw), rz = Math.sin(R.yawRaw), ox = vnoise1(t * 17, 4) * sh, oy = vnoise1(t * 19, 5) * sh;
       R.p[0] += rx * ox; R.p[1] += oy; R.p[2] += rz * ox; R.roll += vnoise1(t * 13, 9) * sh * 0.5;
       if (tp === 'chase') { tw += rdt; mix(D, R, CH, smooth(0.28, 0.6, tw)); if (tw >= 0.6) rigOn = false; } else copy(D, R);
     }

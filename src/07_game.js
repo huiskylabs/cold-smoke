@@ -579,7 +579,18 @@ const Game = (() => {
     fl.gk = damp(fl.gk, S.load > 1.5 ? 1 : 0, S.load > 1.5 ? 10 : fl.on && fl.t > 0.14 ? 9 : 0, kd); pose.bal = lerp(S.lean * 0.5, fl.balG, fl.gk);
     const balT = lerp(S.lean, clamp(pose.bal || 0, -0.92, 0.92), 0.8 * smooth(3, 9, sp));
     // (turned round in the air or riding switch, what was the body's right is its left: cy)
-    fl.lean = damp(fl.lean, balT, 15, kd); const Lv = fl.lean * cy * (1 - 0.7 * q.own * w), sL = Math.sin(Lv); pose.lean = Lv;
+    fl.lean = damp(fl.lean, balT, 15, kd);
+    // (the body that is drawn: the legs are its suspension, the trunk and head ride on them quiet. The load the snow pushes back with rises and falls
+    // some three times a second in a carve, and the balance angle read from it with it: taken as it comes, the whole figure rocked sideways a couple of
+    // centimetres at the head, three times a second. So the figure leans as the physics' own lean does (S.lean: smooth, and on time with the steering),
+    // and what the balance adds to that comes through a critically damped spring of a little over 1 Hz: the turn is leaned into on time, the
+    // wobble is gone. In the air, a fall or a trick it follows more closely, as before)
+    const lnW = lerp(8, 30, Math.max(w, sat(crash * 5), q.own)), lnC = spring(fl, 'lnC', fl.lean - S.lean, lnW, kd); fl.lb = S.lean + lnC; fl.lbV = (S.leanV || 0) + (fl.lnCV || 0);
+    // (...and the physics' own lean trembles a little too in a hard carve. What is drawn follows it through a lag that is as short as the lean is
+    // quick: a hundredth of a second or two through an edge change, a fifth of a second while it is only trembling about a held angle)
+    { const r = fl.lbR = first || dt <= 0 ? Math.abs(fl.lbV) : damp(fl.lbR || 0, Math.abs(fl.lbV), 8, dt), fc = 0.8 + 3.5 * r + 30 * Math.max(w, sat(crash * 5), q.own);
+      fl.lbF = first || dt <= 0 || fl.lbF == null ? fl.lb : fl.lbF + (fl.lb - fl.lbF) * (1 - Math.exp(-TAU * fc * dt)); fl.lb = fl.lbF; }
+    const Lv = fl.lb * cy * (1 - 0.7 * q.own * w), sL = Math.sin(Lv); pose.lean = Lv;
     pose.edge = clamp(Lv * 1.12 + S.beta * 0.25 * cy, -1.3, 1.3);
     // legs. The hips ride where the physics has the body, set lower by how the skier is standing (Xs); the legs are whatever it takes to
     // get from there to the skis. fl.l is how far they are folded (below 0) or reached out (above), in metres, measured from the hips;
@@ -602,7 +613,10 @@ const Game = (() => {
     // as far as the physics has its own, still have a bend in them when the skis touch: they begin to fold at that instant, and the hips
     // go on down along their line. With the knees already straight the hips would stop with the skis for a step, and then start again)
     fl.pump = damp(fl.pump, clamp(S.load / GRAV - 1, -1, 2), 9, kd);
-    let Xs = clamp(Math.abs(Lv) * 0.10 + pose.tuck * 0.22 + 0.16 * smooth(17, 30, sp) + 0.25 * smooth(0, 0.25, crash) + 0.3 * fl.prepL + (0.12 + 2.7 * (L_AIR - 0.08)) * fl.reach + q.dip + 0.09 * fl.pump, -0.1, 0.8);
+    // (the hips sink onto a loaded ski at the pace of the turn, not of the snow: the load's quick rise and fall is the knees' to take, so the sink the
+    // hips are given comes through a critically damped spring of about 1.6 Hz)
+    const pumpH = spring(fl, 'pmH', fl.pump, 10, kd);
+    let Xs = clamp(Math.abs(Lv) * 0.10 + pose.tuck * 0.22 + 0.16 * smooth(17, 30, sp) + 0.25 * smooth(0, 0.25, crash) + 0.3 * fl.prepL + (0.12 + 2.7 * (L_AIR - 0.08)) * fl.reach + q.dip + 0.09 * pumpH, -0.1, 0.8);
     const eH = cmax(eV - 0.38 * Xs, -0.32, 0.25); Xs = fl.Xs = (eV - eH) / 0.38;        // (eH: the hips' line over the snow that is drawn; Xs as it comes out with that floor)
     if (first) { fl.l = eH; fl.lV = 0; fl.L = eV; fl.LV = 0; }
     else if (dt > 0) {
@@ -678,13 +692,13 @@ const Game = (() => {
     // the lean and how fast it is going: rel while it is going back toward upright from a turn, ent while it is leaving upright for the next.
     // A landing is soaked up by the legs (the physics) and then comes back past level once, as a body does: an underdamped spring set going by the
     // speed the snow was met with (ld). At speed the snow is never quite smooth: a tremor through the legs and the hands, faster the faster it goes.
-    { const lv = fl.lnV || 0, aL = Math.abs(fl.lean), rel = sat(-fl.lean * lv / 1.2) * smooth(0.04, 0.3, aL), ent = sat(fl.lean * lv / 1.2) * smooth(0.55, 0.12, aL);
+    { const lv = fl.lbV || 0, aL = Math.abs(fl.lb), rel = sat(-fl.lb * lv / 1.2) * smooth(0.04, 0.3, aL), ent = sat(fl.lb * lv / 1.2) * smooth(0.55, 0.12, aL);       // (read off the lean that is drawn: its rate is smooth)
       const fx = spring(fl, 'xo', (0.13 * rel - 0.17 * ent) * gnd, 11, kd);
       if (dt > 0) { if (fl.wasAir && !S.air) fl.ldV = (fl.ldV || 0) + Math.min(S.landV || 0, 9) * 0.2; const x = fl.ld || 0, vv = fl.ldV || 0, W = 7, Z = 0.3, ac = -W * W * x - 2 * Z * W * vv;
         fl.ldV = vv + ac * dt; fl.ld = x + fl.ldV * dt; } fl.wasAir = S.air;
       if (dt > 0) fl.dist = ((fl.dist || 0) + sp * dt) % 4096;
       const ch = fl.chat = 0.011 * smooth(10, 30, sp) * (1 - w) * (1 - 0.6 * (S.powder || 0)) * (vnoise1(fl.dist * 0.42, 31) * 0.7 + vnoise1(fl.dist * 1.1, 37) * 0.3);
-      pose.crouch = clamp(pose.crouch + mo * (fx + (fl.ld || 0) * (1 - w) + ch), 0, 1);
+      pose.crouch = clamp(pose.crouch + mo * (fx + (fl.ld || 0) * (1 - w)), 0, 1);       // (the snow's chatter is not put into the knee bend: with the feet on the snow that moved the hips and everything above them)
       for (const a of [pose.armL, pose.armR]) { a[1] += mo * (1.6 * ch - 0.25 * (fl.ld || 0)) * hk; a[2] -= mo * 0.4 * (fl.ld || 0) * hk; } }
     if (crash > 0.001) { const wb = Math.sin(crash * 22) * crash; pose.armL[1] += 0.18 * crash + 0.05 * wb; pose.armR[1] += 0.18 * crash - 0.05 * wb; pose.sep += wb * 0.25; }
     // ---- root frame
@@ -899,7 +913,7 @@ const Game = (() => {
     // (the limits are rounded where they take hold: the lens is turned by them, not struck)
     { const pMax = eFeet + Math.atan((0.90 - 0.2 * cam.idle) * th), pMin = eHead - Math.atan(0.74 * th); cam.pitch = smin(smax(cam.pitch, Math.min(pMin, pMax), 0.03), pMax, 0.03); }
     G.fovKick = damp(G.fovKick, 0, 3, dt); G.shake = damp(G.shake, 0, 5, dt); cam.shk = damp(cam.shk, G.shake, 30, dt);
-    const sh = 0.010 * k * k + cam.shk, t = G.t;
+    const sh = cam.shk, t = G.t;       // (only the one-off jolts: a landing, a fall, a bough. The constant fine tremor at speed is gone: it read as a stutter, and sickened)
     const ox = vnoise1(t * 17, 1) * sh, oy = vnoise1(t * 19, 2) * sh;
     // pushed aside by a tree, the lens turns back toward the skier so the figure never leaves the frame
     cam.pull = damp(cam.pull || 0, typeof Deer !== 'undefined' && Deer.pull ? Deer.pull : 0, 1.4, dt);                 // something worth a glance beside us

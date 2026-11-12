@@ -8,7 +8,7 @@
 const Feel = (() => {
   const F = { speed: 0, slow: 0, timeK: 1, air: [1, 1, 1], base: [1, 1, 0.00016], wrote: [], goal: 0, pend: null, since: 99, runT: 0, px: 0, pz: 0, init: false };
   // the speeds (m/s) between which the lens goes from calm to flat out, the tremor of the camera at full speed (m), how long a wet glass takes to dry (s)
-  F.v0 = 22; F.v1 = 40; F.shake = 0.018; F.dry = 1.5;
+  F.v0 = 22; F.v1 = 40; F.shake = 0; F.dry = 1.5;       // (shake: off. A constant fine tremor of the lens at speed reads as a stutter and makes people queasy; the one-off jolts stay)
   // the shutter (s) and the longest streak it may leave (picture heights), calm and flat out
   F.shut = [1 / 90, 1 / 50]; F.blur = [0.045, 0.11];
   // the corners drawn out toward where the lens is heading: the speeds (m/s) between which it grows (about 70 to 125 km/h). How much is the
@@ -31,6 +31,9 @@ const Feel = (() => {
   // pixel, so it can only be drawn by reading the scene between its pixels, and that costs more sharpness than the turn can be seen
   // (0.25 takes 3 to 13% of the fine detail off the frame, on and off, for a movement of at most a third of a pixel at the edges)
   F.chatter = 0; F.chatPx = 1.4; F.chatRot = 0;
+  // (whether the picture trembles at all is the owner's pick: a off (the default: the whole frame hopping a pixel ten to twenty times a second read
+  // as frames being dropped, and with the skier's body it made the run look shaky; the rub of the snow is heard, and seen in the spray), b on)
+  if (typeof Variants !== 'undefined') Variants.def('chatter', '雪面颤动', [['a', '关'], ['b', '开']], 'a');
   // every snow has its grain: [how fast the picture rings (Hz), how soon a knock has died (damping, 0..1), knocks a second, how far]. Packed
   // and icy snow (the open bowl, the steeps, the ridge) is a fine fast grain; deep powder softer and slower; where the bumps of a mogul
   // field stand, and over rollers, there are fewer knocks and harder ones
@@ -203,7 +206,7 @@ const Feel = (() => {
       // pixel can only be drawn by reading the scene between its pixels, and that softens it (a fifth of the fine detail gone, on and off
       // from frame to frame). So where less than a pixel is asked for, the picture is knocked a whole one, less often: the threshold
       // keeps the mean square what was asked, down to a tenth of a pixel or so, below which nothing moves at all
-      const amp = F.chatPx * F.chatter * k(3), rms = amp * Math.max(Render.W, 1280) / 1280 / 2.8, T = 0.5 * Math.pow(sat(rms / 0.3), 0.6);
+      const amp = (typeof Variants !== 'undefined' && Variants.val.chatter !== 'b' ? 0 : F.chatPx) * F.chatter * k(3), rms = amp * Math.max(Render.W, 1280) / 1280 / 2.8, T = 0.5 * Math.pow(sat(rms / 0.3), 0.6);
       for (let i = 0; i < 2; i++) { const d = rms * 2.8 * clip(q[2 * i + 1] / 2.8); Post.chat[i] = sign(d) * Math.floor(Math.abs(d) + 1 - T); }
       Post.chat[2] = F.chatRot * amp / 640 * clip(q[5] / 2.8);
     }
@@ -230,9 +233,12 @@ const Feel = (() => {
       WD.v = Math.abs(Math.hypot(v, 6 * Math.max(ww - 1, 0)) +Math.max(F.gust[0] * (0.6 + v / 40) + F.gust[1] * rd - F.gust[2] * gl, 0.3) * clamp(wl / 1.26, 0.5, 2.5) * ww * WD.g);
       const q = WD.v * WD.v / 1111; WD.k = 1.25 * q / (1 + 0.25 * q) * Math.min((1 + 0.6 * rd - 0.4 * gl) * (0.75 + 0.25 * ww), 2) * (1 - 0.35 * Math.max(S.tuck || 0, S.tuckIn || 0));
       WD.ph += dt * (5 + 0.09 * WD.v); WD.b = eddy(0, 21);
+      // (the lens is pushed by the slow swell of the wind only, well under once a second: the eddies, two to five a second, are heard (WD.b), not
+      // seen. Quick small turns of the whole picture read as a shaking camera, and make people queasy)
+      WD.lp = (WD.lp || 0) + dt * (0.5 + 0.006 * WD.v); const swell = (o, sd) => 1.6 * vnoise1(WD.lp + o, sd);
       const pick = typeof Variants !== 'undefined' ? Variants.val.buffet : 'b', amp = pick === 'a' ? 0 : pick === 'c' ? F.bufC : 1;
       WD.amp = cut ? amp : damp(WD.amp, amp, 5, rdt); WD.on = Math.min(WD.amp, 1);
-      const B = F.buffet, a = WD.amp * WD.k; B[0] = F.buf[0] * a * WD.b; B[1] = F.buf[1] * a * eddy(31.7, 23); B[2] = F.buf[2] * a * eddy(77.1, 25);
+      const B = F.buffet, a = WD.amp * WD.k; B[0] = F.buf[0] * a * swell(0, 21); B[1] = F.buf[1] * a * swell(31.7, 23); B[2] = F.buf[2] * a * swell(77.1, 25);
       // the lens is turned by it here: after whichever view has set the camera this step (the chase camera, first person, any other:
       // 07_game.js, 07b_views.js), before the frame is made from it; so it is the same push in every view, and it is the scene that is
       // drawn turned, not a finished picture that is moved (which would soften it). A step in which no view set the camera starts from
