@@ -1,0 +1,5 @@
+[
+ {"id":"chase","dur":2,"tod":"day","at":{"s":700},"lead":300,"cam":"chase"},
+ {"id":"jump_orbit","dur":3,"tod":"golden","at":{"seg":"kickers","off":75},"lead":250,"trick":"360grab","cam":{"kind":"orbit","r":7,"h":1.2,"az0":1.2,"az1":2.2,"fov":0.8}},
+ {"id":"night_sky","dur":2,"tod":"night","at":{"s":700},"start":false,"cam":{"kind":"sky","at":[0,3,-4],"p0":0.9,"p1":0.15,"fov":1.0}}
+]
