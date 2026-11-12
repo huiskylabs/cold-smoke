@@ -760,7 +760,7 @@ const Game = (() => {
     // two either way. (Nothing moves the skier: only the picture turns)
     { const s0 = -p[2], c = Course.at(s0, _ca), eo = Math.abs(p[0] - c.cx) - c.hw, to = G.mode === 'run' ? smooth(3, 16, eo) * lerp(0.2, 1, smooth(8, 3.5, sp)) : 0;
       spring(cam, 'lost', first ? 0 : to, to > (cam.lost || 0) ? 1.6 : 1.0, dt * q);
-      if (cam.lost > 1e-3) { const cR = Course.at(s0 + 30, _cb), ry = Math.atan2(cR.cx - p[0], 30); cam.ryaw = clamp(ry - cyw, -0.3, 0.3); } }
+      if (cam.lost > 1e-3) { const cR = Course.at(s0 + 30, _cb), ry = Math.atan2(cR.cx - p[0], 30); cam.ryaw = 0 * clamp(ry - cyw, -0.3, 0.3); } }
     const lost = cam.lost || 0, cyl = cyw + lost * (cam.ryaw || 0);
     cam.cyaw = damp(cam.cyaw == null || first ? cyl : cam.cyaw, cyl, 1.3, dt * q);
     cam.yaw = damp(cam.yaw, cam.cyaw + clamp((vyaw - cam.cyaw) * 0.55 * (1 - 0.3 * lost), -0.7, 0.7), 2.4, dt * q);
@@ -843,7 +843,7 @@ const Game = (() => {
       }
       // (not among trees, cam.wood: there it would be stepping aside all the time, off the skier's line and into the next one's boughs,
       // and the trees it steps round are out of the picture before it reaches them: 14_trees.js takes out what stands against the lens)
-      cam.dodge = damp(cam.dodge || 0, m * (1 - cam.wood), m ? 14 : 3.5, dt * q); cx += rx * cam.dodge; cz += rz * cam.dodge; }
+      cam.dodge = 0; m = 0; /* off (the owner, 2026-11-12: the lens never jumps aside by itself; 14_trees.js fades what stands against it) */ cx += rx * cam.dodge; cz += rz * cam.dodge; }
     // height: follow the snow under the camera with a spring that tracks a steady descent exactly (no lag on a constant slope) but rounds off bumps
     // (gy: the snow under the lens with the bumps of a mogul field left out, as the lens has always taken it. Coming down behind a jump
     // it can meet that floor, so there the floor stands as far above it as the bumps do: mF)
@@ -921,7 +921,7 @@ const Game = (() => {
     const sh = cam.shk, t = G.t;       // (only the one-off jolts: a landing, a fall, a bough. The constant fine tremor at speed is gone: it read as a stutter, and sickened)
     const ox = vnoise1(t * 17, 1) * sh, oy = vnoise1(t * 19, 2) * sh;
     // pushed aside by a tree, the lens turns back toward the skier so the figure never leaves the frame
-    cam.pull = damp(cam.pull || 0, typeof Deer !== 'undefined' && Deer.pull ? Deer.pull : 0, 1.4, dt);                 // something worth a glance beside us
+    cam.pull = 0;   // off (the owner: no glances at animals; the lens stays on the skier)                 // something worth a glance beside us
     const ly = yo - (cam.jSide || 1) * 0.27 * cam.jw * 0.6 * (1 - (cam.ja || 0)) + Math.atan2(-cam.dodge, lerp(dist, hd, cam.wood)) * 0.9 + Math.atan2(-sway, dist) * 0.85 + (portrait ? 0 : (cam.tLook - cam.tPsi) * cam.idle) + cam.pull;
     const cp = Math.cos(cam.pitch), f = [Math.sin(ly) * cp, Math.sin(cam.pitch), -Math.cos(ly) * cp];
     cam.fwd = f;
