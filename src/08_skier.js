@@ -1017,10 +1017,32 @@ fn frag(v: VOut) -> FOut {
     alb = mix(alb, ${V(L.sleeveBand.alb)}, chev);
     sheen = ${F(L.jacket.sheen)}; cloth = ${F(L.jacket.cloth)}; specS = ${F(L.jacket.specS)}; specP = ${F(L.jacket.specP)};
     let sx: f32 = abs(abs(tl.x) - 0.096);
-    let strap: f32 = max(smoothstep(0.021, 0.017, sx) * smoothstep(-0.17, -0.15, tl.y), smoothstep(0.022, 0.018, abs(tl.y + 0.19))) * onTorso;
-    let strapEdge: f32 = max(smoothstep(0.030, 0.021, sx) * smoothstep(-0.18, -0.15, tl.y), smoothstep(0.031, 0.022, abs(tl.y + 0.19))) * onTorso;
+    var bkK: f32 = 0.0;
+    var strap: f32 = max(smoothstep(0.021, 0.017, sx) * smoothstep(-0.17, -0.15, tl.y), smoothstep(0.022, 0.018, abs(tl.y + 0.19))) * onTorso;
+    var strapEdge: f32 = max(smoothstep(0.030, 0.021, sx) * smoothstep(-0.18, -0.15, tl.y), smoothstep(0.031, 0.022, abs(tl.y + 0.19))) * onTorso;
+    if (nb > 0.5) {
+      // (new body: a pack harness, not a safety vest: on the front the shoulder straps are narrow and curve out over the chest to pass under the arms,
+      // joined by a small sternum strap; at the waist a slim hip belt with a buckle; behind, they run straight down into the pack as before)
+      let frK: f32 = smoothstep(0.03, -0.05, tl.z);
+      let xc: f32 = mix(0.096, 0.080 + 0.090 * smoothstep(0.20, -0.14, tl.y), frK);
+      let sxN: f32 = abs(abs(tl.x) - xc); let hw: f32 = mix(0.016, 0.0105, frK);
+      let topK: f32 = smoothstep(-0.17, -0.15, tl.y) * mix(1.0, smoothstep(-0.13, -0.09, tl.y), frK);
+      let stern: f32 = smoothstep(0.0065, 0.0045, abs(tl.y - 0.085)) * step(abs(tl.x), xc) * frK;
+      let belt: f32 = smoothstep(0.0115, 0.0085, abs(tl.y + 0.19));
+      strap = max(max(smoothstep(hw + 0.0015, hw - 0.0015, sxN) * topK, stern), belt) * onTorso;
+      strapEdge = max(max(smoothstep(hw + 0.008, hw + 0.002, sxN) * topK, smoothstep(0.012, 0.007, abs(tl.y - 0.085)) * step(abs(tl.x), xc) * frK), smoothstep(0.018, 0.012, abs(tl.y + 0.19))) * onTorso;
+      // buckles: the sternum strap's and the hip belt's, in the middle
+      bkK = (smoothstep(0.012, 0.009, abs(tl.x)) * stern + smoothstep(0.020, 0.016, abs(tl.x)) * belt * frK) * onTorso;
+      // the front: a storm flap over the zip, a chest pocket zip on the left, a small pale patch on the right
+      let zipC: f32 = smoothstep(0.0028, 0.0012, abs(tl.x - 0.016)) * frK * step(-0.17, tl.y) * onTorso;
+      let pkZ: f32 = smoothstep(0.0024, 0.0010, abs(tl.x + 0.052 + 0.25 * (tl.y - 0.13))) * smoothstep(0.004, 0.0, abs(tl.y - 0.115) - 0.040) * frK * onTorso;
+      let pch: f32 = smoothstep(0.002, 0.0, max(abs(tl.x - 0.050) - 0.016, abs(tl.y - 0.140) - 0.007)) * frK * onTorso * (1.0 - strap);
+      alb = mix(alb, vec3f(0.035, 0.040, 0.050), max(zipC, pkZ) * 0.85);
+      alb = mix(alb, vec3f(0.75, 0.76, 0.74), pch);
+    }
     alb *= 1.0 - 0.45 * (strapEdge - strap);
     alb = mix(alb, vec3f(0.040, 0.048, 0.062), strap); sheen = mix(sheen, 0.2, strap); cloth = mix(cloth, 0.5, strap);
+    alb = mix(alb, vec3f(0.30, 0.31, 0.33), bkK);
     // its cloth: gathered in rings where the elbow bends (the more it is bent the deeper), in long soft folds down the sleeve and round the body, bunched
     // above the hem; it is padded, so it swells between its seams, and the straps and the pack press into it
     let slv: f32 = 1.0 - onTorso; let de: f32 = length(eq); let elb: f32 = mix(M.p.x, M.p.y, sideR); let tf: f32 = 0.5 * (M.q.x + M.q.y);
@@ -1189,6 +1211,11 @@ fn frag(v: VOut) -> FOut {
   if (U.lamp.w > 0.0 && nk > 0.0) {
     let dl: vec3f = U.lamp.xyz - v.wp;
     col += albL * lampLight(v.wp) * (saturate(dot(N, normalize(dl)) + 0.1) * smoothstep(0.18, 0.40, length(dl)) * 2.2 * nk);
+  }
+  // (new body: the headlamp itself, a small hot lens on the front of the helmet: its glow belongs round it, not over the whole figure)
+  if (U.lamp.w > 0.0 && nb > 0.5 && id > 3.5 && id < 6.5) {
+    let lq: f32 = length(v.wp - U.lamp.xyz);
+    col += vec3f(1.0, 0.90, 0.74) * (min(U.lamp.w * 0.12, 8.0) * smoothstep(0.030, 0.012, lq) * saturate(dot(N, U.lampDir.xyz) * 1.5 + 0.2));
   }
   col = applyFog(col, v.wp);
   o.color = vec4f(col, 1.0);
