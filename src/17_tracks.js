@@ -25,7 +25,7 @@ const Tracks = (() => {
   // the skis and boots on top of it (as delivered); b, over the boots; c, to the knees. From b on the skier rides IN the snow: the snow
   // round them is the snow's surface, the skis run under it from the boots forward, and behind the boots one furrow as wide as the two
   // skis and the legs that ploughed it opens, its walls slumped and lumpy, with a lip of loose snow along each side (the 'furrow' stamp)
-  const PDEPTH = { a: 0.10, b: 0.30, c: 0.50 };
+  const PDEPTH = { a: 0.10, b: 0.18, c: 0.50 };   // (b 0.30 -> 0.18, owner 2026-11-12: the front of the skis must ride on top of the snow, never vanish)
   if (VS) VS.def('pdepth', '粉雪深度', [['a', '浮在面上'], ['b', '没过靴子'], ['c', '没过膝盖']], 'b');
   T.deep = 0;      // 0..1: how far the skis are riding in the snow rather than on it (0 on anything but deep powder, and in version a)
   const prev = [null, null], plPrev = [0, 0], trail = [], ft = [[0, 0, 0, 0], [0, 0, 0, 0]];
@@ -93,7 +93,7 @@ const Tracks = (() => {
     // wider than the ski: the owner's "block" round the skis. Real skis on firm snow: the snow comes right up to the ski, a thin line of
     // shadow along one edge and of light along the other, and behind the tail a shallow clean groove of the ski's own width)
     // (the pack gives the same under any load; it is the soft snow on it that gives more under more)
-    const pdv = (VS && PDEPTH[VS.val.pdepth]) || PDEPTH.b, soft = pdv * pw * pw, deepT = smooth(0.12, 0.26, soft);
+    const pdv = (VS && PDEPTH[VS.val.pdepth]) || PDEPTH.b, soft = pdv * pw * pw, deepT = smooth(0.11, 0.16, soft);
     // (skis that run fast in powder plane up in it, as a board does on water: at speed they ride at under half the depth they sink to slowly)
     const sb = tl > 0.5 ? Math.abs(S.v[0] * rx + S.v[2] * rz) / tl : 0, vs = (VS ? VS.val.sink : 'b') + pdv, firm = SINK[VS ? VS.val.sink : 'b'] || SINK.b;
     const Dt = (firm + soft * clamp(0.55 + 0.45 * (S.load || 9.8) / 9.8, 0.7, 1.4) * lerp(1, 0.45, smooth(6, 18, S.speed || 0))) * (1 + 0.15 * Math.abs(se)) * (1 - 0.4 * Math.min(1, sb / 0.5));
@@ -143,7 +143,7 @@ const Tracks = (() => {
     // the boots, as wide as the skis stand apart and their walls slump (c.w: its half width at the top)
     if (T.deep > 0.25 && (ft[0][3] || ft[1][3])) {
       const mx = 0.5 * (ft[0][0] + ft[1][0]), mz = 0.5 * (ft[0][2] + ft[1][2]), Fx = px + X[0] * mx - A[0] * mz, Fz = pz + X[2] * mx - A[2] * mz;
-      const W = 0.55 * T.D + 0.03, hwF = 0.5 * Math.abs(ft[0][0] - ft[1][0]) + hw + W + 0.03, lipW = 0.45 * T.D + 0.10;
+      const W = 0.55 * T.D + 0.03, hwF = 0.5 * Math.abs(ft[0][0] - ft[1][0]) + hw + 0.6 * W + 0.04, lipW = 0.45 * T.D + 0.10;
       let dx = 0, dz = 0; if (fPrev) { dx = Fx - fPrev[0]; dz = Fz - fPrev[1]; if (dx * dx + dz * dz > 9) dx = dz = 0; }
       if (!fPrev || dx * dx + dz * dz > 1e-6 || vT) {
         fPrev = [Fx, Fz];
@@ -370,6 +370,11 @@ fn vert(a: VIn) -> VOut {
 // now), how much of the way it came was sideways (+ = to its right), powder. Heights are written relative to untouched snow (M.e: offset, scale and noise level
 // of this map). Drawn twice: M.p.z = 0 the snow piled beside the ski, 1 the cut under it.
 const TRACK_STAMP_FS = `
+// a furrow stamp's outline for its depth: straight sides, a round front, open behind (centre c, half size h)
+fn frontU(p: vec2f, c: vec2f, h: vec2f) -> f32 {
+  let rr: f32 = h.x; let qx: f32 = abs(p.x - c.x) - (h.x - rr); let qy: f32 = p.y - (c.y + h.y - rr);
+  return select(max(qx, qy) - rr, length(vec2f(max(qx, 0.0), qy)) - rr, qy > 0.0);
+}
 fn sdBox2(p: vec2f, c: vec2f, h: vec2f) -> f32 { let d: vec2f = abs(p - c) - h; return length(max(d, vec2f(0.0))) + min(max(d.x, d.y), 0.0); }
 // distance to all the ground a box (centre c, half size h) covered while it came the stretch d
 fn sweep(p: vec2f, c: vec2f, h: vec2f, d: vec2f) -> f32 {
@@ -441,8 +446,10 @@ fn frag(v: VOut) -> FOut {
   if (v.d.w > 1.5) {
     let Df: f32 = v.c.z; let W: f32 = 0.55 * Df + 0.03; let lipW: f32 = 0.45 * Df + 0.10;
     let lump: vec4f = texLod(tDetail, v.w.zw / 1.6, M.e.z - 1.0); let lmp2: vec4f = texLod(tDetail, v.w.zw / 0.5 + vec2f(0.31, 0.67), M.e.z);
-    let rag: f32 = ((lump.z - 0.5) * 0.9 + (lmp2.z - 0.5) * 0.5) * (0.05 + 0.25 * Df);
-    let fc: vec2f = vec2f(0.0, -0.17); let fh: vec2f = vec2f(v.c.w, 0.12);
+    let rag: f32 = ((lump.z - 0.5) * 0.9 + (lmp2.z - 0.5) * 0.2) * (0.02 + 0.10 * Df);      // (softer: bigger bites read as a row of pits along the wall in a low sun)
+    // (the stamp starts at the boots, so the shins come straight up out of the furrow's front: set further back, its front wall stood
+    // between the camera and the shins and the legs looked cut off above it. Owner 2026-11-12)
+    let fc: vec2f = vec2f(0.0, -0.10); let fh: vec2f = vec2f(v.c.w, 0.13);
     let dl: vec2f = v.q.zw; let ll: f32 = max(length(dl), 1e-4);
     let sd: f32 = sweep(v.q.xy, fc, fh, dl) + rag; let sdu: f32 = sweep(v.q.xy, fc, fh, dl * (3.0 / ll)) + rag;
     let ak: f32 = smoothstep(0.25, 0.6, v.e.x);
@@ -450,10 +457,16 @@ fn frag(v: VOut) -> FOut {
       if (sd > 0.0) { discard; }
       // (the walls slope in from the sides and from the front, never from the back edge of the stamp: the last stamp over any spot is the
       // one whose back edge just reached it, and its slope there put a step into the floor every stamp, a staircase down the furrow)
-      let sdLF: f32 = max(abs(v.q.x) - fh.x, v.q.y - (fc.y + fh.y)) + rag;
-      let f: f32 = smoothstep(0.0, W, -sdLF);
+      // (and its front is round, the snow parted round the legs, not a square end: a U seen from above and a U in section)
+      // (swept over the way the stamp came since the last one, dl, as the box is: the map is pressed every few frames, and a round front
+      // taken at one place only left a row of separate dimples)
+      var sdLF: f32 = 1e9;
+      for (var k: i32 = 0; k < 6; k++) { sdLF = min(sdLF, frontU(v.q.xy + dl * (f32(k) / 5.0), fc, fh)); }
+      sdLF += rag;
+      if (sdLF > 0.01) { discard; }
+      let fs: f32 = saturate(-sdLF / W); let f: f32 = 1.0 - sq(1.0 - fs);
       let R: f32 = -0.6 * Df * f + (lump.z - 0.5) * 0.02 * f;       // (the floor a little above the bases: what the skis parted has partly fallen back in over them)
-      o.color = vec4f(M.e.x + R * M.e.y, 0.75, M.e.x + R * M.e.y, ak * smoothstep(0.0, 0.01, -sd + 0.01));
+      o.color = vec4f(M.e.x + R * M.e.y, 0.75, M.e.x + R * M.e.y, ak * smoothstep(0.0, 0.01, -max(sd, sdLF) + 0.01));
       return o;
     }
     if (sd <= 0.0 || sdu <= 0.0) { discard; }
