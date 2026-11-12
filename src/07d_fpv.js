@@ -619,7 +619,11 @@ fn frag(v: VOut) -> FOut {
       // the sidewall, and along its foot the steel edge
       let steel: f32 = smoothstep(0.0026 + px, 0.0026 - px, uv.z);
       alb = mix(vec3f(0.035, 0.037, 0.042), vec3f(0.62, 0.63, 0.65), steel); specS = mix(1.2, 2.4, steel); specP = mix(90.0, 140.0, steel); gloss = mix(0.25, 0.55, steel);
-    } else { alb = vec3f(0.0, 0.62, 0.50); specS = 1.2; specP = 90.0; gloss = 0.25; }
+    } else {
+      // the base: black sintered, the topsheet's lemon in two thin bars by the tip and a block by the tail (as on the figure seen from outside)
+      let bz: f32 = min(min(abs(z + 0.700), abs(z + 0.672)), abs(z - 0.400) * 0.35);
+      alb = mix(vec3f(0.030, 0.032, 0.036), SKI_Y * 0.75, smoothstep(0.0075 + px, 0.0055 - px, bz)); specS = 0.7; specP = 90.0; gloss = 0.14;
+    }
     // (in deep snow, and seen from down among them, the skis run under what their shovels push up: only the tips ride clear of it. Where
     // it ends is ragged, and streams back along the ski)
     let zb: f32 = mix(-0.20, -0.70, M.fx.z) + (flw - 0.5) * 0.14 - 0.04 * (x / hw) * (x / hw);
