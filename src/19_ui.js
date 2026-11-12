@@ -13,35 +13,41 @@ const UI = (() => {
   U.init = function () {
     el = { app: $('app'), veil: $('veil'), shade: $('shade'), load: $('load'), fill: $('load-fill'), stage: $('load-stage'), title: $('title'), go: $('go'), how: $('how'), hud: $('hud'),
       seg: $('seg'), segEn: $('seg-en'), segCn: $('seg-cn'), hint: $('hint'), hintT: $('hint-t'), spd: $('spd'), tach: $('tach'), drop: $('drop'), snd: $('snd'), fs: $('fs'),
-      sw: $('sw'), swp: $('swp'), time: $('sw-time'), kinds: $('sw-seg'), ev: $('sw-ev'), more: $('sw-more'), view: $('sw-view'), vn: $('sw-vn'), mt: $('sw-mt'), seed: $('sw-seed'),
+      bar: $('bar'), mn: $('mn'), menu: $('menu'), nav: $('menu').querySelector('nav'), pane: $('mpane'), mk: $('m-k'), mGo: $('m-go'), mTop: $('m-top'), oSnd: $('o-snd'), oFs: $('o-fs'),
+      time: $('sw-time'), kinds: $('sw-seg'), ev: $('sw-ev'), view: $('sw-view'), seed: $('sw-seed'), more: $('more'), drop2: $('drop2'), vw: $('vw'),
       say: $('say'), sayK: $('say-k'), sayV: $('say-v'), cut: $('cut'), jump: $('jump'), tuck: $('tuck'),
-      pz: $('pz'), pause: $('pause'), pauseS: $('pause-s'), pauseT: $('pause-t'), pzGo: $('pz-go'), pzTop: $('pz-top'), steer: $('steer') };
+      pause: $('pause'), pauseS: $('pause-s'), pauseT: $('pause-t'), steer: $('steer') };
+    el.moreView = el.more.querySelector('[data-sec="view"]');
     U.layout();
     el.go.addEventListener('click', e => { e.stopPropagation(); U.go(); });
-    // the whole picture is the button (with the sheet of switches open, a press beside it only puts the sheet away)
-    el.app.addEventListener('click', e => { if (U.state !== 'title' || el.snd.contains(e.target) || el.fs.contains(e.target)) return; if (U.open) U.openSwitch(false); else U.go(); });
+    // the whole picture is the button (the corner's glyphs, the title's other buttons and the menu keep their presses to themselves)
+    el.app.addEventListener('click', e => { if (U.state !== 'title' || U.open || el.bar.contains(e.target) || el.menu.contains(e.target) || el.more.contains(e.target)) return; U.go(); });
     addEventListener('keydown', e => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (/^Arrow/.test(e.code) || e.code === 'Space') e.preventDefault();          // these would scroll a page; here they ski
       if (e.repeat) return;
       const on = sel => e.target && e.target.closest && e.target.closest(sel);      // (a control reached with the tab key takes its own Enter)
       if (U.gone) { if (e.code === 'Enter') location.reload(); return; }
-      if (U.paused) { if (e.code === 'Escape' || (e.code === 'Enter' && !on('#pause button'))) { e.preventDefault(); U.resume(); } return; }      // a run set down hears only the way back
-      const mine = e.code === 'Enter' && on('#sw, #swp, #pz');
-      if ((e.code === 'Enter' || e.code === 'Space') && U.state === 'title' && !mine) { e.preventDefault(); U.go(); }
-      else if (e.code === 'KeyM') U.sound(!Sound.on);
+      // the menu open: Esc puts it away (and the run goes on); Enter and space belong to the button that has the focus
+      const mine = (e.code === 'Enter' || e.code === 'Space') && on('#menu button, #bar button, #more button');
+      if (U.open && e.code === 'Escape') { e.preventDefault(); U.menu(false); return; }
+      if (mine) return;
+      if (U.open && e.code === 'Enter') { e.preventDefault(); el.mGo.click(); return; }          // (nothing in the menu has the focus: Enter is the top line, 继续滑 or 出发)
+      if ((e.code === 'Enter' || e.code === 'Space') && U.state === 'title' && !U.open) { e.preventDefault(); U.go(); }
+      else if (e.code === 'KeyM') { U.sound(!Sound.on); if (U.open) paint(); }
       else if (e.code === 'KeyF') U.fullscreen();
       else if (U.state === 'title' || U.state === 'run') {
         const d = e.shiftKey ? -1 : 1;
         if (e.code === 'KeyT') U.nextTime(d); else if (e.code === 'KeyN') U.nextKind(d); else if (e.code === 'KeyG') U.animal(); else if (e.code === 'KeyP') U.plane();
-        else if (e.code === 'KeyR') U.newMountain(); else if (e.code === 'Escape') { if (U.open) U.openSwitch(false); else U.pause(); }
+        else if (e.code === 'KeyR') U.newMountain(); else if (e.code === 'Escape') U.menu(true);
+        else if (e.code === 'KeyH') U.menu('keys'); else if (e.code === 'Backquote') U.menu('vers');
       }
     });
-    el.snd.addEventListener('click', e => { e.stopPropagation(); U.sound(!Sound.on); });
+    el.snd.addEventListener('click', e => { e.stopPropagation(); U.sound(!Sound.on); if (e.detail) el.snd.blur(); });
     el.fs.addEventListener('click', e => { e.stopPropagation(); U.fullscreen(); });
     document.addEventListener('fullscreenchange', () => {
       const on = !!document.fullscreenElement, own = performance.now() - fsT < 1500; fsT = performance.now();
-      el.fs.classList.toggle('full', on); el.fs.setAttribute('aria-pressed', on ? 'true' : 'false'); U.layout();
+      el.fs.classList.toggle('full', on); el.fs.setAttribute('aria-pressed', on ? 'true' : 'false'); U.layout(); if (U.open) paint();
       if (!on && !own) U.pause();          // thrown out of the whole screen (the system's Esc, a back gesture): the run waits
     });
     // nothing here scrolls or zooms
@@ -63,7 +69,9 @@ const UI = (() => {
     c.toggle('hasfs', !hh && !!document.fullscreenEnabled && !!el.app.requestFullscreen);          // (a third glyph in the corner: the pill stands clear of it)
     el.app.style.width = V.forced ? V.w + 'px' : ''; el.app.style.height = V.forced ? V.h + 'px' : '';
     el.app.style.setProperty('--cw', V.w + 'px'); el.app.style.setProperty('--ch', V.h + 'px');
-    el.how.textContent = hh ? '倾斜手机转弯，或按住屏幕左右拖动' : '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速';
+    // (inside a frame, as on claude.ai, the phone's tilt is refused: there the finger is the only way, so the title says only that)
+    let framed = false; try { framed = window.self !== window.top; } catch (e) { framed = true; }
+    el.how.textContent = !hh ? '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速' : framed ? '按住屏幕左右拖动转弯 · 右下角 跳 / 加速' : '倾斜手机或按住屏幕左右拖动转弯 · 右下角 跳 / 加速';
     U.hh = hh;
   };
   U.stage = function (f, name) { if (!el) return; el.fill.style.transform = 'scaleX(' + f.toFixed(3) + ')'; if (name) el.stage.textContent = name; };
@@ -72,9 +80,9 @@ const UI = (() => {
     if (!el) return; U.state = 'title';
     el.load.classList.remove('on'); el.veil.classList.add('lift'); el.shade.classList.add('on'); el.title.classList.add('on'); el.snd.classList.add('on');
     if (!U.hh && document.fullscreenEnabled && el.app.requestFullscreen) el.fs.classList.add('on');
-    el.sw.classList.add('on'); paint();
+    el.bar.classList.add('on'); paint();
   };
-  U.sound = function (on) { Sound.setOn(on); el.snd.classList.toggle('mute', !on); el.snd.setAttribute('aria-pressed', on ? 'true' : 'false'); };
+  U.sound = function (on) { Sound.setOn(on); el.snd.classList.toggle('mute', !on); el.snd.setAttribute('aria-pressed', on ? 'true' : 'false'); if (U.open) paint(); };
   U.keepAwake = function () { try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(w => { wake = w; }, () => { }); } catch (e) { } };
   // the whole screen, where the browser allows it. On a phone that also lets us ask for the picture to be laid wide for real
   U.fullscreen = function (on) {
@@ -92,7 +100,7 @@ const UI = (() => {
     if (U.state !== 'title') return; U.state = 'starting';
     Sound.unlock();
     if (U.hh) U.fullscreen(true);                    // a phone: take the whole screen if it will let us (asked for inside this tap)
-    el.title.classList.remove('on'); U.openSwitch(false);
+    if (U.open) U.menu(false); el.title.classList.remove('on');
     // tilt has to be asked for from this tap (iOS shows its own prompt); where it is refused the finger takes over
     let asked = false; try { asked = await Promise.race([Input.requestTilt(), new Promise(r => setTimeout(() => r(false), 8000))]); } catch (e) { }
     Input.zeroPending = true; U.keepAwake();
@@ -141,7 +149,7 @@ const UI = (() => {
     const bar = typeof Game.flow === 'number' ? sat(Game.flow) : Math.min(1, kmh / 130);
     if (kmh !== U.shown.spd) { U.shown.spd = kmh; el.spd.textContent = kmh; }
     if (bar !== U.shown.bar) { U.shown.bar = bar; el.tach.style.transform = 'scaleX(' + bar.toFixed(3) + ')'; }
-    if (drop !== U.shown.drop) { U.shown.drop = drop; el.drop.textContent = drop.toLocaleString('en-US'); }
+    if (drop !== U.shown.drop) { U.shown.drop = drop; el.drop.textContent = drop.toLocaleString('en-US'); el.drop2.textContent = '· 落差 ' + drop.toLocaleString('en-US') + ' M'; }
   };
 
   // ================================================================ splits, and the day card
@@ -173,7 +181,7 @@ const UI = (() => {
 
   // ---- on the game's clock, every step of it (dt is the world's time: slowed in the air, none while the run is set down)
   function spTick(dt) {
-    if (!(dt > 0)) return;
+    if (!(dt > 0) || Game.mode === 'hold') return;          // (a run held by the menu: nothing goes by, and nothing is measured afresh)
     const S = Game.s, p = S.p, run = Game.mode === 'run';
     // sunset and sunrise, as the day reaches them by itself. A clock turned or held by a switch is not the day going by: a mark counts only
     // once the clock has run on its own for a second before it (so neither a switch nor letting the clock go again on the mark brings a card)
@@ -260,33 +268,58 @@ const UI = (() => {
     if (d.t >= 6.4) SP.day = null;
   }
 
-  // ================================================================ direct switches
-  // What the mountain otherwise shows only to those who ski long enough can be asked for: the hour of the day, each kind of run, the
-  // animals and the airliner, the views, another mountain. One small button opens the sheet; on a keyboard T N G P R do the same without it.
+  // ================================================================ the menu, and the direct switches
+  // What the mountain otherwise shows only to those who ski long enough can be asked for: the hour of the day, the weather, each kind of run,
+  // the animals and the airliner, the views, another mountain. All of it lives in one menu. In a run the menu is the pause: the world holds
+  // still where it is (Game.mode 'hold': nothing steps, but the picture is still drawn, so whatever is picked shows at once behind the shade).
+  // On the title page the same menu opens from the three buttons beside 出发. While skiing the keys T X N G P R V do the same without it.
   // Everything the other modules own is reached through what they already expose, and read defensively: a part that is missing has no control.
-  let ease = null, cut = null, back = null, pausedAt = 0, sayT = 0, swAcc = 0, faunaI = 0, evSig = null;
+  let ease = null, cut = null, back = null, pausedAt = 0, sayT = 0, swAcc = 0, faunaI = 0, evSig = null, hold = null, sec = 'sky';
   const held = [], gy = { id: null, y: 0, on: false, over: false, neg: false };
   const live = () => U.state === 'title' || U.state === 'run';
   const fauna = () => { try { return typeof Fauna !== 'undefined' && Fauna && Fauna.spawn ? Fauna : null; } catch (e) { return null; } };
   const mkBtn = (txt, key, val) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = txt; b.dataset[key] = val; return b; };
+  // a small drawing for each view: where the lens stands round the figure
+  const VIEW_ICON = {
+    chase: '<circle cx="15" cy="6.5" r="2.4"/><path d="M15 9v6.5M11 19h8"/>', fp: '<path d="M3 11c4-6 20-6 24 0-4 6-20 6-24 0z"/><circle cx="15" cy="11" r="3"/>',
+    tips: '<path d="M9 21l3-17M21 21l-3-17"/>', low: '<path d="M2 18h26"/><circle cx="18" cy="9" r="2"/><path d="M18 11v5M5 16l4-2"/>',
+    high: '<path d="M15 2v6M12 5l3 3 3-3"/><circle cx="15" cy="15" r="2.4"/><path d="M8 20h14"/>', left: '<path d="M3 11h6M6 8l3 3-3 3"/><circle cx="19" cy="7" r="2.2"/><path d="M19 9v7M15 19h8"/>',
+    right: '<path d="M27 11h-6M24 8l-3 3 3 3"/><circle cx="11" cy="7" r="2.2"/><path d="M11 9v7M7 19h8"/>', front: '<circle cx="15" cy="7" r="2.6"/><path d="M15 10v6M10 12l5-2 5 2M11 19h8"/>',
+    far: '<circle cx="15" cy="11" r="7"/><path d="M15 2v4M15 16v4M6 11h4M20 11h4"/>' };
   function initSwitch() {
     el.time.appendChild(mkBtn('自动', 'time', 'auto')); for (const [id, name] of TIMES) el.time.appendChild(mkBtn(name, 'time', id));
     for (const k of Object.keys(SEG_TYPES)) el.kinds.appendChild(mkBtn(SEG_NAMES[k] || k, 'seg', k));
-    el.sw.addEventListener('click', e => { e.stopPropagation(); U.openSwitch(); if (e.detail) el.sw.blur(); });
-    el.swp.addEventListener('click', e => {
+    el.mn.addEventListener('click', e => { e.stopPropagation(); U.menu(); if (e.detail) el.mn.blur(); });
+    el.more.addEventListener('click', e => { e.stopPropagation(); const b = e.target.closest('button'); if (b) U.menu(b.dataset.sec); });
+    // the column on the left: a part to open, or one of the ways out
+    el.menu.addEventListener('click', e => {
       e.stopPropagation(); const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
-      if (d.time) U.setTime(d.time); else if (d.seg) U.gotoKind(d.seg); else if ('animal' in d) U.animal(d.animal); else if (d.plane) U.plane(); else if (d.view) U.nextView(1); else if (d.new) U.newMountain();
-      if (e.detail) b.blur();          // chosen with a pointer: the keys go on belonging to the skier (space is the jump, not this button again)
+      if (b === el.mGo) { if (U.state === 'title') U.go(); else U.menu(false); return; }
+      if (b === el.mTop) { U.toTop(); return; }
+      if (d.sec && b.parentNode === el.nav) { show(d.sec); return; }
+      if (d.time) U.setTime(d.time); else if (d.seg) U.gotoKind(d.seg); else if (d.view) U.setView(d.view); else if (d.new) U.newMountain();
+      else if ('animal' in d) { U.animal(d.animal); U.menu(false); } else if (d.plane) { U.plane(); U.menu(false); }
+      else if (b === el.oSnd) U.sound(!Sound.on); else if (b === el.oFs) U.fullscreen();
+      else if (d.vn) { const V = varMod(); if (V) try { V.set(d.vn, d.vid); } catch (err) { console.warn(err); } paint(); }
+      else if (d.vreset) { const V = varMod(); if (V && V.reset) try { V.reset(); } catch (err) { console.warn(err); } paint(); }
+      else if (d.wx) U.setWeather(d.wx);
+      if (e.detail) b.blur();          // chosen with a pointer: the keys go on belonging to the skier
     });
-    // back to skiing: a press on the picture puts the sheet away (and steers, as it always does; how high on the picture the finger came
-    // down is kept here for the line drawn from it, the game itself only wanting to know how far across)
-    $('view').addEventListener('pointerdown', e => { if (U.open && U.state === 'run') U.openSwitch(false); gy.id = e.pointerId; gy.y = View.y(e); });
+    // the one part of the page that scrolls: the page's own guard against it (on #app) is kept out of the pane
+    el.pane.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
+    el.nav.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
+    $('view').addEventListener('pointerdown', e => { gy.id = e.pointerId; gy.y = View.y(e); });
     holdBtn(el.jump, 'jump'); holdBtn(el.tuck, 'tuck');
-    // the run is set down by its glyph or Esc, and by itself whenever the player is taken away: another window, another app, a call
-    el.pz.addEventListener('click', e => { e.stopPropagation(); U.pause(); });
-    el.pause.addEventListener('click', e => { e.stopPropagation(); if (U.gone) { location.reload(); return; } const b = e.target.closest('button'); if (b === el.pzGo) U.resume(); else if (b === el.pzTop) U.toTop(); });
+    // the next view, under the thumb (a press here never reaches the picture, where it would steer)
+    el.vw.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); });
+    el.vw.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); U.nextView(1); });
+    // the run is set down by the menu glyph or Esc, and by itself whenever the player is taken away: another window, another app, a call
+    el.pause.addEventListener('click', e => { e.stopPropagation(); if (U.gone) location.reload(); });
     addEventListener('blur', () => { letGo(); if (performance.now() - fsT > 1200) U.pause(); });
-    document.addEventListener('visibilitychange', () => { if (document.hidden) { letGo(); U.pause(); } });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { letGo(); U.pause(); if (hold) App.paused = true; }          // (out of sight nothing is drawn at all)
+      else if (App.paused && !U.gone) App.paused = false;
+    });
     // a mountain named in the address while the page is open (a link followed, the back button) is gone to as well
     addEventListener('hashchange', () => { const m = /^#seed-(\d{1,9})$/.exec(location.hash); if (m && +m[1] !== Course.seed) U.newMountain(+m[1]); });
     if (App.onMountain) App.onMountain.push(onMountain);          // (the page's own listener takes a link followed first: this hears of that change too)
@@ -301,19 +334,41 @@ const UI = (() => {
     for (const t of ['click', 'touchstart', 'touchend']) b.addEventListener(t, e => { if (e.cancelable) e.preventDefault(); e.stopPropagation(); }, { passive: false });
     held.push(h);
   }
-  U.openSwitch = function (on) {
-    if (!el) return; if (on == null) on = !U.open; if (on === U.open) return;
-    U.open = on; if (on) { paint(); el.say.classList.remove('on'); sayT = 0; }
-    el.sw.classList.toggle('open', on); el.swp.classList.toggle('on', on); el.sw.setAttribute('aria-expanded', on ? 'true' : 'false');
-    el.app.classList.toggle('swopen', on);          // (the thumbs' two buttons step aside under the open sheet)
+  // which part of the menu is open
+  function show(s) {
+    if (!el.pane.querySelector('section[data-sec="' + s + '"]')) s = 'sky'; sec = s;
+    for (const b of el.nav.querySelectorAll('button[data-sec]')) b.classList.toggle('on', b.dataset.sec === s);
+    for (const x of el.pane.children) x.classList.toggle('on', x.dataset.sec === s);
+    el.pane.scrollTop = 0; paint();
+  }
+  // U.menu(): open or close; U.menu('view'): open at that part (or, open at it already, close)
+  U.menu = function (on) {
+    if (!el || U.gone) return;
+    if (typeof on === 'string') { if (U.open && sec === on) on = false; else { show(on); on = true; } }
+    if (on == null) on = !U.open; if (on === U.open) return;
+    if (on && !live()) return;
+    if (on && U.state === 'run') holdOn();
+    U.open = on; if (on) { if (!el.pane.querySelector('section.on')) show(sec); paint(); el.say.classList.remove('on'); sayT = 0; }
+    const run = U.state === 'run';
+    el.mk.textContent = run ? 'PAUSED · 暂停' : 'MENU · 菜单'; el.mGo.textContent = run ? '继续滑' : '出发'; el.mTop.hidden = !run;
+    el.menu.classList.toggle('on', on); el.menu.setAttribute('aria-hidden', on ? 'false' : 'true'); el.mn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    el.app.classList.toggle('menuopen', on);          // (the thumbs' buttons step aside under it)
+    if (U.state === 'title') el.title.classList.toggle('on', !on);          // (the title's own words make way for it, and come back)
+    try { if (!on && el.menu.contains(document.activeElement)) document.activeElement.blur(); } catch (e) { }
+    if (!on && hold) holdOff();
   };
-  // what a key changed, said once (the open sheet shows it itself)
+  // (the old name of the open/close, kept for anything that still calls it)
+  U.openSwitch = function (on) { if (on === false || (on == null && U.open)) U.menu(false); else U.menu(true); };
+  // what a key changed, said once (the open menu shows it itself)
   function say(k, v) { if (!el || U.open) return; el.sayK.textContent = k; el.sayV.textContent = v || ''; el.say.classList.add('on'); sayT = 2.4; }
   function flash(b) { if (!b) return; b.classList.add('hit'); clearTimeout(b._t); b._t = setTimeout(() => b.classList.remove('hit'), 1500); }
   // which of the named hours the clock is nearest to
   function hour() { const C = Sky.cycle, c = ((Sky.clock % C) + C) % C; let best = TIMES[0][0], bd = 1e9; for (const [id] of TIMES) { let d = Math.abs(c - Sky.times[id]); d = Math.min(d, C - d); if (d < bd) { bd = d; best = id; } } return best; }
-  // the sheet as things stand: the hour held (or, with the clock running, the hour it has reached), the run being skied, and whatever of
-  // animals, views and seeds this build has
+  const views = () => Game.views && Game.views.length && Game.setView ? Game.views : null;
+  const viewName = () => { const vs = views(); if (!vs) return ''; const v = vs.find(q => q.id === Game.view) || vs[0]; return v.name || String(v.id); };
+  // the menu as things stand: the hour held (or, with the clock running, the hour it has reached), the run being skied, the view, the
+  // mountain, and whatever of animals, weather and versions this build has
+  let vwSig = null;
   function paint() {
     if (!el) return;
     const now = U.tod === 'auto' ? hour() : null, kind = Course.segAt(-Game.s.p[2]).type;
@@ -324,12 +379,20 @@ const UI = (() => {
       evSig = sig; el.ev.textContent = '';
       for (const k of ks) el.ev.appendChild(mkBtn(k.name, 'animal', k.id));
       const s = document.createElement('i'); s.className = 'sep'; el.ev.appendChild(s);
-      const p = mkBtn('航班', 'plane', '1'), kb = document.createElement('kbd'); kb.textContent = 'P'; p.appendChild(kb); el.ev.appendChild(p);
+      el.ev.appendChild(mkBtn('航班', 'plane', '1'));
     }
-    const vs = Game.views && Game.views.length && Game.nextView ? Game.views : null, mt = typeof App.newMountain === 'function';
-    el.view.hidden = !vs; el.mt.hidden = !mt; el.more.hidden = !vs && !mt;
-    if (vs) { const v = vs.find(q => q.id === Game.view) || vs[0], n = v.name || String(v.id); if (el.vn.textContent !== n) el.vn.textContent = n; }
+    const vs = views(), vsig = vs ? vs.map(v => v.id).join() : '';
+    if (vsig !== vwSig) {
+      vwSig = vsig; el.view.textContent = '';
+      for (const v of vs || []) { const b = mkBtn('', 'view', v.id); b.innerHTML = '<svg viewBox="0 0 30 22" aria-hidden="true">' + (VIEW_ICON[v.id] || VIEW_ICON.chase) + '</svg>'; const t = document.createElement('span'); t.textContent = v.name || v.id; b.appendChild(t); el.view.appendChild(b); }
+      el.vw.hidden = !vs; el.nav.querySelector('[data-sec="view"]').hidden = !vs; el.moreView.hidden = !vs;
+    }
+    for (const b of el.view.children) b.classList.toggle('on', b.dataset.view === Game.view);
+    const mt = typeof App.newMountain === 'function'; el.nav.querySelector('[data-sec="mt"]').hidden = !mt;
     if (mt) { const n = '#' + Course.seed; if (el.seed.textContent !== n) el.seed.textContent = n; }
+    el.oSnd.textContent = Sound.on ? '声音 开' : '声音 关'; el.oSnd.classList.toggle('on', !!Sound.on); el.oSnd.setAttribute('aria-pressed', Sound.on ? 'true' : 'false');
+    const fsOK = !U.hh && !!document.fullscreenEnabled && !!document.documentElement.requestFullscreen, full = !!document.fullscreenElement;
+    el.oFs.hidden = !fsOK; el.oFs.classList.toggle('on', full); el.oFs.textContent = full ? '退出全屏' : '全屏';
     paintVariants();
   }
 
@@ -355,40 +418,36 @@ const UI = (() => {
   };
   U.nextWeather = function (dir) { const W = wxMod(); if (!W) return; const L = W.levels, i = Math.max(0, L.findIndex(q => q[0] === W.level)); U.setWeather(L[(i + (dir || 1) + L.length) % L.length][0]); };
 
-  // ---- the versions the owner picks between: one row for each choice in Variants, in the order the modules register them (one that
-  // registers late gets its row then), the current version underlined like the hour, the recommended one marked with a grain of snow.
-  // A press switches at once (each module eases its own change); 恢复推荐 puts every choice back to the recommended version
+  // ---- the versions the owner picks between: their own page of the menu, not part of the game. One row for each choice in Variants, in
+  // groups (a choice this list does not know yet goes under 新加的), the current version filled, the recommended one marked with a grain of
+  // amber. A press switches at once (each module eases its own change); 恢复推荐 puts every choice back to the recommended version
+  const VGROUP = [['镜头', ['cam', 'wood', 'shots', 'tips', 'fptuck', 'edge', 'chatter', 'buffet']], ['人物与动作', ['body', 'cloth', 'poles', 'motion']],
+    ['画面', ['ghost', 'hi', 'nspray', 'nsky', 'cu']], ['场景与天气', ['rock', 'moon', 'snow', 'rtree', 'flag', 'sink', 'wind']], ['手感', ['keys']]];
   let vSig = null, wxSig = null;
   const varMod = () => { try { return typeof Variants !== 'undefined' && Variants && Array.isArray(Variants.defs) ? Variants : null; } catch (e) { return null; } };
   function initVariants() {
-    el.vers = $('sw-vers'); el.vbox = $('sw-vbox'); el.vrows = $('sw-vrows'); el.vreset = $('sw-vreset'); el.wx = $('sw-wx'); el.wxc = $('sw-wxc');
+    el.vrows = $('sw-vrows'); el.vreset = $('sw-vreset'); el.wx = $('sw-wx'); el.wxc = $('sw-wxc');
     const V = varMod(); if (V && V.on) V.on(() => { if (U.open) paint(); });          // (a choice registered or changed elsewhere: shown at once)
-    el.swp.addEventListener('click', e => {
-      const b = e.target.closest('button'); if (!b) return; const d = b.dataset, V = varMod();
-      if (d.vn) { if (V) try { V.set(d.vn, d.vid); } catch (err) { console.warn(err); } paint(); }
-      else if (d.vreset) { if (V && V.reset) try { V.reset(); } catch (err) { console.warn(err); } paint(); }
-      else if (d.wx) U.setWeather(d.wx);
-    });
-    // the one part of the page that scrolls: the page's own guard against it (on #app) is kept out of this box
-    el.vbox.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
-    el.vbox.addEventListener('scroll', vFade, { passive: true });
-    addEventListener('keydown', e => { if (e.code !== 'KeyX' || e.repeat || e.metaKey || e.ctrlKey || e.altKey || U.paused || U.gone || !live()) return; U.nextWeather(e.shiftKey ? -1 : 1); });
+    addEventListener('keydown', e => { if (e.code !== 'KeyX' || e.repeat || e.metaKey || e.ctrlKey || e.altKey || U.gone || !live()) return; U.nextWeather(e.shiftKey ? -1 : 1); });
   }
-  // a fade at whichever edge has more rows beyond it
-  function vFade() { const b = el.vbox, top = b.scrollTop > 2, more = b.scrollTop + b.clientHeight < b.scrollHeight - 2; b.classList.toggle('less', top); b.classList.toggle('more', more); }
   function paintVariants() {
     const V = varMod(), defs = V ? V.defs : [];
     const sig = defs.map(d => [d.name, d.label, d.def].concat(d.opts.map(o => o[0] + ':' + o[1])).join('|')).join(';');
     if (sig !== vSig) {
-      vSig = sig; el.vrows.textContent = ''; let w = 0;
-      for (const d of defs) {
-        const row = document.createElement('div'), lab = document.createElement('span'), ch = document.createElement('div');
-        row.className = 'row'; lab.className = 'lab'; lab.textContent = d.label; ch.className = 'chips'; w = Math.max(w, [...String(d.label)].length);
-        for (const [id, name] of d.opts) { const b = mkBtn(name, 'vn', d.name); b.dataset.vid = id; if (id === d.def) { b.classList.add('rec'); b.title = '推荐'; } ch.appendChild(b); }
-        row.appendChild(lab); row.appendChild(ch); el.vrows.appendChild(row);
+      vSig = sig; el.vrows.textContent = '';
+      const known = new Set(VGROUP.flatMap(g => g[1])), groups = VGROUP.map(([n, ids]) => [n, ids.map(id => defs.find(d => d.name === id)).filter(Boolean)]);
+      groups.push(['新加的', defs.filter(d => !known.has(d.name))]);
+      for (const [gn, ds] of groups) {
+        if (!ds.length) continue;
+        const g = document.createElement('div'), h = document.createElement('i'); g.className = 'vgrp'; h.textContent = gn; g.appendChild(h);
+        for (const d of ds) {
+          const row = document.createElement('div'), lab = document.createElement('span'); row.className = 'vrow'; lab.textContent = d.label; row.appendChild(lab);
+          for (const [id, name] of d.opts) { const b = mkBtn(name, 'vn', d.name); b.dataset.vid = id; if (id === d.def) { b.classList.add('rec'); b.title = '推荐'; } row.appendChild(b); }
+          g.appendChild(row);
+        }
+        el.vrows.appendChild(g);
       }
-      el.vbox.style.setProperty('--vlw', (w * 1.2 + 0.8).toFixed(1) + 'em');          // (all the version rows' chips start on one line)
-      el.vers.hidden = !defs.length;
+      el.nav.querySelector('[data-sec="vers"]').hidden = !defs.length;
     }
     let all = true;
     for (const b of el.vrows.querySelectorAll('button')) { const on = !!V && V.val[b.dataset.vn] === b.dataset.vid; b.classList.toggle('on', on); if (on && !b.classList.contains('rec')) all = false; }
@@ -396,17 +455,17 @@ const UI = (() => {
     const W = wxMod(), ls = W ? W.levels : [], ws = ls.map(l => l[0] + ':' + l[1]).join();
     if (ws !== wxSig) { wxSig = ws; el.wxc.textContent = ''; for (const [id, name] of ls) el.wxc.appendChild(mkBtn(name, 'wx', id)); el.wx.hidden = !W; }
     if (W) for (const b of el.wxc.children) b.classList.toggle('on', b.dataset.wx === W.level);
-    if (U.open) vFade();
   }
 
   // ---- a change of place is a cut, and is shown as one: the picture dips to black, the skier is put there, the picture comes back.
   // (The black also covers the one long frame in which the snow of the new place is worked out.)
   function cutTo(fn) { if (cut || !el) return false; cut = { t: 0, stage: 0, n: 0, fn }; return true; }
-  // after the skier has been put somewhere else: nothing of the old place comes along
+  // after the skier has been put somewhere else: nothing of the old place comes along (and a run held by the menu pushes off afresh when it goes on)
   function settle() {
     try { if (Tracks.reset) Tracks.reset(); if (Spray.clear) Spray.clear(); } catch (e) { }
     try { const F = fauna(); if (F && F.reset) F.reset(); else if (Deer.herd) Deer.herd.length = 0; } catch (e) { }
     App.strides = null; App.lookYaw = null; U.segIdx = -1;
+    if (hold) hold.moved = true;
     spSettle();
   }
   // the next run of a kind, ahead of where the skier is
@@ -446,13 +505,13 @@ const UI = (() => {
   function reflect(n) { if (n == null) return; const h = '#seed-' + n; try { if (location.hash !== h) history.replaceState(null, '', h); } catch (e) { try { location.hash = h; } catch (_) { } } }
   // The change is App.swap's own single transition: its veil closes over the last picture, the new mountain is made behind it, and it lifts
   // on the skier at the gate, pushing off again by itself if a run was on (no dip of ours on top of it: that showed the held picture between
-  // the two). What follows a change, however it came (the key, the sheet, a link followed), is onMountain's: App.onMountain calls it
+  // the two). What follows a change, however it came (the key, the menu, a link followed), is onMountain's: App.onMountain calls it
   U.newMountain = function (seed) {
     if (!live() || typeof App.newMountain !== 'function' || cut || App.swapping) return false;
     try { App.newMountain(seed); } catch (e) { console.warn(e); return false; }
     return true;
   };
-  function onMountain(n) { settle(); reflect(n); say('山', '#' + n); }
+  function onMountain(n) { settle(); reflect(n); say('山', '#' + n); if (U.open) paint(); }
 
   // ---- the things otherwise met by chance, sent for
   U.animal = function (id) {
@@ -475,52 +534,59 @@ const UI = (() => {
     if (!P.on && Sky.planes !== false) { v = '航班 · 看' + (P.n % 2 ? '右' : '左') + '上方'; P.next = 0; }
     flash(el.ev.querySelector('[data-plane]')); say('偶遇', v);
   };
-  U.nextView = function (dir) { if (!live() || !Game.nextView) return; try { Game.nextView(dir || 1); } catch (e) { console.warn(e); } paint(); };
+  // ---- the views: picked by name in the menu, or stepped through (V, and the glyph over the jump)
+  U.setView = function (id) { if (!live() || !Game.setView) return; try { Game.setView(id); } catch (e) { console.warn(e); } paint(); };
+  U.nextView = function (dir) { if (!live() || !Game.nextView) return; try { Game.nextView(dir || 1); } catch (e) { console.warn(e); } paint(); say('视角', viewName()); };
 
-  // ---- a run set down, and taken up again. Set down, nothing steps and nothing is drawn (App.paused stops the loop); the last picture
-  // waits under a shade with the two ways on: 继续, and 回到山顶 (the gate, and the title page with it)
+  // ---- a run held, and taken up again. Held, nothing of the run steps (Game.mode 'hold': the skier, the clock of the day, the animals and
+  // the counts all wait) while the picture is still drawn, so the menu's changes show behind it. The world is let go gently: at three
+  // tenths of its speed, up to all of it over 0.8 s. That factor is the interface's own, App.resumeK, and scales the frame's time in the
+  // loop; the slow motion of a jump (Game.timeScale) scales the same time again inside the step, so the two multiply. However the phone is
+  // being held now is 'straight ahead' again. A skier put somewhere else meanwhile (a run, another mountain) pushes off from there
   function letGo() { for (const h of held) { h.id = null; h.drop = false; h.seen = true; h.set(false); } }
   function hush(level, tau) { try { if (Sound.rig && Sound.unlocked && Sound.ctx) Sound.rig.fade(level, Sound.ctx.currentTime, tau); } catch (e) { } }
-  function card(on, lost) {
-    if (on) { el.pause.classList.toggle('lost', !!lost); el.pauseS.textContent = lost ? '画面断开了' : 'PAUSED'; el.pauseT.textContent = lost ? '点一下重新上山' : '暂停'; }
-    el.pause.classList.toggle('on', on); el.pause.setAttribute('aria-hidden', on ? 'false' : 'true');
-    try { if (on && !lost) el.pzGo.focus({ preventScroll: true }); else if (!on && el.pause.contains(document.activeElement)) document.activeElement.blur(); } catch (e) { }
-  }
-  U.pause = function () {
-    if (!el || U.state !== 'run' || U.paused || U.gone) return false;
-    U.paused = true; pausedAt = performance.now(); App.paused = true; back = null; App.resumeK = 1;
-    U.openSwitch(false); letGo(); Input.drag = null; Input.keys = {}; gy.on = false; el.steer.classList.remove('on'); el.say.classList.remove('on'); sayT = 0;
+  function holdOn() {
+    if (hold || U.state !== 'run') return;
+    hold = { moved: false }; U.paused = true; pausedAt = performance.now(); back = null; App.resumeK = 1;
+    if (Game.mode === 'run') Game.mode = 'hold';
+    letGo(); Input.drag = null; Input.keys = {}; gy.on = false; el.steer.classList.remove('on');
     hush(0, 0.05);          // (a time constant: all but gone in 0.15 s)
-    el.day.classList.add('held');          // (the day card steps aside while the run is set down; its clock stops with the run's, and it comes back for the rest)
-    card(true); return true;
-  };
-  // The world is let go gently: at three tenths of its speed, up to all of it over 0.8 s. That factor is the interface's own, App.resumeK,
-  // and scales the frame's time in the loop; the slow motion of a jump (Game.timeScale) scales the same time again inside the step, so the
-  // two multiply. However the phone is being held now is 'straight ahead' again
-  U.resume = function () {
-    if (!el || !U.paused || U.gone) return false;
-    U.paused = false; card(false); U.t0 += performance.now() - pausedAt;
+    el.day.classList.add('held');          // (the day card steps aside while the run is held; its clock stops with the run's, and it comes back for the rest)
+  }
+  function holdOff() {
+    if (!hold) return; const moved = hold.moved; hold = null;
+    U.paused = false; App.paused = false; U.t0 += performance.now() - pausedAt;
+    if (App.swapping) App.swapping.run = true;          // (another mountain still being laid out pushes off once its veil lifts)
+    else if (moved || Game.mode === 'title') launch();
+    else if (Game.mode === 'hold') Game.mode = 'run';
     App.resumeK = 0.3; back = { t: 0 }; Input.zeroPending = true; Input.drag = null; Input.keys = {};
     el.day.classList.remove('held');
-    App.paused = false; hush(Sound.on ? Sound.level : 0, 0.12); U.keepAwake(); return true;
-  };
-  // (the run is still set down while the picture goes to black, so the page's own clock times that; it comes back by frames, as every cut does)
+    hush(Sound.on ? Sound.level : 0, 0.12); U.keepAwake();
+  }
+  U.pause = function () { if (!el || U.state !== 'run' || U.gone) return false; if (!U.open) U.menu(true); return true; };
+  U.resume = function () { if (!el || !U.open || U.gone) return false; U.menu(false); return true; };
+  // back to the gate and the title page (the picture goes to black first; the menu's own clock times that)
   U.toTop = function () {
-    if (!el || !U.paused || U.gone) return false;
-    U.paused = false; U.state = 'leaving';          // (neither a run nor the title until the black is down: no key does anything)
-    card(false); el.cut.classList.add('slow'); el.cut.style.opacity = 1; cut = { t: 0, stage: 9, n: 0, fn: null };
+    if (!el || U.state !== 'run' || U.gone) return false;
+    U.state = 'leaving';          // (neither a run nor the title until the black is down: no key does anything)
+    hold = null; U.paused = false; U.open = false; el.menu.classList.remove('on'); el.menu.setAttribute('aria-hidden', 'true'); el.app.classList.remove('menuopen'); el.mn.setAttribute('aria-expanded', 'false');
+    el.cut.classList.add('slow'); el.cut.style.opacity = 1; cut = { t: 0, stage: 9, n: 0, fn: null };
     setTimeout(() => {
       el.cut.classList.remove('slow');
       if (App.swapping) App.swapping.run = false;          // (another mountain still being laid out behind its veil must not set off down it under the title)
       try { Game.reset(); Game.mode = 'title'; } catch (e) { console.warn(e); }
-      settle(); Input.drag = null; Input.keys = {}; U.state = 'title'; U.paused = false; back = null; App.resumeK = 1;
+      settle(); Input.drag = null; Input.keys = {}; U.state = 'title'; back = null; App.resumeK = 1; App.paused = false;
       el.app.classList.remove('run'); el.hud.classList.remove('on'); el.shade.classList.remove('run'); el.hint.classList.remove('on'); el.seg.classList.remove('on'); el.title.classList.add('on'); U.hintKind = null;
-      cut = { t: 0, stage: 1, n: 0, fn: null }; App.paused = false; hush(Sound.on ? Sound.level : 0, 0.4); paint();
+      el.day.classList.remove('held');
+      cut = { t: 0, stage: 1, n: 0, fn: null }; hush(Sound.on ? Sound.level : 0, 0.4); paint();
     }, 300);
     return true;
   };
   // the picture itself is gone (the graphics device was taken away: the loop tells us). Nothing can be drawn again from here: say so, start over on a tap
-  U.lost = function () { if (!el || U.gone) return; U.gone = true; U.paused = false; U.openSwitch(false); letGo(); hush(0, 0.05); card(true, true); };
+  U.lost = function () {
+    if (!el || U.gone) return; hold = null; if (U.open) U.menu(false); U.gone = true; U.paused = false; letGo(); hush(0, 0.05);
+    el.pause.classList.add('lost', 'on'); el.pause.setAttribute('aria-hidden', 'false'); el.pauseS.textContent = '画面断开了'; el.pauseT.textContent = '点一下重新上山';
+  };
 
   // per displayed frame, on the title page as in a run. dt is the frame's own (real) time: these are the interface's clocks, not the world's
   function switches(dt) {
@@ -537,7 +603,7 @@ const UI = (() => {
     for (const h of held) { if (h.drop) { h.drop = false; h.set(false); } else h.seen = true; }
     // the steering finger: from where it came down to where it is (no further than full lock: past that nothing more happens), and whether
     // it is past the carve. The two numbers are Input's lock distance and the game's carve range (0.72 of full lock)
-    { const d = U.state === 'run' ? Input.drag : null;
+    { const d = U.state === 'run' && !hold ? Input.drag : null;
       if (d && gy.id === d.id) {
         const L = Math.min(View.w || innerWidth, (View.h || innerHeight) * 1.4, 900) * 0.2, c = L * 0.72, dx = clamp(d.x - d.x0, -L, L), over = Math.abs(dx) > c, neg = dx < 0;
         if (!gy.on) { gy.on = true; el.steer.style.transform = 'translate(' + d.x0.toFixed(1) + 'px, ' + gy.y.toFixed(1) + 'px)'; el.steer.style.setProperty('--c', c.toFixed(1) + 'px'); el.steer.classList.add('on'); }
