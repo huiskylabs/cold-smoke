@@ -158,7 +158,7 @@ const Terrain = (() => {
     // which is what a low sun on 6 cm texels needs to keep it from shadowing itself. So the snow asks nothing of what it RECEIVES, and a boot,
     // a hoof, a trunk or a pole shadows it from the point where it stands on it)
     pipeShadow = gfx.pipeline({
-      name: 'terrainShadow', lib: [SL.common, TERRAIN_SSL], buffers: [{ attrs: [['ij', 'vec2f']] }], varyings: {}, uniforms: { lv: 'vec4f', tc: 'vec4f', p: 'vec4f', pt: 'vec4f', pk: 'vec4f' },
+      name: 'terrainShadow', lib: [SL.common, TERRAIN_SSL], buffers: [{ attrs: [['ij', 'vec2f']] }], varyings: {}, uniforms: { lv: 'vec4f', tc: 'vec4f', p: 'vec4f', pt: 'vec4f', pk: 'vec4f', tb: 'vec4f' },
       textures: { tH: 'fetch', tHc: 'fetch' }, colorFormat: null, cull: 'none', depthBias: 2, depthBiasSlope: 4.0,
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let t: TerrV = terrainVertex(a.ij); v.clip = U.shadowVP * vec4f(t.wp - U.sunDir.xyz * 0.10, 1.0); return v; }`, fs: null,
     });
@@ -236,7 +236,7 @@ const Terrain = (() => {
   // with snow on every bench; c, the same with more of each wall bare. [blend toward bands, extra rock]
   const RockV = { a: [0, 0], b: [1, 0], c: [1, 0.06] };
   if (typeof Variants !== 'undefined') Variants.def('rock', '岩壁', [['a', '斑块'], ['b', '岩带'], ['c', '多岩']], 'b');
-  const uni = { lv: [0, 0, 0, 0], tc: [0, 0, 0, 0], p: [0, 0, 0, 0], pt: [0, 0, 0, 0], pk: [0, 0, 0, 0] }, uniS = { lv: uni.lv, tc: uni.tc, p: uni.p, pt: [0, 0, 0, 0], pk: [0, 0, 0, 0] };   // (uniS: for the shadow map, which knows no patch)
+  const uni = { lv: [0, 0, 0, 0], tc: [0, 0, 0, 0], p: [0, 0, 0, 0], pt: [0, 0, 0, 0], pk: [0, 0, 0, 0] }, uniS = { lv: uni.lv, tc: uni.tc, p: uni.p, pt: [0, 0, 0, 0], pk: [0, 0, 0, 0], tb: [0, 0, 0, 0] };   // (uniS: for the shadow map, which knows no patch)
   const rockV = () => RockV[typeof Variants !== 'undefined' && Variants.val.rock] || RockV.a;
   T.rockNow = () => { const rv = rockV(); uni.pt[0] = rv[0]; uni.pt[1] = rv[1]; }; T.rockNow();      // (at load, and for tests: no easing)
   function setLevelUniforms(L, origin) {
@@ -321,6 +321,15 @@ const Terrain = (() => {
 // vertex-side clipmap sampling shared by the colour and shadow passes
 const TERRAIN_SSL = `
 struct TerrV { wp: vec3f, uvn: vec4f, al: f32, dy: f32, }
+// the snow round the skier raised by the depth the skis ride at (M.pk.z; M.pk.w: the patch is in use), so that they lie in it and not on it.
+// On firm snow a centimetre or so, within a couple of metres. Riding IN deep powder (M.tb.w, Tracks.deep) it is the snow's own surface
+// over the boots, and it is let down so gently, over several metres, that it reads as the lie of the slope, not as a mound. The coarse
+// cells and the fine patch take the same lift at the same spot, so the seam between them stays closed. (Not in the sun's map: what the
+// snow shadows, it shadows at the height the physics knows)
+fn snowLift(xz: vec2f) -> f32 {
+  let k: f32 = M.tb.w;
+  return M.pk.z * M.pk.w * smoothstep(mix(2.15, 7.5, k), mix(1.0, 3.0, k), length(xz - U.player.xz));
+}
 fn terrainVertex(ij: vec2f) -> TerrV {
   var t: TerrV;
   let c: f32 = M.lv.x; let rel: vec2f = ij - vec2f(64.0, 64.0);
@@ -339,7 +348,7 @@ fn terrainVertex(ij: vec2f) -> TerrV {
   // (where the fine patch round the skier is drawn in its place, the finest level is dropped out of sight; the cells on the rim keep their outer edge)
   let pq: vec2f = xz - M.pt.zw;
   let pit: f32 = select(0.0, 1.5, M.pk.w > 0.0 && M.p.y < 0.5 && min(pq.x, pq.y) > 0.1 && max(pq.x, pq.y) < ${(PATCH.m - 0.1).toFixed(1)});
-  t.wp = vec3f(xz.x, mix(hf, hc, al) + ${HREF_SLOPE.toFixed(4)} * xz.y + M.p.x - pit, xz.y);
+  t.wp = vec3f(xz.x, mix(hf, hc, al) + ${HREF_SLOPE.toFixed(4)} * xz.y + M.p.x - pit + snowLift(xz), xz.y);
   t.uvn = vec4f((tcf + 0.5) / 256.0, (tcc + 0.5) / 256.0);
   t.al = al; t.dy = 0.0;
   return t;
@@ -383,8 +392,9 @@ fn patchVertex(ij: vec2f) -> TerrV {
   // out as a row of teeth and its face in ribs. The mesh gives the trench its depth; the wall's true line is the light's. A shallow
   // groove in firm snow is read one level down, at the size of the quads themselves: its walls have no height to make teeth of, and read
   // any wider the groove was a dish with the ski lying in the middle of it)
-  let R: f32 = texLod(tTrk, (xz + U.origin.xz) / 12.8, 1.0 + smoothstep(0.02, 0.05, M.pk.z)).x * smoothstep(2.75, 2.25, length(xz - M.pk.xy)) * M.pk.w;
-  let y0: f32 = hb + ${HREF_SLOPE.toFixed(4)} * xz.y + M.p.x + M.pk.z * smoothstep(2.15, 1.0, length(xz - U.player.xz)) * M.pk.w;
+  // (riding in deep powder the patch lies further behind the skier, and the furrow is held in it right out toward its rim)
+  let R: f32 = texLod(tTrk, (xz + U.origin.xz) / 12.8, 1.0 + smoothstep(0.02, 0.05, M.pk.z)).x * smoothstep(mix(2.75, 2.95, M.tb.w), mix(2.25, 2.5, M.tb.w), length(xz - M.pk.xy)) * M.pk.w;
+  let y0: f32 = hb + ${HREF_SLOPE.toFixed(4)} * xz.y + M.p.x + snowLift(xz);
   var y: f32 = y0 + R;
   y = skiPress(vec3f(xz.x, y, xz.y), M.sa0, M.sa1, M.sa2); y = skiPress(vec3f(xz.x, y, xz.y), M.sb0, M.sb1, M.sb2);
   t.wp = vec3f(xz.x, y, xz.y);
@@ -400,7 +410,7 @@ fn patchVertex(ij: vec2f) -> TerrV {
 const TERRAIN_FS = `
 // one glint per cell: a mirror facet with its own tilt. The dot is round on SCREEN (the cell is stretched by perspective, the glint is not):
 // ja/jb = world metres per pixel along screen x / y, idet = 1 / det of that Jacobian.
-fn sparkLayer(wxz: vec2f, cell: f32, N: vec3f, Hh: vec3f, ja: vec2f, jb: vec2f, idet: f32) -> vec4f {
+fn sparkLayer(wxz: vec2f, cell: vec2f, N: vec3f, Hh: vec3f, ja: vec2f, jb: vec2f, idet: f32) -> vec4f {
   let g: vec2f = wxz / cell; let id: vec2f = floor(g);
   let r: vec4f = texLod(tNoise, (id + 0.5) / 256.0, 0.0);
   let tilt: vec2f = (r.xz - 0.5) * (0.30 + 2.3 * r.y * r.y);
@@ -604,7 +614,7 @@ fn frag(v: VOut) -> FOut {
   // the skier's own tracks, from the two maps of 17_tracks.js: the height of the snow against untouched snow (trH, m), its slopes (trS), the
   // shadow the walls of the tracks throw (trSh) and the sky those walls hide (trAo). Near the skier slopes, shadow and sky come baked in a
   // map of their own; further up the hill they are felt out of the heights. Snow outside the box the trail lies in is not asked.
-  var trH: f32 = 0.0; var trS: vec2f = vec2f(0.0); var trSh: f32 = 1.0; var trAo: f32 = 1.0; var trC: f32 = 0.0;       // (trC: the height the skis' own shadows fall on)
+  var trH: f32 = 0.0; var trS: vec2f = vec2f(0.0); var trSh: f32 = 1.0; var trAo: f32 = 1.0; var trC: f32 = 0.0; var trG: f32 = 0.0;       // (trC: the height the skis' own shadows fall on)
   let ja: vec2f = dpdx(wxz); let jb: vec2f = dpdy(wxz);
   let pr: vec2f = wp.xz - U.player.xz; let pd: f32 = length(pr);
   let ta: f32 = dot(pr, M.tk.xy); let tb: f32 = dot(pr, vec2f(-M.tk.y, M.tk.x));
@@ -620,7 +630,7 @@ fn frag(v: VOut) -> FOut {
       var lt: vec4f = vec4f(0.0);
       if (wb < 1.0) { lt = texLod(tTrkL, tu, tl) * (1.0 - wb); }
       if (wb > 0.0) { lt += trackSmooth(tu, 1.0) * wb; }
-      trH = texLod(tTrk, tu, tl).x * wN; trC = trH;
+      let tq: vec4f = texLod(tTrk, tu, tl); trH = tq.x * wN; trG = tq.y * wN; trC = trH;
       // (the shadow a ski's tail throws back along its own trench ends on the trench's wall, along a line of equal height: on heights read
       // straight that line is a staircase, a step for every texel the wall crosses, and stood behind each tail as the rungs of a ladder)
       if (wb > 0.0 && pd < 2.4) { trC = mix(trH, trackSmooth(tu, 0.0).x, wb); }
@@ -630,22 +640,27 @@ fn frag(v: VOut) -> FOut {
     if (wN < 1.0) {
       let wF: f32 = (1.0 - wN) * smoothstep(21.0, 17.5, pd);
       let tl: f32 = max(log2(fp * 20.0), 0.0); let te: f32 = exp2(floor(tl)) / 1024.0; let tu: vec2f = wxz / 51.2;
-      let h0: f32 = texLod(tTrkF, tu, tl).x;                       // (this map holds 0.5 + 2 x metres)
-      trH += (h0 - 0.5) * 0.5 * wF;
-      trS += vec2f(texLod(tTrkF, tu + vec2f(te, 0.0), tl).x - texLod(tTrkF, tu - vec2f(te, 0.0), tl).x, texLod(tTrkF, tu + vec2f(0.0, te), tl).x - texLod(tTrkF, tu - vec2f(0.0, te), tl).x) * (0.5 * wF / (te * 102.4));
+      let fq: vec4f = texLod(tTrkF, tu, tl); let h0: f32 = fq.x;      // (this map holds 0.6 + 1.25 x metres; G: how loose)
+      trH += (h0 - 0.6) * 0.8 * wF; trG += fq.y * wF;
+      trS += vec2f(texLod(tTrkF, tu + vec2f(te, 0.0), tl).x - texLod(tTrkF, tu - vec2f(te, 0.0), tl).x, texLod(tTrkF, tu + vec2f(0.0, te), tl).x - texLod(tTrkF, tu - vec2f(0.0, te), tl).x) * (0.8 * wF / (te * 102.4));
       var hz: f32 = (texLod(tTrkF, tu + sdir * (0.07 / 51.2), tl).x - h0) / 0.07;
       hz = max(hz, (texLod(tTrkF, tu + sdir * (0.16 / 51.2), tl).x - h0) / 0.16);
       hz = max(hz, (texLod(tTrkF, tu + sdir * (0.36 / 51.2), tl).x - h0) / 0.36);
-      trSh *= 1.0 - wF * smoothstep(t3 * 0.7, t3 * 1.3, hz * 0.5);
-      trAo *= 1.0 - wF * 0.18 * saturate((0.5 - h0) * 12.0);
+      trSh *= 1.0 - wF * smoothstep(t3 * 0.7, t3 * 1.3, hz * 0.8);
+      trAo *= 1.0 - wF * 0.18 * saturate((0.6 - h0) * 19.2);
     }
   }
   // what a ski leaves is not the snow it found: where it pressed, the wind's ripples are ironed flat and the grains packed to a dull gloss
   // (pol); what it pushed aside lies loose and bright (loose)
   // (both level off where the height crosses the surface: that is the top of a wall, where the map is at its coarsest)
   // (pressed is pressed: a groove a centimetre deep in firm snow is as ironed as a trench in powder)
-  let pol: f32 = smoothstep(0.001, 0.009, -trH); let loose: f32 = smoothstep(0.0, 0.03, trH);
+  // (and what the tracks' G channel says is loose: the churned snow of a powder furrow and its lips, a skid's berm, and what thrown snow
+  // left where it came down, 17_tracks.js T.deposit: fans of crumbs, the pile of a stop, pits, the line of a rolled snowball. Loose snow
+  // is crumbs and clumps: its surface breaks up into grains a few centimetres across, and it is never polished)
+  let lg: f32 = saturate(trG);
+  let pol: f32 = smoothstep(0.001, 0.009, -trH) * (1.0 - lg); let loose: f32 = max(smoothstep(0.0, 0.03, trH), lg);
   slope += trS - g2 * (0.9 * pol);
+  if (lg > 0.02) { let fpl: f32 = max(length(ja), length(jb)); let gq: vec4f = texLod(tDetail, wxz / 0.6 + vec2f(0.43, 0.19), max(log2(fpl * 512.0 / 0.6) + 0.5, 0.0)); slope += (gq.xy - 0.5) * (0.9 * lg * smoothstep(0.08, 0.02, fpl)); }
   // skis, boots and legs on the snow: x the sun they take, y the sky
   var skS: vec2f = vec2f(1.0);
   // (worked out for the snow where the map has it, not where the mesh has it: the mesh draws a wall in facets)
@@ -727,11 +742,18 @@ fn frag(v: VOut) -> FOut {
   let spec: f32 = (0.75 * ggxD(nh, mix(0.16, 0.08, pol)) + 0.25 * ggxD(nh, 0.02)) * F * saturate(ndl) / (4.0 * vh * vh + 0.05) * (1.0 + 0.35 * pol);
   // glitter: single crystals flashing
   let det: f32 = ja.x * jb.y - ja.y * jb.x; let idet: f32 = det / (det * det + 1e-12);
-  let fw: f32 = max(length(ja), length(jb));
-  let lvl: f32 = log2(max(fw, 0.0004) * 6.0 / 0.004);
+  // (the cells are as long across the snow as a pixel's footprint is, each way: some six pixels on screen both ways. Sized by the longer
+  // side of the footprint alone, as they were, far down the slope a cell was six pixels high and sixty wide: few glints, all standing in
+  // rows across the picture, and at speed the shutter drew each row into a line. The cells are laid along the world's x and z (so they
+  // stand still as the lens turns) and the longer side is a whole power of two times the shorter)
+  let fxz: vec2f = max(abs(ja), abs(jb)); let fsh: f32 = min(fxz.x, fxz.y);
+  let lvl: f32 = log2(max(fsh, 0.0004) * 6.0 / 0.004);
   let l0: f32 = floor(lvl); let lf: f32 = lvl - l0;
-  let c0: f32 = 0.004 * exp2(l0);
-  let sp: vec4f = mix(sparkLayer(wxz, c0, N, Hh, ja, jb, idet), sparkLayer(wxz + vec2f(3.7, 9.1), c0 * 2.0, N, Hh, ja, jb, idet), lf);
+  let gcs: f32 = 0.004 * exp2(l0); let gcl: f32 = gcs * exp2(clamp(round(log2(max(fxz.x, fxz.y) / max(fsh, 1e-6))), 0.0, 5.0));
+  let c0: vec2f = select(vec2f(gcl, gcs), vec2f(gcs, gcl), fxz.x < fxz.y);
+  var sp: vec4f = mix(sparkLayer(wxz, c0, N, Hh, ja, jb, idet), sparkLayer(wxz + vec2f(3.7, 9.1), c0 * 2.0, N, Hh, ja, jb, idet), lf);
+  // (loose snow, thrown or turned over, is all fresh faces: many more of its crystals flash, and smaller ones)
+  if (loose > 0.05) { sp += sparkLayer(wxz + vec2f(7.3, 1.9), c0 * 0.5, N, Hh, ja, jb, idet) * (1.6 * loose); }
   let spFade: f32 = smoothstep(300.0, 20.0, dist);
   col += U.sunCol.rgb * sh * (vec3f(spec) + sp.rgb * (30.0 * U.fx.y * spFade * (1.0 - 0.7 * pol) * (1.0 + 1.5 * loose))) * (1.0 - rock);
   // the crust mirrors the sky it faces as well, the more so the lower the eye: far down the slope the snow takes the colour of the horizon
