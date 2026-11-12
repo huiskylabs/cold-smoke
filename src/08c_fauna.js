@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------- the other animals of the mountain, and who decides which one comes past
-// A snow hare that breaks from the tree line and bounds away ahead of the skis, a fox mousing out on the snow, an ibex watching from a
+// A snow hare that breaks from the tree line and bounds away ahead of the skis, a fox at its wandering near the trees, an ibex watching from a
 // rock or the lip of the ridge, a golden eagle that comes over the shoulder and glides down the valley ahead. Made the way the deer are:
 // a distance field meshed once (the body), swept shapes for what is too thin for the grid (horns, feathers), a skeleton posed by a gait
 // function. What differs: each vertex carries its own colour (the coat is painted once, in JS, when the mesh is made), so one shader
@@ -452,55 +452,29 @@ const Fauna = (() => {
       });
       K.mesh = pack([m]); return K.mesh;
     };
-    K.walk = { duty: 0.52, lag: 0.0, fMax: 0.24, hMax: 0.24, fMid: 0.005, hMid: 0.0, fLift: 0.055, hLift: 0.045, my0: -0.006, bob: 0.007, bobAt: 0.6, pit0: 0, pit: 0.012, neck: -0.30, nod: 0.03, head: -0.22, tail: 0.18, tail1: 0.10, tail2: 0.04, wag: 0.035, ear: 0 };
+    // three ways of going. walk: easy, each foot in its turn (a hind foot, then the fore foot of that side), the head carried low and the brush
+    // hanging; jog: the trot it leaves at when nothing presses (v, f: the pace and the strides a second each is drawn for); gait: the gallop it
+    // runs for the trees at
+    K.walk = { duty: 0.63, lag: 0.25, fMax: 0.32, hMax: 0.32, fMid: 0.008, hMid: 0.0, fLift: 0.040, hLift: 0.034, my0: -0.004, bob: 0.004, bobAt: 0.6, pit0: 0, pit: 0.008, neck: -0.24, nod: 0.035, head: -0.10, tail: -0.22, tail1: -0.08, tail2: 0.08, wag: 0.05, ear: 0, v: 1.1, f: 1.8 };
+    K.jog = { duty: 0.48, lag: 0.0, fMax: 0.33, hMax: 0.33, fMid: 0.005, hMid: 0.0, fLift: 0.055, hLift: 0.045, my0: -0.006, bob: 0.007, bobAt: 0.6, pit0: 0, pit: 0.012, neck: -0.20, nod: 0.03, head: -0.12, tail: 0.18, tail1: 0.10, tail2: 0.04, wag: 0.035, ear: 0, v: 2.8, f: 3.2 };
     K.gait = { gather: 0.20, flex: 0.40, flexBias: 0.75, flexC: 0.35, flexH: 0.9, pit: 0.07, pitAt: 0.28, pit0: 0.0, bob: 0.035, bobAt: 0, arch: 0.030, my0: -0.015, surge: 0.0,
       fOn: 0.0, fDur: 0.24, sF: 0.11, fLand: 0.21, fSweep: 0.34, fOver: 0.04, fBack: 0.05, fLift: 0.11,
       hOn: 0.36, hDur: 0.26, sH: 0.09, hLand: 0.20, hSweep: 0.38, hBack: 0.06, hTrail: 0.13, hLift: 0.05, splay: 0.012,
       neck: -0.26, neckSw: 0.05, head: 0.05, headLevel: 0.6, ear: 0.55, earSw: 0.06, earOut: 0.0, tail: 0.62, tail1: 0.40, tailSw: 0.10 };
-    // standing with its head on one side, listening to what moves under the snow (cock -1..1), and gathered to spring (k 0..1)
-    K.listen = function (cock, k, o) {
-      zeroPose(o); o.my = -0.012 - 0.055 * k; o.aC = -0.06 - 0.16 * k; o.aH = 0.05 + 0.20 * k; o.mz = 0.03 * k;
-      o.nA = -0.52 - 0.10 * k; o.nB = -0.42; o.hA = -0.62; o.hR = 0.42 * cock; o.hY = 0.10 * cock; o.eB = -0.22; o.eO = -0.10; o.eL = 0.12 * cock; o.eR = -0.12 * cock;
-      for (let i = 0; i < 2; i++) { o.lg[i * 5] = -0.02 - 0.03 * k; } for (let i = 2; i < 4; i++) { o.lg[i * 5] = 0.02 + 0.07 * k; }
-      o.t0 = 0.30 + 0.25 * k; o.t1 = 0.22; o.t2 = 0.12; return o;
-    };
-    // the spring: up on the hind legs and over in a high arc, to come down on the fore feet and the nose together.
-    // u: 0 gathered on the snow .. 0.2 the hind feet leave it .. 1 the fore feet and the nose arrive. All of it in the pose (the trunk
-    // tips about the middle of the back and the middle of the back flies), so that it can be mixed into what comes before and after
-    const Pc = newPose();
-    K.spring = function (u, o) {
-      K.listen(0, 1, Pc); zeroPose(o);
-      const up = S01(0, 0.22, u), dn = S01(0.30, 1.0, u), fly = S01(0.16, 0.30, u), th = 0.80 * up - 1.95 * dn, q = Math.min(u, 0.2) / 0.2, v = u - 0.2;
-      o.my = u < 0.2 ? -0.067 + 0.192 * q * q : 0.125 + 1.806 * v - 2.296 * v * v; o.aC = th - 0.16 * (1 - up) - 0.10 * dn; o.aH = th + 0.20 * (1 - up) + 0.10 * dn; o.mz = 0.03 * (1 - up);
-      o.nA = lerp(-0.62, 0.05, up) - 1.05 * dn; o.nB = lerp(-0.42, 0.05, up) - 0.90 * dn; o.hA = lerp(-0.62, 0.25, up) - 1.55 * dn; o.eB = -0.22 + 0.9 * fly * (1 - dn);
-      o.t0 = 0.55 + 0.2 * up - 0.5 * dn; o.t1 = 0.22 + 0.3 * dn; o.t2 = 0.12 + 0.5 * dn;
-      for (let i = 0; i < 4; i++) { const k = i * 5; o.lg[k] = Pc.lg[k]; o.lg[k + 1] = Pc.lg[k + 1]; }
-      // fore feet: off the snow as the chest comes up, folded under it, then thrown out ahead of the nose
-      for (let i = 0; i < 2; i++) { Q.foot(o, i, lerp(0.03, 0.10, up) + 0.13 * dn, lerp(0.30, 0.17, up) + 0.15 * dn, S01(0.02, 0.14, u)); o.lg[i * 5 + 3] = 0.9 * up * (1 - S01(0.5, 0.85, u)); }
-      // hind feet: they drive, and then trail out behind
-      for (let i = 2; i < 4; i++) { o.lg[i * 5] = lerp(Pc.lg[i * 5], -0.02, S01(0, 0.2, u)); Q.foot(o, i, -0.20 - 0.06 * dn, 0.28 - 0.10 * dn, fly); o.lg[i * 5 + 3] = 0.7 * fly; }
+    // stood where it stopped. yaw: where its head is turned (in its own frame); up: 0 looking idly about .. 1 head high, ears set, watching
+    // what is coming; paw: a fore foot held off the snow as it was caught in mid-step (> 0 the right one, < 0 the left)
+    K.look = function (yaw, up, paw, o) {
+      zeroPose(o); o.nA = lerp(-0.10, 0.22, up); o.nB = lerp(-0.06, 0.20, up); o.hA = lerp(-0.05, 0.10, up); o.hY = yaw; o.eB = -0.08 - 0.10 * up; o.eO = -0.06 * up;
+      o.my = 0.004 * up; o.aC = 0.03 * up; o.t0 = lerp(-0.16, 0.08, up); o.t1 = -0.06 * (1 - up); o.t2 = 0.06 * (1 - up); o.lg[0] = 0.02; o.lg[5] = -0.03; o.lg[10] = -0.02; o.lg[15] = 0.03;
+      if (paw) { const k = paw > 0 ? 5 : 0, q = Math.abs(paw); o.lg[k] += 0.04 * q; o.lg[k + 1] = 0.10 * q; o.lg[k + 3] = 0.8 * q; }
       return o;
-    };
-    // after it: the head and the fore feet driven into the snow, the quarters coming down behind (k 0 just arrived .. 1 settled, nose under)
-    K.dig = function (k, o) {
-      zeroPose(o);
-      const th = lerp(-1.15, -0.42, S01(0, 1, k));
-      o.my = lerp(0.10, -0.085, S01(0, 0.6, k)); o.aC = th - 0.10; o.aH = th + 0.10 + 0.12 * k; o.nA = -1.05 - 0.1 * k; o.nB = -0.90 - 0.15 * k; o.hA = -1.55 + 0.25 * k; o.eB = 0.5;
-      for (let i = 0; i < 2; i++) { o.lg[i * 5] = 0.14 - 0.05 * k; o.lg[i * 5 + 1] = 0.0; }
-      for (let i = 2; i < 4; i++) { Q.foot(o, i, -0.26, 0.18, 1 - S01(0, 0.7, k)); o.lg[i * 5] += (0.03 - o.lg[i * 5]) * S01(0, 0.7, k) * 0; o.lg[i * 5 + 3] = 0.7 * (1 - S01(0, 0.6, k)); }
-      o.t0 = 0.05 + 0.75 * k; o.t1 = 0.52; o.t2 = 0.62; return o;
-    };
-    // head up out of the snow and looking at what is coming (yaw: where to, in its own frame)
-    K.alert = function (yaw, o) {
-      zeroPose(o); o.nA = 0.22; o.nB = 0.20; o.hA = 0.10; o.hY = yaw; o.eB = -0.18; o.eO = -0.06; o.my = 0.004; o.aC = 0.03; o.t0 = 0.10; o.lg[0] = 0.02; o.lg[5] = -0.03; o.lg[10] = -0.02; o.lg[15] = 0.03; return o;
     };
     K.anim = function (p, o) {
       if (o.anim === 'stand') return zeroPose(p);
-      if (o.anim === 'trot') return trot(K.walk, o.ph || 0, o.v == null ? 2.1 : o.v, 1 / (o.freq || 3.0), 1, p);
-      if (o.anim === 'listen') return K.listen(o.cock == null ? 1 : o.cock, o.k || 0, p);
-      if (o.anim === 'spring') return K.spring(o.u || 0, p);
-      if (o.anim === 'dig') return K.dig(o.u || 0, p);
-      if (o.anim === 'alert') return K.alert(o.look == null ? 0.9 : o.look, p);
+      if (o.anim === 'walk') return trot(K.walk, o.ph || 0, K.walk.v / K.scale, 1 / K.walk.f, 1, p);
+      if (o.anim === 'trot') return trot(K.jog, o.ph || 0, K.jog.v / K.scale, 1 / K.jog.f, 1, p);
+      if (o.anim === 'look') return K.look(o.look == null ? 0.7 : o.look, o.up || 0, o.paw || 0, p);
+      if (o.anim === 'alert') return K.look(o.look == null ? 0.9 : o.look, 1, o.paw || 0, p);
       return leap(K.gait, o.ph || 0, o.v == null ? 9 : o.v, 1 / (o.freq || 2.9), 1, p);
     };
     return K;
@@ -816,7 +790,7 @@ const Fauna = (() => {
   function place(a, origin) {
     const s = a.K.solve(a.pose), k = a.scale, n = a.nrm, f0 = [Math.sin(a.yaw), 0, -Math.cos(a.yaw)];
     const Y = v3.norm(n), fl = v3.norm(v3.sub(f0, v3.mul(Y, v3.dot(f0, Y)))), Z0 = v3.mul(fl, -1), X = v3.norm(v3.cross(Y, Z0)), Z = v3.cross(X, Y);
-    // leaning into its turns about the line of travel, and tipped nose-up or down about its own middle (a fox going into the snow head first)
+    // leaning into its turns about the line of travel, and tipped nose-up or down about its own middle (an eagle climbing away)
     const cl = Math.cos(a.lean), sl = Math.sin(a.lean), Xr = [X[0] * cl + Y[0] * sl, X[1] * cl + Y[1] * sl, X[2] * cl + Y[2] * sl], Yr = [Y[0] * cl - X[0] * sl, Y[1] * cl - X[1] * sl, Y[2] * cl - X[2] * sl];
     const cp = Math.cos(a.pitch), sp = Math.sin(a.pitch), Yp = [Yr[0] * cp + Z[0] * sp, Yr[1] * cp + Z[1] * sp, Yr[2] * cp + Z[2] * sp], Zp = [Z[0] * cp - Yr[0] * sp, Z[1] * cp - Yr[1] * sp, Z[2] * cp - Yr[2] * sp];
     const py = a.K.mid[1] * k, off = [py * (Yr[0] - Yp[0]), py * (Yr[1] - Yp[1]), py * (Yr[2] - Yp[2])];      // (the tip is about the middle of the back, not the feet)
@@ -840,7 +814,7 @@ const Fauna = (() => {
   // ================================================================ who comes past, and when
   // One meeting at a time, a minute or two apart, each kind once before any comes again, and each only where its kind would be: the eagle
   // over open slopes, hare and fox where there are trees to come out of and go back into, the ibex where the ground gives it a place to stand.
-  let rnd = RNG(4177); const pc = {}, pc2 = {}, tn = {}, EV = {}, P1 = newPose(), P2 = newPose();
+  let rnd = RNG(4177); const pc = {}, pc2 = {}, tn = {}, EV = {}, P1 = newPose(), P2 = newPose(), P3 = newPose();
   F.seed = n => { rnd = RNG(n); };                // (tests: the same chances again)
   F.gap = [60, 105]; F.first = [26, 38]; F.count = {};
   const along = (s, f) => f(Course.at(s + 40, pc2)) && f(Course.at(s + 90, pc2)) && f(Course.at(s + 150, pc2));
@@ -972,70 +946,93 @@ const Fauna = (() => {
     } else mixPose(a.pose, P1, P1, 0);
   }
 
-  // ---- the fox: out on the open snow, trotting across the fall line with its nose down. It stops, head on one side, listening to something
-  // under the snow; springs high and comes down on it nose first; has its head out again, powdered white, in time to see the skier; and goes
+  // ---- the fox: about its own business out where the trees give way to the run. A few lengths at a walk, a stop to look about it, on again.
+  // It sees the skier while they are still far up the hill: stands, head up, and watches them come; and when they are nearly on it, turns
+  // and runs for the trees, and is gone among them. (Nobody coming, it goes back to its wandering, and after a while trots off.)
+  // st: 0 walking, 1 stopped and looking about, 2 watching the skier, 3 trotting off, 4 running
+  const wrap = x => Math.atan2(Math.sin(x), Math.cos(x));
   EV.fox = {
     ok: s => along(s, c => c.forest >= 0.4 && c.hw >= 20 && (c.glade || 0) < 0.2 && (c.gul || 0) < 0.3 && (c.ridge || 0) < 0.3 && (c.mog || 0) < 0.4),
     begin(ev) {
       const S = Game.s, sS = -S.p[2], vs = Math.max(-S.v[2], 0), still = vs < 4, s = sS + (still ? 16 : clamp(vs * 5.4, 80, 135)), c = Course.at(s, pc), uS = S.p[0] - Course.at(sS, pc2).cx;
-      const side = Math.abs(uS) > 2 ? -sign(uS) : (rnd() < 0.5 ? -1 : 1), room = c.hw - 4;
-      // (it is coming in across the hill toward the line the skier is on, and stops to listen some lengths short of it)
-      const a = actor(FOX, { ev, step: foxStep, s, off: clamp(uS + side * (still ? 7 : 9 + 2 * rnd()), -room, room), side, st: 0, ts: 0, v: 0, dir: -side * 1.15, yaw: -side * 1.15, trees: 2.0, tilt: 0.85, cock: 0, cockT: rnd() < 0.5 ? -1 : 1, cockN: 0, look: 0, ph: rnd(), powder: 0, fadeT: 1 });
+      // (the patch it wanders lies between the line the skier is on and the trees on the nearer side of the run: as close under those trees as it can be
+      // and still be met; out on the other side where the skier has left it no room. It comes in from the trees at a walk, broadside to whoever comes down)
+      let side = Math.abs(uS) > 2 ? sign(uS) : (rnd() < 0.5 ? -1 : 1), room = c.hw - 3 - side * uS;
+      if (room < 6.5) { side = -side; room = c.hw - 3 - side * uS; }
+      const h0 = uS + side * (still ? 6.5 : clamp(room - 1.5 * rnd(), 6.5, 8.5 + 3 * rnd())), dir = -side * (1.5 + 0.35 * rnd());
+      const a = actor(FOX, { ev, step: foxStep, s: s - 2.6 * Math.cos(dir), off: h0 - 2.6 * Math.sin(dir), h0, s0: s, tx: h0, tz: s, legT: 5, side, st: 0, ts: 0, v: FOX.walk.v, dir, yaw: dir, trees: 0.9, tilt: 0.85,
+        look: 0, lookT: 0, lookN: 0, up: 0, paw: 0, pawS: 1, ph: rnd(), d1: 2.3 + 0.4 * rnd(), stay: 9 + 4 * rnd(), fadeT: 1 });
       if (!a) return false; ev.actors.push(a);
     },
   };
-  FOX.springT = 0.78;
-  function foxStep(a, dt, t, ev) {
-    const S = Game.s, sS = -S.p[2], vs = Math.max(-S.v[2], 0), still = vs < 4, c = Course.at(a.s, pc), ds = a.s - sS, uS = S.p[0] - Course.at(sS, pc2).cx, K = a.K;
-    if (a.st === 6 && (a.off - uS) * a.side < 0) a.side = -a.side;
-    const tau = still ? 9 : ds / Math.max(vs - 1, 4), gap = (a.off - uS) * a.side;          // seconds until the skier is level with it; how far it is from the skier's line
-    a.ts += dt; a.ud = damp(a.ud || 0, dt > 0 && a.uP != null ? (uS - a.uP) / dt : 0, 5, dt); a.uP = uS;
-    const gapP = gap - a.ud * a.side * clamp(tau, 0, 1.5);                                   // (and how far it will be, if the skier goes on turning as now)
-    // (the spring is timed to the skier's coming level with it: that is the one moment it is near enough to be seen. If the skis are coming
-    // too close to where it stands, there is no spring: it runs, down the hill beside them)
-    if (a.st < 2 && ((gap < 3.0 && tau < 1.5) || (ev.leave && a.t > 1))) { a.st = 6; a.ts = 0; if (Math.abs(a.off - uS) > 0.8) a.side = sign(a.off - uS); }
-    // (and if the skis swing its way while it is at its hunting, it does not stay to finish: head out of the snow and gone)
-    else if ((a.st === 2 || a.st === 4 || a.st === 5) && tau < 1.2 && tau > -0.25 && Math.min(gap, gapP) < 3.4) { a.st = 6; a.ts = 0; if (Math.abs(a.off - uS) > 0.8) a.side = sign(a.off - uS); }
-    else if (a.st === 5 && a.ts > (still ? 1.6 : 0.5)) { a.st = 6; a.ts = 0; if (Math.abs(a.off - uS) > 0.8) a.side = sign(a.off - uS); }
-    else if (a.st === 0 && (tau < 2.3 || gap < 5.6 || (still && a.ts > 1.5))) { a.st = 1; a.ts = 0; }
-    // (the spring is begun early enough for its end to be seen: it comes down, and the snow goes up, a few lengths ahead of the skis)
-    else if (a.st === 1 && a.ts > 0.4 && (tau < 1.34 || (still && a.ts > 1.8))) { a.st = gap > 12 || gap < 4.5 || gapP < 3.5 ? 6 : 2; a.ts = 0; if (a.st === 6 && Math.abs(a.off - uS) > 0.8) a.side = sign(a.off - uS); }      // (too far off for its hunting to be seen, or the skis too near for it: it runs)
-    else if (a.st === 2 && a.ts > 0.25) { a.st = 3; a.ts = 0; }
-    else if (a.st === 3 && a.ts >= K.springT) {
-      a.st = 4; a.ts = 0; a.powder = 1;
-      // (snow thrown up round the nose and the fore feet as they go in: spurts of the kind a hoof makes, not the fans of a pair of skis landing)
-      if (a.R) { const w0 = toWorld(a, a.J.inHd(0, -0.012, -0.12)), f = a.fwd || [0, 0, -1]; w0[1] = Course.height(w0[0], w0[2], 0.5); Spray.kick(t, w0, [f[0] * 1.6, 0.9, f[2] * 1.6], 1.7); Spray.kick(t, [w0[0] - f[0] * 0.16, w0[1], w0[2] - f[2] * 0.16], [f[0] * 0.5, 0.4, f[2] * 0.5], 1.1); Sound.event({ type: 'hoof', d: Math.hypot(w0[0] - S.p[0], w0[2] - S.p[2]) * 0.6, side: sign((w0[0] - S.p[0]) * S.r[0] + (w0[2] - S.p[2]) * S.r[2]) || 1, k: 0.8 }); }
+  // where it goes next: somewhere within a few lengths of its patch, a walk away and clear of the trunks
+  function foxLeg(a) {
+    for (let i = 0; i < 5; i++) {
+      a.tx = a.h0 + (rnd() * 2 - 1) * 2.5; a.tz = a.s0 + (rnd() * 2 - 1) * 2.4;
+      if (Math.hypot(a.tx - a.off, a.tz - a.s) < 1.6) continue;
+      Course.nearTree(Course.at(a.tz, pc2).cx + a.tx, -a.tz, tn); if (!(tn.ok && tn.d < 1.7)) break;
     }
-    else if (a.st === 4 && a.ts > 0.36) { a.st = 5; a.ts = 0; if (a.R) { const w0 = toWorld(a, a.J.inHd(0, 0, -0.14)); Spray.kick(t, w0, [0, 1.2, 0], 0.3); } }
-    // pace and heading: a trot across the hill; nothing while it hunts (the spring carries it a length and a half); then flat out, away and down
-    const vT = a.st === 0 ? 2.6 : a.st === 3 ? (a.ts > 0.14 ? 1.9 : 0.3) : a.st === 6 ? (still ? 11 : clamp(vs * 0.62, 9, 14.5)) : 0;
-    a.v += clamp((vT - a.v) * (a.st === 6 ? 4 : 9), -14, 20) * dt;
-    // running, it goes down the hill a few lengths off the skier's line, which is where it is passed; then away to the trees
-    if (a.st === 6) { const room = c.hw - 1, lat = clamp((clamp(uS + a.side * 5, -room, room) - a.off) * 1.6, -0.6 * a.v, 0.6 * a.v); a.dir = damp(a.dir, ds > -3 && a.ts < 5 && !still ? Math.asin(clamp(lat / Math.max(a.v, 3), -0.65, 0.65)) : a.side * 1.0, 5, dt); }
-    else a.dir = damp(a.dir, -a.side * 1.15, 3.5, dt);
-    a.off += a.v * Math.sin(a.dir) * dt; a.s += a.v * Math.cos(a.dir) * dt;
-    { const g2 = (a.off - uS) * a.side, need = a.st === 6 ? 3.2 : 2.2; if (a.st >= 2 && ds > -4 && ds < 14 && g2 < need) a.off += a.side * Math.min(need - g2, 8 * dt); }       // never under the skis (once they are past, it is left in peace)
-    onGround(a, dt, c, 8, 1.3, 0.22);
-    if (a.st === 0) { a.ph = (a.ph + 3.0 * dt * a.v / 2.6) % 1; trot(K.walk, a.ph, a.v / a.scale, 1 / 3.0, 1, P1); }
-    else if (a.st === 1) { a.cockN -= dt; if (a.cockN <= 0) { a.cockN = 0.42 + 0.2 * rnd(); a.cockT = -a.cockT; } a.cock = damp(a.cock, a.cockT, 10, dt); K.listen(a.cock, 0, P1); }
-    else if (a.st === 2) { a.cock = damp(a.cock, 0, 12, dt); K.listen(a.cock, smooth(0, 0.26, a.ts), P1); }
-    else if (a.st === 3) K.spring(Math.min(1, a.ts / K.springT), P1);
-    else if (a.st === 4) K.dig(smooth(0, 0.34, a.ts), P1);
-    else if (a.st === 5) { a.look = damp(a.look, clamp(bearing(a, S), -1.35, 1.35), 6, dt); K.alert(a.look, P1); }
-    else {
-      a.freq = lerp(2.3, 3.2, sat((a.v - 4) / 9)); const ph0 = a.ph; a.ph = (a.ph + a.freq * dt) % 1; leap(K.gait, a.ph, Math.max(a.v, 3) / a.scale, 1 / a.freq, 1, P1);
+    a.legT = 2.4 + 2.2 * rnd();
+  }
+  function foxStep(a, dt, t, ev) {
+    const S = Game.s, sS = -S.p[2], vs = Math.max(-S.v[2], 0), still = vs < 4, c = Course.at(a.s, pc), ds = a.s - sS, uS = S.p[0] - Course.at(sS, pc2).cx, K = a.K, W = K.walk, T = K.jog;
+    const tau = still ? 9 : ds / Math.max(vs - 1, 4), lat = a.off - uS, dist = Math.hypot(ds, lat);       // seconds until the skier is level with it; how far across the hill it is from their line
+    a.ts += dt; a.ud = damp(a.ud || 0, dt > 0 && a.uP != null ? (uS - a.uP) / dt : 0, 5, dt); a.uP = uS;
+    // (how near the skier's line will pass, if they go on turning as now: where the skis are heading is what it judges them by)
+    const latP = lat - a.ud * clamp(tau, 0, 1.5), near = lat * latP <= 0 ? 0 : Math.min(Math.abs(lat), Math.abs(latP));
+    if (a.st === 4) { if (lat * a.side < 0) a.side = -a.side; }                       // (the skier's line has swung across it as it ran: that is its side now; it never comes back across the skis)
+    else if (Math.abs(lat) > 0.8) a.side = sign(lat);
+    // it runs when the skier is not a second away (or, from a slow one, a dozen metres), sooner if they are coming nearly straight at it; from a
+    // skier who will pass well wide, or one who has stopped, it only trots off
+    const coming = !still && tau > -0.3 && ds > -2, close = smooth(3, 6.5, near);
+    if (a.st < 4 && ((coming && near < 16 && (tau < lerp(1.7, 0.9, close) || ds < lerp(22, 12, close))) || (dist < 8.5 && ds > -3))) { a.st = 4; a.ts = 0; a.ph = 0.3; a.trees = 2.0; }
+    else if (a.st < 3 && ((coming && near >= 16 && tau < 1.4) || (ev.leave && a.t > 0.5) || (still && a.t > a.stay))) { a.st = 3; a.ts = 0; }
+    else if (a.st < 2 && coming && (tau < a.d1 || dist < 26)) { a.st = 2; a.ts = 0; a.pawS = sign(bearing(a, S)) || 1; }
+    else if (a.st === 2 && (still || !coming) && a.ts > 2.2) { a.st = 0; a.ts = 0; foxLeg(a); }                   // (nothing came of it)
+    else if (a.st === 0 && (a.ts > a.legT || Math.hypot(a.tx - a.off, a.tz - a.s) < 0.45)) { a.st = 1; a.ts = 0; a.legT = 1.2 + 1.6 * rnd(); a.lookN = 0; }
+    else if (a.st === 1 && a.ts > a.legT) { a.st = 0; a.ts = 0; foxLeg(a); }
+    // pace, and where it is headed. Walking, it turns as it goes (an arc, never a pivot); running, it swings round and away from the skier's
+    // line, across and down the hill to the trees on its own side
+    const vT = a.st === 0 ? W.v : a.st === 3 ? T.v : a.st === 4 ? (still ? 8 : clamp(vs * 0.42, 7.5, 10.5)) : 0;
+    a.v += clamp((vT - a.v) * (a.st === 4 ? 4 : 5), a.st === 4 ? -14 : -3.5, a.st === 4 ? 13 : 2.5) * dt;
+    let turn = 0;
+    if (a.st === 0) turn = clamp(wrap(Math.atan2(a.tx - a.off, a.tz - a.s) - a.dir) * 2.4, -1.9, 1.9) * sat(a.v / 0.5);
+    else if (a.st === 3) turn = clamp(wrap(a.side * 1.3 - a.dir) * 2.4, -1.9, 1.9) * sat(a.v / 0.5);
+    else if (a.st === 4) turn = clamp(wrap(a.side * lerp(0.95, 1.3, smooth(0.8, 2.0, a.ts)) - a.dir) * 5, -8.5, 8.5);          // (away down the hill at first, then straight for the trees)
+    else if (a.st === 2 && a.v < 0.3) { const b = bearing(a, S); turn = sign(b) * clamp((Math.abs(b) - 0.95) * 2.2, 0, 1.5) * smooth(0.3, 0.1, a.v); }        // (what it watches has gone round behind its shoulder: it shuffles round after it)
+    a.dir += turn * dt; a.off += a.v * Math.sin(a.dir) * dt; a.s += a.v * Math.cos(a.dir) * dt;
+    if (a.st === 4) { const g2 = (a.off - uS) * a.side; if (ds > -4 && ds < 14 && g2 < 3.2) a.off += a.side * Math.min(3.2 - g2, 8 * dt); }       // never under the skis (once they are past, it is left in peace)
+    if (a.st === 4) onGround(a, dt, c, 8, 1.3, 0.22);
+    else { a.yaw = Math.atan2(Math.sin(a.dir) + (Course.at(a.s + 1, pc2).cx - c.cx) * Math.cos(a.dir), Math.cos(a.dir)); onGround(a, dt, c, 0, 0, 0); }      // (at a walk it faces the way it steps)
+    // how it carries itself: the head comes up and round to the skier when it has seen them; looking idly about, it turns from one side to the other
+    // (a skier standing near by is one of the things it looks at, turn and turn about with the rest of the hill)
+    if (a.st === 1) { a.lookN -= dt; if (a.lookN <= 0) { a.atS = !a.atS && still && dist < 40; a.lookN = (a.atS ? 1.0 : 0.7) + 0.8 * rnd(); a.lookT = (a.lookT > 0 ? -1 : 1) * (0.35 + 0.65 * rnd()); } }
+    const seen = a.st === 2 || (a.st === 1 && a.atS);
+    a.look = damp(a.look, seen ? clamp(bearing(a, S), -1.35, 1.35) : a.st === 1 ? a.lookT : 0, seen ? 4.5 : 3, dt);
+    a.up = damp(a.up, a.st === 2 ? 1 : seen ? 0.7 : a.st === 1 ? 0.3 : 0, 6, dt); a.paw = damp(a.paw, a.st === 2 && a.v < 0.25 && Math.abs(turn) < 0.05 ? a.pawS : 0, 5, dt);
+    if (a.st === 4) {
+      a.freq = lerp(2.3, 3.2, sat((a.v - 4) / 9)); const ph0 = a.ph; a.ph = (a.ph + a.freq * dt) % 1; leap(K.gait, a.ph, Math.max(a.v, 3) / a.scale, 1 / a.freq, 1, P1); P1.hY = a.look;      // (its eye stays on the skier a moment longer as it swings away)
+      // each landing throws a little snow
       if (a.R) for (const [p, fore] of [[K.gait.fOn, 1], [K.gait.hOn + 0.05, 0]]) if (crossed(ph0, a.ph, p)) {
         const w0 = toWorld(a, [0, 0.01, fore ? -0.2 : 0.18]), d = Math.hypot(w0[0] - S.p[0], w0[2] - S.p[2]), f = a.fwd;
         if (d < 80) Spray.kick(t, w0, [f[0] * a.v * (fore ? 0.35 : -0.2), 0.5, f[2] * a.v * (fore ? 0.35 : -0.2)], (fore ? 0.3 : 0.45) * (0.7 + 0.8 * (c.powder || 0.3)));
-        if (d < 26) Sound.event({ type: 'hoof', d: d * 1.2, side: sign((w0[0] - S.p[0]) * S.r[0] + (w0[2] - S.p[2]) * S.r[2]) || 1, k: fore ? 0.3 : 0.45 });
+        if (d < 22) Sound.event({ type: 'hoof', d: d * 1.4, side: sign((w0[0] - S.p[0]) * S.r[0] + (w0[2] - S.p[2]) * S.r[2]) || 1, k: fore ? 0.18 : 0.28 });
       }
-      const e = Math.abs(a.off) - c.hw; if (e > 5 || ds < -14 || a.ts > 7) a.fadeT = 0;
+      if (Math.abs(a.off) - c.hw > 4.5 || ds < -14 || a.ts > 7) a.fadeT = 0;                 // (gone: in among the trees, or left behind)
+    } else {
+      // walk and trot are one cycle whose feet change their order as it quickens; stopping, its steps shorten into the stand
+      const k = smooth(1.4, 2.3, a.v), step = a.st === 2 ? sat(Math.abs(turn) / 0.9) : 0;
+      a.ph = (a.ph + (lerp(W.f / W.v, T.f / T.v, k) * a.v + 1.5 * step) * dt) % 1;
+      K.look(a.look, a.up, a.paw, P1);
+      if (a.v > 0.02) { trot(W, a.ph, W.v / a.scale, 1 / W.f, 1, P2); if (k > 0) { trot(T, a.ph, T.v / a.scale, 1 / T.f, 1, P3); mixPose(P2, P2, P3, k); } P2.hY = a.look * 0.6; mixPose(P1, P1, P2, smooth(0.03, 0.55, a.v)); }
+      if (step > 0) { trot(W, a.ph, 0.3 / a.scale, 1 / W.f, 1, P2); for (let i = 0; i < 20; i++) P1.lg[i] += (P2.lg[i] - P1.lg[i]) * 0.6 * step; }       // (shuffling round where it stands: its feet step, its head stays up)
+      if (a.st === 3 && (Math.abs(a.off) - c.hw > 3 || ds < -16 || a.ts > 12)) a.fadeT = 0;
+      else if (ds < -22) a.fadeT = 0;                                                    // (left behind, still at its wandering)
     }
-    chase(a, P1, dt, a.st === 3 ? 90 : 0);
-    if (a.st >= 5) a.powder = Math.max(0, a.powder - dt / (a.st === 5 ? 6 : 1.6));
-    if (a.st >= 2 && ds < 60 && ds > -12) rider(a, 0.4, 0.95);                 // (so that the one moment it is close is not smeared away by the speed of the lens)
-    // the lens leans its way while it is at its hunting
-    if (tau < 3.0 && tau > -0.4) Deer.pull += sign(a.off - uS) * 0.13 * smooth(3.0, 1.6, tau) * smooth(-0.4, 0.2, tau);
+    chase(a, P1, dt);
+    if (ds < 60 && ds > -12) rider(a, 0.4, 0.95);                 // (so that the moment it is close is not smeared away by the speed of the lens)
+    // the lens leans its way a little as it is passed
+    if (tau < 3.0 && tau > -0.4) Deer.pull += sign(lat) * 0.13 * smooth(3.0, 1.6, tau) * smooth(-0.4, 0.2, tau);
   }
 
   // ---- the ibex is there before the skier is: on the lip of the ridge, the rim of the gully or the foot of the bank above the run, broadside,
