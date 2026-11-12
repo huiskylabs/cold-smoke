@@ -20,7 +20,7 @@ Set by the owner: the game is landscape only. The first target is a browser wind
 - `04_terrain.js` snow and rock, `05_sky.js` sun, moon, time of day, exposure, cloud sea, contrail, `12_nebula.js`, `13_clouds.js`, `16_vista.js` far ranges and the city.
 - `07_game.js` physics, pose and chase camera, `08_skier.js` and `08b_deer.js` the figures (distance fields turned into meshes at load), `14_trees.js`.
 - `10_spray.js` the snow thrown by the edges (a lit participating medium plus glinting grains), `11_dust.js` the fine falling snow, `15_shafts.js` light in the air (used after dark for the beam of the headlamp).
-- `09_post.js` bloom, lens, motion blur, grade. `18_sound.js` all sound, synthesised. `19_ui.js` loading page, title, HUD.
+- `09_post.js` bloom, lens, motion blur, grade. `18_sound.js` all sound, synthesised. `19_ui.js` loading page, title, HUD, and the menu.
 
 ## Testing without a GPU
 
@@ -44,3 +44,4 @@ Chromium with SwiftShader runs both backends headless.
 - The spray buffer is half float: the per-lump depth weight is bounded and the composite clamps what it reads, because a fall used to pile enough snow in one place to overflow it and leave a black hole.
 - Kept on purpose although reviewers suggested otherwise: the tall slow curtain of snow, life-size deer, a faint daytime nebula and a clear-day start (the brief asks for all four).
 - Tilt control needs a normal https page (a tap grants motion access). Inside a claude.ai artifact the frame refuses device motion, so the page falls back to drag; keyboard and mouse work on a computer.
+- The menu is the pause (Esc, the corner's menu glyph, or losing focus). While it is open the run is held as `Game.mode = 'hold'`: nothing of the run steps, but the picture is still drawn, so a time, weather, view or run picked there shows at once behind the shade. A skier put somewhere else meanwhile pushes off from there on 继续滑. The versions the owner picks between (Variants) have their own page of the menu (`` ` ``), grouped in `VGROUP` in `19_ui.js`; a choice not listed there appears under 新加的. Keys: H opens the controls page; all other keys are unchanged.
