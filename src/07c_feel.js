@@ -2,7 +2,8 @@
 // Nothing is drawn here. Once a frame (from tick, before the frame's globals are worked out) this sets what the lens in 09_post.js and
 // the renderer's weather hooks read: how fast (a longer shutter, colour fringes and darker edges toward the sides of the frame, a tremor
 // in the camera), snow thrown onto the glass by a landing, a bough or a fall, the air of each kind of run, the look of slow motion, and the
-// tremble of the picture while the skis rub on the snow.
+// tremble of the picture while the skis rub on the snow. It also says when a tree has gone by close (the `near` event), and how the
+// lens flinches from it.
 // All of it is eased and runs on the game's time, so in slow motion it slows with the world; only the glass dries in real seconds.
 const Feel = (() => {
   const F = { speed: 0, slow: 0, timeK: 1, air: [1, 1, 1], base: [1, 1, 0.00016], wrote: [], goal: 0, pend: null, since: 99, runT: 0, px: 0, pz: 0, init: false };
@@ -28,6 +29,41 @@ const Feel = (() => {
   // field stand, and over rollers, there are fewer knocks and harder ones
   F.GRAIN = { packed: [15, 0.3, 50, 1], powder: [9, 0.5, 30, 0.75], rough: [12, 0.3, 9, 1.15] };
   const CH = F.chat = { lv: 0, con: 0, rough: 0, acc: 0, n: 0, q: [0, 0, 0, 0, 0, 0] }, clip = v => v / Math.sqrt(Math.sqrt(1 + v * v * v * v));
+
+  // a tree gone by close. When the skier passes a tree at speed, near enough to feel it yet without touching, the moment is said to the
+  // rest of the game as an event, `near`: x, z, h, r the tree, as the physics names the one it touches; side -1 it goes by on the left,
+  // 1 on the right; ux, uz the way from its trunk to the skier's line; vx, vz the skier's speed; lead how many seconds before the skier is
+  // level this is said; d how far off the trunk will be at its closest (m); k 0..1, how close a shave and how fast. The trees answer it
+  // (14_trees.js: a breath of snow off the boughs on that side, one of them letting go), and the lens flinches: `roll` (radians, to be
+  // ADDED to the roll the camera is set with: it tips away from the tree and is level again within 0.4 s) and `dip` (m, to be taken OFF
+  // the camera's height: it ducks). Neither is drawn here (turning a finished picture softens it): they are for the camera to read.
+  // nearGap: how far beyond the reach of its boughs a tree still counts (m; the reach is a fifth of its height, and nearer than that is a
+  // touch: the physics' business, with effects of its own); nearV: from what speed (m/s); nearEvery: at most one in so many seconds;
+  // nearLead: how long before the skier is level it is said (s: what the tree lets go takes a moment to show, and the lens, four metres
+  // behind, is past the tree a quarter of a second after the skier); flinch: how far the lens tips (rad) and ducks (m) at the closest
+  // shave, and how soon it is furthest over (s: the same as the lead, so that is as the skier is level)
+  F.roll = 0; F.dip = 0; F.nearGap = 1.2; F.nearV = 12.5; F.nearEvery = 1.5; F.nearLead = 0.1; F.flinch = [0.007, 0.02, 0.1];
+  const NM = F.nm = { tn: {}, x: NaN, z: NaN, d: 0, com: false, t: 9, q: [0, 0, 0, 0, 0, 0] };
+  // Called once a step, after the step's events have been dealt with: so what it says is heard by everything in the next step, the trees
+  // too (they are stepped before this module). It watches the trunk nearest the point the skier will have reached in nearLead seconds,
+  // while that point comes nearer to it; the step the point begins to recede, it has just been at its closest. So of trees standing
+  // together only the nearest speaks, and what it says is true to a few centimetres: how near the line passes, and that nothing is
+  // touched. (The sound's scan of the rows ahead hears a trunk up to half a second before it is reached: in a turn the line moves
+  // metres in that time, so it can know neither.)
+  F.pass = function (dt) {
+    const S = Game.s, L = F.nearLead, qx = S.p[0] + S.v[0] * L, qz = S.p[2] + S.v[2] * L, tn = Course.nearTree(qx, qz, NM.tn), same = tn.ok && tn.x === NM.x && tn.z === NM.z;
+    NM.t += dt;
+    if (same && NM.com && tn.d > NM.d) {
+      // (not the saplings that mark a jump; clear of the boughs by a hand's breadth at least, since what is said ahead can be a few
+      // centimetres out; on the snow or just off it, where the physics too lets a tree be touched; and nothing being touched just now)
+      const gap = NM.d - 0.20 * tn.h, v = Math.hypot(S.v[0], S.v[2]);
+      if (Game.mode === 'run' && !tn.soft && gap > 0.1 && gap < F.nearGap && v > F.nearV && S.e < 2.5 && !(S.brush > 0) && !(S.crash > 0) && NM.t > F.nearEvery) {
+        NM.t = 0;
+        Game.events.push({ type: 'near', x: tn.x, z: tn.z, h: tn.h, r: tn.r, side: sign((tn.z - qz) * S.v[0] - (tn.x - qx) * S.v[2]) || 1, ux: (qx - tn.x) / tn.d, uz: (qz - tn.z) / tn.d, vx: S.v[0], vz: S.v[2], lead: L, d: NM.d, k: (1 - gap / F.nearGap) * smooth(F.nearV, 1.6 * F.nearV, v) });
+      }
+    }
+    NM.com = same && tn.d < NM.d; NM.x = tn.ok ? tn.x : NaN; NM.z = tn.z; NM.d = tn.d;
+  };
 
   // snow reaches the glass: how much (0..1: it is also how long it stays, 1 = F.dry seconds), from which side of the frame (-1 left .. 1 right)
   // and how much of it from below (0..1). On dry glass it lands as a new scatter of beads; on wet glass the ones there swell again
@@ -123,6 +159,18 @@ const Feel = (() => {
       const amp = F.chatPx * F.chatter * k(3), rms = amp * Math.max(Render.W, 1280) / 1280 / 2.8, T = 0.5 * Math.pow(sat(rms / 0.3), 0.6);
       for (let i = 0; i < 2; i++) { const d = rms * 2.8 * clip(q[2 * i + 1] / 2.8); Post.chat[i] = sign(d) * Math.floor(Math.abs(d) + 1 - T); }
       Post.chat[2] = F.chatRot * amp / 640 * clip(q[5] / 2.8);
+    }
+
+    // ---- the flinch. Every `near` gives the lens a push, and it rides it out the way a head does on its neck: over and back, once, with
+    // no swinging after. The push goes through three soft links one after another, so the lens leaves rest gently (no jerk at the
+    // start), is furthest over F.flinch[2] seconds later and has a twentieth of that left after not quite four times as long. What is
+    // read is where it stands, so nothing ever jumps. On the game's time, the same at any frame rate.
+    {
+      const q = NM.q, x = 2 / F.flinch[2] * dt, E = Math.exp(-x);
+      if (cut) q.fill(0);
+      for (const e of Game.events) if (e.type === 'near') { const a = 0.5 * Math.E * Math.E * (0.6 + 0.4 * e.k); q[0] += a * e.side; q[3] += a; }
+      for (let i = 0; i < 6; i += 3) { q[i + 2] = (q[i + 2] + x * q[i + 1] + 0.5 * x * x * q[i]) * E; q[i + 1] = (q[i + 1] + x * q[i]) * E; q[i] *= E; }
+      F.roll = F.flinch[0] * q[2]; F.dip = F.flinch[1] * q[5];
     }
   };
   return F;

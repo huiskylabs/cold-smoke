@@ -103,6 +103,7 @@ function tick(dt, draw) {
     }
   }
   Game.events.length = 0;
+  Feel.pass(dt);                                                        // a tree gone by close, untouched: said as an event (`near`) for the next step, where the trees hear it too
   Sound.frame();
   for (const f of App.onTick) f(dt, draw !== false);
   if (draw !== false) Render.render();
