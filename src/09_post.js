@@ -17,6 +17,11 @@ const Post = (() => {
   const gPick = () => P.ghostV[typeof Variants !== 'undefined' && Variants.val.ghost] || P.ghostV.c;
   if (typeof Variants !== 'undefined') Variants.def('ghost', '逆光光斑', [['a', '现在的'], ['b', '轻'], ['c', '明显']], 'c');
   P.gOld = gPick()[0]; P.gNew = gPick()[1];
+  // highlights: as delivered (the film curve per channel, so backlit spray and the glare round a low sun burn to a saturated yellow), or
+  // losing their colour toward white as they near the top of the curve, the way film and the eye do (composite below). Eased like the ghosts
+  const wPick = () => (typeof Variants !== 'undefined' && Variants.val.hi === 'a') ? 0 : 1;
+  if (typeof Variants !== 'undefined') Variants.def('hi', '高光', [['a', '原来'], ['b', '渐白']], 'b');
+  P.white = wPick();
   let gfx, pDown0, pDown, pUp, pComp, pVis, pMask, pRad, pMB, visTex, visT, visInit = false, W = 0, H = 0;
   let rayA, rayAT, rayB, rayBT;
 
@@ -189,9 +194,9 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     gfx.beginPass(m[0].t, { color: [0, 0, 0, 1] }); gfx.draw(pDown0, { u: { p: [1 / W, 1 / H, 0, 0] }, tex: { tA: sceneTex }, count: 3 }); gfx.endPass();
     for (let i = 1; i < m.length; i++) { gfx.beginPass(m[i].t, { color: [0, 0, 0, 1] }); gfx.draw(pDown, { u: { p: [1 / m[i - 1].w, 1 / m[i - 1].h, 0, 0] }, tex: { tA: m[i - 1].tex }, count: 3 }); gfx.endPass(); }
     for (let i = m.length - 2; i >= 0; i--) { gfx.beginPass(m[i].t, {}); gfx.draw(pUp, { u: { p: [1 / m[i + 1].w, 1 / m[i + 1].h, 1.0, 0] }, tex: { tA: m[i + 1].tex }, count: 3 }); gfx.endPass(); }
-    { const g = gPick(), k = 1 - Math.exp(-8 * clamp(Render.dt || 0, 0, 0.1)); P.gOld += (g[0] - P.gOld) * k; P.gNew += (g[1] - P.gNew) * k; }
+    { const g = gPick(), k = 1 - Math.exp(-8 * clamp(Render.dt || 0, 0, 0.1)); P.gOld += (g[0] - P.gOld) * k; P.gNew += (g[1] - P.gNew) * k; P.white += (wPick() - P.white) * k; }
     gfx.beginPass(null, { color: [0, 0, 0, 1] });
-    gfx.draw(pComp, { u: { p: [P.exposure, 1 / m.length, P.rayBase * P.rays, P.rayOcc * P.rays], q: [P.satPre, P.satPost, P.flare, P.rayFall], r: [P.burst, P.ghosts * P.gOld, P.slow, P.speed], w: [P.wet, P.wetAge, P.wetSeed, P.fringe], wb: [P.wetBias[0], P.wetBias[1], P.wetNew, P.ghosts * P.gNew], sh: [P.chat[0] / W, P.chat[1] / H, P.chat[2], 0] }, tex: { tScene: sceneTex, tBloom: m[0].tex, tDepth: depthTex, tVis: visTex, tRay: rayA }, count: 3 });
+    gfx.draw(pComp, { u: { p: [P.exposure, 1 / m.length, P.rayBase * P.rays, P.rayOcc * P.rays], q: [P.satPre, P.satPost, P.flare, P.rayFall], r: [P.burst, P.ghosts * P.gOld, P.slow, P.speed], w: [P.wet, P.wetAge, P.wetSeed, P.fringe], wb: [P.wetBias[0], P.wetBias[1], P.wetNew, P.ghosts * P.gNew], sh: [P.chat[0] / W, P.chat[1] / H, P.chat[2], P.white] }, tex: { tScene: sceneTex, tBloom: m[0].tex, tDepth: depthTex, tVis: visTex, tRay: rayA }, count: 3 });
     gfx.endPass();
   };
   return P;
@@ -359,10 +364,16 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   // white balance toward the low sun (sunlit snow a warm white, sky-lit shadows properly blue), exposure, then the film curve.
   // chroma is pushed a little before the curve (deep sky, rich shadows) and again after it.
   col *= vec3f(0.93, 1.0, 1.10) * M.p.x;
-  let l0: f32 = luma(col); col = max(vec3f(l0) + (col - vec3f(l0)) * M.q.x, vec3f(0.0));
+  // path to white: film and the eye lose colour as light nears their top, so backlit spray, a sunlit cloud edge or the glare round the sun
+  // go gold at their rims and white where they are densest, never a saturated yellow "fire" (the curve works per channel, and red and green
+  // reach its shoulder together long before blue does). Graded on brightness, so the warm snow of the low sun keeps its colour and the deep
+  // blue and violet lights of the night (bright but dim to the eye) are hardly touched. M.sh.w: how strongly (Post.white, Variants 'hi'; 0 = as before)
+  let l0: f32 = luma(col); let wk: f32 = M.sh.w * smoothstep(0.35, 1.5, l0);
+  col = max(vec3f(l0) + (col - vec3f(l0)) * mix(M.q.x, 1.0, wk), vec3f(0.0));
+  col = mix(col, vec3f(l0), 0.75 * wk);
   col = filmCurve(col);
   let l: f32 = luma(col);
-  col = max(mix(vec3f(l), col, M.q.y), vec3f(0.0));
+  col = max(mix(vec3f(l), col, mix(M.q.y, 1.0, wk)), vec3f(0.0));
   // the ghosts lie over the finished picture as a faint veil of colour, whatever is behind them: through the film curve they would glare on
   // the dark trees and the skier and be lost on the snow, which is most of the frame. Only while the sun's disc is in sight, so a ridge, a
   // tree or the skier put them out (and much less of them from the moon)
