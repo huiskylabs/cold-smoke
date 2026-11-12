@@ -16,9 +16,10 @@ const SKIER_LOOK = {
 };
 
 const Skier = (() => {
-  const K = { ready: false, NB: 27, LOOK: SKIER_LOOK };
-  // (18..26 are helpers: half-way frames at knee, elbow, hip and shoulder so a deep bend folds like a limb and not like a pinched hose; and the neck)
-  const B = { pelvis: 0, spine: 1, chest: 2, head: 3, uarmL: 4, farmL: 5, handL: 6, uarmR: 7, farmR: 8, handR: 9, thighL: 10, shinL: 11, footL: 12, thighR: 13, shinR: 14, footR: 15, poleL: 16, poleR: 17, kneeL: 18, kneeR: 19, elbowL: 20, elbowR: 21, seatL: 22, seatR: 23, shL: 24, shR: 25, neck: 26 };
+  const K = { ready: false, NB: 28, LOOK: SKIER_LOOK };
+  // (18..27 are helpers: half-way frames at knee, elbow, hip and shoulder so a deep bend folds like a limb and not like a pinched hose; the neck; and the
+  // tail of the jacket, which rides up round the seat when the trunk folds forward)
+  const B = { pelvis: 0, spine: 1, chest: 2, head: 3, uarmL: 4, farmL: 5, handL: 6, uarmR: 7, farmR: 8, handR: 9, thighL: 10, shinL: 11, footL: 12, thighR: 13, shinR: 14, footR: 15, poleL: 16, poleR: 17, kneeL: 18, kneeR: 19, elbowL: 20, elbowR: 21, seatL: 22, seatR: 23, shL: 24, shR: 25, neck: 26, tail: 27 };
   // a 1.76 m adult in ski boots on bindings (ankle joint 16 cm above the snow); grip = the middle of the fist, where the pole is held
   const LEN = { thigh: 0.43, shin: 0.43, uarm: 0.30, farm: 0.26, grip: 0.075, hipW: 0.09, hipD: 0.05, shW: 0.185, shD: 0.05, ankle: 0.16, spine: 0.25, chest: 0.25, neck: 0.085, head: 0.065, pole: 1.14, basket: 1.05 };
   let gfx, vb, vb2, ib, count = 0, pipe, pipeShadow, boneTex;
@@ -350,9 +351,10 @@ const Skier = (() => {
   }
   // a helper bone: turned half-way between the two bones that meet at a joint, about that joint (pb: where the joint is in the bind pose, pp: now).
   // Skin near a knee, elbow, hip or shoulder hangs on it, so a deep bend folds round the joint instead of pinching flat
-  function half(M, i, a, b, pb, pp) {
-    const qa = quat(M[a]), qb = quat(M[b]), sg = qa[0] * qb[0] + qa[1] * qb[1] + qa[2] * qb[2] + qa[3] * qb[3] < 0 ? -1 : 1;
-    let x = qa[0] + sg * qb[0], y = qa[1] + sg * qb[1], z = qa[2] + sg * qb[2], w = qa[3] + sg * qb[3]; const l = Math.hypot(x, y, z, w) || 1; x /= l; y /= l; z /= l; w /= l;
+  // (t: not half-way but this far from a's turn to b's; more than 1 = further than b)
+  function half(M, i, a, b, pb, pp, t) {
+    const qa = quat(M[a]), qb = quat(M[b]), sg = qa[0] * qb[0] + qa[1] * qb[1] + qa[2] * qb[2] + qa[3] * qb[3] < 0 ? -1 : 1, ka = t == null ? 1 : 1 - t, kb = sg * (t == null ? 1 : t);
+    let x = ka * qa[0] + kb * qb[0], y = ka * qa[1] + kb * qb[1], z = ka * qa[2] + kb * qb[2], w = ka * qa[3] + kb * qb[3]; const l = Math.hypot(x, y, z, w) || 1; x /= l; y /= l; z /= l; w /= l;
     const m = [1 - 2 * (y * y + z * z), 2 * (x * y + w * z), 2 * (x * z - w * y), 0, 2 * (x * y - w * z), 1 - 2 * (x * x + z * z), 2 * (y * z + w * x), 0, 2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y), 0, 0, 0, 0, 1];
     m[12] = pp[0] - (m[0] * pb[0] + m[4] * pb[1] + m[8] * pb[2]); m[13] = pp[1] - (m[1] * pb[0] + m[5] * pb[1] + m[9] * pb[2]); m[14] = pp[2] - (m[2] * pb[0] + m[6] * pb[1] + m[10] * pb[2]);
     M[i] = m;
@@ -365,6 +367,9 @@ const Skier = (() => {
     half(M, B.elbowL, B.uarmL, B.farmL, bj.elbowL, j.elbowL); half(M, B.elbowR, B.uarmR, B.farmR, bj.elbowR, j.elbowR);
     half(M, B.seatL, B.pelvis, B.thighL, bj.hipL, j.hipL); half(M, B.seatR, B.pelvis, B.thighR, bj.hipR, j.hipR);
     half(M, B.shL, B.chest, B.uarmL, bj.shL, j.shL); half(M, B.shR, B.chest, B.uarmR, bj.shR, j.shR);
+    // (the back of the jacket hangs from the shoulders: as the trunk folds forward over the hips the back grows longer and takes the hem up with it, round
+    // the seat and no further from it than it stood: turned about the middle of the seat, by as much more than the trunk as the seat is rounder than the back)
+    half(M, B.tail, B.pelvis, B.spine, bind.seatC, m4.tp(F[B.pelvis], SEATC), 1.4);
     // (a breath drawn: the ribs open, more from front to back than across)
     if (s.br) M[B.chest] = m4.mul(m4.mul(F[B.chest], [1 + 0.018 * s.br, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 + 0.035 * s.br, 0, 0, 0, 0, 1]), invBind[B.chest]);
     return M;
@@ -375,6 +380,10 @@ const Skier = (() => {
   // What makes it read as a skier from behind: shoulders a quarter wider than the hips; a jacket that hangs from chest and seat and ends in a hem that
   // stands off the trousers; a seat that is two rounded masses with the thighs leaving below them; thighs that taper to the knee; shell trousers that
   // widen again to go over the boot cuff and end in a hem; a boot that is a long shell on a plate between a toe piece and a heel piece
+  // (the pack, in the chest's frame: a rounded box, a lid, a front pocket: centre, half-sizes or radii, rounding; k: how softly they run into each other.
+  // The distance field is built from these and the fragment shader draws the pack's outline from the same numbers)
+  const SEATC = [0, -0.085, 0.052];      // (the middle of the seat, in the pelvis's frame: where the two masses of rPelvis are centred)
+  const PACK = K.PACK = { box: [0, -0.055, 0.180, 0.122, 0.195, 0.062, 0.055], lid: [0, 0.125, 0.170, 0.112, 0.07, 0.068], pocket: [0, -0.12, 0.250, 0.08, 0.085, 0.018, 0.018], k: [0.035, 0.02] };
   function buildBody(bd) {
     const J = bd.J, F = bd.F, sq = Math.sqrt, smin = sd.smin, smax = sd.smax;
     // (the same shapes as in sd, written out with plain square roots: this field is asked for half a million times while the page loads)
@@ -419,9 +428,10 @@ const Skier = (() => {
       return smin(a, E(cx, cy, cz, 0, 0.20, 0.095, 0.115, 0.07, 0.055), 0.03);                                // folded hood
     }
     // the pack lies on the back from the shoulder blades to the small of the back
+    const pA = PACK.box, pB = PACK.lid, pC = PACK.pocket;
     function rPack(x, y, z) {
-      loc(Fc, x, y, z); const pk = smin(rbx(q[0], q[1], q[2], 0, -0.055, 0.180, 0.122, 0.195, 0.062, 0.055), E(q[0], q[1], q[2], 0, 0.125, 0.170, 0.112, 0.07, 0.068), 0.035);
-      return smin(pk, rbx(q[0], q[1], q[2], 0, -0.12, 0.250, 0.08, 0.085, 0.018, 0.018), 0.02);              // front pocket
+      loc(Fc, x, y, z); const pk = smin(rbx(q[0], q[1], q[2], pA[0], pA[1], pA[2], pA[3], pA[4], pA[5], pA[6]), E(q[0], q[1], q[2], pB[0], pB[1], pB[2], pB[3], pB[4], pB[5]), PACK.k[0]);
+      return smin(pk, rbx(q[0], q[1], q[2], pC[0], pC[1], pC[2], pC[3], pC[4], pC[5], pC[6]), PACK.k[1]);    // front pocket
     }
     function rArm(k, x, y, z) {
       const A = arm[k], a = smin(cap(x, y, z, A.up, 0.068, 0.058), cap(x, y, z, A.fo, 0.058, 0.047), 0.02);
@@ -486,6 +496,7 @@ const Skier = (() => {
       out[2] = 0; out[3] = 0;
       if (id <= 1) { out[2] = clamp(p.pants - p.jacket, -0.05, 0.05); out[3] = clamp(p.armSide, -0.05, 0.05); }   // > 0: jacket side / torso side (decided per pixel)
       else if (id >= 4 && id <= 7) { out[2] = p.q[1]; out[3] = p.q[2]; }                  // head-local y, z for the strap / lens / stripe
+      else if (id === 8) out[3] = 0.05;                                                   // (where the pack's outline leaves a little of it to the jacket: torso, not sleeve)
       // ambient occlusion from the field itself
       const ao = sat(0.25 + 0.75 * (0.6 * sat(f(x + nx * 0.05, y + ny * 0.05, z + nz * 0.05) / 0.05) + 0.4 * sat(f(x + nx * 0.14, y + ny * 0.14, z + nz * 0.14) / 0.14)));
       out[0] = id; out[1] = ao;
@@ -499,7 +510,7 @@ const Skier = (() => {
     const J = bd.J, F = bd.F, n = mesh.nv, out = new Float32Array(n * 4), c = sd.capsule, SG = 0.030;
     const dS = (x, y, z, s, r) => c(x, y, z, s[0][0], s[0][1], s[0][2], s[1][0], s[1][1], s[1][2], r, r), dP = (x, y, z, a, r) => Math.hypot(x - a[0], y - a[1], z - a[2]) - r;
     const up = bd.t2.Y, sp = v3.norm(v3.sub(J.chest, J.pelvis)), hips = [J.hipL, J.hipR], spine = [v3.mad(J.pelvis, sp, 0.07), v3.mad(J.chest, sp, -0.04)], chest = [v3.mad(J.chest, up, 0.04), v3.mad(J.neck, up, -0.10)];
-    const shl = [v3.lerp(J.shL, J.shR, 0.1), v3.lerp(J.shL, J.shR, 0.9)], nk = v3.mad(J.neck, up, 0.04), nk2 = v3.mad(J.neck, up, -0.05), Fp = F[B.pelvis];
+    const shl = [v3.lerp(J.shL, J.shR, 0.1), v3.lerp(J.shL, J.shR, 0.9)], nk = v3.mad(J.neck, up, 0.04), nk2 = v3.mad(J.neck, up, -0.05), Fp = F[B.pelvis], spineB = [v3.mad(J.pelvis, sp, -0.12), spine[1]];
     const T = [0, 1].map(k => { const s = k ? 'R' : 'L', hip = J['hip' + s], kn = J['knee' + s], an = J['ankle' + s], sh = J['sh' + s], el = J['elbow' + s], wr = J['wrist' + s], td = v3.norm(v3.sub(kn, hip)), sn = v3.norm(v3.sub(an, kn)), ud = v3.norm(v3.sub(el, sh)), fd = v3.norm(v3.sub(wr, el));
       return { hip, kn, sh, el, td, ud, th: [v3.mad(hip, td, 0.12), v3.mad(kn, td, -0.11)], sn: [v3.mad(kn, sn, 0.11), an], ua: [v3.mad(sh, ud, 0.10), v3.mad(el, ud, -0.09)], fa: [v3.mad(el, fd, 0.09), wr],
         seat: k ? B.seatR : B.seatL, thigh: k ? B.thighR : B.thighL, knee: k ? B.kneeR : B.kneeL, shin: k ? B.shinR : B.shinL, foot: k ? B.footR : B.footL, shd: k ? B.shR : B.shL, uarm: k ? B.uarmR : B.uarmL, elbow: k ? B.elbowR : B.elbowL, farm: k ? B.farmR : B.farmL, hand: k ? B.handR : B.handL, mS: F[k ? B.shinR : B.shinL], mH: F[k ? B.handR : B.handL] }; });
@@ -513,10 +524,16 @@ const Skier = (() => {
       if (id === 0 || id === 8) {     // (the pack is soft and strapped on: it goes with the cloth it lies against, so the two never tear apart, and bends with the back)
         const pt = body.parts(x, y, z), as = pt.armSide, aa = (x - t.sh[0]) * t.ud[0] + (y - t.sh[1]) * t.ud[1] + (z - t.sh[2]) * t.ud[2], pk = id === 8;
         const mT = as < 0 && !pk ? (1 - smooth(0.004, 0.05, -as)) * (1 - smooth(0.05, 0.15, aa)) : 1, mA = (as >= 0 ? 1 - smooth(0.004, 0.045, as) : 1) * (pk ? 1 - smooth(0, 0.03, pt.jacket) : 1);
-        add(B.pelvis, dS(x, y, z, hips, 0.14), mT); add(B.spine, dS(x, y, z, spine, 0.15), mT); add(B.chest, Math.min(dS(x, y, z, chest, 0.15), dS(x, y, z, shl, 0.085)), mT); add(B.neck, dP(x, y, z, nk, 0.07), mT);
+        // (the back of the jacket hangs from the shoulders, and the pack is strapped to them: when the trunk folds forward over the hips, as in a tuck, they
+        // go with the back, the hem rides up round the seat (the tail bone) and the seat is left to the trousers. Held by the pelvis and the seat, the skirt
+        // stayed wrapped round the seat and stood up under the pack as a round lump. bk: how far round to the back a point is, tw: how near the hem there)
+        const py = (x - Fp[12]) * Fp[4] + (y - Fp[13]) * Fp[5] + (z - Fp[14]) * Fp[6], pz = (x - Fp[12]) * Fp[8] + (y - Fp[13]) * Fp[9] + (z - Fp[14]) * Fp[10], bk = pk ? 1 : smooth(-0.02, 0.07, pz);
+        const tw = pk ? 0 : bk * (1 - smooth(0.02, 0.13, py + 0.082 + 0.026 * sat((pz + 0.02) / 0.14)));
+        add(B.pelvis, dS(x, y, z, hips, 0.14), mT * (1 - 0.8 * bk)); add(B.spine, dS(x, y, z, spine, 0.15), mT); if (bk > 0) add(B.spine, dS(x, y, z, spineB, 0.15), mT * bk * (1 - 0.8 * tw)); if (tw > 0) add(B.tail, 0, mT * tw);
+        add(B.chest, Math.min(dS(x, y, z, chest, 0.15), dS(x, y, z, shl, 0.085)), mT); add(B.neck, dP(x, y, z, nk, 0.07), mT);
         add(t.shd, dP(x, y, z, t.sh, 0.078), mA); add(t.uarm, dS(x, y, z, t.ua, 0.062), mA); add(t.elbow, dP(x, y, z, t.el, 0.06), mA); add(t.farm, dS(x, y, z, t.fa, 0.052), mA);
-        // the skirt of the jacket lies on the seat and the tops of the thighs and goes with them (held by the pelvis alone, a deep bend at the hip pushes the seat out through it)
-        add(t.seat, dP(x, y, z, t.hip, 0.120), fade * mT); add(t.thigh, dS(x, y, z, t.th, 0.100), fade * mT);
+        // in front and at the sides the skirt of the jacket lies on the tops of the thighs and goes with them (held by the pelvis alone, a deep bend at the hip pushes the thighs out through it)
+        add(t.seat, dP(x, y, z, t.hip, 0.120), fade * mT * (1 - bk)); add(t.thigh, dS(x, y, z, t.th, 0.100), fade * mT * (1 - bk));
       } else if (id === 1) {
         add(B.pelvis, dS(x, y, z, hips, 0.125), 1); add(t.seat, dP(x, y, z, t.hip, 0.105), fade); add(t.thigh, dS(x, y, z, t.th, 0.085), fade); add(t.knee, dP(x, y, z, t.kn, 0.072), fade); add(t.shin, dS(x, y, z, t.sn, 0.08), fade);
       } else if (id === 2) { add(t.hand, 0, smooth(-0.075, -0.015, ly(t.mH, x, y, z))); add(t.farm, 0, 1 - smooth(-0.075, -0.015, ly(t.mH, x, y, z))); }
@@ -589,7 +606,7 @@ const Skier = (() => {
   }
 
   K.build = function () {
-    bind = solve(P0); invBind = bind.F.map(m => m ? m4.invert(m) : null); K.bind = bind;
+    bind = solve(P0); invBind = bind.F.map(m => m ? m4.invert(m) : null); K.bind = bind; bind.seatC = m4.tp(bind.F[B.pelvis], SEATC);
     const body = buildBody(bind);
     const t0 = performance.now();
     const m = meshSDF(body.f, [-0.44, 0.0, -0.66], [0.44, 1.80, 0.38], 0.0135, { stride: 4, attr: body.attr });
@@ -623,14 +640,18 @@ const Skier = (() => {
     vb = gfx.buffer(m.V, 'vertex'); vb2 = gfx.buffer(m.W, 'vertex'); ib = gfx.buffer(m.I, 'index'); count = m.ni;
     boneTex = gfx.texture({ w: 4, h: 32, format: 'rgba32f', filter: 'nearest' });
     const buffers = [{ attrs: [['pos', 'vec3f'], ['nrm', 'vec3f'], ['mat', 'vec4f']] }, { attrs: [['bw', 'vec4f']] }];
-    // places on the bind-pose body the fragment shader paints by: the chest's own frame (straps, pack), the right arm (the left is its mirror image)
-    // and the height above the jacket's hem (the same line the distance field cuts the jacket at)
-    const f3 = a => 'vec3f(' + a.map(v => v.toFixed(5)).join(', ') + ')', bj = bind.J, cc = bj.chest, t2 = bind.t2, Fp = bind.F[B.pelvis], pb = { O: [Fp[12], Fp[13], Fp[14]], Y: [Fp[4], Fp[5], Fp[6]], Z: [Fp[8], Fp[9], Fp[10]] };
+    // places on the bind-pose body the fragment shader paints by: the chest's own frame (straps, pack), the pelvis's (the height above the jacket's hem:
+    // the same line the distance field cuts the jacket at), the right arm and the right leg (the left ones are their mirror images), the pack's outline
+    const f3 = a => 'vec3f(' + a.map(v => v.toFixed(5)).join(', ') + ')', bj = bind.J, cc = bj.chest, t2 = bind.t2, Fp = bind.F[B.pelvis], pb = { O: [Fp[12], Fp[13], Fp[14]], X: [Fp[0], Fp[1], Fp[2]], Y: [Fp[4], Fp[5], Fp[6]], Z: [Fp[8], Fp[9], Fp[10]] };
+    const dir = (a, b) => f3(v3.norm(v3.sub(b, a))), pk = (a, i, n) => f3(a.slice(i, i + n)), f1 = x => x.toFixed(4);
     const marks = `let tl: vec3f = vec3f(dot(bp - ${f3(cc)}, ${f3(t2.X)}), dot(bp - ${f3(cc)}, ${f3(t2.Y)}), dot(bp - ${f3(cc)}, ${f3(t2.Z)}));
-  let bm: vec3f = vec3f(abs(bp.x), bp.y, bp.z); let armU: f32 = dot(bm - ${f3(bj.shR)}, ${f3(v3.norm(v3.sub(bj.elbowR, bj.shR)))}); let armF: f32 = dot(bm - ${f3(bj.elbowR)}, ${f3(v3.norm(v3.sub(bj.gripR, bj.elbowR)))});
-  let hemV: f32 = dot(bp - ${f3(pb.O)}, ${f3(pb.Y)}) + 0.082 + 0.026 * saturate((dot(bp - ${f3(pb.O)}, ${f3(pb.Z)}) + 0.02) / 0.14);`;
+  let pl: vec3f = vec3f(dot(bp - ${f3(pb.O)}, ${f3(pb.X)}), dot(bp - ${f3(pb.O)}, ${f3(pb.Y)}), dot(bp - ${f3(pb.O)}, ${f3(pb.Z)}));
+  let bm: vec3f = vec3f(abs(bp.x), bp.y, bp.z); let armU: f32 = dot(bm - ${f3(bj.shR)}, ${dir(bj.shR, bj.elbowR)}); let armF: f32 = dot(bm - ${f3(bj.elbowR)}, ${dir(bj.elbowR, bj.gripR)});
+  let hemV: f32 = pl.y + 0.082 + 0.026 * saturate((pl.z + 0.02) / 0.14);
+  let thU: f32 = dot(bm - ${f3(bj.hipR)}, ${dir(bj.hipR, bj.kneeR)}); let legS: f32 = dot(bm - ${f3(bj.kneeR)}, ${dir(bj.kneeR, bj.ankleR)});
+  let pkD: f32 = skMin(skMin(skBox(tl, ${pk(PACK.box, 0, 3)}, ${pk(PACK.box, 3, 3)}, ${f1(PACK.box[6])}), skEll(tl, ${pk(PACK.lid, 0, 3)}, ${pk(PACK.lid, 3, 3)}), ${f1(PACK.k[0])}), skBox(tl, ${pk(PACK.pocket, 0, 3)}, ${pk(PACK.pocket, 3, 3)}, ${f1(PACK.pocket[6])}), ${f1(PACK.k[1])});`;
     pipe = gfx.pipeline({
-      name: 'skier', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SKIN_SSL], buffers,
+      name: 'skier', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SKIN_SSL, SKIER_SSL], buffers,
       varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', bn: 'vec3f', mat: 'vec4f' }, uniforms: { p: 'vec4f' },
       textures: { tBones: 'fetch', tDetail: '2d', tShadow: 'shadow', tSky: '2d' },
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let s: SkinV = skinVertex(a.pos, a.nrm, a.bw); v.wp = s.wp; v.nrm = s.n; v.bp = a.pos; v.bn = a.nrm; v.mat = a.mat; v.clip = U.viewProj * vec4f(s.wp, 1.0); return v; }`,
@@ -791,6 +812,13 @@ fn skinVertex(pos: vec3f, nrm: vec3f, bw: vec4f) -> SkinV {
 }
 `;
 
+// (the shapes the pack is drawn from, as the distance field has them: a rounded box, an ellipsoid, a soft union)
+const SKIER_SSL = `
+fn skBox(p: vec3f, c: vec3f, h: vec3f, r: f32) -> f32 { let q: vec3f = abs(p - c) - h + vec3f(r); return length(max(q, vec3f(0.0))) + min(max(q.x, max(q.y, q.z)), 0.0) - r; }
+fn skEll(p: vec3f, c: vec3f, r: vec3f) -> f32 { let q: vec3f = (p - c) / r; let k0: f32 = length(q); return k0 * (k0 - 1.0) / max(length(q / r), 1e-6); }
+fn skMin(a: f32, b: f32, k: f32) -> f32 { let h: f32 = max(k - abs(a - b), 0.0) / k; return min(a, b) - h * h * k * 0.25; }
+`;
+
 // (jacket, gloves and poles take their colours and materials from SKIER_LOOK, at the top of this file)
 const SKIER_FS = (L => { const V = a => 'vec3f(' + a.map(x => x.toFixed(3)).join(', ') + ')', F = x => x.toFixed(3); return `
 fn frag(v: VOut) -> FOut {
@@ -807,8 +835,14 @@ fn frag(v: VOut) -> FOut {
   var alb: vec3f = vec3f(0.5); var specP: f32 = 20.0; var specS: f32 = 0.03; var sheen: f32 = 0.0; var gloss: f32 = 0.0; var glossTint: vec3f = vec3f(1.0); var cloth: f32 = 0.0;
   let orange: vec3f = ${V(L.jacket.alb)}; let navy: vec3f = ${V(L.sleeveFore.alb)};
   /*MARKS*/
-  // jacket or trousers: by which is nearer, and where the two lie against each other (round the hem) by the line of the hem itself, so that it is drawn clean
-  if (id < 1.5) { id = 1.0; if (v.mat.z > 0.012 || (v.mat.z > -0.012 && hemV > -0.004)) { id = 0.0; } }
+  // where one garment ends on another the edge is drawn here, pixel by pixel, from the garment's own line, a few millimetres inside the lip the mesh
+  // makes of it: a mesh cannot keep such an edge straight (it came out as a ragged fringe that read as fur), a line can.
+  // jacket or trousers: by the line of the hem (well above it: by which of the two is nearer)
+  if (id < 1.5) { id = 1.0; if (hemV > 0.006 && (hemV < 0.05 || v.mat.z > -0.012)) { id = 0.0; } }
+  // trousers or boot: by the line of the trouser hem, down the shin
+  if (legS > 0.25 && ((id > 0.5 && id < 1.5) || (id > 2.5 && id < 3.5))) { id = select(3.0, 1.0, legS < 0.349); }
+  // jacket or pack: by the pack's own outline
+  if (id < 0.5 || (id > 7.5 && id < 8.5)) { id = select(0.0, 8.0, pkD < 0.006); }
   if (id < 0.5) {            // jacket: orange shell, dark forearms, a pale band round the upper sleeves, pack straps over the shoulders
     let onTorso: f32 = smoothstep(-0.004, 0.004, v.mat.w);
     let fore: f32 = smoothstep(0.035, 0.065, armF) * (1.0 - onTorso);
