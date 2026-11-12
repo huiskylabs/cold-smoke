@@ -111,10 +111,21 @@ fn snowFly(p0: vec3f, v0: vec3f, t: f32, L: f32, tb: f32, vs: f32, wk: f32) -> F
 `;
 
 const Spray = (() => {
-  const P = { NP: 6144, NG: 16384, PF: 16, GF: 12, gain: 1, reach: 1.0, clots: 0.40, lens: 1.3, bump: 1.0, tear: 1.0, speck: 1.0, keyhole: 1.0, nearBlur: 0.75, shutter: true, streakMax: 0.06, crumb: 1.0, grainShutter: 4.0, shadows: true, enabled: true, moonMix: 0, night: null, nt: 0, stats: { puffs: 0, grains: 0 } };
+  const P = { NP: 6144, NG: 16384, PF: 16, GF: 12, gain: 1, reach: 1.0, clots: 0.40, lens: 1.3, bump: 1.0, tear: 1.0, speck: 1.0, keyhole: 1.0, nearBlur: 0.75, shutter: true, streakMax: 0.06, crumb: 1.0, grainShutter: 4.0, face: 0, grainy: true, shadows: true, enabled: true, moonMix: 0, night: null, nt: 0, stats: { puffs: 0, grains: 0 } };
   // the owner's choice: how much the moon shows of the snow in the air by night (the headlamp's share is the same in both). a: thin and dark blue,
   // the lamp carries it; b: the moon lights the curtain too, silver-blue. (P.night: null = by the sun's height; a number holds it, for tests)
   if (typeof Variants !== 'undefined') Variants.def('nspray', '夜间雪雾', [['a', '暗蓝头灯'], ['b', '月光亮些']], 'a');
+  // the owner's choice: how tall the curtain stands by the kind of snow. Real snow: a carve on groomed snow throws a low fan of 0.2-0.6 m that
+  // is down within half a second; a slash in deep powder a wall of 1.5-3 m that hangs for seconds. a: tall everywhere (as it was);
+  // b: as real snow has it; c: between (about a metre on packed snow, and it does not hang long)
+  if (typeof Variants !== 'undefined') Variants.def('curtain', '雪幕高度', [['a', '处处都高'], ['b', '按雪况'], ['c', '折中']], 'c');
+  // height (k) and how long the fine part hangs (l), from how soft the snow is (0 packed .. 1 deep powder)
+  P.curtainK = function (powder) {
+    const v = typeof Variants !== 'undefined' ? Variants.val.curtain : 'c', s = smooth(0.25, 0.9, powder);
+    if (v === 'a') return [1, 1];
+    if (v === 'b') return [lerp(0.32, 1.2, s), lerp(0.45, 1.6, s)];
+    return [lerp(0.62, 1.12, s), lerp(0.62, 1.4, s)];
+  };
   let gfx, puffBuf, grainBuf, puffCPU, grainCPU, pipePuff, pipePuffSun, pipeComp, pipeGrain, accTex, accT, sunTex, sunT, hw = 0, hh = 0;
   let ph = 0, gh = 0;                                    // ring heads
   const dirtyP = [], dirtyG = [];                        // [first, count] ranges written since the last upload
@@ -138,7 +149,7 @@ const Spray = (() => {
     pipePuff = gfx.pipeline({
       name: 'sprayPuff', lib: [SL.common, SL.depth, SL.shadow, SL.sprayTau, GROUND_SSL, FLIGHT_SSL, PUFF_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'add4',
       buffers: [{ instanced: true, attrs: [['a0', 'vec4f'], ['a1', 'vec4f'], ['a2', 'vec4f'], ['a3', 'vec4f']] }],
-      varyings: { uv: 'vec2f', d0: 'vec4f', d1: 'vec4f', d2: 'vec4f' }, uniforms: { hx: 'vec4f', hx2: 'vec4f' },
+      varyings: { uv: 'vec2f', d0: 'vec4f', d1: 'vec4f', d2: 'vec4f' }, uniforms: { hx: 'vec4f', hx2: 'vec4f', fc: 'vec4f' },
       textures: { tH: 'fetch', tDepth: 'depth', tDetail: '2d', tShadow: 'shadow', tSunTau: '2d' },
       vs: PUFF_VS, fs: PUFF_FS,
     });
@@ -226,7 +237,7 @@ const Spray = (() => {
     const sp = S.speed;
     for (let i = 0; i < 3; i++) was[i] = damp(was[i], S.v[i], 12, H);
     if (S.air) airEnd = t;
-    if (!S.contact || sp < 1.2) { P.intensity = damp(P.intensity, 0, 12, H); return; }
+    if (!S.contact || sp < 1.2) { P.intensity = damp(P.intensity, 0, 12, H); P.face = faceEnv(t); return; }
     const g = 9.81, N = S.load / g, lat = Math.abs(S.aReac) / g, skid = Math.abs(Math.sin(S.beta));
     // how hard the edges are moving snow: a whisper when gliding, a wall when the skis are thrown sideways
     const pw = 0.6 + 0.6 * S.powder;
@@ -253,12 +264,17 @@ const Spray = (() => {
     // (the blow of a fall or a landing is a spike of load, not a turn: it does not throw a hundred times the snow)
     const Ie = Math.min(Iq, 3.2), X = 0.12 + 0.5 * hard + 0.55 * sat(Iq);
     // (running straight, the tails still drag a plume out of the snow: enough lumps per metre of track that it is one plume, at any speed)
-    accP = Math.min(accP + (70 + 1700 * Math.pow(Ie, 0.9) + 13 * sp * tailP * smooth(5, 12, sp)) * H * P.gain, 60); accG = Math.min(accG + (90 + 4600 * Math.pow(Ie, 0.85)) * H * P.gain, 160);
-    // a thick sheet has the mass to push further through the air before it is braked: the harder the turn, the taller the curtain it leaves
-    const Ls = P.reach * (0.75 + 1.95 * Math.pow(sat(Ie / 2.6), 0.7));
+    // (a turn does not throw one even band of snow along its arc: it comes off the edge in a few thick sheets with thin stretches between,
+    // two to four to a turn)
+    const ch = vnoise1(t * 3.1, 71) * 0.5 + 0.5, chunk = 1.25 * (0.32 + 1.3 * ch * ch);
+    accP = Math.min(accP + (70 + 1700 * Math.pow(Ie, 0.9) * chunk + 13 * sp * tailP * smooth(5, 12, sp)) * H * P.gain, 60); accG = Math.min(accG + (90 + 4600 * Math.pow(Ie, 0.85) * (0.4 + 0.6 * chunk)) * H * P.gain, 160);
+    // a thick sheet has the mass to push further through the air before it is braked: the harder the turn, the taller the curtain it leaves.
+    // How tall also goes with the snow: hard snow comes off as a low fan of grains, deep powder as a wall (P.curtainK)
+    const CK = P.curtainK(S.powder || 0), hk = CK[0], lk = CK[1];
+    const Ls = P.reach * (0.75 + 1.95 * Math.pow(sat(Ie / 2.6), 0.7)) * hk;
     // (it leaves the edge low and across the ski, steeper where the skis are thrown sideways and the snow piles against the bases;
     // a skidding ski ploughs along its whole length, a carving one sheds from under the foot back)
-    const base = S.h, elBase = lerp(0.42, lerp(0.62, 0.92, sat(skid / 0.5)), hard), alMax = lerp(0.42, 0.88, sat(skid / 0.3));
+    const base = S.h, elBase = lerp(0.42, lerp(0.62, 0.92, sat(skid / 0.5)), hard) * lerp(0.62, 1, sat(hk)), alMax = lerp(0.42, 0.88, sat(skid / 0.3));
     // The edge throws a SHEET, not a cloud: direction and speed vary smoothly along the ski and in time, so neighbouring lumps fly together
     // and the curtain shows fingers and scallops along its crest. A minority is loose mist that fills in around it and lingers.
     // (the fingers come and go: a stretch of even spray, then a few tall ones, never a comb)
@@ -309,7 +325,7 @@ const Spray = (() => {
       }
       const ce = Math.cos(el), se = Math.sin(el);
       const vx = v[0] * carry + (ox * ce + n[0] * se) * sv + (rnd() - 0.5) * jit, vy = v[1] * carry + (oy * ce + n[1] * se) * sv + rnd() * 0.4 * jit, vz = v[2] * carry + (oz * ce + n[2] * se) * sv + (rnd() - 0.5) * jit;
-      P.puff(t - jt, px, py, pz, vx, vy, vz, f, r0, dens, 1, lifeK, brake);
+      P.puff(t - jt, px, py, pz, vx, vy, vz, f, r0, dens, 1, lifeK * (f > 0.5 ? lk : 1), brake);
     }
     while (accG >= 1) {
       accG -= 1;
@@ -331,7 +347,45 @@ const Spray = (() => {
       const vx = v[0] * carry + (ox * ce + n[0] * se) * sv + (rnd() - 0.5) * 1.2, vy = v[1] * carry + (oy * ce + n[1] * se) * sv + rnd() * 0.8, vz = v[2] * carry + (oz * ce + n[2] * se) * sv + (rnd() - 0.5) * 1.2;
       P.grain(t - jt, px, py, pz, vx, vy, vz, f, 1.2 + 3.0 * rnd() * rnd(), 1, Ls * (0.8 + 0.5 * rnd()));
     }
+    // Deep powder boils round the boots: the skis run under the surface and the snow over them is pushed up and ahead, a low, thick,
+    // short-lived churn round the shins that hides where the legs go into the snow. (How deep the skier rides is the tracks' business:
+    // Tracks.D if it is there.)
+    const dp = smooth(0.45, 0.9, S.powder || 0);
+    if (dp > 0 && sp > 2.5) {
+      const D = typeof Tracks !== 'undefined' && Tracks.D != null ? Tracks.D : 0.3 * dp, surf = base + 0.7 * D;
+      accB = Math.min(accB + (30 + 70 * sat(sp / 14) + 160 * sat(Iq)) * dp * H * P.gain, 20);
+      while (accB >= 1) {
+        accB -= 1;
+        const side = rnd() < 0.5 ? 1 : -1, al = lerp(-0.35, 1.0, Math.sqrt(rnd())), lo = side * stance + (rnd() - 0.5) * 0.32, jt = rnd() * H;
+        const lx = fx * al + ox * lo - v[0] * jt, lz = fz * al + oz * lo - v[2] * jt;
+        const px = S.p[0] + lx, pz = S.p[2] + lz, py = surf - (n[0] * lx + n[2] * lz) / n[1] + 0.03 + 0.12 * rnd();
+        // (carried along with the skis, a little slower than them, and up over the tips; outward where the edge is turned)
+        const c = 0.55 + 0.3 * rnd(), up = 0.5 + 1.2 * rnd() + 0.8 * sat(Iq), out = (rnd() - 0.5) * 1.2 + 0.6 * sat(Iq) * (side > 0 ? 1 : 0.3);
+        P.puff(t - jt, px, py, pz, v[0] * c + n[0] * up + ox * out, v[1] * c + n[1] * up + oy * out, v[2] * c + n[2] * up + oz * out,
+          0.72 + 0.25 * rnd(), lerp(0.05, 0.10, rnd()), (1.6 + 1.6 * sat(Iq)) * dp, 1, 0.32 + 0.25 * rnd(), 0.45);
+      }
+      // and a face shot: from the skier's own eyes a hard turn in deep powder throws the snow over the tips straight into the face. For a
+      // moment the lens lets the snow come right up to it (P.face) and a burst of it goes past, soft and white, half the picture gone
+      const fp = typeof Game !== 'undefined' && (Game.view === 'fp' || Game.view === 'tips');
+      if (fp && dp > 0.5 && sp > 6 && Iq > 0.7 && t - faceT0 > 1.6 && rnd() < H * 5.0 * sat((Iq - 0.7) / 0.8)) {
+        faceT0 = t; faceN = Math.round(26 + 30 * sat(Iq - 0.7) * dp);
+      }
+      if (fp && faceN > 0 && typeof Render !== 'undefined' && Render.cam) {
+        const cam = Render.cam, cf = cam.fwd, cr = cam.right, cu = cam.up, k = Math.min(faceN, Math.ceil(faceN * H / 0.18) + 1);
+        for (let i = 0; i < k; i++, faceN--) {
+          const dz = 0.45 + 1.3 * rnd(), dx = (rnd() - 0.5) * 1.6 * dz, dy = (rnd() - 0.65) * 1.0 * dz;
+          const px = cam.pos[0] + cf[0] * dz + cr[0] * dx + cu[0] * dy, py = cam.pos[1] + cf[1] * dz + cr[1] * dx + cu[1] * dy, pz = cam.pos[2] + cf[2] * dz + cr[2] * dx + cu[2] * dy;
+          // (thrown up off the tips: it moves on with the skier, only slower, so it comes back at the lens and over it)
+          const c = 0.55 + 0.25 * rnd(), up = 0.6 + 1.2 * rnd();
+          P.puff(t + 0.2 * rnd(), px, py, pz, v[0] * c - cf[0] * 0.8, v[1] * c + up, v[2] * c - cf[2] * 0.8, 0.9 + 0.1 * rnd(), lerp(0.10, 0.22, rnd()), 1.3 + 1.0 * rnd(), 0.4, 0.55 + 0.4 * rnd(), 0.5);
+        }
+      }
+    }
+    P.face = faceEnv(t);
   };
+  let accB = 0, faceT0 = -9, faceN = 0;
+  // the lens lets the snow right up to it for a moment after a face shot: in a tenth of a second, held a third, gone in half a second more
+  function faceEnv(t) { const a = t - faceT0; return a < 0 ? 0 : smooth(0, 0.1, a) * (1 - smooth(0.4, 0.95, a)); }
   // a landing, or a fall: the skis come down flat and the snow under them has one way out: sideways from under each ski, along its whole
   // length, low and fast, raked forward by the skis that were riding on it. Two fans, one off each ski, and the skier rides out from between
   // them (what is squeezed toward the middle meets its opposite number and goes up and forward: a small spurt between the tips). Nor is it
@@ -342,12 +396,33 @@ const Spray = (() => {
     const fx = sp > 0.3 ? tx / sp : 0, fy = sp > 0.3 ? ty / sp : 0, fz = sp > 0.3 ? tz / sp : -1;
     let rx = fy * n[2] - fz * n[1], ry = fz * n[0] - fx * n[2], rz = fx * n[1] - fy * n[0]; const rl = Math.hypot(rx, ry, rz) || 1; rx /= rl; ry /= rl; rz /= rl;
     const stance = Game.pose.stance * 0.5, base = Course.height(p[0], p[2], 0.5), T = 0.08 + 0.04 * power;
-    const np = Math.round(140 * power), ng = Math.round(260 * power), jet = 3.0 + 3.6 * power, reach = 0.9 + 0.75 * power;
+    // How much snow a landing moves goes with the energy of the blow (the square of the speed it comes down at), not the speed: a hop is
+    // a puff, a big drop is an explosion. In deep snow the skis go in deep and the snow has to go up and out all round them, a ring
+    // (a doughnut) from waist to chest high that closes round the legs in a second or two and then hangs; on hard snow a low ring along
+    // the surface.
+    const E = power * power, pw = (Game.s && Game.s.powder) || 0, soft = smooth(0.25, 0.9, pw), CK = P.curtainK(pw);
+    const np = Math.round(Math.min(40 + 85 * E, 520)), ng = Math.round(Math.min(80 + 150 * E, 900)), jet = 3.0 + 3.6 * power, reach = (0.9 + 0.75 * power) * lerp(0.75, 1.1, soft);
+    const ring = lerp(0.25, 0.6, soft);
     // (skis that come down on their edges have their bases turned outward: more of it goes that way)
     const lean = Game.s.lean || 0, pOut = 0.5 - 0.3 * Math.sign(lean) * sat(Math.abs(lean) / 0.5);
-    emit(P.slapKind || 'land', t, [p[0], base, p[2]], [tx * 0.3 + n[0] * jet * 0.3, ty * 0.3 + n[1] * jet * 0.3, tz * 0.3 + n[2] * jet * 0.3], 1.4, Math.min(power, 2), Game.s.powder || 0, [rx, rz], [fx, fz]);
+    emit(P.slapKind || 'land', t, [p[0], base, p[2]], [tx * 0.3 + n[0] * jet * 0.3, ty * 0.3 + n[1] * jet * 0.3, tz * 0.3 + n[2] * jet * 0.3], 1.4, Math.min(power, 2), pw, [rx, rz], [fx, fz]);
     for (let i = 0; i < np + ng; i++) {
-      const pf = i < np, mid = rnd() < 0.15, side = rnd() < pOut ? 1 : -1, tau = T * Math.pow(rnd(), 1.6), u = rnd();
+      const pf = i < np, tau = T * Math.pow(rnd(), 1.6);
+      if (rnd() < ring) {
+        // the ring: out all round from under the skier, the front of it a dense sheet, then braked by the air and left standing
+        const a = rnd() * TAU, ca = Math.cos(a), sa = Math.sin(a), rr = stance + 0.15 + 0.25 * rnd();
+        const hs = (4 + 4 * rnd()) * Math.sqrt(Math.min(E, 5)) * 0.62, vu = (1 + 2 * rnd()) * lerp(0.35, 1.0, soft) * Math.sqrt(power);
+        const dx = rx * ca + fx * sa, dz = rz * ca + fz * sa, dy = ry * ca + fy * sa;
+        const lx = dx * rr + tx * tau, lz = dz * rr + tz * tau;
+        const px = p[0] + lx, pz = p[2] + lz, py = base - (n[0] * lx + n[2] * lz) / n[1] + 0.05;
+        const c = 0.25 + 0.2 * rnd(), vx = tx * c + dx * hs + n[0] * vu, vy = ty * c + dy * hs + n[1] * vu, vz = tz * c + dz * hs + n[2] * vu;
+        if (pf) {
+          const f = 0.5 + 0.45 * rnd();
+          P.puff(t + tau, px, py, pz, vx, vy, vz, f, lerp(0.07, 0.13, rnd()) * (0.8 + 0.2 * power), 3.4 * (0.6 + 0.4 * Math.min(power, 1.5)) * lerp(0.8, 1.2, soft), 1, (f > 0.6 ? CK[1] : 0.8) * lerp(0.9, 1.3, soft), reach * (0.5 + 0.5 * rnd()) * lerp(0.6, 1, CK[0]));
+        } else P.grain(t + tau, px, py, pz, vx * 1.1, vy * 1.2 + 0.3, vz * 1.1, rnd(), 0.6 + 1.6 * rnd() * rnd(), 1, reach * (0.8 + 0.6 * rnd()));
+        continue;
+      }
+      const mid = rnd() < 0.15, side = rnd() < pOut ? 1 : -1, u = rnd();
       // where along the ski it comes out (tail .. shovel), and on which side of it
       const al = lerp(-0.8, 0.95, rnd()), lo = mid ? (rnd() - 0.5) * stance * 1.6 : side * (stance + 0.05 + 0.04 * rnd());
       // which way: across the ski and raked forward (the spurt in the middle straight ahead), low: the harder it is squeezed the flatter it leaves
@@ -359,7 +434,7 @@ const Spray = (() => {
       const vx = tx * carry + (rx * ca + fx * sa + n[0] * se) * s, vy = ty * carry + (ry * ca + fy * sa + n[1] * se) * s, vz = tz * carry + (rz * ca + fz * sa + n[2] * se) * s;
       if (pf) {
         const clot = rnd() < 0.35, f = clot ? 0.4 * rnd() : 0.6 + 0.4 * rnd();
-        P.puff(t + tau, px, py, pz, vx, vy, vz, f, lerp(0.06, 0.11, rnd()) * (0.8 + 0.2 * power), (clot ? 5.5 : 3.2) * (0.55 + 0.45 * Math.min(power, 1.5)), 1, clot ? 0.7 : 0.9, reach * (0.7 + 0.6 * rnd()));
+        P.puff(t + tau, px, py, pz, vx, vy, vz, f, lerp(0.06, 0.11, rnd()) * (0.8 + 0.2 * power), (clot ? 5.5 : 3.2) * (0.55 + 0.45 * Math.min(power, 1.5)), 1, clot ? 0.7 : 0.9 * CK[1], reach * (0.7 + 0.6 * rnd()));
       } else P.grain(t + tau, px, py, pz, vx * 1.15, vy * 1.3 + 0.3, vz * 1.15, rnd(), 0.6 + 1.6 * rnd() * rnd(), 1, reach * (0.9 + 0.6 * rnd()));
     }
   };
@@ -412,9 +487,12 @@ const Spray = (() => {
     if (P.enabled && P.shadows) gfx.draw(pipePuffSun, { u: { hx: hb.xf, sn: [1 - 0.6 * P.nt, 0, 0, 0] }, tex: { tH: hb.tex }, vb: [puffBuf], count: 4, instances: P.NP });
     gfx.endPass();
   };
+  // (a phone draws the rim of the curtain with one noise instead of two: P.grainy off there and whenever the governor has had to shrink the picture)
+  const touchSmall = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0 && typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 600;
   P.offscreen = function (R) {
+    P.grainy = !touchSmall && !(Render.scale < 0.75);
     gfx.beginPass(accT, { color: [0, 0, 0, 0] });
-    if (P.enabled) gfx.draw(pipePuff, { u: { hx: P.hb.xf, hx2: [P.nearBlur, P.shutter && R.motionBlur !== false && R.dt > 0 ? Post.shutter / Math.max(R.dt, 1 / 240) : 0, P.streakMax, P.lens] }, tex: { tH: P.hb.tex, tDepth: R.depth, tDetail: Tex.detail, tShadow: R.shadowTex, tSunTau: sunTex }, vb: [puffBuf], count: 4, instances: P.NP });
+    if (P.enabled) gfx.draw(pipePuff, { u: { hx: P.hb.xf, hx2: [P.nearBlur, P.shutter && R.motionBlur !== false && R.dt > 0 ? Post.shutter / Math.max(R.dt, 1 / 240) : 0, P.streakMax, P.lens], fc: [P.face, P.grainy ? 1 : 0, 0, 0] }, tex: { tH: P.hb.tex, tDepth: R.depth, tDetail: Tex.detail, tShadow: R.shadowTex, tSunTau: sunTex }, vb: [puffBuf], count: 4, instances: P.NP });
     gfx.endPass();
   };
   P.fx = function (R) {
@@ -438,20 +516,52 @@ fn puffState(a0: vec4f, a1: vec4f, a2: vec4f, a3: vec4f) -> PuffS {
   let t: f32 = U.camPos.w - a0.w; let life: f32 = a2.z;
   if (t <= 0.0 || t >= life) { return s; }
   let seed: f32 = a1.w; let fine: f32 = a3.z;
-  let fy: Fly = snowFly(a0.xyz, a1.xyz, t, a2.x, mix(2.2, 0.45, fine), a2.y, 0.3 + 0.7 * fine);
+  // (the fine dust is carried by the air entirely: whatever the wind does, it does; a clot hardly notices)
+  let fy: Fly = snowFly(a0.xyz, a1.xyz, t, a2.x, mix(2.2, 0.45, fine), a2.y, mix(0.3, 1.0, smoothstep(0.45, 0.85, fine)));
   var pos: vec3f = fy.pos; s.vel = fy.vel;
-  // thrown snow is drawn out along its path (the quick part of a lump outruns the slow part) and stays drawn out once the air has stopped
-  // it: a lump leaves the edge compact, is a streak a metre out, and hangs as a strand
-  s.sm = fy.run * (0.16 * a3.w);
-  let wob: f32 = 0.20 * fine * smoothstep(0.15, 1.8, t);
-  pos += wob * vec3f(sin(seed * 91.7 + t * 1.9), 0.6 * sin(seed * 47.3 + t * 1.4), cos(seed * 71.1 + t * 1.6));
-  let r: f32 = a2.w + a3.x * pow(t, 0.72);
-  // snow that comes back down is snow again: fade it out instead of letting a fog bank pile up on the slope
+  // Billows. The sheet drags the air along and the shear between them rolls it up: each lump of the fine part is carried round in an
+  // eddy of its own (radius 0.1-0.5 m, grown within half a second, turning slower and slower as the eddy dies), rolling back over the
+  // top of the throw and up. Every puff has its own phase and rate: in step, the whole curtain would swim like a liquid.
+  let fr: f32 = smoothstep(0.35, 0.8, fine);
+  let hd0: vec2f = a1.xz; let hl: f32 = length(hd0);
+  var hd: vec3f = vec3f(0.7071, 0.0, 0.7071);
+  if (hl > 0.05) { hd = vec3f(hd0.x / hl, 0.0, hd0.y / hl); }
+  let A: f32 = (0.10 + 0.32 * fract(seed * 3.71)) * fr * (1.0 - exp(-t / 0.4));
+  let tr: f32 = 1.6; let om: f32 = 0.8 + 1.6 * fract(seed * 11.3);
+  let ang: f32 = seed * 6.2832 + om * tr * (1.0 - exp(-t / tr));
+  let sd: vec3f = vec3f(-hd.z, 0.0, hd.x);
+  pos += A * (hd * (cos(ang) - 0.6) + vec3f(0.0, 1.0, 0.0) * (sin(ang) + 0.35) + sd * (0.6 * sin(ang * 1.37 + seed * 17.0)));
+  // the top of a thrown sheet (it left the edge steep and fast) keeps rolling up and back for a second: the crest of the curtain climbs
+  pos.y += fr * 0.32 * saturate(a1.y / 4.0) * (1.0 - exp(-t / 0.9));
+  var r: f32 = a2.w + a3.x * pow(t, 0.72);
+  // Thrown snow is drawn out along its way only while it is still flying fast (the quick part of a lump outruns the slow part, and the
+  // shutter adds its share in the vertex stage); once the air has it, it is a lump again. (Kept drawn out, the hanging curtain read as
+  // combs from the side, a paint splash from the front and flames along its top.) What hangs on is combed a little the way the wind blows.
+  s.sm = s.vel * (0.07 * a3.w * (1.0 - smoothstep(0.06, 0.22, t))) + U.wind.xyz * (0.06 * fr * smoothstep(0.6, 2.5, t));
+  // Back on the snow. A clot is snow again: it fades where it lands. The fine part is heavier than the air it hangs in: what reaches the
+  // ground does not stop there but runs out along it, a flat flow spreading as the square root of time and sliding downhill at the
+  // better part of a metre a second, slowing within a second or two, thinning as it goes.
   let g0: f32 = groundH(pos); let gy: f32 = g0 + r * 0.28;
-  let landed: f32 = saturate(1.0 - (gy - pos.y) / 0.35);
-  // ...and on its way back down it thins before it touches: fine snow settling out of the air leaves no pale lid lying on the slope
-  let settle: f32 = mix(1.0, smoothstep(0.30, 1.10, (pos.y - g0) / r), saturate(-s.vel.y * 2.5) * smoothstep(0.25, 0.8, t));
-  pos.y = max(pos.y, gy);
+  let pen: f32 = max(gy - pos.y, 0.0);
+  let tg: f32 = pen / max(a2.y, 0.15);                                  // about how long ago it reached the snow
+  let onG: f32 = saturate(pen / max(r * 0.4, 0.04)) * fr;
+  if (onG > 0.0) {
+    let gx: f32 = groundH(pos + vec3f(0.6, 0.0, 0.0)) - g0; let gz: f32 = groundH(pos + vec3f(0.0, 0.0, 0.6)) - g0;
+    let gl: f32 = length(vec2f(gx, gz));
+    var dn: vec2f = vec2f(0.0);
+    if (gl > 1e-4) { dn = -vec2f(gx, gz) / gl; }
+    let run: f32 = 0.85 * 1.1 * (1.0 - exp(-tg / 1.1)) * smoothstep(0.0, 0.12, gl / 0.6) * onG;
+    pos.x += dn.x * run; pos.z += dn.y * run;
+    r *= 1.0 + 0.75 * sqrt(tg) * onG;
+    // (and it lies flat: wider than it is tall)
+    let cr: vec3f = U.camRight.xyz; let ch: vec2f = vec2f(cr.x, cr.z); let chl: f32 = max(length(ch), 1e-3);
+    s.sm += vec3f(ch.x / chl, 0.0, ch.y / chl) * (r * 1.3 * onG * saturate(tg * 2.0));
+    pos.y = g0 + (gx * dn.x + gz * dn.y) / 0.6 * run + r * 0.28;
+  }
+  let landed: f32 = mix(saturate(1.0 - pen / 0.35), 1.0, fr);
+  // ...and the coarse snow on its way back down thins before it touches: no pale lid lying on the slope
+  let settle: f32 = mix(1.0, smoothstep(0.30, 1.10, (pos.y - g0) / r), saturate(-s.vel.y * 2.5) * smoothstep(0.25, 0.8, t) * (1.0 - fr));
+  if (onG <= 0.0) { pos.y = max(pos.y, gy); }
   let lf: f32 = t / life;
   s.pos = pos; s.r = r; s.lf = lf; s.t = t;
   // the mass spreads as the puff grows (optical depth ~ 1/r^2); fades in fast, out slowly
@@ -471,7 +581,8 @@ fn vert(a: VIn) -> VOut {
   let rel: vec3f = pos - U.camPos.xyz; let zc: f32 = dot(rel, U.camFwd.xyz);
   if (zc < 0.35) { return v; }
   // it dissolves before it reaches the lens: the curtain is something to look at, not to be blinded by
-  var dens: f32 = s.dens * smoothstep(M.hx2.w, M.hx2.w * 3.0 + 0.7, zc);
+  let lens: f32 = mix(M.hx2.w, 0.32, M.fc.x);
+  var dens: f32 = s.dens * smoothstep(lens, lens * 3.0 + 0.7, zc);
   if (dens < 0.002) { return v; }
   let sv: vec2f = vec2f(dot(s.sm, U.camRight.xyz), dot(s.sm, U.camUp.xyz)); let sl: f32 = length(sv);
   var ax: vec2f = vec2f(1.0, 0.0);
@@ -525,28 +636,37 @@ fn frag(v: VOut) -> FOut {
   if (dd >= 1.0) { return o; }
   let k: f32 = 1.0 - dd;
   let e: f32 = v.d1.w;
-  // young snow is still a thrown streak (its grain runs along the throw); as it slows it tumbles into billows
-  let ang: f32 = v.d1.z * smoothstep(0.08, 0.5, e);
+  // A lump of thrown snow, built the way a cloud is: a soft round body, its outline pushed in and out by billows, then eaten away
+  // where it is thin. The billows are counted on the lump (a handful round its rim, so they grow with it: a few centimetres as it
+  // leaves the edge, a few decimetres once it hangs); the grain is counted in metres (a crumb every five or six centimetres), so a lump close by is
+  // grainy at the scale real snow is. Thin snow breaks up into grains; the thick heart of a lump, and of a cloud where many overlap,
+  // stays whole and smooth.
+  let ang: f32 = v.d1.z;
   let cs: f32 = cos(ang); let sn: f32 = sin(ang);
-  let qs: vec2f = vec2f(q.x * mix(0.45, 1.0, smoothstep(0.08, 0.5, e)) * (0.3 * v.d2.y + 0.7), q.y);
-  let nuv: vec2f = vec2f(qs.x * cs - qs.y * sn, qs.x * sn + qs.y * cs) * 0.19 + v.d1.xy;
-  let n1: f32 = tex(tDetail, nuv).z; let n2: f32 = tex(tDetail, nuv * 3.7 + vec2f(0.37, 0.61)).z;
-  let n: f32 = saturate((n1 * 0.58 + n2 * 0.42 - 0.5) * 2.3 + 0.5);
-  // a lump of thrown snow: solid inside, with a silhouette pushed in and out by the noise; it tears into wisps as it ages
-  let F: f32 = k + (n - 0.5) * (0.45 + 0.8 * e);
-  let th: f32 = 0.02 + 0.22 * e;
-  let m: f32 = mix(smoothstep(th, th + 0.24 + 0.95 * e, F) * mix(0.60 + 0.40 * k, 0.35 + 0.65 * k, smoothstep(0.1, 0.5, e)) * smoothstep(0.0, v.d2.w, k), 1.5 * k * k, v.d2.z);
+  let qr: vec2f = vec2f(q.x * cs - q.y * sn, q.x * sn + q.y * cs);
+  let n1: f32 = tex(tDetail, qr * 0.30 + v.d1.xy).z;
+  let bill: f32 = 1.0 - abs(n1 - 0.5) * 2.6;                          // ridged: round tops, creased between (cauliflower)
+  let lm: vec2f = vec2f(q.x * v.d2.y, q.y) * v.d0.w;                  // metres across the card
+  let n2: f32 = tex(tDetail, lm * 0.85 + v.d1.yx * 3.0).z;
+  var F: f32 = k + (bill - 0.45) * (0.34 + 0.40 * e) + (n2 - 0.5) * 0.7;
+  let dsh: f32 = smoothstep(0.02, 0.30 + 0.35 * e, F);
+  // erosion (as clouds are eroded): it bites only where the density is low, so the rim crumbles and the core is untouched
+  var gn: f32 = 0.5;
+  if (M.fc.y > 0.5) { gn = tex(tDetail, lm * 0.034 + v.d1.xy * 7.0).w; }
+  let ek: f32 = (0.8 + 0.5 * e) * (1.0 - v.d2.z) * mix(0.6, 1.0, v.d2.x);
+  let ee: f32 = saturate((gn * 0.9 + n2 * 0.5) * (1.0 - dsh * dsh) * ek);
+  let de: f32 = saturate((dsh - ee) / max(1.0 - ee, 0.05));
+  let m: f32 = mix(de * mix(0.55 + 0.45 * k, 0.40 + 0.60 * k, smoothstep(0.1, 0.5, e)) * smoothstep(0.0, v.d2.w, k), 1.5 * k * k, v.d2.z);
   let sz: f32 = linDepth(texFetchD(tDepth, vec2i(v.clip.xy) * 2, 0));
   let hh: f32 = v.d0.w * sqrt(k) + 0.02;
   let front: f32 = saturate((sz - (v.d0.z - hh)) / (2.0 * hh));
-  // powder is grains, not smoke: a fine shimmer that changes every frame
-  let gn: f32 = fract(52.9829189 * fract(dot(v.clip.xy + vec2f(U.origin.w * 5.588, U.origin.w * 3.117), vec2f(0.06711056, 0.00583715))));
-  let tau: f32 = v.d0.x * m * front * mix(0.72 + 0.56 * gn, 1.0, smoothstep(0.0, 0.3, v.d2.z));
+  // (no per-pixel shimmer here: in a half-resolution buffer it was a 2x2 checkerboard crawling over every veil)
+  let tau: f32 = v.d0.x * m * front;
   // depth of this lump's near face (bulging, roughened by the same noise), weighted so the nearest lumps decide the cloud's visible surface
   // (the weight is bounded: a thick cloud close to the lens must not overflow the half-float buffer the lumps add up in)
   // (a fall or a hard landing piles a great deal of snow into one place: with a wider range than this the sums ran past what a half float
   // holds, and the picture had a black hole in it)
-  let zf: f32 = clamp(v.d0.z - hh * (0.8 + 0.4 * n) - U.dof.x, -4.5, 8.0);
+  let zf: f32 = clamp(v.d0.z - hh * (0.8 + 0.4 * bill) - U.dof.x, -4.5, 8.0);
   let w: f32 = exp(-max(zf, -1.5) * 1.4);
   o.color = vec4f(tau, tau * w * v.d0.y, tau * w * zf, tau * w);
   return o;
@@ -608,19 +728,25 @@ fn frag(v: VOut) -> FOut {
   // --- powder is not smoke. Hanging in the air it tears into veils and strands (a noise field anchored in the world, sinking with the snow,
   // read on the cloud's near face so it holds still while the camera moves), and where it is thin it breaks up into single winking specks.
   let tm: f32 = U.camPos.w;
-  let wq: vec3f = (U.camPos.xyz + d * (zm / max(dot(d, U.camFwd.xyz), 0.2))) * 3.1 + M.q.xyz + vec3f(-U.wind.x, 0.9, -U.wind.z) * (tm * 1.2 - 256.0 * floor(tm * 1.2 / 256.0));
+  // (one noise at one frequency, read at a depth that steps from lump to lump, drew level contour lines over a curtain that had hung a
+  // couple of seconds, like ripples on water: the field is warped by a coarser one of its own and the strands are a gentle modulation)
+  let wq0: vec3f = (U.camPos.xyz + d * (zm / max(dot(d, U.camFwd.xyz), 0.2))) * 2.3 + M.q.xyz + vec3f(-U.wind.x, 0.9, -U.wind.z) * (tm * 0.9 - 256.0 * floor(tm * 0.9 / 256.0));
+  let wwp: vec3f = vec3f(tnoise3(wq0 * 0.37 + vec3f(3.1, 0.0, 1.7)), tnoise3(wq0 * 0.37 + vec3f(8.3, 5.2, 0.4)), tnoise3(wq0 * 0.37 + vec3f(1.9, 9.6, 6.1))) - 0.5;
+  let wq: vec3f = wq0 + wwp * 2.4;
   let w1: f32 = tnoise3(wq); let w2: f32 = tnoise3(wq * 2.9 + vec3f(7.3, 1.9, 4.4)); let w3: f32 = tnoise3(wq * vec3f(7.1, 2.3, 7.1) + vec3f(2.1, 8.4, 5.7));
   let wn: f32 = w1 * 0.50 + w2 * 0.30 + w3 * 0.20;
   let thin: f32 = 1.0 - smoothstep(0.25, 2.6, a.x);
   // (what hangs within a few strides of the lens is far out of focus: no strands and no specks there, only a soft bright veil)
   let sharp: f32 = smoothstep(1.8, 3.4, zm);
-  var tau: f32 = a.x * mix(1.0, smoothstep(0.34, 0.62, wn) * 1.9, (0.22 + 0.70 * thin) * M.p.w * sharp);
+  var tau: f32 = a.x * mix(1.0, (0.35 + 1.3 * smoothstep(0.25, 0.75, wn)), (0.12 + 0.45 * thin) * M.p.w * sharp);
   let gs: f32 = 1170.0 / U.res.y;
   let gp: vec2f = v.clip.xy * (gs / 1.35);
   let s1: f32 = texLod(tNoise, (gp + vec2f(tm * 11.0, -tm * 37.0)) / 256.0, 0.0).x;
   let s2: f32 = texLod(tNoise, (gp * 0.57 + vec2f(-tm * 6.0, -tm * 17.0)) / 256.0 + vec2f(0.37, 0.61), 0.0).z;
   let spk: f32 = s1 * s2 * 4.0;
-  tau *= mix(1.0, spk, 0.34 * (1.0 - smoothstep(0.08, 1.3, tau)) * M.q.w * sharp);
+  // (by day the grain of the veil is the lumps' own eroded rims and the crystals that fly in it: screen-space pepper here only made
+  // a sheet of white noise. The night keeps it: there it is the lamp catching crystals)
+  tau *= mix(1.0, spk, 0.34 * (1.0 - smoothstep(0.08, 1.3, tau)) * M.q.w * sharp * M.r.y);
   // however much snow hangs between the lens and the skier, the figure is never lost in it: round the skier the cloud in front is only
   // ever so thick (thin veils are untouched; it is the solid wall that is held back)
   { let pc: vec4f = U.viewProj * vec4f(U.player.xyz + vec3f(0.0, 0.9, 0.0), 1.0);
@@ -667,29 +793,42 @@ fn frag(v: VOut) -> FOut {
   var gr: vec2f = vec2f(zx1 - zx0, zy1 - zy0) / (2.0 * e * mpu) * M.p.z;
   // the strands have relief too
   gr = (gr + vec2f(w2 - 0.5, w1 - 0.5) * 0.9) * sharp;
+  // (the relief is for the thick body of a cloud seen from some way off. Close by and where it is thin, a normal from the depth of the
+  // near face lit the curtain like the sunny side of a dune: a solid thing. There the light comes from how much snow it passes through)
+  let body: f32 = smoothstep(0.25, 1.8, tau);
+  gr *= mix(body * smoothstep(5.0, 14.0, zm) + 0.15, 1.0, M.r.y);
   let gl: f32 = length(gr); gr = gr * (min(gl, 3.0) / max(gl, 1e-4));
   let nv: vec3f = normalize(vec3f(gr.x, -gr.y, 1.0));
   let Nw: vec3f = U.camRight.xyz * nv.x + U.camUp.xyz * nv.y - U.camFwd.xyz * nv.z;
   let ndl: f32 = dot(Nw, L);
-  let body: f32 = smoothstep(0.25, 1.8, tau);
   let sun: vec3f = U.sunCol.rgb * vis;
   // (1) the veil: light scattered once on its way through. Thin and against the sun = blazing
   let wbk: f32 = sq(saturate(mu)); let wfr: f32 = sq(saturate(-mu)); let wsd: f32 = 1.0 - wbk - wfr;
   let S1: f32 = wbk * tau * T + (wsd * (1.0 - T) + wfr * 0.5 * (1.0 - T * T)) * 0.5;
   let ph: f32 = (0.50 * hg(mu, 0.86) + 0.38 * hg(mu, 0.40) + 0.12 * hg(mu, -0.30)) * 12.566;
   var col: vec3f = sun * ph * S1 * 1.1;
-  // (2) the body: snow hanging in the air. Where it is thick it has a lit side and a shaded side like any white solid
-  let wrapD: f32 = pow(saturate((ndl + 0.45) / 1.45), 1.25);
-  col += sun * (1.0 - T) * mix(0.30, 0.95 * wrapD, body);
-  // (3) never dark: light that got in on the sunny side rattles around inside and comes out everywhere (it reaches much deeper than the
-  // direct beam, and by then it has lost the sun's warmth to the blue of the sky pouring in from above); the sunlit slope adds white from below
+  // (2) the body: where it is thick it is a white solid with a lit side and a shaded side. How lit is the sun that reaches this part of
+  // its near face through the rest of the cloud (vis: from the cloud as the sun sees it), not a fixed share: under a side light the
+  // half toward the sun is white-hot and the far half is in the cloud's own shadow
+  let wrapD: f32 = mix(0.92, pow(saturate((ndl + 0.45) / 1.45), 1.25), body * smoothstep(5.0, 14.0, zm));
+  // (white in the end: the light that comes back out of a thick cloud has been round many crystals and has lost some of the sun's tint)
+  let sunN: vec3f = mix(sun, vec3f(luma(sun)), 0.3);
+  col += sunN * (1.0 - T) * 0.95 * wrapD * mix(0.70, 1.0, body);
+  // (3) light that got in on the sunny side and was scattered again (two more orders, each weaker, less forward and reaching deeper:
+  // Wrenninge's octaves; vis^a is the sun's transmittance through a times the snow). It is what keeps a backlit core a soft grey and
+  // not black, and what is left on the shaded side; by then it has lost the sun's warmth to the blue of the sky
+  let ph2: f32 = (0.5 * hg(mu, 0.43) + 0.5 * hg(mu, 0.20)) * 12.566; let ph3: f32 = (0.5 * hg(mu, 0.21) + 0.5 * hg(mu, 0.10)) * 12.566;
+  let skyT: vec3f = U.ambSky.rgb / max(luma(U.ambSky.rgb), 1e-5);
+  let msC: vec3f = mix(U.sunCol.rgb, vec3f(luma(U.sunCol.rgb)), 0.3) * mix(vec3f(1.0), mix(vec3f(1.0), skyT, 0.6), 1.0 - vis);
+  col += msC * ((1.0 - T) * (0.50 * mix(ph2, 1.2, body) * pow(vis, 0.5) + 0.30 * mix(ph3, 1.2, body) * pow(vis, 0.25)));
+  // (4) the sky: from above blue, from below the white of the snow under it (weaker), less of either deep inside a thick cloud
   let up: f32 = Nw.y * 0.5 + 0.5;
+  let occ: f32 = mix(1.0, 0.72, body);
+  let amb: vec3f = (U.ambSky.rgb * (1.9 + 1.3 * up) + (U.ambGnd.rgb * 0.8 + U.sunCol.rgb * 0.035) * (1.0 - 0.6 * up)) * occ;
+  col += amb * (1.0 - T);
+  // (the night below keeps the shading it had)
   let deep: f32 = pow(vis, 0.35);
-  let sunW: vec3f = mix(U.sunCol.rgb, vec3f(luma(U.sunCol.rgb)), 0.5);
-  let glow: vec3f = sunW * (0.12 + 0.50 * deep);
-  let bounce: vec3f = sunW * (0.10 + 0.10 * deep) + U.ambSky.rgb * 1.2;
-  let amb: vec3f = U.ambSky.rgb * (1.2 + 1.0 * up) + bounce * mix(0.5, 1.0 - up, body);
-  col += (amb + glow) * (1.0 - T);
+  let wrapN: f32 = pow(saturate((ndl + 0.45) / 1.45), 1.25);
   // (and whatever of it hangs in the beam of the headlamp)
   if (U.lamp.w > 0.0) { col += lampLight(U.camPos.xyz + d * (zm / max(dot(d, U.camFwd.xyz), 0.2))) * ((1.0 - T) * 0.55); }
   var To: f32 = T;
@@ -708,7 +847,7 @@ fn frag(v: VOut) -> FOut {
     // wisps, not a sheet: what it lights is torn by the same world noise as the edge, and the rest of the cloud is all but nothing.
     // With a constant ambient fill and the moon lighting all of it evenly, the curtain behind the skier read as a grey poster)
     let wisp: f32 = smoothstep(0.42, 0.78, wn) * smoothstep(0.30, 0.70, w3);
-    var cn: vec3f = moon * ((min(ph, 1.4) * S1n * 0.8 + (1.0 - Tn) * mix(0.16, 0.55 * wrapD, smoothstep(0.25, 1.8, tn))) * (0.30 + 1.40 * wisp));
+    var cn: vec3f = moon * ((min(ph, 1.4) * S1n * 0.8 + (1.0 - Tn) * mix(0.16, 0.55 * wrapN, smoothstep(0.25, 1.8, tn))) * (0.30 + 1.40 * wisp));
     // the dark around it: the sky, and the moonlit slope it hangs over, which is the largest light there is by night (a veil over that
     // snow has that snow's brightness, give or take: shaded with the sky alone it stood on the slope as a wall of dark smoke)
     // (but it is only what the cloud takes out of the snow behind it, given back: the cloud itself takes out little (see To below), so
