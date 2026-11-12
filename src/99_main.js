@@ -13,7 +13,8 @@ async function boot(stage) {
   if (!gfx) gfx = createGL(canvas);
   if (!gfx) throw new Error('这台设备的浏览器不支持 WebGL2，画面无法启动。');
   App.gfx = gfx;
-  if (QS.get('seg') || QS.get('seed')) { Course.forceType = QS.get('seg') || null; Course.reset(+QS.get('seed') || Course.seed); }      // dev: a mountain made of one kind of run
+  Course.forceType = QS.get('seg') || null; Course.classic = QS.has('classic');      // dev: a mountain made of one kind of run; the runs in the order the first mountain had them
+  Course.setSeed(seedInHash() || Math.floor(+QS.get('seed')) || (DEV ? Course.seed : App.randomSeed()));      // which mountain: see App.newMountain
   if (QS.get('tod')) { const q = QS.get('tod'); Sky.setClock(q in Sky.times ? Sky.times[q] : +q || 0); }
   await step(0.08, '磨雪');
   makeNoiseTextures(gfx); makeSnowTexture(gfx, Sky.az); Terrain.setSun(Sky.az);
@@ -137,6 +138,52 @@ function reportError(e) {
   console.error(e && e.message ? e.message : e); if (e && e.vs) console.log(e.vs.slice(0, 20000)); if (e && e.fs) console.log(e.fs.slice(0, 20000));
   const el = document.getElementById('fatal'); if (el) { el.hidden = false; el.textContent = String(e && e.message ? e.message : e); }
 }
+
+// ---- which mountain. A seed in the address names it: #seed-<n>, or ?seed=<n> (inside the frame the game is published in only a plain hash
+// survives). Otherwise every visit gets another one. The test harness (?dev) always gets the first mountain, the one seed 261111 makes:
+// its scripts aim at jumps they know.
+const seedInHash = () => { const m = /(?:^|[#&])seed[-=](\d{1,12})/.exec(location.hash || ''); return m ? +m[1] : 0; };
+App.randomSeed = () => { let n; do n = 100000 + Math.floor(Math.random() * 900000); while (n === Course.seed); return n; };      // six figures: easy to read out
+// Setting the skier down where no terrain has been made yet (another mountain, or far off on this one) is about a second of work for the
+// terrain. It is done a slice a frame behind the dark veil the game opened from: the picture on screen is held while the veil closes,
+// `place` puts the skier where it should stand (Game.reset and the like), the terrain is made again round the lens, and the veil lifts on
+// the skier at rest; if a run was on, it starts again from there. Nothing is seen half made and no frame is long.
+// (now: all of it before returning, without the veil. That is what the headless tools get, which have no frames to spread it over.)
+App.swap = function (place, now = QS.has('manual')) {
+  const sw = { run: App.swapping ? App.swapping.run : Game.mode === 'run', lift: 0, t0: performance.now() }, veil = document.getElementById('veil');
+  const x0 = Render.cam.pos[0], z0 = Render.cam.pos[2]; App.swapping = null;
+  place();
+  // what lay on the old snow or hung in the old air goes; the far sky stays where it was (the airliner keeps its place in it)
+  Game.mode = 'title'; Game.events.length = 0; App.strides = null; Tracks.reset(); Spray.clear();
+  tick(1 / 60, false);                           // body, lens and all that follows them are where they belong before anything is shown
+  { const pl = Sky.plane, c = Render.cam.pos; if (pl && pl.on) { pl.x += c[0] - x0; pl.z += c[2] - z0; } }
+  Terrain.rebuild(Render.cam.pos[0], Render.cam.pos[2]);
+  if (now) { Terrain.rebuildStep(); if (sw.run) Game.start(); return; }
+  App.swapping = sw; if (veil) { veil.style.transition = 'opacity .2s ease-in'; veil.classList.remove('lift'); }
+};
+App.onTick.push(() => {
+  const sw = App.swapping, t = performance.now(); if (!sw) return;
+  Gov.acc = Gov.n = Gov.slow = 0;                // (these frames say nothing about how fast this machine draws)
+  if (!sw.lift) { if (Terrain.rebuildStep(24) && t - sw.t0 >= 230) sw.lift = 1; }      // drawn again from this frame on: the new place is on the screen before the veil thins
+  else if (sw.lift === 1) { sw.lift = 2; sw.t0 = t; const veil = document.getElementById('veil'); if (veil) { veil.style.transition = 'opacity .65s ease-out'; veil.classList.add('lift'); } }
+  else if (t - sw.t0 > 260) { App.swapping = null; if (sw.run && Game.mode === 'title') Game.start(); }      // the push-off is seen: it waits for the veil to thin
+});
+// (while the terrain is being made the last picture stays up: nothing is drawn)
+{ const draw = Render.render; Render.render = function () { const sw = App.swapping; if (!sw || sw.lift) draw(); }; }
+// another mountain, now: the course is laid out again from `seed` (a new one when none is given), everything made from the old course
+// is thrown away or made again, and the skier stands at the top of it, on the title page or in a run as before. Returns the seed.
+App.onMountain = [];                             // called with the seed after every change of mountain
+App.newMountain = function (seed, now) {
+  seed = Math.floor(+seed) >= 1 ? +seed : App.randomSeed();
+  App.swap(() => {
+    Course.setSeed(seed); if (Trees.reset) Trees.reset();
+    if (Deer.herd) { Deer.herd.length = 0; Deer.next = 36; } if (typeof Fauna !== 'undefined' && Fauna.reset) Fauna.reset();
+    Game.reset();
+  }, now);
+  for (const f of App.onMountain) f(Course.seed);
+  return Course.seed;
+};
+addEventListener('hashchange', () => { const n = seedInHash(); if (App.ready && n && n !== Course.seed) App.newMountain(n); });
 
 // ---- test API (used by the headless harness; harmless in production)
 window.__ski = {

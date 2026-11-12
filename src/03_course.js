@@ -22,8 +22,8 @@ const SEG_PACE = { bowl: 19.6, steeps: 29.3, glade: 13.2, rollers: 15.6, gully: 
 const HREF_SLOPE = 0.36;        // reference plane removed from heights before they go into float textures
 const TREE_CELL = 4.5;
 
-const Course = (() => {
-  const C = { seed: 20261111, segs: [], feats: new Map(), mogK: 1 };
+const Course = ((vn1, vn2, h2U) => {
+  const C = { seed: 261111, segs: [], feats: new Map(), mogK: 1 };
   const CH = 2048, NF = 15;       // metres per cache chunk, fields per metre
   const F = { baseY: 0, cx: 1, hw: 2, dish: 3, shoulder: 4, gul: 5, gw: 6, goff: 7, roll: 8, mog: 9, forest: 10, glade: 11, powder: 12, ridge: 13, wall: 14 };
   const chunks = new Map();
@@ -31,7 +31,56 @@ const Course = (() => {
   // running integrals carried across chunks
   const integ = new Map();   // chunkIndex -> {baseY, rollPh, gPh} at chunk start
 
-  C.reset = (seed) => { C.seed = seed >>> 0; C.segs = []; C.feats.clear(); chunks.clear(); integ.clear(); rng = RNG(C.seed); planned = 0; lastTypes = []; deck = []; pairs = []; planTo(4000); };
+  // ---- one number makes the mountain. C.seed is the number people see and pass round (1..999999). KEY is that number hashed, and every
+  // random choice in this module hangs on it: the deck of runs (rng, toss), every noise field, every hash. For seed HOME the key is 0, which
+  // leaves each of them exactly what it was when there was only one mountain: HOME (the test harness boots on it) is that mountain's ground
+  // to the last bit, its runs in the order deal() gives them now; with C.classic set, in the order they had: the first mountain itself.
+  const HOME = 261111, FIRST = 20261111;
+  let KEY = 0, KZ = 0;
+  // the helpers of 00_util.js, keyed. They shadow the plain ones for everything below, so no call site needs to know: a field's tag is
+  // mixed with the key (four fields are tagged C.seed + k: those go back onto the first mountain's own number first), and the grid of
+  // hashes (tree cells, the size of each bump) is read from another part of the same endless sheet
+  const vnoise1 = (x, s) => vn1(x, (s < C.seed ? s : s - C.seed + FIRST) ^ KEY), vnoise2 = (x, y, s) => vn2(x, y, s ^ KEY), hash2U = (a, b) => h2U(a + KEY, b + KZ);
+  // lay the mountain out again from seed n (anything that is not a number from 1 up: the same mountain again). Whoever keeps things made
+  // from the course (terrain, trees, tracks, the game) has to be told: App.newMountain does all of that
+  C.setSeed = function (n) {
+    n = Math.floor(+n); if (n >= 1) C.seed = (n - 1) % 999999 + 1;
+    KEY = hashU(C.seed) ^ hashU(HOME); KZ = Math.imul(KEY, 0x9e3779b1);
+    C.segs = []; C.feats.clear(); chunks.clear(); integ.clear(); rng = RNG(FIRST ^ KEY); planned = 0; lastTypes = []; deck = []; pairs = [];
+    hand = []; dealt = []; toss = RNG(KEY + TOSS); planTo(4000);
+    return C.seed;
+  };
+  C.reset = C.setSeed;
+
+  // ---- the deal: which kind of run comes next. A deck holds every kind once and the two that bring speed and air, steeps and kickers,
+  // twice. It is shuffled and played in that order, each time the first card that keeps the rules, and shuffled again if it will not go out:
+  //   never one slow kind (glade, moguls, rollers, powder) straight after another;
+  //   no kind again before five others have passed (three for the two that come twice), and those two once in each half of the deck;
+  //   the mountain opens with the bowl, and its second or third run is the steeps: the first minute already has speed in it;
+  //   and no join of the last deck over again (the one rule that is let go, when sixty shuffles have not kept it).
+  // (DECK is written in an order that keeps the first three after any deck: what is played should no shuffle ever go out.)
+  // It has a stream of its own (toss): what rng draws after it, the length of each run and its jumps, does not depend on how it deals.
+  const DECK = 'steeps,glade,kickers,moguls,gully,rollers,steeps,bowl,powder,kickers,ridge'.split(','), SLOW = { glade: 1, moguls: 1, rollers: 1, powder: 1 }, TWICE = { steeps: 1, kickers: 1 }, TOSS = 57;
+  let hand = [], dealt = [], toss = rng;
+  function deal() {
+    if (!dealt.length) hand = ['bowl'];
+    else if (!hand.length) {
+      const first = dealt.length === 1, half = first ? 4 : 5, was = dealt.slice(-12).join('>'), at = first && toss() < 0.5 ? 0 : 1;
+      for (let n = 0; ; n++) {
+        const pool = DECK.filter(t => t !== 'bowl' || !first), a = dealt.slice(-5); hand = [];
+        if (n > 600) { hand = pool; break; }
+        for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(toss() * (i + 1)), t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+        const fits = t => {
+          const i = hand.length, p = a[a.length - 1];
+          return !(SLOW[t] && SLOW[p]) && !a.slice(TWICE[t] ? -3 : -5).includes(t) && !(TWICE[t] && (i < half) === hand.includes(t))
+            && !(first && i < 2 && (i === at) !== (t === 'steeps')) && !(n < 60 && was.includes(p + '>' + t));
+        };
+        for (let k; (k = pool.findIndex(fits)) >= 0;) { const t = pool.splice(k, 1)[0]; hand.push(t); a.push(t); }
+        if (!pool.length) break;
+      }
+    }
+    const t = hand.shift(); dealt.push(t); return t;
+  }
 
   function planTo(sEnd) {
     while (planned < sEnd) {
@@ -46,6 +95,9 @@ const Course = (() => {
         if (k < 0) k = deck.length - 1;
         type = deck.splice(k, 1)[0]; pairs.push(prev + '>' + type); if (pairs.length > 18) pairs.shift();
       }
+      // (that was the deal of the first mountain. It still runs, so that rng goes on drawing what it drew, but it is played only when
+      // C.classic asks for that mountain's own order: the test scripts' way back to the mountain as it was delivered)
+      if (!C.classic) type = deal();
       if (C.forceType) type = C.forceType;
       lastTypes.push(type); if (lastTypes.length > 5) lastTypes.shift();
       const base = SEG_TYPES[type], p = {}, v = () => 0.85 + rng() * 0.3;
@@ -159,7 +211,7 @@ const Course = (() => {
     const ix = Math.floor(px), iz = Math.floor(pz), fx = px - ix - 0.5, fz = pz - iz - 0.5;
     let v = 0, gx = 0, gz = 0, wt = 0;
     for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
-      let n = Math.imul(ix + i, 374761393) ^ Math.imul(iz + j, 668265263) ^ seed; n = Math.imul(n ^ (n >>> 13), 1274126177); n ^= n >>> 16;
+      let n = Math.imul(ix + i, 374761393) ^ Math.imul(iz + j, 668265263) ^ seed ^ KEY; n = Math.imul(n ^ (n >>> 13), 1274126177); n ^= n >>> 16;
       const qx = fx - i - ((n & 0xffff) / 65536 - 0.5) * 0.5, qz = fz - j - ((n >>> 16) / 65536 - 0.5) * 0.5;
       const d = 1 - (qx * qx + qz * qz) / 1.5625; if (d <= 0) continue;
       const wgt = d * d * d, ph = (qx * dx + qz * dz) * TAU, sn = Math.sin(ph);
@@ -330,4 +382,4 @@ const Course = (() => {
   };
   C.reset(C.seed);
   return C;
-})();
+})(vnoise1, vnoise2, hash2U);
