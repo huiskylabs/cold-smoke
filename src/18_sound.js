@@ -3,13 +3,15 @@
 // (measured, then thrown away): a ski's scrape is plain broadband noise humped at 1.25 kHz that swells 10 dB in a third of a second
 // and falls away as the turn is released; wind at the ears is pink noise cut off under 1 kHz, buffeting each ear on its own;
 // cold snow creaks in clicks 15..35 ms apart and then squeals for a tenth of a second, falling from about 2.5 kHz to under 1 kHz.
-//   wind    a rumble that buffets each ear separately, its upper edge and its level climbing with speed; a thin whistle on top when fast
+//   wind    a rumble that buffets each ear separately, its upper edge and its level climbing with speed; a thin whistle on top when fast;
+//           its gusts and the blows of its eddies are the ones that push the lens (07c_feel.js says what wind is met)
 //   glide   the bases running over dry snow: a fine hiss, finer and brighter the faster it goes
 //   edge    the scrape of the edges in a turn, on the side the snow is thrown to; its onset is the "shhk" of the snow cut loose,
 //           its tail the curtain sifting back down
 //   creak   cold snow complaining as it is pressed: clearest when slow, under load
 const Sound = (() => {
   const A = { ctx: null, rig: null, on: true, level: 0.62, pc: {}, row: 1e9, creakFloor: 0.026 };
+  if (typeof Variants !== 'undefined') Variants.def('wind', '风声', [['a', '原样'], ['b', '大一点'], ['c', '更大']], 'b');       // (how loud the wind is: see the wind in R.update)
 
   // ---- source material: a few seconds of each kind of noise, computed once
   function material(ctx) {
@@ -146,10 +148,13 @@ const Sound = (() => {
     const wT = tap('wind'), pink = loop(M.pink, 1, 0.2), white = loop(M.white, 1, 0.4);
     const wHP = biq('highpass', 42, 0.7), wSh = biq('highshelf', 230, 0.7, -7), wL1 = biq('lowpass', 260, 0.6), wL2 = biq('lowpass', 290, 1.0), wSp = ctx.createChannelSplitter(2), wMg = ctx.createChannelMerger(2);
     const wEar = [gain(1), gain(1)], wLfo = loop(M.lfo, 150 / sr), wLs = ctx.createChannelSplitter(2), wDep = [gain(0.3), gain(0.3)], wG = gain(0), wBal = pan();
-    chain(pink, wHP, wSh, wL1, wL2, wSp); wLfo.connect(wLs);        // (a rumble under 200 Hz, and a thinner rush above it that reaches higher the faster you go)
+    chain(pink, wHP, wSh, wL1, wL2, wSp);        // (a rumble under 200 Hz, and a thinner rush above it that reaches higher the faster you go)
+    // each ear's own buffeting: all of the curve (wLa: the wind as it was), or only its quick part (wLb), where the slow swells come to
+    // both ears together from the wind that is met (in a recording made at the ears the two swell as one: their levels go together 0.87)
+    const wLfH = biq('highpass', 3, 0.707), wLa = gain(1), wLb = gain(0); wLfo.connect(wLa); chain(wLfo, wLfH, wLb); wLa.connect(wLs); wLb.connect(wLs);
     for (let c = 0; c < 2; c++) { wSp.connect(wEar[c], c); wLs.connect(wDep[c], c); wDep[c].connect(wEar[c].gain); wEar[c].connect(wMg, 0, c); }
     chain(wMg, wG, wBal, wT);
-    const wGust = loop(M.lfo, 11 / sr, 1500), wGd = gain(0.3); chain(wGust, wGd); wGd.connect(wG.gain);      // slow gusts ride on the level
+    const wGust = loop(M.lfo, 11 / sr, 1500), wGd = gain(0.3); chain(wGust, wGd); wGd.connect(wG.gain);      // slow gusts ride on the level (the wind as it was: version a)
     // the mountain's own air, heard even standing still: a far, soft rush that swells and thins on its own slow gusts
     const mBP = biq('bandpass', 620, 0.55), mLP = biq('lowpass', 2400, 0.6), mG = gain(0), mMod = gain(1), mLfo = loop(M.lfo, 7 / sr, 2600), mD = gain(0.42);
     chain(pink, mBP, mLP, mMod, mG, wT); chain(mLfo, mD); mD.connect(mMod.gain);
@@ -178,7 +183,7 @@ const Sound = (() => {
     for (let k = 0; k < 2; k++) { chain(pink, psF[k], psG[k], psP[k], fT); if (psP[k].pan) psP[k].pan.value = k ? 0.8 : -0.8; }
 
     const h = {
-      wL1: H(wL1.frequency), wL2: H(wL2.frequency), wG: H(wG.gain), wGd: H(wGd.gain), wD0: H(wDep[0].gain), wD1: H(wDep[1].gain), wBal: H(wBal.pan), hF: H(hBP.frequency), hG: H(hG.gain), mG: H(mG.gain), wRate: H(wLfo.playbackRate),
+      wL1: H(wL1.frequency), wL2: H(wL2.frequency), wG: H(wG.gain), wGd: H(wGd.gain), wSh: H(wSh.gain), wLa: H(wLa.gain), wLb: H(wLb.gain), wD0: H(wDep[0].gain), wD1: H(wDep[1].gain), wBal: H(wBal.pan), hF: H(hBP.frequency), hG: H(hG.gain), mG: H(mG.gain), wRate: H(wLfo.playbackRate),
       gG: H(gG.gain), gHP: H(gHP.frequency), gLP: H(gLP.frequency), gRate: H(sand.playbackRate),
       eG: H(eG.gain), eBP: H(eBP.frequency), ePk: H(ePk.frequency), eLP: H(eLP.frequency), eLoG: H(eLoG.gain), eAirG: H(eAirG.gain), ePan: H(ePan.pan), rD: H(rD.gain),
       aG: H(aG.gain), aPan: H(aPan.pan), pG: H(pG.gain), pPan: H(pPan.pan), pLP: H(pLP.frequency), aPk: H(aPk.frequency),
@@ -223,19 +228,29 @@ const Sound = (() => {
       hit(psG[k], t, amp, 0.022, 0.035, 0.06);
     };
 
-    // s: { run, speed, contact, lat (signed, g), skid, load (g), powder, I, tuck, lean, ridge, forest }
+    // s: { run, speed, contact, lat (signed, g), skid, load (g), powder, I, tuck, lean, ridge, forest, wind, push, tk }
     R.update = function (s, t) {
       const dt = clamp(t - R.t, 0, 0.1), ts = clamp(s.ts || 1, 0.05, 1); R.t = t;          // ts: time running slow (the air), which the wind follows
       const v = s.run ? s.speed : 0, vk = sat(v / 34), al = Math.abs(s.lat), turn = s.lat >= 0 ? 1 : -1, pw = s.powder;
       con = damp(con, s.run && s.contact ? 1 : 0, s.contact ? 40 : 28, dt);
-      // ---- wind: level and upper edge climb with speed; among trees the mountain's own wind is shut out, on a ridge it is doubled
-      const expo = 1 + 1.4 * s.ridge - 0.55 * s.forest, fw = (300 + 830 * Math.pow(vk, 1.1)) * (1 + 0.12 * s.tuck) * lerp(0.6, 1, ts);
-      set(h.wL1, fw, t, 0.12); set(h.wL2, fw * 1.12, t, 0.12);
-      const wl = (0.14 * expo + 2.0 * Math.pow(vk, 1.9)) * (1 - 0.22 * s.tuck) * (s.run && !s.contact ? 1.15 : 1);
-      set(h.wG, wl, t, 0.12); set(h.wGd, wl * 0.28, t, 0.2);
-      const dep = 0.22 + 0.2 * vk; set(h.wD0, dep, t, 0.2); set(h.wD1, dep, t, 0.2); set(h.wRate, 150 / sr * lerp(0.4, 1, ts), t, 0.1);
-      set(h.wBal, clamp(-s.lean * 0.22, -0.3, 0.3), t, 0.15); set(h.mG, 0.55 * expo * lerp(1, 0.5, vk), t, 0.4);
-      set(h.hF, 760 + 950 * vk, t, 0.2); set(h.hG, 1.5 * smooth(13, 30, v) * (1 - 0.5 * s.forest), t, 0.3);
+      // ---- wind. What the skier meets (s.wind, m/s: the speed through the air with the gust of the moment, 07c_feel.js) sets its level
+      // and how high it reaches, and they go on climbing past 120 km/h; the faster the air, the more of the rush above the rumble
+      // (wSh) and the faster the eddies beat on each ear (wRate). s.push, the blow of the moment, swells and brightens both ears
+      // together: it is the one the lens is turned by, so the eye and the ear get the same blow. Among trees the mountain's own wind is
+      // shut out, on a ridge it is doubled, and heavier weather (Weather.wind) brings more of it; a tuck (tk: the one the body falls
+      // into at speed, or the player's own) slips through it: quieter, tighter, steadier.
+      // How loud is the owner's to pick (the registry of versions, 风声): a, the wind as it was (its level standing still from 122 km/h,
+      // gusts of its own that nothing else knew of); b, as said here; c, the wind of a fifth more speed than is skied (louder and higher at
+      // every pace). Every number is eased, so a change of pick is a second's swell, not a step
+      const wv = typeof Variants !== 'undefined' ? Variants.val.wind : 'b', old = wv === 'a', ww = clamp((typeof Weather !== 'undefined' && Weather.wind) || 1, 0.2, 3);
+      const expo = (1 + 1.4 * s.ridge - 0.55 * s.forest) * ww, va = old || s.wind == null ? v : s.wind * (wv === 'c' ? 1.21 : 1), u = old ? vk : va / 34, uk = Math.min(u, 1), tk = old || s.tk == null ? s.tuck : s.tk, push = old ? 0 : s.push || 0;
+      const fw = (300 + 830 * Math.pow(u, 1.1)) * (1 + 0.12 * tk) * lerp(0.6, 1, ts) * Math.exp(0.06 * push), wt = old ? 0.12 : 0.04;
+      set(h.wL1, fw, t, wt); set(h.wL2, fw * 1.12, t, wt); set(h.wSh, old ? -7 : lerp(-7, -1.5, smooth(6, 28, va)) + 1.5 * push, t, 0.05);
+      const wl = (0.14 * expo + (old ? 2.0 * Math.pow(u, 1.9) : 2.8 * (u < 1 ? Math.pow(u, 2.05) : 1 + 1.2 * (u - 1)))) * (1 - 0.22 * tk) * (s.run && !s.contact ? 1.15 : 1);
+      set(h.wG, wl * Math.exp((0.38 - 0.1 * tk) * push), t, wt); set(h.wGd, old ? wl * 0.28 : 0, t, 0.2); set(h.wLa, old ? 1 : 0, t, 0.2); set(h.wLb, old ? 0 : 1, t, 0.2);
+      const dep = old ? 0.22 + 0.2 * u : (0.22 + 0.26 * uk) * (1 - 0.25 * tk); set(h.wD0, dep, t, 0.2); set(h.wD1, dep, t, 0.2); set(h.wRate, (old ? 150 : 70 + 4.6 * va) / sr * lerp(0.4, 1, ts), t, 0.1);
+      set(h.wBal, clamp(-s.lean * 0.22, -0.3, 0.3), t, 0.15); set(h.mG, 0.55 * expo * lerp(1, 0.5, uk), t, 0.4);
+      set(h.hF, 760 + 950 * u, t, 0.2); set(h.hG, 1.5 * smooth(13, 30, va) * (1 - 0.5 * s.forest), t, 0.3);
       // ---- how hard the edges are moving snow. The same recipe that feeds the spray, but from what the body is doing (lean, skid) and the
       // load on the legs averaged over a tenth of a second: the ear hears one scrape per turn, not every bounce of the knees
       loadS = damp(loadS, s.run && s.contact ? s.load : 0, 9, dt);
@@ -295,9 +310,10 @@ const Sound = (() => {
   A.setOn = function (on) { A.on = on; if (A.rig && A.unlocked) A.rig.fade(on ? A.level : 0, A.ctx.currentTime, 0.12); };
   A.now = () => A.ctx.currentTime + 0.012;
   A.snapshot = function () {
-    const S = Game.s, c = Course.at(-S.p[2], A.pc), sg = Course.segAt(-S.p[2]);
+    const S = Game.s, c = Course.at(-S.p[2], A.pc), sg = Course.segAt(-S.p[2]), wd = Game.feel ? Game.feel.wind : null;
     return { run: Game.mode === 'run', speed: Math.hypot(S.v[0], S.v[1], S.v[2]), contact: S.contact, lat: S.aReac / 9.81, skid: Math.abs(Math.sin(S.beta)), load: S.load / 9.81, powder: S.powder, I: Spray.intensity, tuck: S.tuck, lean: S.lean,
       ridge: c.ridge || 0, forest: Math.max(c.forest || 0, c.glade || 0),
+      wind: wd ? wd.v : null, push: wd ? wd.b : 0, tk: Math.max(S.tuck, S.tuckIn || 0),       // (for the wind: what is met, the blow of the moment, either tuck)
       air: S.air, airT: S.airT, ts: Game.timeScale || 1, kind: sg.type, slope: sg.p.slope, sun: Sky.sunElev,       // (for the score)
       pred: Game.flight && Game.flight.on ? Game.flight.pred : 0, clear: S.air ? S.p[1] - Course.height(S.p[0], S.p[2], 0.5) : 0 };
   };

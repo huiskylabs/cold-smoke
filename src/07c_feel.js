@@ -3,7 +3,7 @@
 // the renderer's weather hooks read: how fast (a longer shutter, colour fringes and darker edges toward the sides of the frame, a tremor
 // in the camera), snow thrown onto the glass by a landing, a bough or a fall, the air of each kind of run, the look of slow motion, and the
 // tremble of the picture while the skis rub on the snow. It also says when a tree has gone by close (the `near` event), and how the
-// lens flinches from it.
+// lens flinches from it; and what wind the skier meets, which the sound of the air is made from and the lens is pushed about by.
 // All of it is eased and runs on the game's time, so in slow motion it slows with the world; only the glass dries in real seconds.
 const Feel = (() => {
   const F = { speed: 0, slow: 0, timeK: 1, air: [1, 1, 1], base: [1, 1, 0.00016], wrote: [], goal: 0, pend: null, since: 99, runT: 0, px: 0, pz: 0, init: false };
@@ -65,6 +65,25 @@ const Feel = (() => {
     NM.com = same && tn.d < NM.d; NM.x = tn.ok ? tn.x : NaN; NM.z = tn.z; NM.d = tn.d;
   };
 
+  // the wind the skier meets, worked out once a step for the ear and the eye alike: the sound of the air is made from it (18_sound.js)
+  // and the lens is pushed by it (at the end of update), so a gust is heard and seen as one thing. `wind.v` (m/s): the speed through the
+  // air, with the gust of the moment added to it or taken off; `wind.g`: that gust, -1..1, the same fronts that cross the hill and lean
+  // the flags (14b_gates.js) met at the skier's place, so the faster the run, the faster they come; `wind.k`: how hard the air presses,
+  // the square of v (1 at 120 km/h, rising more slowly beyond), more on the ridge, where the air is torn, less among the trees, where
+  // it stands, and less on a body folded into a tuck; `wind.b`: the blow of this moment, the eddies': two to five swells a second (more
+  // of them the faster the air goes by), as often one way as the other, 1 in the mean and never over 2.7.
+  // gust: the m/s a gust adds or takes on an open slope (at 60 km/h: it is the unevenness of the air run through, so there is more of
+  // it the faster the run), how much more on the ridge, how much less among the trees.
+  // buf: how far that blow turns the lens at 120 km/h, in the mean: across and down in picture heights (every lens, wide or long, is
+  // moved the same pixels: about one, of a picture 592 high), and the tilt that goes with it (radians). The lens is turned, never
+  // moved: nothing close to it can jump, and it cannot be pushed into the snow. `buffet` is what it is turned by now.
+  // How much of it there is, is the owner's to pick (the registry of versions, 00b_variants.js; the pick is eased in over half a
+  // second): a, none, the lens as it was (the cameras' own fine tremor, with the one this module has added to it from 80 km/h up,
+  // F.shake); b, as said here; c, bufC times that. With b and c the tremor of F.shake is not added: it is the wind's push instead.
+  F.wind = { v: 0, g: 0, b: 0, k: 0, ph: 0, amp: 0, on: 0, pc: {} }; F.gust = [3, 5, 2.5]; F.buf = [0.0019, 0.0015, 0.0009]; F.bufC = 1.9; F.buffet = [0, 0, 0];
+  const WD = F.wind, WIND0 = [1.2, 0, 0.4], eddy = (o, sd) => 1.75 * (vnoise1(WD.ph + o, sd) + 0.5 * vnoise1(2.13 * WD.ph + o, sd + 1));
+  if (typeof Variants !== 'undefined') Variants.def('buffet', '风压抖动', [['a', '原样'], ['b', '轻'], ['c', '明显']], 'b');
+
   // snow reaches the glass: how much (0..1: it is also how long it stays, 1 = F.dry seconds), from which side of the frame (-1 left .. 1 right)
   // and how much of it from below (0..1). On dry glass it lands as a new scatter of beads; on wet glass the ones there swell again
   F.splash = function (a, x, y) {
@@ -84,7 +103,7 @@ const Feel = (() => {
     // (The speed through the air, not S.speed along the snow, which dips for a few steps wherever the snow under the skis tips over a lip.)
     const kv = run ? smooth(F.v0, F.v1, Math.hypot(S.v[0], S.v[1], S.v[2])) : 0;
     F.speed = cut ? kv : damp(F.speed, kv, kv > F.speed ? 2.5 : 5, dt); Post.speed = F.speed;
-    if (run) Game.shake = Math.max(Game.shake, F.shake * F.speed);
+    if (run) Game.shake = Math.max(Game.shake, F.shake * F.speed * (1 - WD.on));       // (not where the wind itself pushes the lens: see F.wind)
 
     // ---- slow motion: its look follows the time scale itself, so it comes and goes exactly as time does. (Eased once more over a few
     // real frames, in case time is ever let go in one step.)
@@ -171,6 +190,29 @@ const Feel = (() => {
       for (const e of Game.events) if (e.type === 'near') { const a = 0.5 * Math.E * Math.E * (0.6 + 0.4 * e.k); q[0] += a * e.side; q[3] += a; }
       for (let i = 0; i < 6; i += 3) { q[i + 2] = (q[i + 2] + x * q[i + 1] + 0.5 * x * x * q[i]) * E; q[i + 1] = (q[i + 1] + x * q[i]) * E; q[i] *= E; }
       F.roll = F.flinch[0] * q[2]; F.dip = F.flinch[1] * q[5];
+    }
+
+    // ---- the wind (see F.wind above). The gust is read where the flags read it: one front for the whole hill. Standing, there is
+    // only the gust; in slow motion the eddies slow with the world (this runs on the game's time). Heavier weather (Weather.wind, 1 on
+    // a day like today's) brings a wind of its own and more of the gusts.
+    {
+      const W = st.wind || WIND0, wl = Math.hypot(W[0], W[2]) || 1, c = Course.at(-S.p[2], WD.pc), rd = c.ridge || 0, gl = c.glade || 0;
+      const ww = Math.max((typeof Weather !== 'undefined' && Weather.wind) || 1, 0.2), v = run ? Math.hypot(S.v[0], S.v[1], S.v[2]) : 0;
+      WD.g = vnoise1(App.t * 0.31 - (S.p[0] * W[0] + S.p[2] * W[2]) / wl * 0.06, 7);
+      WD.v = Math.abs(Math.hypot(v, 6 * Math.max(ww - 1, 0)) +Math.max(F.gust[0] * (0.6 + v / 40) + F.gust[1] * rd - F.gust[2] * gl, 0.3) * clamp(wl / 1.26, 0.5, 2.5) * ww * WD.g);
+      const q = WD.v * WD.v / 1111; WD.k = 1.25 * q / (1 + 0.25 * q) * Math.min((1 + 0.6 * rd - 0.4 * gl) * (0.75 + 0.25 * ww), 2) * (1 - 0.35 * Math.max(S.tuck || 0, S.tuckIn || 0));
+      WD.ph += dt * (5 + 0.09 * WD.v); WD.b = eddy(0, 21);
+      const pick = typeof Variants !== 'undefined' ? Variants.val.buffet : 'b', amp = pick === 'a' ? 0 : pick === 'c' ? F.bufC : 1;
+      WD.amp = cut ? amp : damp(WD.amp, amp, 5, rdt); WD.on = Math.min(WD.amp, 1);
+      const B = F.buffet, a = WD.amp * WD.k; B[0] = F.buf[0] * a * WD.b; B[1] = F.buf[1] * a * eddy(31.7, 23); B[2] = F.buf[2] * a * eddy(77.1, 25);
+      // the lens is turned by it here: after whichever view has set the camera this step (the chase camera, first person, any other:
+      // 07_game.js, 07b_views.js), before the frame is made from it; so it is the same push in every view, and it is the scene that is
+      // drawn turned, not a finished picture that is moved (which would soften it). A step in which no view set the camera starts from
+      // what the last one set, not from what was turned (cam.fwd still being the one written here says so): nothing can add up.
+      const rc = Render.cam; if (rc.fwd !== WD.f) WD.c0 = [rc.fwd, rc.right, rc.up];
+      const f0 = WD.c0[0], r0 = WD.c0[1], u0 = WD.c0[2], ka = 2 * Math.tan(rc.fovY / 2), ax = B[0] * ka, ay = B[1] * ka, cs = Math.cos(B[2]), sn = Math.sin(B[2]);
+      const f = v3.norm([f0[0] + r0[0] * ax + u0[0] * ay, f0[1] + r0[1] * ax + u0[1] * ay, f0[2] + r0[2] * ax + u0[2] * ay]), r = v3.norm(v3.sub(r0, v3.mul(f, v3.dot(r0, f)))), u = v3.cross(r, f);
+      rc.fwd = WD.f = f; rc.right = v3.add(v3.mul(r, cs), v3.mul(u, sn)); rc.up = v3.sub(v3.mul(u, cs), v3.mul(r, sn));
     }
   };
   return F;
