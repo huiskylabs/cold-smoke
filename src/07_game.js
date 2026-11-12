@@ -476,7 +476,9 @@ const Game = (() => {
     { const to = fl.on ? smooth(0.4, 0.62, fl.pred) : lip ? smooth(0.4, 0.62, fl.lipAir) * smooth(0.40, 0.12, fl.lipT) : 0; spring(fl, 'kc', to, to > 0 ? 11 : 5.5, dt); }
     // the clock: eased down just after takeoff, slowest through the middle of the flight, back to full speed before the skis touch. Deeper
     // the longer the flight; half as deep when jumps come one on another (a field of rollers must not turn to treacle)
-    const dep = fl.on ? G.slowMo * 0.62 * smooth(0.6, 1.0, fl.pred) * fl.fresh : 0; if (fl.on) fl.dep = dep; else fl.since += dt;
+    // (it begins at 0.8 s of air and is all there at a second: a hop off the skier's own legs, 0.7 s, and the common roller, 0.77 s, are
+    // left at full speed. From 0.6 s, as it was, most of those were slowed a little, and a little is neither one thing nor the other)
+    const dep = fl.on ? G.slowMo * 0.62 * smooth(0.8, 1.0, fl.pred) * fl.fresh : 0; if (fl.on) fl.dep = dep; else fl.since += dt;
     const tsT = fl.on && S.crash <= 0 ? 1 - dep * smooth(0.03, 0.22, fl.t) * smooth(0.10, 0.42, fl.rem) : 1;
     G.timeScale = clamp(spring(fl, 'ts', tsT, 20, dt / G.timeScale), 0.15, 1);          // (eased on the real clock, so a crash or an early landing brings time back without a jolt)
   }
