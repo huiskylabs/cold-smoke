@@ -664,7 +664,7 @@ const Skier = (() => {
   let legAx: vec3f = normalize(thD + shD); let legB: vec3f = normalize(cross(legAx, vec3f(1.0, 0.0, 0.0)));`;
     pipe = gfx.pipeline({
       name: 'skier', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SKIN_SSL, SKIER_SSL], buffers,
-      varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', bn: 'vec3f', mat: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f' },
+      varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', bn: 'vec3f', mat: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f' },
       textures: { tBones: 'fetch', tDetail: '2d', tShadow: 'shadow', tSky: '2d' },
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let s: SkinV = skinVertex(a.pos, a.nrm, a.bw); v.wp = s.wp; v.nrm = s.n; v.bp = a.pos; v.bn = a.nrm; v.mat = a.mat; v.clip = U.viewProj * vec4f(s.wp, 1.0); return v; }`,
       fs: SKIER_FS.replace('/*MARKS*/', marks),
@@ -824,10 +824,12 @@ const Skier = (() => {
   // model-space point -> render space (for effects that attach to the body)
   K.toWorld = function (p) { return m4.tp(K.world.root, p); };
   K.sec = st.sec;      // (what update last handed to solve besides the pose: tests draw a figure from it)
+  const nite = [0, 0, 0, 0];      // (x: how far into the night it is: Sky.night)
   K.draw = function (shadowTex, skyTex) {
     const want = CLOTH[Variants.val.cloth] || CLOTH.b, now = performance.now() / 1000, de = now - clo.t, e = clo.t < 0 || de > 0.1 ? 1 : 1 - Math.exp(-Math.max(de, 0) * 6); clo.t = now;
     clo.q[2] += (want[1] - clo.q[2]) * e; clo.q[3] += (want[0] - clo.q[3]) * e; clo.h += (want[2] - clo.h) * e;
-    gfx.draw(pipe, { u: { p: clo.p, q: clo.q }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count });
+    nite[0] = typeof Sky !== 'undefined' && Sky.night === Sky.night ? smooth(0.35, 1, Sky.night) : 0;      // (from deep dusk on: dusk itself stays as it was)
+    gfx.draw(pipe, { u: { p: clo.p, q: clo.q, r: nite }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count });
   };
   K.drawShadow = function () { gfx.draw(pipeShadow, { u: { p: [0, 0, 0, 0] }, tex: { tBones: boneTex }, vb: [vb, vb2], ib, count }); };
   return K;
@@ -1017,18 +1019,23 @@ fn frag(v: VOut) -> FOut {
   let sh: f32 = shadowAt(v.wp + N * 0.035, 0.0016);
   let ao: f32 = v.mat.y;
   let wrapD: f32 = saturate((ndl + 0.25 * cloth) / (1.0 + 0.25 * cloth));
+  // at night the moon is the key, and by moonlight the eye sees little colour: what the moon and the sky light is seen half grey (the snow, white,
+  // loses nothing by it), and the lifts that make the figure stand out by day (rim, fuzz, the glow through the shell, the pale floor of the rim)
+  // fall away with the key: they made a bright orange cut-out against blue snow. The lamp's own spill (below) keeps the colour where it falls
+  let nk: f32 = M.r.x; let albL: vec3f = alb;
+  alb = mix(alb, vec3f(dot(alb, vec3f(0.30, 0.55, 0.15))), 0.4 * nk); let lift: f32 = 1.0 - 0.7 * nk;
   let amb: vec3f = U.ambSky.rgb * (0.5 + 0.5 * N.y) + U.ambGnd.rgb * (0.5 - 0.5 * N.y) * 1.25 + twiLight(N);
   var col: vec3f = alb * (U.sunCol.rgb * wrapD * sh + amb * ao);
   // sun through the fuzz at grazing angles, strongest when backlit
   let fr: f32 = pow(1.0 - ndv, 3.0);
   let back: f32 = saturate(dot(-V, L) * 0.5 + 0.5);
-  col += (alb * 0.6 + 0.08) * U.sunCol.rgb * sheen * fr * (0.25 + 1.6 * back * back) * sh * saturate(ndl * 2.0 + 0.9);
+  col += (alb * 0.6 + 0.08) * U.sunCol.rgb * sheen * fr * (0.25 + 1.6 * back * back) * sh * saturate(ndl * 2.0 + 0.9) * lift;
   // against the light every edge that still sees the sun burns: the outline that lifts the figure off the snow
   let rim: f32 = pow(1.0 - ndv, 1.45) * back * back * saturate(ndl * 1.6 + 0.8) * sh;
-  col += (alb * 0.5 + 0.24) * U.sunCol.rgb * (rim * (0.75 + 1.1 * sheen));
+  col += (alb * 0.5 + 0.24 * lift) * U.sunCol.rgb * (rim * (0.75 + 1.1 * sheen) * lift);
   col += alb * U.ambSky.rgb * sheen * fr * 0.6 * ao;
   // a thin shell with the sun behind it is lit from inside: the shaded side of the jacket glows in its own colour instead of going brown
-  col += alb * U.sunCol.rgb * (0.24 * cloth * back * back * saturate(0.6 - ndl) * (0.35 + 0.65 * sh));
+  col += alb * U.sunCol.rgb * (0.24 * cloth * back * back * saturate(0.6 - ndl) * (0.35 + 0.65 * sh)) * lift;
   let Hh: vec3f = normalize(V + L);
   col += U.sunCol.rgb * sh * specS * pow(max(dot(N, Hh), 0.0), specP) * saturate(ndl * 4.0);
   // a shell cloth has a soft sheen of its own: a broad, weak mirror of the sun on the slopes turned to it, and of the sky where it is seen at a slant
@@ -1040,6 +1047,12 @@ fn frag(v: VOut) -> FOut {
     env = mix(env, vec3f(0.75, 0.80, 0.90) * (U.ambSky.rgb + U.sunCol.rgb * 0.35), smoothstep(0.05, -0.25, R.y));    // snow below the horizon
     let f0: f32 = 0.04 + 0.96 * pow(1.0 - ndv, 5.0);
     col += env * glossTint * gloss * mix(f0, 1.0, step(0.5, gloss));
+  }
+  // the headlamp's spill: the hands, the poles' grips and the fronts of the skis are just in front of and below it, at the edge of its flood (the
+  // head and the back are behind it and take none); it lights them in their own colours
+  if (U.lamp.w > 0.0 && nk > 0.0) {
+    let dl: vec3f = U.lamp.xyz - v.wp;
+    col += albL * lampLight(v.wp) * (saturate(dot(N, normalize(dl)) + 0.1) * smoothstep(0.18, 0.40, length(dl)) * 2.2 * nk);
   }
   col = applyFog(col, v.wp);
   o.color = vec4f(col, 1.0);
