@@ -368,16 +368,16 @@ const Spray = (() => {
       // moment the lens lets the snow come right up to it (P.face) and a burst of it goes past, soft and white, half the picture gone
       const fp = typeof Game !== 'undefined' && (Game.view === 'fp' || Game.view === 'tips');
       if (fp && dp > 0.5 && sp > 6 && Iq > 0.7 && t - faceT0 > 1.6 && rnd() < H * 5.0 * sat((Iq - 0.7) / 0.8)) {
-        faceT0 = t; faceN = Math.round(26 + 30 * sat(Iq - 0.7) * dp);
+        faceT0 = t; faceN = Math.round(60 + 40 * sat(Iq - 0.7) * dp);
       }
       if (fp && faceN > 0 && typeof Render !== 'undefined' && Render.cam) {
         const cam = Render.cam, cf = cam.fwd, cr = cam.right, cu = cam.up, k = Math.min(faceN, Math.ceil(faceN * H / 0.18) + 1);
         for (let i = 0; i < k; i++, faceN--) {
-          const dz = 0.45 + 1.3 * rnd(), dx = (rnd() - 0.5) * 1.6 * dz, dy = (rnd() - 0.65) * 1.0 * dz;
+          const dz = 0.5 + 1.4 * rnd(), dx = (rnd() - 0.5) * 1.5 * dz, dy = (rnd() - 0.6) * 1.0 * dz;
           const px = cam.pos[0] + cf[0] * dz + cr[0] * dx + cu[0] * dy, py = cam.pos[1] + cf[1] * dz + cr[1] * dx + cu[1] * dy, pz = cam.pos[2] + cf[2] * dz + cr[2] * dx + cu[2] * dy;
-          // (thrown up off the tips: it moves on with the skier, only slower, so it comes back at the lens and over it)
-          const c = 0.55 + 0.25 * rnd(), up = 0.6 + 1.2 * rnd();
-          P.puff(t + 0.2 * rnd(), px, py, pz, v[0] * c - cf[0] * 0.8, v[1] * c + up, v[2] * c - cf[2] * 0.8, 0.9 + 0.1 * rnd(), lerp(0.10, 0.22, rnd()), 1.3 + 1.0 * rnd(), 0.4, 0.55 + 0.4 * rnd(), 0.5);
+          // (thrown up off the tips it goes on with the skier, only a little slower, so it comes back at the lens and over it)
+          const c = 0.86 + 0.1 * rnd(), up = 0.4 + 1.0 * rnd();
+          P.puff(t, px, py, pz, v[0] * c - cf[0] * 1.2, v[1] * c + up, v[2] * c - cf[2] * 1.2, 0.9 + 0.1 * rnd(), lerp(0.12, 0.26, rnd()), 3 + 3 * rnd(), 0.4, 0.5 + 0.4 * rnd(), 0.4);
         }
       }
     }
@@ -606,7 +606,7 @@ fn vert(a: VIn) -> VOut {
   let bw: f32 = M.hx2.x * pow(max(1.0 - zc / 4.0, 0.0), 1.2);
   let rc: f32 = 0.42 * zc * U.camRight.w;
   let rb: f32 = min(sqrt(r * r + bw * bw), max(rc, r)); let ra: f32 = min(sqrt(rl * rl + bw * bw), max(rc * 1.5, r * st0));
-  let st: f32 = ra / rb; let blur: f32 = max(1.0 - (r * r) / (rb * rb), 1.0 - smoothstep(2.4, 4.0, zc));
+  let st: f32 = ra / rb; let blur: f32 = max(1.0 - (r * r) / (rb * rb), 1.0 - smoothstep(1.4, 2.8, zc));
   dens *= (r * r * st0) / (ra * rb);
   if (dens < 0.0012) { return v; }
   let off: vec2f = ax * (corner.x * ra) + vec2f(-ax.y, ax.x) * (corner.y * rb);
