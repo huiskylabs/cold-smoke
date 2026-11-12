@@ -7,6 +7,16 @@ const Post = (() => {
   // y 0..1 from below; wetNew 1..0: still snow, not yet melted). chat: the tremble of the skis on the snow, as where the scene is read from
   // this frame (whole pixels across and down, and a turn about the middle of the frame in radians)
   Object.assign(P, { speed: 0, fringe: 0.005, slow: 0, wet: 0, wetAge: 0, wetSeed: 0, wetBias: [0, 0], wetNew: 0, chat: [0, 0, 0] });
+  // also from 07c_feel.js: radial, the least streak at the very corners of the frame at speed (picture heights; 0 = none), drawn toward radC,
+  // the point in the frame the lens is heading for (uv); radIn, how far out from the middle it begins (1 = the middle of a side, 1.41 a corner)
+  Object.assign(P, { radial: 0, radC: [0.5, 0.5], radIn: 0.6 });
+  // how strongly the sun's ghosts show is the owner's call (Variants, the 场景 panel): as delivered (four faint discs of one colour each, all
+  // but lost in the picture), light, or clear (lensGhosts below: soft discs split into rainbow fringes, after the Steep reference). Each
+  // version is [delivered ghosts, new ghosts]; a change is eased in over a few tenths of a second
+  P.ghostV = { a: [1, 0], b: [0, 0.75], c: [0, 1.3] };
+  const gPick = () => P.ghostV[typeof Variants !== 'undefined' && Variants.val.ghost] || P.ghostV.c;
+  if (typeof Variants !== 'undefined') Variants.def('ghost', '逆光光斑', [['a', '现在的'], ['b', '轻'], ['c', '明显']], 'c');
+  P.gOld = gPick()[0]; P.gNew = gPick()[1];
   let gfx, pDown0, pDown, pUp, pComp, pVis, pMask, pRad, pMB, visTex, visT, visInit = false, W = 0, H = 0;
   let rayA, rayAT, rayB, rayBT;
 
@@ -44,7 +54,8 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   for (var i: i32 = 0; i < 16; i++) {
     let a: f32 = f32(i) * 2.39996; let r: f32 = sqrt((f32(i) + 0.5) / 16.0) * 0.007;
     let q: vec2f = c + vec2f(cos(a) / U.camUp.w, sin(a)) * r;
-    if (q.x > 0.0 && q.x < 1.0 && q.y > 0.0 && q.y < 1.0) { if (texFetchD(tDepth, vec2i(q * U.res.xy), 0) >= 0.9999999) { s += 1.0; } } else { s += 1.0; }
+    // (a sun outside the frame is judged by the edge of the frame nearest it: a ridge or a tree standing there hides it, open sky does not)
+    if (texFetchD(tDepth, clamp(vec2i(q * U.res.xy), vec2i(0, 0), vec2i(U.res.xy) - vec2i(1, 1)), 0) >= 0.9999999) { s += 1.0; }
   }
   var vis: f32 = s / 16.0 * U.sunScr.z;
   let e: f32 = min(min(c.x, 1.0 - c.x), min(c.y, 1.0 - c.y));
@@ -88,8 +99,13 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     // the shutter stays open for a moment while the mountain goes by: every point of the picture is smeared along the path it took
     // across the frame since the last one (where it is now, from its depth; where it was, through last frame's camera). The skier
     // rides with the lens and stays sharp; snow thrown into the air is drawn afterwards, over the streaked ground.
+    // At speed the corners and the sides of the frame are drawn out besides, near or far, along lines that run to the point the lens is
+    // heading for (rd.xy): the far ridges and the sky go too, as through a fast lens on a moving rig. It is the same streak, not a second
+    // blur over it: where the scene already streaks further (the snow going by under the lens) nothing changes; elsewhere it is lengthened,
+    // and turned toward that line, until it is rd.z picture heights long at the very corner. Nothing in the middle of the frame, nothing on
+    // the skier.
     pMB = gfx.pipeline({
-      name: 'motionBlur', lib: [SL.common, SL.depth, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', d0: 'vec4f', d1: 'vec4f' }, textures: { tA: '2d', tDepth: 'depth' },
+      name: 'motionBlur', lib: [SL.common, SL.depth, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', d0: 'vec4f', d1: 'vec4f', rd: 'vec4f' }, textures: { tA: '2d', tDepth: 'depth' },
       depth: false, depthTest: false, cull: 'none', vs: VS_FULLSCREEN, fs: `
 fn relAt(uv: vec2f, z: f32) -> vec3f {
   let ty: f32 = U.camRight.w; let tx: f32 = ty * U.camUp.w;
@@ -103,18 +119,28 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   let wp: vec3f = U.camPos.xyz + relAt(v.uv, z);
   let pc: vec4f = U.prevViewProj * vec4f(wp, 1.0);
   let sc: vec3f = U.player.xyz + vec3f(0.0, 0.85, 0.0);
+  let keep: f32 = smoothstep(1.05, 1.6, length(wp - sc)) * rider(wp, M.d0) * rider(wp, M.d1);
   var vel: vec2f = (v.uv - vec2f(pc.x / pc.w * 0.5 + 0.5, 0.5 - pc.y / pc.w * 0.5)) * M.p.x;
-  vel *= smoothstep(1.05, 1.6, length(wp - sc)) * rider(wp, M.d0) * rider(wp, M.d1) * mix(1.0, M.p.z, smoothstep(150.0, 700.0, z)) * step(0.01, pc.w);
+  vel *= keep * mix(1.0, M.p.z, smoothstep(150.0, 700.0, z)) * step(0.01, pc.w);
   let asp: vec2f = vec2f(U.camUp.w, 1.0);
+  // (the corners: e is 0 over the middle of the frame and grows from rd.w out: with 0.6, a third of the way at the middle of each side)
+  if (M.rd.z > 0.0) {
+    let rc: vec2f = (v.uv - M.rd.xy) * asp; let e: f32 = smoothstep(M.rd.w, 1.414, length((v.uv - vec2f(0.5)) * 2.0));
+    let lr: f32 = M.rd.z * e * sqrt(e) * keep; let lv: f32 = length(vel * asp);
+    if (lr > lv) { vel += rc / (max(length(rc), 1e-4) * asp) * (lr - lv); }
+  }
   let len: f32 = length(vel * asp);
   if (len > M.p.y) { vel *= M.p.y / len; }
-  if (min(len, M.p.y) * U.res.y < 0.8) { o.color = vec4f(c0, 1.0); return o; }
+  let lp: f32 = min(len, M.p.y) * U.res.y;
+  if (lp < 0.8) { o.color = vec4f(c0, 1.0); return o; }
   // (white noise, not the interleaved-gradient pattern: that one repeats every third row, and beats with the ripples of the snow)
   let fr: f32 = U.origin.w - 64.0 * floor(U.origin.w / 64.0);
   let n: f32 = fract(sin(dot(v.clip.xy + vec2f(fr * 7.31, fr * 3.17), vec2f(12.9898, 78.233))) * 43758.5453);
   var acc: vec3f = c0 * 0.25; var ws: f32 = 0.25;
-  for (var i: i32 = 0; i < 9; i++) {
-    let q: vec2f = clamp(v.uv + vel * ((f32(i) + n) / 9.0 - 0.5), vec2f(0.0), vec2f(1.0));
+  // (one look every three pixels or so along the streak, 9 to 16 of them: a long streak in a corner stays a line, not a row of beads)
+  let nt: i32 = i32(clamp(ceil(lp / 3.0), 9.0, 16.0)); let nf: f32 = f32(nt);
+  for (var i: i32 = 0; i < nt; i++) {
+    let q: vec2f = clamp(v.uv + vel * ((f32(i) + n) / nf - 0.5), vec2f(0.0), vec2f(1.0));
     // what rides with the lens (the skier) leaves no streak on the ground behind it
     let zq: f32 = linDepth(texFetchD(tDepth, vec2i(q * U.res.xy), 0));
     let wq: vec3f = U.camPos.xyz + relAt(q, zq);
@@ -134,9 +160,11 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     let mw = w, mh = h;
     for (let i = 0; i < P.bloomLevels; i++) { mw = Math.max(2, mw >> 1); mh = Math.max(2, mh >> 1); const tex = gfx.texture({ w: mw, h: mh, format: 'rgba16f', filter: 'linear' }); P.mips.push({ tex, t: gfx.target({ color: tex }), w: mw, h: mh }); }
   };
+  // the sun's visibility starts afresh with the next frame instead of easing from the last one drawn (a test that skips frames calls it)
+  P.visCut = function () { visInit = false; };
   // draws the streaked scene into the pass that is open. `dt`: the time the last frame took
   P.motionBlur = function (sceneTex, depthTex, dt) {
-    gfx.draw(pMB, { u: { p: [P.shutter / Math.max(dt, 1 / 240), P.blurMax, P.blurFar, 0], d0: P.riders[0], d1: P.riders[1] }, tex: { tA: sceneTex, tDepth: depthTex }, count: 3 });
+    gfx.draw(pMB, { u: { p: [P.shutter / Math.max(dt, 1 / 240), P.blurMax, P.blurFar, 0], d0: P.riders[0], d1: P.riders[1], rd: [P.radC[0], P.radC[1], P.radial, P.radIn] }, tex: { tA: sceneTex, tDepth: depthTex }, count: 3 });
   };
   P.run = function (sceneTex, depthTex) {
     const m = P.mips;
@@ -148,14 +176,46 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     gfx.beginPass(m[0].t, { color: [0, 0, 0, 1] }); gfx.draw(pDown0, { u: { p: [1 / W, 1 / H, 0, 0] }, tex: { tA: sceneTex }, count: 3 }); gfx.endPass();
     for (let i = 1; i < m.length; i++) { gfx.beginPass(m[i].t, { color: [0, 0, 0, 1] }); gfx.draw(pDown, { u: { p: [1 / m[i - 1].w, 1 / m[i - 1].h, 0, 0] }, tex: { tA: m[i - 1].tex }, count: 3 }); gfx.endPass(); }
     for (let i = m.length - 2; i >= 0; i--) { gfx.beginPass(m[i].t, {}); gfx.draw(pUp, { u: { p: [1 / m[i + 1].w, 1 / m[i + 1].h, 1.0, 0] }, tex: { tA: m[i + 1].tex }, count: 3 }); gfx.endPass(); }
+    { const g = gPick(), k = 1 - Math.exp(-8 * clamp(Render.dt || 0, 0, 0.1)); P.gOld += (g[0] - P.gOld) * k; P.gNew += (g[1] - P.gNew) * k; }
     gfx.beginPass(null, { color: [0, 0, 0, 1] });
-    gfx.draw(pComp, { u: { p: [P.exposure, 1 / m.length, P.rayBase * P.rays, P.rayOcc * P.rays], q: [P.satPre, P.satPost, P.flare, P.rayFall], r: [P.burst, P.ghosts, P.slow, P.speed], w: [P.wet, P.wetAge, P.wetSeed, P.fringe], wb: [P.wetBias[0], P.wetBias[1], P.wetNew, 0], sh: [P.chat[0] / W, P.chat[1] / H, P.chat[2], 0] }, tex: { tScene: sceneTex, tBloom: m[0].tex, tDepth: depthTex, tVis: visTex, tRay: rayA }, count: 3 });
+    gfx.draw(pComp, { u: { p: [P.exposure, 1 / m.length, P.rayBase * P.rays, P.rayOcc * P.rays], q: [P.satPre, P.satPost, P.flare, P.rayFall], r: [P.burst, P.ghosts * P.gOld, P.slow, P.speed], w: [P.wet, P.wetAge, P.wetSeed, P.fringe], wb: [P.wetBias[0], P.wetBias[1], P.wetNew, P.ghosts * P.gNew], sh: [P.chat[0] / W, P.chat[1] / H, P.chat[2], 0] }, tex: { tScene: sceneTex, tBloom: m[0].tex, tDepth: depthTex, tVis: visTex, tRay: rayA }, count: 3 });
     gfx.endPass();
   };
   return P;
 })();
 
 const COMPOSITE_FS = `
+// a ghost: light the lens throws back and forth between its own surfaces, the sun's image so far out of focus that it fills the round of the
+// open iris. It lies on the line from the sun through the middle of the frame, at middle + k (sun - middle): a ghost past the middle
+// swings the other way as the sun moves. The glass does not bend every colour alike, so red lies a little toward the sun and blue away from it
+// (dk, in parts of that line): each ghost is fringed like a rainbow, and the more so the further the sun is from the middle. Away from the
+// axis the barrel clips it into a cat's eye, narrow along the line (cat). p: this pixel, a: the sun, both from the middle in picture heights;
+// r: radius (picture heights); soft: 0 a hard rim .. 1 falling off all the way in
+fn ghostDisc(p: vec2f, a: vec2f, k: f32, u: vec2f, r: f32, soft: f32, squ: f32) -> f32 {
+  let q: vec2f = p - a * k; let x: f32 = length(vec2f(dot(q, u) * squ, q.x * u.y - q.y * u.x)) / r;
+  return 1.0 - smoothstep(1.0 - soft, 1.0, x);
+}
+fn ghost(p: vec2f, a: vec2f, k: f32, r: f32, dk: f32, soft: f32, cat: f32) -> vec3f {
+  let la: f32 = max(length(a), 1e-4); let u: vec2f = a / la; let squ: f32 = 1.0 + cat * abs(k) * la;
+  // (nothing to do away from it: most of the frame, for most of them)
+  let q: vec2f = p - a * k; let rb: f32 = r + dk * la;
+  if (dot(q, q) >= rb * rb) { return vec3f(0.0); }
+  return vec3f(ghostDisc(p, a, k + dk, u, r, soft, squ), ghostDisc(p, a, k, u, r, soft, squ), ghostDisc(p, a, k - dk, u, r, soft, squ));
+}
+// the ghosts as a long lens strings them (after the reference from Steep): a small bright one near the middle, split red | green; a big faint
+// lilac disc past it; a cat's eye of red, green and blue near the far edge; a wide pale wash beyond, mostly out of the frame; and, as a real
+// lens has them too, a small green one between the sun and the middle and a big faint magenta disc beyond the sun (with the sun high in the
+// chase view, those two stand in the sky). In the sun's own light, as a share of what a sunlit white shows (sunCol x exposure)
+fn lensGhosts(uv: vec2f) -> vec3f {
+  let asp: f32 = U.camUp.w; let p: vec2f = (uv - vec2f(0.5)) * vec2f(asp, 1.0); let a: vec2f = (U.sunScr.xy - vec2f(0.5)) * vec2f(asp, 1.0);
+  var g: vec3f = vec3f(1.0, 0.86, 0.38) * ghost(p, a, 0.12, 0.04, 0.06, 0.7, 0.3) * 0.15;
+  g += vec3f(0.95, 0.62, 1.0) * ghost(p, a, -0.34, 0.1, 0.02, 0.5, 0.3) * 0.08;
+  g += vec3f(1.0, 0.95, 0.8) * ghost(p, a, -0.95, 0.04, 0.055, 0.8, 1.2) * 0.15;
+  g += vec3f(1.0, 0.7, 0.95) * ghost(p, a, -1.3, 0.22, 0.03, 0.9, 0.4) * 0.03;
+  g += vec3f(0.55, 1.0, 0.75) * ghost(p, a, 0.55, 0.022, 0.035, 0.7, 0.2) * 0.07;
+  g += vec3f(1.0, 0.55, 0.95) * ghost(p, a, 1.55, 0.11, 0.025, 0.45, 0.25) * 0.06;
+  return U.sunCol.rgb * g;
+}
 // what the sun does inside the lens: a veil of glare, a starburst from the iris, and a few faint reflections strung across the frame
 fn lensFlare(uv: vec2f, vv: vec2f) -> vec3f {
   let vis: f32 = vv.x;
@@ -170,15 +230,17 @@ fn lensFlare(uv: vec2f, vv: vec2f) -> vec3f {
   let len: f32 = 0.018 + 0.055 * h * h + 0.008 * sin(U.camPos.w * (0.7 + h) + k);
   let ray: f32 = exp(-sq(r * sin(da) / (0.0014 + 0.013 * r))) * exp(-r / max(len, 0.01));
   f += U.sunCol.rgb * ray * (1.15 * M.r.x);
-  // ghosts along the axis through the centre of the frame
-  let ax: vec2f = (vec2f(0.5) - s) * vec2f(asp, 1.0);
-  let f0: vec3f = f;
-  let g1: f32 = length(d - ax * 1.45); let g2: f32 = length(d - ax * 1.85); let g3: f32 = length(d - ax * 0.55); let g4: f32 = length(d - ax * 2.5);
-  f += U.sunCol.rgb * vec3f(0.35, 1.0, 0.75) * smoothstep(0.050, 0.043, g1) * (0.35 + 0.65 * smoothstep(0.02, 0.05, g1)) * 0.016;
-  f += U.sunCol.rgb * vec3f(1.0, 0.55, 0.25) * smoothstep(0.022, 0.018, g2) * 0.03;
-  f += U.sunCol.rgb * vec3f(0.55, 0.45, 1.0) * smoothstep(0.085, 0.07, g3) * (0.2 + 0.8 * smoothstep(0.04, 0.085, g3)) * 0.008;
-  f += U.sunCol.rgb * vec3f(0.4, 0.8, 1.0) * smoothstep(0.13, 0.11, g4) * (0.15 + 0.85 * smoothstep(0.08, 0.13, g4)) * 0.006;
-  f = (f0 + (f - f0) * M.r.y) * vis;
+  // the ghosts as delivered (P.ghostV.a; M.r.y is 0 for the other versions): four faint discs of one colour each
+  if (M.r.y > 0.0005) {
+    let ax: vec2f = (vec2f(0.5) - s) * vec2f(asp, 1.0);
+    let g1: f32 = length(d - ax * 1.45); let g2: f32 = length(d - ax * 1.85); let g3: f32 = length(d - ax * 0.55); let g4: f32 = length(d - ax * 2.5);
+    var go: vec3f = vec3f(0.35, 1.0, 0.75) * smoothstep(0.050, 0.043, g1) * (0.35 + 0.65 * smoothstep(0.02, 0.05, g1)) * 0.016;
+    go += vec3f(1.0, 0.55, 0.25) * smoothstep(0.022, 0.018, g2) * 0.03;
+    go += vec3f(0.55, 0.45, 1.0) * smoothstep(0.085, 0.07, g3) * (0.2 + 0.8 * smoothstep(0.04, 0.085, g3)) * 0.008;
+    go += vec3f(0.4, 0.8, 1.0) * smoothstep(0.13, 0.11, g4) * (0.15 + 0.85 * smoothstep(0.08, 0.13, g4)) * 0.006;
+    f += U.sunCol.rgb * go * M.r.y;
+  }
+  f *= vis;
   // slow motion is shot through an anamorphic: for as long as time is held back a thin blue streak lies across the sun
   f += U.sunCol.rgb * vec3f(0.40, 0.66, 1.0) * ((exp(-abs(d.y) * 150.0) + 0.3 * exp(-abs(d.y) * 36.0)) * exp(-abs(d.x) * 3.2) * 0.2 * M.r.z * vis);
   // beams: the glare the air throws back, cut into streaks by whatever stands in front of the sun. They show most when the disc itself is
@@ -288,6 +350,10 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   col = filmCurve(col);
   let l: f32 = luma(col);
   col = max(mix(vec3f(l), col, M.q.y), vec3f(0.0));
+  // the ghosts lie over the finished picture as a faint veil of colour, whatever is behind them: through the film curve they would glare on
+  // the dark trees and the skier and be lost on the snow, which is most of the frame. Only while the sun's disc is in sight, so a ridge, a
+  // tree or the skier put them out (and much less of them from the moon)
+  if (vv.x * M.wb.w > 0.0005) { col += lensGhosts(v.uv) * vec3f(0.93, 1.0, 1.10) * (M.p.x * M.q.z * M.wb.w * vv.x); }
   // the lens falls off toward its corners (a wide one loses a good deal more than this). At speed, and while time is held back, the far
   // sides of the frame close in as well: blinkers, not a tunnel, so the sky over the skier and the snow under the skis keep their light
   let e2: f32 = 3.0 * c.x * c.x + c.y * c.y;
