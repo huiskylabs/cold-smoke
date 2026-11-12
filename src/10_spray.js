@@ -608,6 +608,23 @@ fn frag(v: VOut) -> FOut {
     // (by night the figure is a dark shape with a lamp on it, and takes less veiling than the bright figure of the day does)
     let cap: f32 = mix(40.0, mix(1.05, 0.6, M.r.y), hole);
     tau = cap * (1.0 - exp(-tau / cap)); }
+  // by night a thick cloud close to the lens had nothing left in it: no strands (out of focus), no specks (too thick), and the cap round
+  // the figure flattened what was left to one even tint, so it stood beside the skier as a pane of blue glass, its outline the crisp sum
+  // of the lumps. By night it is grains in a beam, not a sheet: the edge is eaten away from outside in by a lumpy mask (how much of the
+  // ring round this pixel is cloud, pushed about by the world noise), and inside it is torn into tufts and peppered with crystals at
+  // any distance (a dark veil out of focus still shows its grain against the lamp; it is the bright day veil that goes smooth)
+  if (M.r.y > 0.0) {
+    let rr: f32 = (6.0 + 5.0 * w2) / M.p.y; let ra: f32 = w1 * 6.2832; var cov: f32 = 0.0;
+    for (var j: i32 = 0; j < 6; j++) {
+      let an: f32 = ra + f32(j) * 1.0472; let rj: f32 = rr * (1.0 + 0.6 * f32(j & 1));
+      cov += 1.0 - exp(-1.5 * texLod(tSpray, v.uv + vec2f(cos(an) * M.p.y / M.p.x, sin(an)) * rj, 0.0).x);
+    }
+    cov = cov / 6.0;
+    let em: f32 = smoothstep(0.30, 0.95, cov + (wn - 0.5) * 0.6);
+    let tuft: f32 = mix(0.25, 1.6, smoothstep(0.30, 0.66, wn)) * mix(0.55, 1.35, smoothstep(0.35, 0.75, w3));
+    let grit: f32 = mix(1.0, spk, 0.45);
+    tau *= mix(1.0, em * tuft * grit, M.r.y);
+  }
   if (tau < 0.00002) { return o; }
   let T: f32 = exp(-tau);
   // --- a little relief: the slope of the cloud's near face gives a normal, so billows read as billows (kept gentle: this is powder, not cotton)

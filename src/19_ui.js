@@ -130,7 +130,8 @@ const UI = (() => {
     if (sg.idx < U.segIdx - 1) U.segIdx = -1;
     if (sg.idx > U.segIdx && since > 1.6 && !dayUp()) {
       U.segIdx = sg.idx; el.segCn.textContent = SEG_NAMES[sg.type] || ''; el.segEn.textContent = (sg.idx + 1 < 10 ? '0' : '') + (sg.idx + 1) + ' · ' + (SEG_EN[sg.type] || '');
-      segHold(3.6);
+      // (on a phone held flat the card stands beside the speed, in the sky over the city, and goes sooner: the horizon is the picture there)
+      segHold(el.app.classList.contains('short') && !el.app.classList.contains('desk') ? 2.5 : 3.6);
     }
     spFrame(dt);
     // numbers, ten times a second

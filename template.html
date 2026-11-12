@@ -295,6 +295,9 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #app:not(.desk) #hud .spd { bottom: auto; top: var(--gt); }
 #app:not(.desk) #hud .drop { bottom: auto; top: calc(var(--gt) + 1px); right: calc(var(--gr) + 160px); }
 #app:not(.desk) #seg { top: calc(var(--gt) + var(--spd) * .9 + 54px); }
+/* (a short screen held in the hands: under the speed is the horizon and the city, the one place the eye goes. The name of the run stands
+   beside the speed instead, up in the sky, its foot level with the speed's) */
+#app.short:not(.desk) #seg { top: calc(var(--gt) + 4px); left: calc(var(--gl) + var(--spd) * 1.8 + 22px); }
 #app.wide.short #title { gap: clamp(14px, calc(var(--ch) * .055), 30px); padding-bottom: calc(var(--gb) + var(--ch) * .09); }
 @media (prefers-reduced-motion: reduce) { #go::after, #hint i::before, #hint i::after { animation: none; } }
 #fatal { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); font: 12px/1.4 ui-monospace, Menlo, monospace; color: #ffb4a8; background: rgba(40, 8, 4, .9); white-space: pre-wrap; z-index: 99; max-height: 40%; overflow: auto; }
