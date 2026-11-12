@@ -762,7 +762,7 @@ const Fauna = (() => {
     // q = (how fine its hair, how strongly it streaks the coat, how rough it makes it, where in the model its face begins)
     const VS = shadow => `fn vert(a: VIn) -> VOut { var v: VOut;
       let s: SkinV = skinVertex(a.pos, a.nrm, vec4f(a.bw.x + M.p.x, a.bw.y + M.p.x, a.bw.z, 0.0));
-      ${shadow ? 'v.clip = U.shadowVP * vec4f(s.wp, 1.0);' :'v.wp = s.wp; v.nrm = s.n; v.bp = a.pos; v.bn = a.nrm; v.mat = a.mat; v.col = a.col; v.clip = U.viewProj * vec4f(s.wp, 1.0);'}
+      ${shadow ? 'v.clip = U.shadowVP * vec4f(s.wp + s.n * 0.03, 1.0);' :'v.wp = s.wp; v.nrm = s.n; v.bp = a.pos; v.bn = a.nrm; v.mat = a.mat; v.col = a.col; v.clip = U.viewProj * vec4f(s.wp, 1.0);'}
       return v; }`;
     pipe = gfx.pipeline({
       name: 'fauna', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SKIN_SSL], buffers,

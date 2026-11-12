@@ -52,8 +52,8 @@ function makeSnowTexture(gfx, sunAz) {
       // ripple crests (an integer factor: the tile still wraps) and the terraces kept low, so they read as long open slabs, not closed rings
       // (the steps follow b plus a slope across the wind, so they run as long open lines that wander and fork, and never close round a hump;
       // the slope is taken out again after the floor, so the tile still wraps: v adds exactly 4 whole steps)
-      const t = b * 1.7 + v * 4 + 8, ft = Math.floor(t), fr = t - ft, terr = (ft - 8 + smooth(0, 0.17, fr) - v * 4) / 1.7;
-      let hh = 0.35 * terr + 0.30 * b + 0.045 * fb(Lg, u, v) / 1.95;
+      const t = b * 1.7 + v * 4 + 8, ft = Math.floor(t), fr = t - ft, terr = (ft - 8 + smooth(0, 0.35, fr) - v * 4) / 1.7;
+      let hh = 0.25 * terr + 0.30 * b + 0.045 * fb(Lg, u, v) / 1.95;
       if (ripples) {
         // wind ripples: a sawtooth, steep on the lee side. The crests wander (two sizes of warp), so they close up, open out and fork;
         // their height comes and goes along each crest, and whole patches of the slope have none

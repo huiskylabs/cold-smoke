@@ -671,7 +671,7 @@ const Skier = (() => {
     });
     pipeShadow = gfx.pipeline({
       name: 'skierShadow', lib: [SL.common, SKIN_SSL], buffers, varyings: {}, uniforms: { p: 'vec4f' }, textures: { tBones: 'fetch' }, colorFormat: null, cull: 'none', depthBias: 0, depthBiasSlope: 0,
-      vs: `fn vert(a: VIn) -> VOut { var v: VOut; let s: SkinV = skinVertex(a.pos, a.nrm, a.bw); v.clip = U.shadowVP * vec4f(s.wp, 1.0); return v; }`, fs: null,
+      vs: `fn vert(a: VIn) -> VOut { var v: VOut; let s: SkinV = skinVertex(a.pos, a.nrm, a.bw); v.clip = U.shadowVP * vec4f(s.wp + s.n * 0.03, 1.0); return v; }`, fs: null,   // (poles and limbs are thinner than a texel of the map: fattened 3 cm so they still cast
     });
     K.pipes = [pipe, pipeShadow]; K.ready = true;
   };
