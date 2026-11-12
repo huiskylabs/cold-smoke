@@ -63,8 +63,11 @@ async function boot(stage) {
 }
 // one simulation + presentation step. `draw` false: advance everything but skip the GPU frame (tests fast-forward this way)
 function tick(dt, draw) {
+  // slow motion (Game.timeScale, set in the air by 07_game.js): the whole world below runs on the game's clock (this dt, App.t); only the
+  // player's hand on the controls stays on the real one (App.dtReal, for anything else that must)
+  const real = App.dtReal = dt; dt *= Game.timeScale || 1;
   App.t += dt;
-  Input.update(dt);
+  Input.update(real);
   Game.update(dt);
   const cp = Render.cam.pos, S = Game.s, st = App.state;
   Tracks.step(Game.root, Game.pose, S);
