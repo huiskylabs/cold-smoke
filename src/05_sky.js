@@ -47,8 +47,8 @@ const Sky = (() => {
     });
     pipeSky = gfx.pipeline({
       name: 'sky', lib: [SL.common, SL.hash, SL.fog, NEBULA_SSL, vistaSSL(), CLOUDSEA_SSL, CIRRUS_SSL, NIGHT_SSL, CONTRAIL_SSL], buffers: [], varyings: { uv: 'vec2f' },
-      uniforms: { p: 'vec4f', nr: 'vec4f', nu: 'vec4f', nf: 'vec4f', sd: 'vec4f', mo: 'vec4f', hi: 'vec4f', fr: 'vec4f', pa: 'vec4f', pb: 'vec4f', pc: 'vec4f' },
-      textures: { tSky: '2d', tNebA: '2d', tNebB: '2d', tDetail: '2d', tFarA: '2d', tFarB: '2d', tCityA: '2d', tCityB: '2d', tCitySh: '2d' }, depthFunc: 'lequal', depthWrite: false, cull: 'none',
+      uniforms: { p: 'vec4f', nr: 'vec4f', nu: 'vec4f', nf: 'vec4f', sd: 'vec4f', mo: 'vec4f', hi: 'vec4f', fr: 'vec4f', pa: 'vec4f', pb: 'vec4f', pc: 'vec4f', cs: 'vec4f' },
+      textures: { tSky: '2d', tNebA: '2d', tNebB: '2d', tDetail: '2d', tFarA: '2d', tFarB: '2d', tCityA: '2d', tCityB: '2d', tCitySh: '2d', tSeaA: '2d', tSeaB: '2d' }, depthFunc: 'lequal', depthWrite: false, cull: 'none',
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let uv: vec2f = vec2f(f32((a.vid << 1u) & 2u), f32(a.vid & 2u)); v.clip = vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, 1.0, 1.0); v.uv = uv; return v; }`,
       fs: `fn frag(v: VOut) -> FOut { var o: FOut;
         let ndc: vec2f = vec2f(v.uv.x * 2.0 - 1.0, 1.0 - v.uv.y * 2.0);
@@ -176,8 +176,8 @@ const Sky = (() => {
     const ph = (Render.time * 0.9) % 1, strobe = (ph < 0.045 || (ph > 0.13 && ph < 0.175)) ? 1 : 0, beacon = Math.pow(Math.max(0, Math.sin(Render.time * 4.2)), 8);
     gfx.draw(pipeSky, { u: { p: [S.nebDay, S.nebNight * S.nebNightK, S.polar * lerp(0.5, 1, S.milk), lerp(1.0, S.nebSat, S.milk)], nr: b.nr, nu: b.nu, nf: b.nf,
       sd: [S.disc[0], S.disc[1], S.disc[2], S.isMoon ? 0 : 1], mo: [md[0], md[1], md[2], S.moonVis], hi: [S.sunHi[0], S.sunHi[1], S.sunHi[2], S.night], fr: [S.sunFar[0], S.sunFar[1], S.sunFar[2], strobe + 0.5 * beacon],
-      pa: PL.on ? [PL.x - cam[0], PL.z - cam[2], S.hiAlt, 1] : [0, 0, S.hiAlt, 0], pb: [PL.hx, PL.hz, PL.len, PL.v], pc: [PL.cut, S.glare, 0, 0] },
-      tex: { tSky: lutTex, tNebA: Nebula.texA, tNebB: Nebula.texB, tDetail: Tex.detail, tFarA: Vista.farA, tFarB: Vista.farB, tCityA: Vista.cityA, tCityB: Vista.cityB, tCitySh: Vista.shTex }, count: 3 });
+      pa: PL.on ? [PL.x - cam[0], PL.z - cam[2], S.hiAlt, 1] : [0, 0, S.hiAlt, 0], pb: [PL.hx, PL.hz, PL.len, PL.v], pc: [PL.cut, S.glare, 0, 0], cs: [Clouds.sea.f, Clouds.sea.oA, Clouds.sea.oB, 0] },
+      tex: { tSky: lutTex, tNebA: Nebula.texA, tNebB: Nebula.texB, tDetail: Tex.detail, tFarA: Vista.farA, tFarB: Vista.farB, tCityA: Vista.cityA, tCityB: Vista.cityB, tCitySh: Vista.shTex, tSeaA: Clouds.sea.A, tSeaB: Clouds.sea.B }, count: 3 });
   };
   return S;
 })();
@@ -271,57 +271,42 @@ fn contrail(d: vec3f, mu: f32) -> vec4f {
 `;
 
 // ---- the cloud sea: a floor of cloud far below, always the same distance away however long you descend.
-// Shaded as a lit height field (two fetches give height and slope), fading into the horizon haze.
-const CLOUDSEA_SSL = `
+// It is a real volume of droplets, ray-marched and lit in 13_clouds.js into a panorama round the eye (it never comes nearer, so the view of
+// it only turns): R = light from the sun, G from the sky, B thrown up by the cloud around, A = how far off the cloud seen that way lies (km).
+// A new panorama (a "key") is finished every couple of seconds, for the deck as it will then be; the frame shows the last two, each carried
+// along by the wind to this very moment, and fades from one to the next: three fetches here, the march itself is spread over the frames.
+// SEA: deck = how far below the eye its floor lies (m), top = how high cloud can stand above that; k, ta, tb = the panorama's layout
+// (bearings packed closer down the valley than behind, rows closer toward the horizon); wind (m/s); K = seconds between keys; air = haze length (m)
+const SEA = { deck: 950, top: 376, k: 0.75, ta: 0.40, tb: 0.90, wind: [28, 9], K: 1.5, air: 26000 };
+const seaF = x => (Number.isInteger(x) ? x.toFixed(1) : String(+x.toFixed(6)));
+const SEA_MAP_SSL = `
+// where in the panorama a point lies: p = its horizontal offset from the eye, drop = how far below the eye (any unit, the same for both)
+fn seaUV(p: vec2f, drop: f32) -> vec2f {
+  let az: f32 = atan2(p.x, -p.y); let th: f32 = atan2(drop, length(p));
+  var v: f32 = min(th / ${seaF(SEA.ta)}, 1.0);
+  for (var i: i32 = 0; i < 4; i++) { let c: f32 = v * v * v; v -= (${seaF(SEA.ta)} * v + ${seaF(SEA.tb)} * c * v - th) / (${seaF(SEA.ta)} + ${seaF(4 * SEA.tb)} * c); }
+  return vec2f(0.5 + (az + ${seaF(SEA.k)} * sin(az)) * 0.15915494, saturate(v));
+}
+// how far off (m) the cloud seen along d lies: for whatever else must lie on the deck or stand in it (the city's lights, its towers' feet).
+// Needs this string in the pipeline's lib and the texture tSeaB bound to Clouds.sea.B
+fn seaRange(d: vec3f) -> f32 { return texLod(tSeaB, seaUV(d.xz, max(-d.y, 1e-4)), 0.0).a * 1000.0; }
+`;
+const CLOUDSEA_SSL = SEA_MAP_SSL + `
 fn cloudSea(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
-  let dy: f32 = max(-d.y, 1e-4);
-  let drift: vec2f = vec2f(U.skyP.y * 9000.0, U.skyP.y * 2500.0);
-  let H: f32 = 260.0;
-  let t1: f32 = 950.0 / dy; let t0: f32 = (950.0 - H) / dy;
-  let lod: f32 = log2(max(t0 * 2.0 * U.camRight.w * U.res.w / sqrt(dy) / 33.0, 1.0));
-  // the billows stand up from the deck and hide what lies behind them: walk the ray down through the top layer to the first one it meets
-  var fh: f32 = 1.0; var fp: f32 = 0.0; var dp: f32 = 1.0 - deckA(d.xz * t0 + drift, lod);
-  if (dp <= 0.0) { fh = 0.0; }
-  else {
-    for (var i: i32 = 1; i <= 14; i++) {
-      let fq: f32 = f32(i) / 14.0;
-      let dq: f32 = (1.0 - fq) - deckA(d.xz * mix(t0, t1, fq) + drift, lod);
-      if (dq <= 0.0) {
-        // close in on the crossing: twice more between the last step above the cloud and the first one inside it
-        var fa: f32 = fp; var da: f32 = dp; var fb: f32 = fq; var db: f32 = dq;
-        for (var j: i32 = 0; j < 2; j++) {
-          let fm: f32 = fa + (fb - fa) * da / (da - db);
-          let dm: f32 = (1.0 - fm) - deckA(d.xz * mix(t0, t1, fm) + drift, lod);
-          if (dm > 0.0) { fa = fm; da = dm; } else { fb = fm; db = dm; }
-        }
-        fh = fa + (fb - fa) * da / (da - db); break;
-      }
-      dp = dq; fp = fq;
-    }
-  }
-  let t: f32 = mix(t0, t1, fh);
-  let pg: vec2f = d.xz * t; let p: vec2f = pg + drift;
-  let a: vec4f = texLod(tDetail, p / 17000.0, lod); let b: vec4f = texLod(tDetail, p / 4300.0 + vec2f(0.37, 0.61), lod + 2.0);
-  let qa: f32 = a.z * 2.0 - 1.0; let qb: f32 = b.z * 2.0 - 1.0;
-  let ra: f32 = sqrt(qa * qa + 0.003); let rb: f32 = sqrt(qb * qb + 0.006);
-  let h0: f32 = ra * 1.9;
-  let h: f32 = saturate(h0 * 0.62 + rb * 0.9);
-  let sl: vec2f = (qa / ra) * (a.xy - 0.5) * 3.0 + (qb / rb) * (b.xy - 0.5) * 2.0;
-  let N: vec3f = normalize(vec3f(-sl.x, 1.0, -sl.y)); let L: vec3f = U.sunDir.xyz;
-  let lit: f32 = saturate((dot(N, L) + 0.3) / 1.3);
-  // billows toward the sun throw long shadows into the troughs behind them
-  let sd: vec2f = normalize(L.xz + vec2f(1e-4, 0.0)); let tanE: f32 = max(L.y, 0.02) / max(length(L.xz), 1e-3);
-  let s1: f32 = deckA(p + sd * 380.0, lod + 0.5) - h0 - 380.0 * tanE / H; let s2: f32 = deckA(p + sd * 1200.0, lod + 1.0) - h0 - 1200.0 * tanE / H;
-  let shd: f32 = 1.0 - 0.85 * smoothstep(-0.05, 0.14, max(s1, s2));
-  // the city's towers lay their shadows across it too
-  let csh: f32 = shd * (1.0 - 0.6 * cityShadow(pg));
-  let ao: f32 = 0.55 + 0.45 * smoothstep(0.0, 0.45, h);
-  var c: vec3f = U.sunCol.rgb * (lit * csh * 0.82 + 0.05) + U.ambSky.rgb * (0.9 + 0.9 * h) * ao;
-  // after dark the city lights the cloud it stands in
-  c += vec3f(1.0, 0.60, 0.28) * (cityGlow(pg) * U.skyP.z * (0.35 + 0.65 * h));
-  // tops facing the light glow from within when seen against the sun
-  c += U.sunCol.rgb * pow(saturate(mu), 6.0) * (0.25 + 0.75 * h) * (0.30 + 0.70 * csh) * 1.5;
-  return mix(haze, c * 0.95, exp(-t / 26000.0));
+  let dy: f32 = max(-d.y, 1e-4); let f: f32 = M.cs.x; let w: vec2f = vec2f(${seaF(SEA.wind[0] * SEA.K)}, ${seaF(SEA.wind[1] * SEA.K)});
+  // how far off the cloud seen this way lies, and so where it stands on the map
+  let r0: f32 = seaRange(d);
+  let p0: vec2f = d.xz * r0; let dr: f32 = dy * r0;
+  // the last key and the next one, each moved to where the wind has carried it by now (or will have: the next one lies a little ahead in time)
+  let a: vec4f = texLod(tSeaA, seaUV(p0 - w * M.cs.y, dr), 0.0);
+  let b: vec4f = texLod(tSeaB, seaUV(p0 - w * M.cs.z, dr), 0.0);
+  let k: vec4f = mix(a, b, f);
+  let t: f32 = k.a * 1000.0; let pg: vec2f = d.xz * t;
+  // the frame's own light on it; the city's towers lay their shadows across it
+  var c: vec3f = (U.sunCol.rgb + U.twi.rgb * 0.8) * (k.r * (1.0 - 0.6 * cityShadow(pg))) + U.ambSky.rgb * k.g + U.ambGnd.rgb * k.b;
+  // after dark the city lights the cloud it stands in (the one place where the deck takes light from a spot pg on the map, metres from the eye)
+  c += vec3f(1.0, 0.60, 0.28) * (cityGlow(pg) * U.skyP.z * (0.30 + 0.70 * saturate(k.g * 0.45)));
+  return mix(haze, c, exp(-t / ${seaF(SEA.air)}));
 }
 `;
 
