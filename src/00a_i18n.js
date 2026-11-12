@@ -1,0 +1,109 @@
+// ---------------------------------------------------------------- the words on screen in Chinese or in English
+// The interface is written in Chinese; English is a dictionary laid over it, looked up by the Chinese text itself. So every other module
+// keeps naming things in Chinese (runs, views, animals, the Variants rows) and nothing outside this file and the interface has to change:
+// the interface passes what it shows through I18N.t. A string missing here simply shows in Chinese.
+// Which language: ?lang=zh|en in the address, else the player's own pick in the menu (kept in the browser), else the browser's language:
+// any zh* is Chinese, everything else English.
+const I18N = (() => {
+  const EN = {
+    // ---- title and loading
+    '一个人，一座山，一直往下': 'One skier, one mountain, all the way down',
+    '出发': 'Start', '场景': 'Scene', '视角': 'Views', '操作': 'Controls', '回车': 'Enter', '静音': 'Mute', '全屏': 'Full screen', '退出全屏': 'Exit full screen',
+    '画面和声音全部由代码实时生成，没有一张贴图、一段录音。戴上耳机更好。': 'Every picture and every sound is made live by code: not one texture, not one recording. Best with headphones.',
+    '画面和声音全部由代码实时生成，戴上耳机更好。': 'Every picture and every sound is made live by code. Best with headphones.',
+    '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速': '← → or A D to turn · Space to jump · ↓ or S to tuck',
+    '按住屏幕左右拖动转弯 · 右下角 跳 / 加速': 'Hold and drag left or right to turn · Jump and Tuck at bottom right',
+    '倾斜手机或按住屏幕左右拖动转弯 · 右下角 跳 / 加速': 'Tilt the phone, or hold and drag, to turn · Jump and Tuck at bottom right',
+    '倾斜手机转弯，或按住屏幕左右拖动': 'Tilt the phone to turn, or hold and drag',
+    '醒来': 'waking', '磨雪': 'grinding snow', '远山与城市': 'far ranges and the city', '立起天空': 'raising the sky', '林子里有鹿': 'deer in the woods',
+    '种树': 'planting trees', '点亮星云': 'lighting the nebula', '调音': 'tuning', '调光': 'setting the light', '铺雪': 'laying the snow', '第一缕光': 'first light',
+    '这台设备的浏览器不支持 WebGL2，画面无法启动。': 'This browser does not support WebGL2, so the picture cannot start.',
+    // ---- in a run
+    '落差 M': 'DROP M', '落差': 'DROP', '距离 M': 'DISTANCE M', '距离 KM': 'DISTANCE KM', '极速 KM/H': 'TOP KM/H', '飞行 M': 'AIR M', '飞行 ': 'AIR ',
+    '日出': 'Sunrise', '日落': 'Sunset', '加速': 'Tuck', '跳': 'Jump', '换视角': 'Change view', '菜单': 'Menu', '声音开关': 'Sound on or off', '暂停': 'Paused',
+    '像握方向盘一样倾斜手机': 'Tilt the phone like a steering wheel', '按住屏幕，左右拖动': 'Hold the screen, drag left or right',
+    '连着转弯，把雪扬起来': 'Link your turns, throw up the snow', '按住「跳」蓄力，松开起跳': 'Hold Jump to load up, let go to fly',
+    '空格 跳（按住蓄力） · ↓ 加速': 'Space to jump (hold to load up) · ↓ to tuck', '← →  或  A D  转弯': '← →  or  A D  to turn',
+    '画面断开了': 'THE PICTURE WAS LOST', '点一下重新上山': 'Tap to ski again',
+    // ---- the runs (Course: SEG_NAMES), the hours, the weather, the views, the animals
+    '开阔大坡': 'Open Bowl', '陡坡': 'The Steeps', '树林': 'Glade', '起伏': 'Rollers', '雪槽': 'Gully', '跳台': 'Kickers', '深粉雪': 'Deep Powder', '山脊': 'Ridge', '蘑菇': 'Moguls',
+    '自动': 'Auto', '白天': 'Day', '傍晚': 'Golden hour', '黄昏': 'Dusk', '夜晚': 'Night', '黎明': 'Dawn',
+    '小雪': 'Light snow', '中雪': 'Snow', '大雪': 'Heavy snow', '雷暴雪': 'Thundersnow',
+    '追尾': 'Chase', '第一人称': 'First person', '雪板尖': 'Ski tips', '贴雪': 'Low', '俯瞰': 'Overhead', '左侧': 'Left side', '右侧': 'Right side', '正面': 'Front', '远摄': 'Telephoto',
+    '鹿': 'Deer', '雪兔': 'Snow hare', '狐狸': 'Fox', '北山羊': 'Ibex', '金雕': 'Golden eagle', '动物': 'Animal', '航班': 'Airliner',
+    // ---- what a key changed, said for a moment
+    '时间': 'Time', '天气': 'Weather', '路段': 'Runs', '山': 'Mountain', '偶遇': 'Encounters',
+    'say:时间': 'TIME', 'say:天气': 'WEATHER', 'say:路段': 'RUN', 'say:山': 'MOUNTAIN', 'say:偶遇': 'ENCOUNTER', 'say:视角': 'VIEW',
+    '航班 · 还在天上': 'Airliner · still up there', '航班 · 看左上方': 'Airliner · look up to the left', '航班 · 看右上方': 'Airliner · look up to the right',
+    // ---- the menu
+    'PAUSED · 暂停': 'PAUSED', 'MENU · 菜单': 'MENU', '继续滑': 'Ski on',
+    '天色与天气': 'Time & weather', '换一座山': 'New mountain', '操作说明': 'Controls', '设置': 'Settings', '回到山顶': 'Back to the top', '版本对比': 'Versions',
+    'TIME · 天色': 'TIME', 'WEATHER · 天气': 'WEATHER', 'VIEW · 视角': 'VIEW', 'RUN · 路段': 'RUN', 'ENCOUNTER · 偶遇': 'ENCOUNTER', 'MOUNTAIN · 山': 'MOUNTAIN',
+    'CONTROLS · 操作说明': 'CONTROLS', 'SETTINGS · 设置': 'SETTINGS', 'VERSIONS · 版本对比': 'VERSIONS',
+    '选中立刻生效，后面的画面会跟着变。「自动」让一天自己走下去，琥珀色小点是现在走到的时刻。': 'A pick shows at once in the picture behind. Auto lets the day go on by itself; the amber dot marks the hour it has reached.',
+    '滑的时候按 V 依次切换，Shift+V 往回；右键拖动或 I J K L 环顾四周。': 'While skiing, V steps through them and Shift+V steps back; right-drag or I J K L to look around.',
+    '滑的时候点「跳」上方的机位按钮依次切换；两指拖动环顾四周。': 'While skiing, tap the camera button above Jump to step through them; drag with two fingers to look around.',
+    '选一种地形，会跳到前方最近的那一段；亮着的是你现在所在的路段。': 'Pick a kind of terrain to go to the nearest stretch of it ahead; the lit one is where you are now.',
+    '选了就回到滑雪：动物会出现在前方不远处，航班从天上飞过。': 'A pick takes you back to skiing: the animal turns up a little way ahead, the airliner passes overhead.',
+    '每座山由一个编号生成。地址栏里的 #seed-编号 发给别人，就是同一座山。': 'Every mountain grows from a number. Send someone the #seed-number in the address bar and they get the same mountain.',
+    '转弯（按久了会切雪）': 'Turn (hold longer to carve)', '空格': 'Space', '跳，按住蓄力': 'Jump, hold to load up', '压低加速，慢的时候撑杖': 'Tuck for speed, pole when slow',
+    '右键拖　I J K L': 'Right-drag　I J K L', '环顾四周': 'Look around', '换时间 · 换天气': 'Time · weather', '下一种路段': 'Next run', '叫出动物 · 航班': 'Animal · airliner',
+    '静音 · 全屏': 'Mute · full screen', '菜单 · 这一页 · 版本对比': 'Menu · this page · versions',
+    '按住拖动': 'Hold & drag', '左右拖动转弯，拖过刻度就切雪': 'Drag left or right to turn, past the mark to carve', '按住蓄力，松开起跳': 'Hold to load up, let go to fly',
+    '按住压低，慢的时候自动撑杖': 'Hold to tuck; poles by itself when slow', '机位': 'Camera', '两指拖动': 'Two-finger drag', 'Shift + 字母 往回切换。': 'Shift + the letter steps back.',
+    '声音 开': 'Sound on', '声音 关': 'Sound off', '语言': 'Language',
+    '给验收用，不是游戏的一部分 · 小圆点是推荐的版本': 'For review, not part of the game · the dot marks the recommended version', '恢复推荐': 'Reset to recommended', '推荐': 'Recommended',
+    // ---- the versions page (Variants: the rows' names and their versions, as each module registers them)
+    '镜头': 'Camera', '人物与动作': 'Skier & motion', '画面': 'Picture', '雪': 'Snow', '场景与天气': 'Scene & weather', '手感': 'Feel', '新加的': 'New',
+    '追身镜头': 'Chase camera', '林间镜头': 'Camera in trees', '分段机位': 'Camera per run', '雪板尖机位': 'Ski-tips camera', '俯冲手位': 'Hands in a tuck', '四角模糊': 'Corner blur',
+    '雪面颤动': 'Snow chatter', '风压抖动': 'Wind buffet', '人物模型': 'Skier model', '衣服': 'Clothing', '持杖': 'Pole carry', '人物动作': 'Skier motion',
+    '逆光光斑': 'Lens ghosts', '高光': 'Highlights', '夜间雪雾': 'Spray at night', '夜空颜色': 'Night sky colour', '小云': 'Small clouds',
+    '雪幕高度': 'Spray height', '闪光': 'Sparkle', '雪团': 'Snow clumps', '镜头上的雪': 'Snow on the lens', '粉雪深度': 'Powder depth', '风吹雪': 'Blowing snow',
+    '岩壁': 'Rock walls', '夜里的月亮': 'Moon at night', '大雪样式': 'Heavy snow style', '山脊树': 'Ridge trees', '跳台旗': 'Jump flags', '入雪深浅': 'Ski sink', '风声': 'Wind sound',
+    '键盘转弯': 'Keyboard turns',
+    '现在的': 'Current', '原来': 'Original', '原样': 'As was', '新的': 'New', '低机位': 'Low', '折中': 'Middle', '贴近': 'Closer', '原位淡树': 'Fade trees',
+    '不变': 'Fixed', '按路段大变': 'Big', '轻微变化': 'Subtle', '贴板': 'On the ski', '大腿': 'Thigh', '头盔': 'Helmet', '压低': 'Low', '面前': 'In front',
+    '无': 'None', '轻': 'Light', '明显': 'Strong', '关': 'Off', '开': 'On', '有': 'On', '更强': 'Stronger', '没有': 'None', '真实': 'Realistic', '多一些': 'More', '再多一点': 'Even more',
+    '没有冰晶群': 'No swarms', '水珠': 'Droplets', '白雪被吹走': 'Blown off', '先白后化': 'Melts', '平整': 'Smooth', '自然': 'Natural', '厚实': 'Thick',
+    '手在前': 'Hands forward', '更舒展': 'Looser', '渐白': 'Roll to white', '暗蓝头灯': 'Headlamp blue', '月光亮些': 'Moonlit', '收': 'Toned', '更收': 'More toned',
+    '碎云': 'Broken', '去掉小云': 'None', '处处都高': 'Tall', '按雪况': 'By the snow', '浮在面上': 'On top', '没过靴子': 'Boot deep', '没过膝盖': 'Knee deep',
+    '斑块': 'Patches', '岩带': 'Bands', '多岩': 'Rocky', '月牙': 'Crescent', '盈凸': 'Gibbous', '阵雪': 'Showers', '暴风雪': 'Blizzard', '风旗云杉': 'Flag spruce',
+    '宽旗': 'Wide flags', '羽毛旗': 'Feather flags', '浅': 'Shallow', '适中': 'Medium', '深': 'Deep', '大一点': 'Louder', '更大': 'Loudest',
+    '按半秒就搓': 'Skid after ½ s', '按两秒才搓': 'Skid after 2 s', '横过来才搓': 'Side-on only',
+  };
+  const KEY = 'coldsmoke.lang';
+  const L = { EN, lang: 'zh', subs: [] };
+  const norm = v => v === 'zh' || v === 'en' ? v : null;
+  function browser() {
+    try { const ls = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || '']; return /^zh\b/i.test(String(ls[0] || '')) ? 'zh' : 'en'; } catch (e) { return 'zh'; }
+  }
+  { let q = null, s = null;
+    try { q = norm(new URLSearchParams(location.search).get('lang')); } catch (e) { }
+    try { s = norm(localStorage.getItem(KEY)); } catch (e) { }
+    L.lang = q || s || browser(); }
+  L.en = () => L.lang === 'en';
+  // a string as shown: the English for it in English, itself otherwise (and itself when there is no English for it yet)
+  L.t = s => { if (L.lang !== 'en' || s == null) return s; const k = String(s), e = EN[k]; if (e != null) return e; const tk = k.trim(); return EN[tk] != null ? k.replace(tk, EN[tk]) : k; };
+  // the page's own fixed words: every text node and label under root is noted once with its Chinese, then shown in the language of the moment
+  let fixed = null;
+  L.capture = function (root) {
+    fixed = [];
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n;
+    while ((n = w.nextNode())) { const k = n.nodeValue.trim(); if (k && EN[k] != null) fixed.push({ n, zh: n.nodeValue }); }
+    for (const e of root.querySelectorAll('[aria-label],[title]')) for (const a of ['aria-label', 'title']) { const v = e.getAttribute(a); if (v && EN[v] != null) fixed.push({ e, a, zh: v }); }
+    L.apply();
+  };
+  L.apply = function () {
+    const r = document.documentElement; r.lang = L.lang === 'en' ? 'en' : 'zh-CN';
+    const app = document.getElementById('app'); if (app) app.classList.toggle('en', L.lang === 'en');
+    for (const f of fixed || []) { if (f.n) f.n.nodeValue = L.t(f.zh); else f.e.setAttribute(f.a, L.t(f.zh)); }
+  };
+  // the player's own pick (kept for next time); whoever shows words is told
+  L.set = function (lang) {
+    lang = norm(lang); if (!lang || lang === L.lang) return; L.lang = lang;
+    try { localStorage.setItem(KEY, lang); } catch (e) { }
+    L.apply(); for (const f of L.subs) try { f(lang); } catch (e) { console.warn(e); }
+  };
+  L.on = f => L.subs.push(f);
+  return L;
+})();
