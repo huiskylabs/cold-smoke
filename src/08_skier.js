@@ -391,7 +391,25 @@ const Skier = (() => {
   // widen again to go over the boot cuff and end in a hem; a boot that is a long shell on a plate between a toe piece and a heel piece
   // (the pack, in the chest's frame: a rounded box, a lid, a front pocket: centre, half-sizes or radii, rounding; k: how softly they run into each other.
   // The distance field is built from these and the fragment shader draws the pack's outline from the same numbers)
-  const SEATC = [0, -0.085, 0.052];      // (the middle of the seat, in the pelvis's frame: where the two masses of rPelvis are centred)
+  const SEATC = [0, -0.085, 0.052];
+  // (the new body's head, in the helmet's own frame (x right, y up, -z forward, from about the middle of the helmet): shell longer front to back, a
+  // brim over the forehead, a vent ridge along the top, ear covers, the face opening cut out of it; the goggles a curved band round the front, wider than
+  // the face (axis of the curve gz, radius gr, half-thickness gt, half-height gh, reaching ga radians round each side, at height gy); the strap a raised
+  // band round the shell at the goggles' height; the face under it all in a gaiter. Written twice: here for the mesh and in init for the shader)
+  const HEAD = K.HEAD = { shell: [0, 0.004, 0.014, 0.106, 0.105, 0.133], ear: [0.088, -0.050, 0.020, 0.028, 0.050, 0.054], brim: [0, 0.032, -0.100, 0.080, 0.009, 0.030],
+    cut: [0, -0.078, -0.125, 0.074, 0.080, 0.085, 0.024], gy: -0.010, gz: -0.015, gr: 0.114, gt: 0.006, gh: 0.026, ga: 1.2, sh: 0.0145, face: [0, -0.028, -0.004, 0.078, 0.088, 0.096], chin: [0, -0.075, -0.040], chinR: 0.064 };
+  const Ee = (x, y, z, e) => { const px = (x - e[0]) / e[3], py = (y - e[1]) / e[4], pz = (z - e[2]) / e[5], k0 = Math.sqrt(px * px + py * py + pz * pz), ax = px / e[3], ay = py / e[4], az = pz / e[5], k1 = Math.sqrt(ax * ax + ay * ay + az * az); return k1 > 1e-9 ? k0 * (k0 - 1) / k1 : -Math.min(e[3], e[4], e[5]); };
+  const sminS = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; }, smaxS = (a, b, k) => -sminS(-a, -b, k);
+  function headHelmet(a, b, d) {
+    const H = HEAD; let h = Ee(a, b, d, H.shell); h = sminS(h, Ee(Math.abs(a), b, d, H.ear), 0.02); h = sminS(h, Ee(a, b, d, H.brim), 0.012); h = sminS(h, smaxS(smaxS(Ee(a, b, d, [H.shell[0], H.shell[1], H.shell[2], H.shell[3] + 0.005, H.shell[4] + 0.005, H.shell[5] + 0.005]), Math.abs(a) - 0.013, 0.006), 0.045 - b, 0.01), 0.006);    // (vent ridge along the top)
+    const c = H.cut, qx = Math.abs(a - c[0]) - c[3] + c[6], qy = Math.abs(b - c[1]) - c[4] + c[6], qz = Math.abs(d - c[2]) - c[5] + c[6];
+    h = smaxS(h, -(Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - c[6]), 0.008);       // (the face opening)
+    const sx = H.shell; return Math.min(h, smaxS(Ee(a, b, d, [sx[0], sx[1], sx[2], sx[3] + 0.003, sx[4] + 0.003, sx[5] + 0.003]), Math.abs(b - H.gy) - H.sh, 0.003));    // + the strap, 3 mm proud
+  }
+  function headGog(a, b, d) {
+    const H = HEAD, qz = d - H.gz, r = Math.hypot(a, qz), an = Math.atan2(Math.abs(a), -qz), dx = Math.abs(r - H.gr) - H.gt, dy = Math.abs(b - H.gy) - H.gh, dz = (an - H.ga) * r;
+    return Math.hypot(Math.max(dx, 0), Math.max(dy, 0), Math.max(dz, 0)) + Math.min(Math.max(dx, dy, dz), 0) - 0.004;
+  }      // (the middle of the seat, in the pelvis's frame: where the two masses of rPelvis are centred)
   const PACK = K.PACK = { box: [0, -0.055, 0.180, 0.122, 0.195, 0.062, 0.055], lid: [0, 0.125, 0.170, 0.112, 0.07, 0.068], pocket: [0, -0.12, 0.250, 0.08, 0.085, 0.018, 0.018], k: [0.035, 0.02] };
   function buildBody(bd, nb) {
     const J = bd.J, F = bd.F, sq = Math.sqrt, smin = sd.smin, smax = sd.smax;
@@ -417,7 +435,7 @@ const Skier = (() => {
     const shlL = seg(at(B.chest, 0, 0.20, 0.004), at(B.chest, -0.155, 0.188, 0.004)), shlR = seg(at(B.chest, 0, 0.20, 0.004), at(B.chest, 0.155, 0.188, 0.004)), colB = seg(at(B.chest, 0, 0.21, 0.006), at(B.chest, 0, 0.325, 0.006));
     const shl = seg(at(B.chest, -0.165, 0.20, 0), at(B.chest, 0.165, 0.20, 0)), col = seg(at(B.chest, 0, 0.21, 0.004), at(B.chest, 0, 0.262, -0.002)), nck = seg(J.neck, v3.mad(J.head, bd.hb.Y, -0.05));
     const arm = [0, 1].map(k => { const s = k ? 'R' : 'L', sh = J['sh' + s], el = J['elbow' + s], wr = J['wrist' + s], gr = J['grip' + s], fd = v3.norm(v3.sub(gr, el));
-      return { up: seg(sh, el), upB: seg(v3.lerp(sh, el, 0.10), el), fo: seg(el, v3.mad(wr, fd, -0.03)), ga: seg(v3.mad(wr, fd, -0.05), wr), hu: seg(el, gr), mH: F[k ? B.handR : B.handL] }; });
+      return { up: seg(sh, el), upB: seg(v3.lerp(sh, el, 0.10), el), fo: seg(el, v3.mad(wr, fd, -0.03)), gaB: seg(v3.mad(wr, fd, -0.085), v3.mad(wr, fd, 0.005)), ga: seg(v3.mad(wr, fd, -0.05), wr), hu: seg(el, gr), mH: F[k ? B.handR : B.handL] }; });
     const leg = [0, 1].map(k => { const iT = k ? B.thighR : B.thighL, iS = iT + 1, iF = iT + 2, s = k ? 'R' : 'L';
       return { ta: seg(at(iT, 0, 0.03, 0), at(iT, 0, 0.21, -0.016)), tb: seg(at(iT, 0, 0.21, -0.016), at(iT, 0, 0.425, -0.004)), kc: at(iS, 0, 0, -0.03), sa: seg(at(iS, 0, 0.02, 0), at(iS, 0, 0.15, 0.012)), sb: seg(at(iS, 0, 0.15, 0.012), at(iS, 0, 0.365, 0.004)),
         cu: seg(at(iS, 0, 0.25, 0.010), at(iS, 0, 0.425, 0.006)), mS: F[iS], mF: F[iF], h0: seg(J['hip' + s], J['knee' + s]), h1: seg(J['knee' + s], J['ankle' + s]), h2: seg(at(iF, 0, 0.09, 0.25), at(iF, 0, 0.09, -0.27)) }; });
@@ -452,9 +470,10 @@ const Skier = (() => {
     function rArm(k, x, y, z) {
       const A = arm[k];
       if (nb) {      // (new body: the sleeve tapers from the armpit to the elbow and on to a looser cuff; the glove is a squarish fist with a thumb over the grip)
-        const a = smin(cap(x, y, z, A.upB, 0.058, 0.050), cap(x, y, z, A.fo, 0.049, 0.045), 0.03);
+        const a = smin(cap(x, y, z, A.upB, 0.057, 0.049), cap(x, y, z, A.fo, 0.047, 0.044), 0.04);
         loc(A.mH, x, y, z); const qx = q[0], qy = q[1], qz = q[2];
-        let gl = smin(cap(x, y, z, A.ga, 0.058, 0.048), rbx(qx, qy, qz, 0, 0.066, 0.004, 0.040, 0.050, 0.045, 0.030), 0.018);
+        let gl = smin(cap(x, y, z, A.gaB, 0.057, 0.049),     // (a long gauntlet, its cuff standing over the end of the sleeve)
+           rbx(qx, qy, qz, 0, 0.066, 0.004, 0.040, 0.050, 0.045, 0.030), 0.018);
         gl = smin(gl, E(qx, qy, qz, 0, 0.052, -0.040, 0.022, 0.034, 0.019), 0.012);                           // thumb, laid over the top of the grip
         armJ = a; armG = gl; return smin(a, gl, 0.012);
       }
@@ -496,7 +515,11 @@ const Skier = (() => {
     const hc = [0, 0.006, 0.008], bfc = [0, -0.070, -0.045];
     function rHead(x, y, z) {
       loc(Fh, x, y, z); const a = q[0], b = q[1] - LEN.head, d = q[2] + 0.015; g.q[0] = a; g.q[1] = b; g.q[2] = d;     // (about the middle of the helmet)
-      let h = nb ? E(a, b, d, 0, 0.0, 0.010, 0.108, 0.110, 0.127) : E(a, b, d, 0, 0.006, 0.008, 0.114, 0.119, 0.130); h = smin(h, E(Math.abs(a), b, d, nb ? 0.090 : 0.096, -0.048, 0.014, 0.030, 0.052, 0.056), 0.02);    // shell, ear covers
+      if (nb) {      // (new body: a real ski helmet, goggles strapped on, the face in a gaiter: see HEAD; the fragment shader draws its edges from the same shapes)
+        const H = HEAD, h = headHelmet(a, b, d), gg = headGog(a, b, d), bf = smin(smin(E(a, b, d, H.face[0], H.face[1], H.face[2], H.face[3], H.face[4], H.face[5]), ball(a, b, d, H.chin, H.chinR), 0.03), cap(x, y, z, nck, 0.060, 0.058), 0.03);
+        hdH = h; hdG = gg; hdB = bf; return smin(smin(h, gg, 0.005), bf, 0.012);
+      }
+      let h = E(a, b, d, 0, 0.006, 0.008, 0.114, 0.119, 0.130); h = smin(h, E(Math.abs(a), b, d, 0.096, -0.048, 0.014, 0.030, 0.052, 0.056), 0.02);    // shell, ear covers
       const gg = rbx(a, b, d, 0, 0, -0.104, 0.082, 0.038, 0.030, 0.026), bf = smin(ball(a, b, d, bfc, 0.072), cap(x, y, z, nck, 0.062, 0.060), 0.03);
       hdH = h; hdG = gg; hdB = bf; return smin(smin(h, gg, 0.012), bf, 0.02);
     }
@@ -551,7 +574,7 @@ const Skier = (() => {
       return { hip, kn, sh, el, td, ud, th: [v3.mad(hip, td, 0.12), v3.mad(kn, td, -0.11)], sn: [v3.mad(kn, sn, 0.11), an], ua: [v3.mad(sh, ud, 0.10), v3.mad(el, ud, -0.09)], fa: [v3.mad(el, fd, 0.09), wr],
         seat: k ? B.seatR : B.seatL, thigh: k ? B.thighR : B.thighL, knee: k ? B.kneeR : B.kneeL, shin: k ? B.shinR : B.shinL, foot: k ? B.footR : B.footL, shd: k ? B.shR : B.shL, uarm: k ? B.uarmR : B.uarmL, elbow: k ? B.elbowR : B.elbowL, farm: k ? B.farmR : B.farmL, hand: k ? B.handR : B.handL, mS: F[k ? B.shinR : B.shinL], mH: F[k ? B.handR : B.handL] }; });
     const cb = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], cw = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; let nc = 0;
-    const add = (i, d, m) => { const w = m * Math.exp(-Math.max(d, 0) / SG); if (w < 1e-4) return; for (let k = 0; k < nc; k++) if (cb[k] === i) { if (w > cw[k]) cw[k] = w; return; } cb[nc] = i; cw[nc] = w; nc++; };
+    let sg = SG; const add = (i, d, m) => { const w = m * Math.exp(-Math.max(d, 0) / sg); if (w < 1e-4) return; for (let k = 0; k < nc; k++) if (cb[k] === i) { if (w > cw[k]) cw[k] = w; return; } cb[nc] = i; cw[nc] = w; nc++; };
     const ly = (m, x, y, z) => (x - m[12]) * m[4] + (y - m[13]) * m[5] + (z - m[14]) * m[6];
     for (let v = 0; v < n; v++) {
       const x = mesh.verts[v * 10], y = mesh.verts[v * 10 + 1], z = mesh.verts[v * 10 + 2], id = Math.round(mesh.verts[v * 10 + 6]), t = T[x < 0 ? 0 : 1], o = v * 4; nc = 0;
@@ -567,7 +590,7 @@ const Skier = (() => {
         const tw = pk ? 0 : bk * (1 - smooth(0.02, 0.13, py + 0.082 + 0.026 * sat((pz + 0.02) / 0.14)));
         add(B.pelvis, dS(x, y, z, hips, 0.14), mT * (1 - 0.8 * bk)); add(B.spine, dS(x, y, z, spine, 0.15), mT); if (bk > 0) add(B.spine, dS(x, y, z, spineB, 0.15), mT * bk * (1 - 0.8 * tw)); if (tw > 0) add(B.tail, 0, mT * tw);
         add(B.chest, Math.min(dS(x, y, z, chest, 0.15), dS(x, y, z, shl, 0.085)), mT); add(B.neck, dP(x, y, z, nk, 0.07), mT);
-        add(t.shd, dP(x, y, z, t.sh, 0.078), mA); add(t.uarm, dS(x, y, z, t.ua, 0.062), mA); add(t.elbow, dP(x, y, z, t.el, 0.06), mA); add(t.farm, dS(x, y, z, t.fa, 0.052), mA);
+        if (nb) sg = 0.032; add(t.shd, dP(x, y, z, t.sh, 0.078), mA); add(t.uarm, dS(x, y, z, t.ua, 0.062), mA); add(t.elbow, dP(x, y, z, t.el, 0.06), mA); add(t.farm, dS(x, y, z, t.fa, 0.052), mA); sg = SG;
         // in front and at the sides the skirt of the jacket lies on the tops of the thighs and goes with them (held by the pelvis alone, a deep bend at the hip pushes the thighs out through it)
         add(t.seat, dP(x, y, z, t.hip, 0.120), fade * mT * (1 - bk)); add(t.thigh, dS(x, y, z, t.th, 0.100), fade * mT * (1 - bk));
       } else if (id === 1) {
@@ -696,9 +719,30 @@ const Skier = (() => {
   let armAx: vec3f = ${f3(v3.norm(v3.add(v3.norm(v3.sub(bj.elbowR, bj.shR)), v3.norm(v3.sub(bj.gripR, bj.elbowR)))))}; let thD: vec3f = ${dir(bj.hipR, bj.kneeR)}; let shD: vec3f = ${dir(bj.kneeR, bj.ankleR)};
   let legAx: vec3f = normalize(thD + shD); let legB: vec3f = normalize(cross(legAx, vec3f(1.0, 0.0, 0.0)));
   let hd3: vec3f = vec3f(dot(bp - ${f3(hO)}, ${f3(hX)}), dot(bp - ${f3(hO)}, ${f3(hY)}) - ${f1(LEN.head)}, dot(bp - ${f3(hO)}, ${f3(hZ)}) + 0.015);
-  let helD: f32 = skMin(skEll(hd3, vec3f(0.0, 0.0, 0.010), vec3f(0.108, 0.110, 0.127)), skEll(vec3f(abs(hd3.x), hd3.y, hd3.z), vec3f(0.090, -0.048, 0.014), vec3f(0.030, 0.052, 0.056)), 0.02);`;
+  let colD: f32 = skMin(skMin(skCap(tl, vec3f(0.0, 0.21, 0.006), vec3f(0.0, 0.325, 0.006), 0.088, 0.080), skEll(tl, vec3f(0.0, 0.215, 0.080), vec3f(0.105, 0.05, 0.042)), 0.05), skEll(tl, vec3f(0.0, 0.222, 0.016), vec3f(0.145, 0.062, 0.085)), 0.05);      // (collar, hood and the slope of the shoulders: the jacket round the head)`;
+    // (the new body's head as the shader sees it: the same shapes as headHelmet / headGog / the gaiter in buildBody, from HEAD)
+    const H = HEAD, Fi = m4.invert(Fh), nk0 = m4.tp(Fi, bj.neck), nk1 = m4.tp(Fi, v3.mad(bj.head, bind.hb.Y, -0.05)), hl = v => [v[0], v[1] - LEN.head, v[2] + 0.015], E3 = (e, i) => f3(e.slice(i, i + 3));
+    const headSSL = `
+fn skCap(p: vec3f, a: vec3f, b: vec3f, ra: f32, rb: f32) -> f32 { let pa: vec3f = p - a; let ba: vec3f = b - a; let h: f32 = saturate(dot(pa, ba) / dot(ba, ba)); return length(pa - ba * h) - mix(ra, rb, h); }
+fn skMax(a: f32, b: f32, k: f32) -> f32 { return -skMin(-a, -b, k); }
+fn hdHelm(p: vec3f) -> f32 {
+  var h: f32 = skEll(p, ${E3(H.shell, 0)}, ${E3(H.shell, 3)});
+  h = skMin(h, skEll(vec3f(abs(p.x), p.y, p.z), ${E3(H.ear, 0)}, ${E3(H.ear, 3)}), 0.02);
+  h = skMin(h, skEll(p, ${E3(H.brim, 0)}, ${E3(H.brim, 3)}), 0.012);
+  let big: f32 = skEll(p, ${E3(H.shell, 0)}, ${E3(H.shell, 3)} + vec3f(0.005));
+  h = skMin(h, skMax(skMax(big, abs(p.x) - 0.013, 0.006), 0.045 - p.y, 0.01), 0.006);
+  h = skMax(h, -skBox(p, ${E3(H.cut, 0)}, ${E3(H.cut, 3)}, ${f1(H.cut[6])}), 0.008);
+  return min(h, skMax(skEll(p, ${E3(H.shell, 0)}, ${E3(H.shell, 3)} + vec3f(0.003)), abs(p.y - ${f1(H.gy)}) - ${f1(H.sh)}, 0.003));
+}
+fn hdGogA(p: vec3f) -> vec3f { let qz: f32 = p.z - ${f1(H.gz)}; let r: f32 = length(vec2f(p.x, qz)); return vec3f(r, atan2(abs(p.x), -qz), p.y - ${f1(H.gy)}); }
+fn hdGog(p: vec3f) -> f32 {
+  let c: vec3f = hdGogA(p); let dx: f32 = abs(c.x - ${f1(H.gr)}) - ${f1(H.gt)}; let dy: f32 = abs(c.z) - ${f1(H.gh)}; let dz: f32 = (c.y - ${f1(H.ga)}) * c.x;
+  return length(max(vec3f(dx, dy, dz), vec3f(0.0))) + min(max(dx, max(dy, dz)), 0.0) - 0.004;
+}
+fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(H.face, 3)}), length(p - ${f3(H.chin)}) - ${f1(H.chinR)}, 0.03), skCap(p, ${f3(hl(nk0))}, ${f3(hl(nk1))}, 0.060, 0.058), 0.03); }
+`;
     pipe = gfx.pipeline({
-      name: 'skier', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SKIN_SSL, SKIER_SSL], buffers,
+      name: 'skier', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SKIN_SSL, SKIER_SSL, headSSL], buffers,
       varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', bn: 'vec3f', mat: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f' },
       textures: { tBones: 'fetch', tDetail: '2d', tShadow: 'shadow', tSky: '2d' },
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let s: SkinV = skinVertex(a.pos, a.nrm, a.bw); v.wp = s.wp; v.nrm = s.n; v.bp = a.pos; v.bn = a.nrm; v.mat = a.mat; v.clip = U.viewProj * vec4f(s.wp, 1.0); return v; }`,
@@ -946,15 +990,26 @@ fn frag(v: VOut) -> FOut {
   let nb: f32 = M.r.y; let hemS: f32 = mix(0.349, 0.362, nb);
   // (new body: where the helmet meets the collar and the gaiter its rim is drawn from the helmet's own shape, not from the mesh's triangles, which left a
   // ragged white fringe; the strap round it is found the same way)
-  if (nb > 0.5 && (id < 0.5 || (id > 3.5 && id < 4.5) || (id > 5.5 && id < 7.5)) && helD < 0.03 && !(abs(hd3.y) < 0.045 && hd3.z < -0.06)) {
-    if (helD < 0.0015) { id = select(4.0, 6.0, abs(hd3.y - 0.004) < 0.020); } else if (id > 3.5 && id < 4.5) { id = 7.0; }
+  // ...and the goggles, their strap and the gaiter: every pixel of the head and of the collar under it takes the material whose shape it lies on
+  var strapK: f32 = 0.0;
+  if (nb > 0.5 && (id < 0.5 || (id > 3.5 && id < 7.5)) && length(hd3) < 0.25) {
+    let dH: f32 = hdHelm(hd3); let dG: f32 = hdGog(hd3); let dB: f32 = hdBuff(hd3) + 0.008 * smoothstep(-0.06, 0.0, hd3.z);      // (behind, the gaiter is under the collar and the helmet: it never wins there)
+    let dm: f32 = min(dH, min(dG - 0.002, dB));
+    if (min(dm, colD) < 0.008) {
+      var best: f32 = colD; var nid: f32 = 0.0;
+      if (dB < best) { best = dB; nid = 7.0; } if (dH < best) { best = dH; nid = 4.0; } if (dG - 0.002 < best) { best = dG; nid = 6.0; }
+      id = nid;
+      let gc: vec3f = hdGogA(hd3);
+      if (id > 5.5 && id < 6.5 && gc.x > ${(Skier.HEAD.gr).toFixed(4)} && abs(gc.z) < ${(Skier.HEAD.gh - 0.007).toFixed(4)} && gc.y < ${(Skier.HEAD.ga - 0.11).toFixed(4)}) { id = 5.0; }     // the lens: the outer face inside the frame
+      if (id > 3.5 && id < 4.5 && abs(hd3.y - ${(Skier.HEAD.gy).toFixed(4)}) < ${(Skier.HEAD.sh).toFixed(4)}) { id = 6.0; strapK = 1.0; }                                  // the strap round the shell
+    }
   }
   if (legS > 0.25 && ((id > 0.5 && id < 1.5) || (id > 2.5 && id < 3.5))) { id = select(3.0, 1.0, legS < hemS); }
   // jacket or pack: by the pack's own outline
   if (id < 0.5 || (id > 7.5 && id < 8.5)) { id = select(0.0, 8.0, pkD < 0.006); }
   if (id < 0.5) {            // jacket: orange shell, dark forearms, a pale band round the upper sleeves, pack straps over the shoulders
     let onTorso: f32 = smoothstep(-0.004, 0.004, v.mat.w);
-    let fore: f32 = smoothstep(0.035, 0.065, armF) * (1.0 - onTorso);
+    let fore: f32 = mix(smoothstep(0.035, 0.065, armF), smoothstep(0.140, 0.152, armF), nb) * (1.0 - onTorso);     // (new body: only a navy storm cuff, under the gauntlet's edge)
     alb = mix(orange, navy, fore);
     let chev: f32 = smoothstep(0.016, 0.011, abs(armU - 0.150)) * (1.0 - onTorso) * (1.0 - fore);
     alb = mix(alb, ${V(L.sleeveBand.alb)}, chev);
@@ -971,7 +1026,7 @@ fn frag(v: VOut) -> FOut {
     let fw: f32 = skFold(pl, vec3f(0.0, 1.0, 0.0), 15.5, px); let ft: f32 = skFold(tl, vec3f(0.45, 0.88, 0.13), 9.0, px);
     // (above the hem: with the trunk folded forward the back is drawn taut and the front is crowded)
     let waist: f32 = smoothstep(0.010, 0.05, hemV) * smoothstep(0.34, 0.14, hemV) * mix(1.0 + 0.6 * tf, 1.0 - 0.55 * tf, smoothstep(-0.03, 0.05, pl.z));
-    fold = slv * (exp(-de * de / 0.014) * (0.004 + 0.013 * elb) * (abs(fe) * 2.0 - 0.2) + (0.030 + 0.012 * nb) * lay * fs) + onTorso * (waist * 0.030 * fw + (0.024 + 0.012 * nb) * lay * ft) + 0.010 * big;
+    fold = slv * (exp(-de * de / mix(0.014, 0.022, nb)) * (0.004 + 0.013 * elb) * mix(1.0, 0.45, nb) * (abs(fe) * 2.0 - 0.2) + (0.030 + 0.012 * nb) * lay * fs) + onTorso * (waist * 0.030 * fw + (0.024 + 0.012 * nb) * lay * ft) + 0.010 * big;
     // seams: round the armhole, down the flank, the band of the hem, the flap over the front zip; the two pocket zips
     let flank: f32 = mix(pl.z - 0.005, tl.z - 0.012, smoothstep(0.10, 0.25, hemV));
     sd = min(abs(v.mat.w) * 0.6 + nb, abs(hemV - 0.034) + slv);
@@ -1018,13 +1073,25 @@ fn frag(v: VOut) -> FOut {
     alb = vec3f(0.80, 0.80, 0.77);
     alb = mix(alb, orange, smoothstep(0.016, 0.011, abs(bp.x)) * 0.95);
     specS = 0.18; specP = 40.0; gloss = 0.03;
+    if (nb > 0.5) {      // (new body: vent slots either side of the ridge, the brim's underside in shade, a satin clear coat)
+      let vs: f32 = smoothstep(0.0075, 0.0045, abs(abs(hd3.x) - 0.036)) * max(smoothstep(0.024, 0.018, abs(hd3.z + 0.035)), smoothstep(0.024, 0.018, abs(hd3.z - 0.050))) * step(0.055, hd3.y);
+      alb = mix(alb, vec3f(0.03, 0.03, 0.035), vs); fold = -0.002 * vs;
+      alb *= 1.0 - 0.35 * smoothstep(0.02, 0.0, hd3.y - 0.012) * smoothstep(-0.07, -0.10, hd3.z) * step(0.02, hd3.y);
+      specS = 0.30; specP = 60.0; gloss = 0.05;
+    }
   } else if (id < 5.5) {     // goggle lens: mirrored, iridescent
     alb = vec3f(0.01, 0.01, 0.015); gloss = 0.85; specS = 2.0; specP = 600.0;
     let fr: f32 = 1.0 - saturate(dot(N, V));
     glossTint = mix(vec3f(1.0, 0.62, 0.20), vec3f(0.95, 0.25, 0.55), fr);
+    // (new body: a mirrored lens that runs from gold at the top to violet-blue at the bottom)
+    glossTint = mix(glossTint, mix(vec3f(1.0, 0.70, 0.22), vec3f(0.45, 0.35, 1.0), smoothstep(${(Skier.HEAD.gy + 0.016).toFixed(4)}, ${(Skier.HEAD.gy - 0.016).toFixed(4)}, hd3.y)) * (1.0 + 0.4 * fr), nb);
   } else if (id < 6.5) {     // goggle frame + strap
     alb = mix(vec3f(0.02), orange, step(-0.095, qz));
     sheen = 0.2; specS = 0.06;
+    if (nb > 0.5) {      // (new body: a thick satin black frame; the strap black webbing with an orange stripe woven along it)
+      alb = mix(vec3f(0.025, 0.026, 0.03), mix(vec3f(0.02), orange, smoothstep(0.0040, 0.0025, abs(abs(hd3.y - ${Skier.HEAD.gy.toFixed(4)}) - 0.0075))), strapK);
+      specS = mix(0.25, 0.04, strapK); specP = 40.0; cloth = 0.6 * strapK; sheen = 0.25;
+    }
   } else if (id < 7.5) {     // neck gaiter
     alb = vec3f(0.022, 0.030, 0.045); sheen = 0.4; cloth = 1.0;
   } else if (id < 8.5) {     // backpack: slate body, orange lid, reflective tab
