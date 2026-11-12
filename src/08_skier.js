@@ -909,6 +909,9 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     for (let i = 0; i < K.NB; i++) boneData.set(m4.mul(R, M[i]), i * 16);
     if (gfx) gfx.updateTexture(boneTex, 0, 0, 4, 32, boneData);
     const W = K.world; W.root = R; W.J = s.J; W.X = X; W.Y = Y; W.Z = Z; W.hb = s.hb;
+    // the skis (tail to tip) and the poles (fist to tip) in render space, each [a, b]: the motion blur leaves them sharp, as it does the body (09_post.js)
+    { const sg = (b, a, c) => { const F = m4.mul(R, s.F[b]); return [m4.tp(F, a), m4.tp(F, c)]; };
+      W.seg = [sg(B.footL, [0, 0.02, 0.78], [0, 0.09, -0.94]), sg(B.footR, [0, 0.02, 0.78], [0, 0.09, -0.94]), sg(B.poleL, [0, 0.06, 0], [0, -1.12, 0]), sg(B.poleR, [0, 0.06, 0], [0, -1.12, 0])]; }
     W.tipL = toW(s.J.tipL); W.tipR = toW(s.J.tipR); W.planted = Math.min(s.J.plantedL, s.J.plantedR);   // pole tips in the world, and whether the snow has them (1) or not (0)
     return s;
   };

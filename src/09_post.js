@@ -111,7 +111,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     // and turned toward that line, until it is rd.z picture heights long at the very corner. Nothing in the middle of the frame, nothing on
     // the skier.
     pMB = gfx.pipeline({
-      name: 'motionBlur', lib: [SL.common, SL.depth, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', d0: 'vec4f', d1: 'vec4f', rd: 'vec4f' }, textures: { tA: '2d', tDepth: 'depth' },
+      name: 'motionBlur', lib: [SL.common, SL.depth, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', d0: 'vec4f', d1: 'vec4f', rd: 'vec4f', k0: 'vec4f', k1: 'vec4f', k2: 'vec4f', k3: 'vec4f', k4: 'vec4f', k5: 'vec4f', k6: 'vec4f', k7: 'vec4f' }, textures: { tA: '2d', tDepth: 'depth' },
       depth: false, depthTest: false, cull: 'none', vs: VS_FULLSCREEN, fs: `
 fn relAt(uv: vec2f, z: f32) -> vec3f {
   let ty: f32 = U.camRight.w; let tx: f32 = ty * U.camUp.w;
@@ -119,6 +119,10 @@ fn relAt(uv: vec2f, z: f32) -> vec3f {
 }
 // anything else that keeps pace with the lens (a deer running alongside): 0 on it, 1 away from it
 fn rider(wp: vec3f, c: vec4f) -> f32 { if (c.w <= 0.0) { return 1.0; } return smoothstep(1.35 * c.w, 2.0 * c.w, length((wp - c.xyz) * vec3f(1.0, 0.8, 1.0))); }
+// along a ski or a pole (a.xyz to b.xyz, a.w how thick a band stays sharp; 0: none): 0 on it, 1 as far again out. (The body's ball leaves the
+// tips of the skis out: they reach 1.3 m from its middle, further in the air, and were smeared as if they were the snow going by)
+fn limb(wp: vec3f, a: vec4f, b: vec4f) -> f32 { if (a.w <= 0.0) { return 1.0; } let ab: vec3f = b.xyz - a.xyz; let h: f32 = clamp(dot(wp - a.xyz, ab) / max(dot(ab, ab), 1e-6), 0.0, 1.0); return smoothstep(a.w, 2.0 * a.w, length(wp - a.xyz - ab * h)); }
+fn kit(wp: vec3f, k0: vec4f, k1: vec4f, k2: vec4f, k3: vec4f, k4: vec4f, k5: vec4f, k6: vec4f, k7: vec4f) -> f32 { return limb(wp, k0, k1) * limb(wp, k2, k3) * limb(wp, k4, k5) * limb(wp, k6, k7); }
 // a tap held to cap (exposed luminance) and greyed above it, by k (0: as it is)
 fn tame(s: vec3f, ex: f32, k: f32, cap: f32) -> vec3f {
   let le: f32 = luma(s) * ex; if (le <= cap || k <= 0.0) { return s; }
@@ -131,7 +135,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   let wp: vec3f = U.camPos.xyz + relAt(v.uv, z);
   let pc: vec4f = U.prevViewProj * vec4f(wp, 1.0);
   let sc: vec3f = U.player.xyz + vec3f(0.0, 0.85, 0.0);
-  let keep: f32 = smoothstep(1.05, 1.6, length(wp - sc)) * rider(wp, M.d0) * rider(wp, M.d1);
+  let keep: f32 = smoothstep(1.05, 1.6, length(wp - sc)) * rider(wp, M.d0) * rider(wp, M.d1) * kit(wp, M.k0, M.k1, M.k2, M.k3, M.k4, M.k5, M.k6, M.k7);
   var vel: vec2f = (v.uv - vec2f(pc.x / pc.w * 0.5 + 0.5, 0.5 - pc.y / pc.w * 0.5)) * M.p.x;
   vel *= keep * mix(1.0, M.p.z, smoothstep(150.0, 700.0, z)) * step(0.01, pc.w);
   let asp: vec2f = vec2f(U.camUp.w, 1.0);
@@ -159,7 +163,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     // what rides with the lens (the skier) leaves no streak on the ground behind it
     let zq: f32 = linDepth(texFetchD(tDepth, vec2i(q * U.res.xy), 0));
     let wq: vec3f = U.camPos.xyz + relAt(q, zq);
-    let w: f32 = smoothstep(1.05, 1.6, length(wq - sc)) * rider(wq, M.d0) * rider(wq, M.d1);
+    let w: f32 = smoothstep(1.05, 1.6, length(wq - sc)) * rider(wq, M.d0) * rider(wq, M.d1) * kit(wq, M.k0, M.k1, M.k2, M.k3, M.k4, M.k5, M.k6, M.k7);
     // a glint is a point of ice 20 to 50 times the snow: averaged in as it is, one of them still burns a white (or prism-coloured) dash
     // through every pixel of its path, like rain on the glass. Once the streak is a few pixels long (kk) a tap is held to a little over the
     // level of sunlit snow (cap) and loses its prism colour: the sparkle trails off as a faint soft streak. A still frame is not touched
@@ -183,7 +187,9 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   P.visCut = function () { visInit = false; };
   // draws the streaked scene into the pass that is open. `dt`: the time the last frame took
   P.motionBlur = function (sceneTex, depthTex, dt) {
-    gfx.draw(pMB, { u: { p: [P.shutter / Math.max(dt, 1 / 240), P.blurMax, P.blurFar, 0], d0: P.riders[0], d1: P.riders[1], rd: [P.radC[0], P.radC[1], P.radial, P.radIn] }, tex: { tA: sceneTex, tDepth: depthTex }, count: 3 });
+    const sg = typeof Skier !== 'undefined' && Skier.world && Skier.world.seg, K = [];
+    for (let i = 0; i < 4; i++) { const q = sg && sg[i]; if (q) { K.push([q[0][0], q[0][1], q[0][2], i < 2 ? 0.13 : 0.06], [q[1][0], q[1][1], q[1][2], 0]); } else K.push([0, 0, 0, 0], [0, 0, 0, 0]); }
+    gfx.draw(pMB, { u: { p: [P.shutter / Math.max(dt, 1 / 240), P.blurMax, P.blurFar, 0], d0: P.riders[0], d1: P.riders[1], rd: [P.radC[0], P.radC[1], P.radial, P.radIn], k0: K[0], k1: K[1], k2: K[2], k3: K[3], k4: K[4], k5: K[5], k6: K[6], k7: K[7] }, tex: { tA: sceneTex, tDepth: depthTex }, count: 3 });
   };
   P.run = function (sceneTex, depthTex) {
     const m = P.mips;
