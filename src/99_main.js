@@ -28,7 +28,7 @@ async function boot(stage) {
   { const t0 = performance.now(); Trees.init(gfx); if (DEV) console.log('trees', Math.round(performance.now() - t0) + 'ms', Math.round(Trees.stats.tris) + ' tris'); }
   Gates.init(gfx);
   await step(0.56, '点亮星云');
-  Spray.init(gfx); Dust.init(gfx); Nebula.init(gfx, +QS.get('nebres') || (gfx.caps.maxTex >= 4096 && (navigator.deviceMemory || 8) >= 4 ? 1536 : 768)); Clouds.init(gfx, +QS.get('cloudres') || 0); Shafts.init(gfx); Tracks.init(gfx);
+  Spray.init(gfx); Grains.init(gfx); Dust.init(gfx); Nebula.init(gfx, +QS.get('nebres') || (gfx.caps.maxTex >= 4096 && (navigator.deviceMemory || 8) >= 4 ? 1536 : 768)); Clouds.init(gfx, +QS.get('cloudres') || 0); Shafts.init(gfx); Tracks.init(gfx);
   await step(0.64, '调音');
   Sound.init();
   Render.onResize.push(Spray.resize); Render.onResize.push(Shafts.resize);
@@ -38,6 +38,7 @@ async function boot(stage) {
   Render.passes.fx.push(R => Dust.veil(R));                              // (heavy snow: the veil of the far snowfall, under everything near)
   Render.passes.fx.push(R => Shafts.fx(R));
   Render.passes.fx.push(R => Spray.fx(R));
+  Render.passes.fx.push(R => Grains.fx(R));                             // (the crystals and clumps in the thrown snow, over its cloud)
   Render.passes.fx.push(R => Dust.fx(R));
   Game.onStep = (S, H) => Spray.onStep(S, H, App.t - (Game.t - Game.stepT));
   Render.passes.shadow.push(() => { if (App.skierRoot) Skier.drawShadow(); Deer.drawShadow(); Trees.drawShadow(); });
@@ -48,7 +49,7 @@ async function boot(stage) {
   Render.passes.transparent.push(R => Clouds.draw(R)); Render.passes.transparent.push(R => Trees.drawGhost(R));
   Render.passes.transparent.push(R => Gates.drawOver(R));
   await step(0.70, '调光');
-  const pipes = [].concat(Sky.pipes, Terrain.pipes, Post.pipes, Skier.pipes, Deer.pipes, Trees.pipes, Spray.pipes, Dust.pipes, Nebula.pipes, Clouds.pipes, Shafts.pipes, Tracks.pipes);
+  const pipes = [].concat(Sky.pipes, Terrain.pipes, Post.pipes, Skier.pipes, Deer.pipes, Trees.pipes, Spray.pipes, Grains.pipes, Dust.pipes, Nebula.pipes, Clouds.pipes, Shafts.pipes, Tracks.pipes);
   pipes.push(...Gates.pipes);
   for (let i = 0; i < pipes.length; i++) { const p = pipes[i]; if (gfx.finishPipelineAsync) await gfx.finishPipelineAsync(p); else gfx.finishPipeline(p); if (stage && !manual && i % 6 === 5) await step(0.70 + 0.16 * (i + 1) / pipes.length, null); }
   await step(0.87, '铺雪');
@@ -257,7 +258,7 @@ window.__ski = {
   // set the time of day: seconds into the 10-minute day, or a name (day, golden, sunset, dusk, night, dawn, sunrise)
   tod(t) { Sky.setClock(typeof t === 'string' ? Sky.times[t] : t); Sky.update(); Clouds.baked = false; Vista.shadowElev = -9; Vista.updateShadow(true); return +Sky.sunElev.toFixed(4); },
   game: () => Game, input: () => Input, app: () => App, ui: () => UI,
-  get m() { return { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Skier, Tex, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Atmo, Deer, View, Variants, Weather }; },
+  get m() { return { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Skier, Tex, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Atmo, Deer, View, Variants, Weather, Grains }; },
 };
 App.fit = fit;
 window.__ski.gates = Gates;
