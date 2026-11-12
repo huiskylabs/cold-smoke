@@ -10,10 +10,21 @@ const GATE_K = { FH: 3.2, LS: 1.2, LFY: 0.186, LI: 0.90 };      // flag height; 
 const Gates = (() => {
   const G = { enabled: true, far: 520, band: 80, back: 260, pre: 40, vLand: 21, lanterns: 1, dye: 1, wind: [1.2, 0.4], markers: null, stats: { gates: 0, flags: 0, tris: 0 } };
   // the flag: its height, where the pole starts to bend over, the bend's two radii and its sweep, the foot of the sail; the cloth's grid
-  const FH = GATE_K.FH, YA = 2.25, RX = 0.40, RY = FH - YA, TH1 = 2.15, Y0 = 0.50, NA = 16, NB = 56;
+  // Two cuts of it. 'b' (the default): a feather flag as they stand on a slopestyle course, a 2.9 m pole and a teardrop sail 2.1 m long and
+  // 0.65 m across at its widest, narrow at its foot and rounded over the bend of the pole. 'a': the first cut, a 3.2 m pole with a sail
+  // nearly as wide at its foot as at its head (from a little way off it read as an orange board stood in the snow)
+  // (per cut: height of the pole's top, where it starts to bend, the bend's sideways radius, its sweep, the foot of the sail, the free
+  // corner at the foot (out, up), how far the free edge bellies out, and where the chevrons sit: first, step, half width, how steep)
+  const CUTS = {
+    a: { FH: 3.2, YA: 2.25, RX: 0.40, TH1: 2.15, Y0: 0.50, cx: 0.74, cy: 0.84, bel: 0.12, bp: 0.8, ch: [1.34, 0.37, 0.058, 0.60] },
+    b: { FH: 2.9, YA: 2.10, RX: 0.33, TH1: 2.20, Y0: 0.72, cx: 0.30, cy: 1.02, bel: 0.34, bp: 0.70, ch: [1.40, 0.27, 0.042, 0.42] },
+  };
+  const NA = 16, NB = 56;
+  if (typeof Variants !== 'undefined') Variants.def('flag', '跳台旗', [['a', '宽旗'], ['b', '羽毛旗']], 'b');
+  const cutId = () => (typeof Variants !== 'undefined' && CUTS[Variants.val.flag]) ? Variants.val.flag : 'b';
   const LOX = 0.11, LOZ = 0.62, LSINK = 0.085, LFY = GATE_K.LFY;   // where the lantern stands from the foot of the pole (in front of the cloth, up the hill), how deep it is pressed into the snow, how high its flame is
   const MAXG = 12, DV = 2000, DI = 10800, PV = 1800, PIX = 6400, DS = 11, PS = 10;       // jumps kept at once; room per jump in the sheets' buffers; floats per vertex
-  let gfx, flagVB, flagIB, flagN = 0, propVB, propIB, propN = 0, driftN = 0, instF, instP, instS, cpuF, cpuP, cpuS, dyeVB, dyeIB, poolVB, poolIB;
+  let gfx, flags = {}, propVB, propIB, propN = 0, driftN = 0, instF, instP, instS, cpuF, cpuP, cpuS, dyeVB, dyeIB, poolVB, poolIB;
   let pipeFlag, pipeFlagSh, pipeProp, pipeDrift, pipePool, pipeDye, pipeGlare;
   let gates = new Map(), slots = [], live = [], segsRef = null, seen = 0, nF = 0, nP = 0, nS = 0;
   // each lantern is lit at its own moment as the sun goes down (somebody walks the course with a taper, over the minute round sunset),
@@ -21,7 +32,8 @@ const Gates = (() => {
   const lantOn = (sd, e) => 1 - smooth(-0.002, 0.002, e - 0.03 - (sd - 0.5) * 0.06);
 
   // ---- the flag: a whippy pole bent over at the top by the pull of the sleeve, and the sail hung in the bend
-  function flagMesh() {
+  function flagMesh(K) {
+    const { FH, YA, RX, TH1, Y0 } = K, RY = FH - YA;
     const arc = [[0, 0, YA]];
     { let l = 0, px = 0, py = YA; for (let i = 1; i <= 48; i++) { const th = TH1 * i / 48, x = RX * (1 - Math.cos(th)), y = YA + RY * Math.sin(th); l += Math.hypot(x - px, y - py); arc.push([l, x, y]); px = x; py = y; } }
     const LA = arc[48][0], LT = YA + LA;
@@ -33,7 +45,7 @@ const Gates = (() => {
     };
     const tip = pole(LT);
     // the free edge runs from the lower corner up to the tip of the pole, bellied a little; the cloth is ruled between it and the pole
-    const trail = q => [lerp(0.74, tip[0], q) + 0.12 * Math.pow(Math.sin(PI * Math.pow(q, 0.8)), 0.9), lerp(0.84, tip[1], q)];
+    const trail = q => [lerp(K.cx, tip[0], q) + K.bel * Math.pow(Math.sin(PI * Math.pow(q, K.bp)), 0.9), lerp(K.cy, tip[1], q)];
     const sail = (a, b) => { const L = pole(lerp(Y0, LT, b)), T = trail(b); return [lerp(L[0], T[0], a), lerp(L[1], T[1], a)]; };
     const V = [], I = [], put = (...f) => { for (const x of f) V.push(x); };
     for (let j = 0; j <= NB; j++) for (let i = 0; i <= NA; i++) {
@@ -99,8 +111,9 @@ const Gates = (() => {
 
   G.init = function (g) {
     gfx = g;
-    const fm = flagMesh(), pm = propMesh();
-    flagVB = gfx.buffer(fm.V, 'vertex'); flagIB = gfx.buffer(fm.I, 'index'); flagN = fm.I.length;
+    const pm = propMesh();
+    for (const id in CUTS) { const fm = flagMesh(CUTS[id]); flags[id] = { vb: gfx.buffer(fm.V, 'vertex'), ib: gfx.buffer(fm.I, 'index'), n: fm.I.length, ch: CUTS[id].ch }; }
+    const flagN = flags.b.n;
     propVB = gfx.buffer(pm.V, 'vertex'); propIB = gfx.buffer(pm.I, 'index'); propN = pm.I.length; driftN = pm.nDrift;
     G.stats.tris = (flagN + propN) / 3;
     const MF = MAXG * 6;
@@ -315,10 +328,11 @@ const Gates = (() => {
   };
   // with the trees: flags and what stands at their feet
   G.draw = function (R) {
-    if (nF) gfx.draw(pipeFlag, { u: { p: [0, 0, 0, 0] }, tex: { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, vb: [flagVB, instF], ib: flagIB, count: flagN, instances: nF });
+    const fc = flags[cutId()];
+    if (nF) gfx.draw(pipeFlag, { u: { p: fc.ch }, tex: { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, vb: [fc.vb, instF], ib: fc.ib, count: fc.n, instances: nF });
     if (nP) gfx.draw(pipeProp, { u: { p: [0, 0, 0, 0] }, tex: { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, vb: [propVB, instP], ib: propIB, first: driftN, count: propN - driftN, instances: nP });
   };
-  G.drawShadow = function () { if (nF) gfx.draw(pipeFlagSh, { u: { p: [0, 0, 0, 0] }, vb: [flagVB, instF], ib: flagIB, count: flagN, instances: nF }); };
+  G.drawShadow = function () { const fc = flags[cutId()]; if (nF) gfx.draw(pipeFlagSh, { u: { p: fc.ch }, vb: [fc.vb, instF], ib: fc.ib, count: fc.n, instances: nF }); };
   // over the finished snow: lamplight first, then the dye (which takes its share of that light too), the drifts at the poles, and last
   // the glare of the flames
   G.drawOver = function (R) {
@@ -358,8 +372,10 @@ fn flagWave(a: f32, x: f32, y: f32, t: f32, ph: f32, gain: f32) -> f32 {
   let g: f32 = gain * (0.72 + 0.28 * sin(t * 0.83 + ph) * sin(t * 0.37 + ph * 1.7));
   let e: f32 = a * (0.55 + 0.45 * a);
   let th: f32 = x * 9.5 + y * 2.6 - t * 14.0 + ph;
+  // (and the wind fills the sail: it bellies out from the pole to the free edge, deepest across its middle, more as the wind blows)
   return g * (e * (0.078 * sin(th - 0.45 * cos(th)) + 0.030 * sin(x * 15.0 - y * 4.3 - t * 23.0 + ph * 2.3))
-            + a * (0.085 * a * sin(x * 4.2 + y * 1.3 - t * 6.4 + ph * 0.7) + 0.075 * sin(y * 1.9 - t * 2.6 + ph * 1.3)));
+            + a * (0.085 * a * sin(x * 4.2 + y * 1.3 - t * 6.4 + ph * 0.7) + 0.075 * sin(y * 1.9 - t * 2.6 + ph * 1.3))
+            + 0.085 * sin(3.1416 * a) * (0.8 + 0.2 * sin(t * 1.1 + ph)));
 }
 fn turnAbout(p: vec3f, k: vec3f, ang: f32) -> vec3f { let c: f32 = cos(ang); return p * c + cross(k, p) * sin(ang) + k * (dot(k, p) * (1.0 - c)); }
 // rmin: the least radius the pole is drawn with; px: metres to a pixel where the flag stands (0 = do not care)
@@ -414,7 +430,10 @@ fn frag(v: VOut) -> FOut {
     let a: f32 = v.uv.x; let b: f32 = v.uv.y;
     // creases, and the knit of the cloth
     let cr: vec4f = tex(tDetail, v.mp.xy * vec2f(0.55, 0.31) + v.mp.w * 3.0);
-    N = normalize(N + (vec3f(cr.x, cr.y, 0.5) - 0.5) * 0.30 + (vec3f(wv.x, wv.y, 0.5) - 0.5) * 0.10);
+    // (a sail pulled on its pole wrinkles in long folds that fan out from the sleeve and slant down toward the free edge; they move as it flaps)
+    let fw: f32 = (a * 1.0 - y * 0.55) * 21.0 + 1.6 * cr.z + U.camPos.w * 1.7 + v.mp.w * 13.0;
+    let fold: f32 = cos(fw) * (0.30 + 0.70 * a) * (1.0 - a * 0.5) * smoothstep(0.02, 0.15, a);
+    N = normalize(N + (vec3f(cr.x, cr.y, 0.5) - 0.5) * 0.30 + (vec3f(wv.x, wv.y, 0.5) - 0.5) * 0.10 + vec3f(0.55, -0.30, 0.0) * (fold * 0.22 * (1.0 - smoothstep(0.8, 2.5, fwidth(fw)))));
     // the banner: an orange field, a dark sleeve round the pole, white chevrons pointing down, a doubled hem
     let ew: f32 = max(0.006, 0.6 * px);
     let sleeve: f32 = 1.0 - smoothstep(0.060 - ew * 1.4, 0.060 + ew * 1.4, a);
@@ -422,11 +441,15 @@ fn frag(v: VOut) -> FOut {
     var chev: f32 = 0.0;
     // (they count down to the lip: three on the pair up the hill, two where the run-in begins, one at the lip itself)
     let nch: f32 = 3.0 - floor(v.ex.y + 0.5);
-    for (var i: i32 = 0; i < 3; i++) { let dq: f32 = abs(y - 1.34 - 0.185 * (3.0 - nch) - 0.37 * f32(i) - ac * 0.60); chev = max(chev, (1.0 - smoothstep(0.058 - ew, 0.058 + ew, dq)) * step(f32(i) + 0.5, nch)); }
+    // (where they sit is the cut's: M.p = first, step, half width, how steep the arms)
+    for (var i: i32 = 0; i < 3; i++) { let dq: f32 = abs(y - M.p.x - 0.5 * M.p.y * (3.0 - nch) - M.p.y * f32(i) - ac * M.p.w); chev = max(chev, (1.0 - smoothstep(M.p.z - ew, M.p.z + ew, dq)) * step(f32(i) + 0.5, nch)); }
     chev *= (1.0 - smoothstep(0.40, 0.44, ac)) * (1.0 - sleeve);
-    let hem: f32 = max(smoothstep(0.968, 0.980, a), 1.0 - smoothstep(0.008, 0.016, b)) * (1.0 - sleeve);
-    var alb: vec3f = mix(vec3f(0.80, 0.232, 0.019), vec3f(0.80, 0.80, 0.76), chev);
-    var thr: vec3f = mix(vec3f(0.50, 0.152, 0.008), vec3f(0.50, 0.47, 0.41), chev) * (1.0 - 0.45 * hem) * (0.86 + 0.28 * wv.w);
+    // the hem: the cloth turned back on itself and stitched, along the free edge and the foot. Doubled, it lets less light through and
+    // reads as a darker line round the sail, as a real one does
+    let hw: f32 = max(0.035, 1.2 * ew);
+    let hem: f32 = max(smoothstep(1.0 - hw - 0.012, 1.0 - hw, a), 1.0 - smoothstep(0.010, 0.022, b)) * (1.0 - sleeve);
+    var alb: vec3f = mix(vec3f(0.80, 0.232, 0.019), vec3f(0.80, 0.80, 0.76), chev) * (1.0 - 0.22 * hem);
+    var thr: vec3f = mix(vec3f(0.50, 0.152, 0.008), vec3f(0.50, 0.47, 0.41), chev) * (1.0 - 0.62 * hem) * (0.86 + 0.28 * wv.w);
     alb = mix(alb, vec3f(0.016, 0.018, 0.022), sleeve); thr *= 1.0 - sleeve;
     // snow blown onto the foot of the sail
     let dusty: f32 = (1.0 - smoothstep(0.52, 1.05, y)) * smoothstep(0.50, 0.68, wv.z * 0.6 + cr.w * 0.4 + 0.22 * (1.0 - smoothstep(0.5, 0.8, y)));
@@ -597,20 +620,32 @@ fn frag(v: VOut) -> FOut {
   // (seen from far up the hill, along the snow, a band a stride wide is thinner than a pixel and would be lost: it is never drawn
   // thinner than a two-hundredth of the picture's height, as far as its sheet reaches. A line stays a line)
   let fp: f32 = abs(dpdx(q)) + abs(dpdy(q));                          // metres across the stroke to a pixel
-  let w: f32 = max(v.st.w * (0.74 + 0.52 * n1.x) * mix(1.0, 0.55 + 0.45 * smoothstep(-0.5, 0.5, p / len), v.sd.y), fp * max(2.5, 0.005 * U.res.y));
+  // (a band drawn wider than it is, to stay in the picture, is drawn paler by as much: the same dye spread over more pixels. Far off
+  // it is a soft tint across the snow, never an even stroke of ink)
+  let wt: f32 = v.st.w * (0.74 + 0.52 * n1.x) * mix(1.0, 0.55 + 0.45 * smoothstep(-0.5, 0.5, p / len), v.sd.y);
+  let w: f32 = max(wt, fp * max(1.8, 0.0034 * U.res.y));
+  let cov: f32 = 0.55 + 0.45 * saturate(wt / w);
   let fine: vec4f = tex(tDetail, vec2f(p, q) * 0.83 + sd);
   let grain: vec4f = tex(tDetail, vec2f(p, q) * 3.9 + sd * 2.0);
+  let blot: vec4f = tex(tDetail, vec2f(p * 0.37 + sd * 1.7, q * 0.52 + sd * 4.1));
   let d: f32 = abs(q - c) - 0.5 * w;                                  // > 0: outside the band the nozzle covered
-  let edge: f32 = d + (fine.z - 0.5) * 0.22 + (grain.z - 0.5) * 0.05;
-  let aw: f32 = max(0.03, 0.4 * fp);
-  // (the spray is thickest down the middle of the pass and thins over a hand's width; the colour is never even: the walker hurries
-  // and lingers, and the passes overlap)
+  let edge: f32 = d + (fine.z - 0.5) * 0.34 + (blot.z - 0.5) * 0.30 + (grain.z - 0.5) * 0.08;
+  let aw: f32 = max(0.03, 0.5 * fp);
+  // (the spray is thickest down the middle of the pass and fades over a forearm's width: a nozzle throws a cone, not a brush; the
+  // colour is never even: the walker hurries and lingers, and the passes overlap)
   let mot: vec4f = tex(tDetail, vec2f(p * 0.21 + sd * 9.0, q * 0.35 + sd * 2.0));
-  let core: f32 = (1.0 - smoothstep(-0.11 - aw, 0.04 + aw, edge)) * (0.60 + 0.40 * smoothstep(0.30, 0.62, mot.z * 0.6 + fine.z * 0.4));
-  let soak: f32 = 0.40 * exp(-max(edge, 0.0) / 0.10);                 // it creeps outward through the grains
+  let core: f32 = (1.0 - smoothstep(-0.30 - aw, 0.10 + aw, edge)) * (0.48 + 0.52 * smoothstep(0.26, 0.66, mot.z * 0.5 + fine.z * 0.3 + blot.x * 0.2));
+  let soak: f32 = 0.34 * exp(-max(edge, 0.0) / 0.14);                 // it creeps outward through the grains
   let drop: vec4f = tex(tDetail, vec2f(p, q) * 1.9 + sd * 4.0);
-  let mist: f32 = 0.65 * exp(-max(d, 0.0) / 0.22) * smoothstep(0.66, 0.74, drop.z);   // and droplets fell wide of it
+  let mist: f32 = 0.55 * exp(-max(d, 0.0) / 0.26) * smoothstep(0.64, 0.76, drop.z);   // and droplets fell wide of it
   var rho: f32 = max(core, max(soak, mist));
+  // the snow takes it grain by grain: a crystal here drinks it, the one beside it is still white, and in the hollows between the clods
+  // it pools. (Noise fixed to the snow at two and five centimetres; the mip chain evens it out to its mean as it falls under a pixel)
+  let gA: f32 = tex(tDetail, v.wp.xz * 0.135 + sd).w;
+  let gB: f32 = tex(tDetail, v.wp.xz * 0.052 + sd * 3.0).w;
+  let gC: f32 = tex(tDetail, v.wp.xz * 0.019 + sd * 5.0).z;
+  let gr: f32 = smoothstep(0.22, 0.78, gA * 0.5 + gB * 0.3 + gC * 0.2);
+  rho = saturate(rho * (0.20 + 1.60 * gr) - 0.06 * (1.0 - gr)) * cov;
   // every skier before you has gone over it: where most of them go the colour is worn thin in streaks, and a little of it has been
   // dragged on down the hill. (The streaks are read along a slanting line through the noise, so no stretch of them comes round again;
   // and they come in bunches: here a dozen have taken the same line, there nobody has)
@@ -624,9 +659,15 @@ fn frag(v: VOut) -> FOut {
   // (the walker sprays the top and the edges; on the steep walls of the kicker the dye only runs a little way down, it does not streak)
   let nw: vec3f = normalize(cross(dpdx(v.wp), dpdy(v.wp)));
   rho *= smoothstep(0.70, 0.90, abs(nw.y));
+  // (seen along the snow, the light that comes back from it has mostly been thrown off the tops of the grains, which the dye has
+  // hardly reached: at a grazing look the colour fades toward the snow's own)
+  let ndv: f32 = abs(dot(nw, normalize(U.camPos.xyz - v.wp)));
+  rho *= mix(0.72, 1.0, smoothstep(0.03, 0.30, ndv));
   rho *= v.sd.z * M.off.w * (1.0 - fogAmount(v.wp));
-  // (a dye takes its share of the light at every grain it passes: thin, it is a pale cyan; thick, a deep blue)
-  o.color = vec4f(pow(vec3f(0.075, 0.31, 0.86), vec3f(saturate(rho) * 1.05)), 1.0);
+  // (a dye takes its share of the light at every grain it passes: thin, it is a pale cyan; thick, a deep blue. Marking dye on snow is
+  // never the blue of the bottle: wet into the grains and lit through them it is greyed toward the snow, and the deepest of it is a
+  // dense slate blue, not ink)
+  o.color = vec4f(pow(vec3f(0.13, 0.32, 0.74), vec3f(saturate(rho) * 1.05)), 1.0);
   return o;
 }
 `;
