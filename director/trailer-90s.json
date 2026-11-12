@@ -1,0 +1,481 @@
+[
+ {
+  "id": "01_stars",
+  "name": "星空",
+  "dur": 7.0,
+  "tod": "night",
+  "at": {
+   "s": 700
+  },
+  "start": false,
+  "cam": {
+   "kind": "sky",
+   "at": [
+    0,
+    3,
+    -4
+   ],
+   "p0": 1.0,
+   "p1": 0.55,
+   "fov": 1.0
+  },
+  "t0": 0
+ },
+ {
+  "id": "02_dawn",
+  "name": "黎明云海",
+  "dur": 7.0,
+  "tod": "dawn",
+  "at": {
+   "s": 700
+  },
+  "start": false,
+  "cam": {
+   "kind": "sky",
+   "at": [
+    0,
+    6,
+    -2
+   ],
+   "p0": 0.18,
+   "p1": 0.04,
+   "yaw0": -0.25,
+   "yaw1": 0.15,
+   "fov": 0.85
+  },
+  "t0": 7.0
+ },
+ {
+  "id": "03_sunrise",
+  "name": "日出+片名",
+  "dur": 8.0,
+  "tod": "sunrise",
+  "at": {
+   "s": 700
+  },
+  "start": false,
+  "cam": {
+   "kind": "sky",
+   "at": [
+    0,
+    4,
+    -3
+   ],
+   "p0": 0.06,
+   "p1": 0.06,
+   "yaw0": -0.1,
+   "yaw1": 0.05,
+   "fov": 0.7
+  },
+  "t0": 14.0
+ },
+ {
+  "id": "04_gate",
+  "name": "起点",
+  "dur": 10.4,
+  "tod": "sunrise",
+  "at": {
+   "s": 14
+  },
+  "start": false,
+  "cam": {
+   "kind": "orbit",
+   "r": 5.5,
+   "h": 1.4,
+   "az0": 2.4,
+   "az1": 0.6,
+   "fov": 0.8
+  },
+  "t0": 22.0
+ },
+ {
+  "id": "05_pushoff",
+  "name": "出发",
+  "dur": 5.2,
+  "tod": "day",
+  "at": {
+   "s": 14
+  },
+  "cam": "chase",
+  "t0": 32.4
+ },
+ {
+  "id": "06_spray",
+  "name": "逆光扬雪",
+  "dur": 3.9,
+  "tod": "day",
+  "at": {
+   "s": 900
+  },
+  "lead": 500,
+  "cam": "chase",
+  "steer": {
+   "amp": 0.7,
+   "period": 4.2
+  },
+  "t0": 37.6
+ },
+ {
+  "id": "07_1_chase",
+  "name": "九视角:追尾",
+  "label": "追尾",
+  "dur": 0.65,
+  "tod": "day",
+  "at": {
+   "s": 1300
+  },
+  "lead": 400,
+  "skip": 0.0,
+  "cam": "chase",
+  "steer": {
+   "amp": 0.6,
+   "period": 4.0
+  },
+  "t0": 41.5
+ },
+ {
+  "id": "07_2_fp",
+  "name": "九视角:第一人称",
+  "label": "第一人称",
+  "dur": 0.65,
+  "tod": "day",
+  "at": {
+   "s": 1300
+  },
+  "lead": 400,
+  "skip": 0.65,
+  "cam": "fp",
+  "steer": {
+   "amp": 0.6,
+   "period": 4.0
+  },
+  "t0": 42.15
+ },
+ {
+  "id": "07_3_tips",
+  "name": "九视角:雪板尖",
+  "label": "雪板尖",
+  "dur": 0.65,
+  "tod": "day",
+  "at": {
+   "s": 1300
+  },
+  "lead": 400,
+  "skip": 1.3,
+  "cam": "tips",
+  "steer": {
+   "amp": 0.6,
+   "period": 4.0
+  },
+  "t0": 42.8
+ },
+ {
+  "id": "07_4_low",
+  "name": "九视角:贴雪",
+  "label": "贴雪",
+  "dur": 0.65,
+  "tod": "day",
+  "at": {
+   "s": 1300
+  },
+  "lead": 400,
+  "skip": 1.9500000000000002,
+  "cam": "low",
+  "steer": {
+   "amp": 0.6,
+   "period": 4.0
+  },
+  "t0": 43.45
+ },
+ {
+  "id": "07_5_left",
+  "name": "九视角:左侧",
+  "label": "左侧",
+  "dur": 0.65,
+  "tod": "day",
+  "at": {
+   "s": 1300
+  },
+  "lead": 400,
+  "skip": 2.6,
+  "cam": "left",
+  "steer": {
+   "amp": 0.6,
+   "period": 4.0
+  },
+  "t0": 44.1
+ },
+ {
+  "id": "07_6_right",
+  "name": "九视角:右侧",
+  "label": "右侧",
+  "dur": 0.65,
+  "tod": "day",
+  "at": {
+   "s": 1300
+  },
+  "lead": 400,
+  "skip": 3.25,
+  "cam": "right",
+  "steer": {
+   "amp": 0.6,
+   "period": 4.0
+  },
+  "t0": 44.75
+ },
+ {
+  "id": "07_7_front",
+  "name": "九视角:正面",
+  "label": "正面",
+  "dur": 0.65,
+  "tod": "day",
+  "at": {
+   "s": 1300
+  },
+  "lead": 400,
+  "skip": 3.9000000000000004,
+  "cam": "front",
+  "steer": {
+   "amp": 0.6,
+   "period": 4.0
+  },
+  "t0": 45.4
+ },
+ {
+  "id": "07_8_high",
+  "name": "九视角:俯瞰",
+  "label": "俯瞰",
+  "dur": 0.65,
+  "tod": "day",
+  "at": {
+   "s": 1300
+  },
+  "lead": 400,
+  "skip": 4.55,
+  "cam": "high",
+  "steer": {
+   "amp": 0.6,
+   "period": 4.0
+  },
+  "t0": 46.05
+ },
+ {
+  "id": "07_9_far",
+  "name": "九视角:远摄",
+  "label": "远摄",
+  "dur": 0.75,
+  "tod": "day",
+  "at": {
+   "s": 1300
+  },
+  "lead": 400,
+  "skip": 5.2,
+  "cam": "far",
+  "steer": {
+   "amp": 0.6,
+   "period": 4.0
+  },
+  "t0": 46.7
+ },
+ {
+  "id": "08_approach",
+  "name": "冲向跳台",
+  "dur": 2.3,
+  "tod": "golden",
+  "at": {
+   "kicker": 0,
+   "before": 60
+  },
+  "lead": 250,
+  "cam": "chase",
+  "trick": "360grab",
+  "t0": 47.45
+ },
+ {
+  "id": "09_air",
+  "name": "空中慢动作",
+  "dur": 4.2,
+  "tod": "golden",
+  "at": {
+   "kicker": 0,
+   "before": 3
+  },
+  "lead": 250,
+  "speed": 0.3,
+  "cam": {
+   "kind": "orbit",
+   "r": 6,
+   "h": 0.2,
+   "az0": 1.3,
+   "az1": 2.0,
+   "fov": 0.75,
+   "th": 1.6
+  },
+  "trick": "360grab",
+  "t0": 49.75
+ },
+ {
+  "id": "10_land",
+  "name": "落地",
+  "dur": 3.3,
+  "tod": "golden",
+  "at": {
+   "kicker": 0,
+   "before": 3
+  },
+  "lead": 250,
+  "skip": 0.9,
+  "cam": "chase",
+  "trick": "360grab",
+  "t0": 53.95
+ },
+ {
+  "id": "11_glade",
+  "name": "林间",
+  "dur": 5.2,
+  "tod": "day",
+  "at": {
+   "seg": "glade",
+   "off": 200
+  },
+  "lead": 200,
+  "cam": "fp",
+  "t0": 57.25
+ },
+ {
+  "id": "12_flip",
+  "name": "空翻",
+  "dur": 2.6,
+  "tod": "golden",
+  "at": {
+   "kicker": 1,
+   "before": 40
+  },
+  "lead": 250,
+  "cam": "far",
+  "trick": "flip",
+  "t0": 62.45
+ },
+ {
+  "id": "13_storm",
+  "name": "大雪",
+  "dur": 4.6,
+  "tod": "day",
+  "wx": "heavy",
+  "variants": {
+   "snow": "b"
+  },
+  "at": {
+   "s": 2600
+  },
+  "lead": 500,
+  "cam": "chase",
+  "flash": [
+   2.6
+  ],
+  "t0": 65.05
+ },
+ {
+  "id": "14_storm_wide",
+  "name": "雷暴雪",
+  "dur": 2.2,
+  "tod": "day",
+  "wx": "heavy",
+  "variants": {
+   "snow": "b"
+  },
+  "at": {
+   "s": 2700
+  },
+  "lead": 500,
+  "cam": {
+   "kind": "drone",
+   "from": [
+    6,
+    4,
+    -10
+   ],
+   "to": [
+    8,
+    6,
+    -16
+   ],
+   "fov": 1.0
+  },
+  "flash": [
+   0.3
+  ],
+  "t0": 69.65
+ },
+ {
+  "id": "15_sunset",
+  "name": "日落逆光",
+  "dur": 6.2,
+  "tod": "sunset",
+  "at": {
+   "s": 3200
+  },
+  "lead": 500,
+  "cam": "chase",
+  "tuck": true,
+  "t0": 71.85
+ },
+ {
+  "id": "16_dusk",
+  "name": "黄昏拉远",
+  "dur": 6.0,
+  "tod": "dusk",
+  "at": {
+   "s": 3600
+  },
+  "lead": 500,
+  "cam": {
+   "kind": "drone",
+   "from": [
+    2,
+    3,
+    -6
+   ],
+   "to": [
+    10,
+    40,
+    -60
+   ],
+   "fov": 0.9
+  },
+  "t0": 78.05
+ },
+ {
+  "id": "17_night",
+  "name": "夜·头灯·城市",
+  "dur": 5.0,
+  "tod": "night",
+  "at": {
+   "s": 4000
+  },
+  "lead": 500,
+  "cam": "chase",
+  "t0": 84.05
+ },
+ {
+  "id": "18_trail",
+  "name": "雪迹",
+  "dur": 4.5,
+  "tod": "night",
+  "at": {
+   "s": 4400
+  },
+  "lead": 300,
+  "cam": {
+   "kind": "fixed",
+   "at": [
+    1.5,
+    1.2,
+    -3
+   ],
+   "stare": 1.6,
+   "fov": 0.9
+  },
+  "t0": 89.05
+ }
+]

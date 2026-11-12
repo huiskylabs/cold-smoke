@@ -10,10 +10,10 @@
 //   Director.frame()          the last drawn frame as a PNG data URL (canvas only: no interface)
 //   Director.info(i)          what shot i is, how many frames it has at a given fps
 // SHOT: { id, name, dur (s of screen time), seed, tod (name or clock s), hold (true: the clock stands still), wx ('light' | 'heavy'),
-//   at: { s } | { seg: 'kickers', off: m, n: which one }, lead (m of run skied, unseen, before the shot so speed is up; 0 = from rest),
+//   at: { s } | { seg: 'kickers', off: m, n: which one } | { kicker: n, before: m }, lead (m of run skied, unseen, before the shot so speed is up; 0 = from rest),
 //   steer: { amp, period, lane } | number, tuck: true | [t0, t1], jump: [t0, t1], trick: '360grab', trickSeed, speed (time factor: 0.25 = 4x slow),
 //   cam: 'chase' | 'fp' | 'tips' | 'low' | 'high' | 'left' | 'right' | 'front' | 'far' | { kind: 'orbit' | 'drone' | 'fixed' | 'sky', ... },
-//   flash: [t ...] lightning at these shot times, variants: { id: val }, label: text drawn into the corner (the nine-view montage) }
+//   skip: s of the shot played unseen first, flash: [t ...] lightning at these shot times, variants: { id: val }, label: text drawn into the corner (the nine-view montage) }
 const Director = (() => {
   const on = /[?&]director=1\b/.test(location.search);
   const D = { on, shots: [], cur: null, playing: false, fps: 60, label: '' };
@@ -77,6 +77,9 @@ const Director = (() => {
   function whereAt(sh) {
     const a = sh.at || {};
     if (a.seg) { Course.at(4000, {}); let n = a.n || 0; for (let i = 0; i < 400; i++) { if (i >= Course.segs.length) Course.at(Course.segs[Course.segs.length - 1].s0 + 4000, {}); const g = Course.segs[i]; if (g && g.type === a.seg && n-- <= 0) return g.s0 + (a.off || 0); } }
+    if (a.kicker != null) {          // the nth marked jump of the mountain, `before` m short of its lip
+      let n = a.kicker; for (let s = 0; s < 40000; s += 32) { Course.at(s + 400, {}); const b = Course.feats.get(Math.floor(s / 32)); if (!b) continue; for (const f of b) if (f.kind === 'kicker' && f.mark && Math.floor(f.s / 32) === Math.floor(s / 32) && n-- <= 0) return f.s + (f.len || 0) - (a.before || 0); }
+    }
     return a.s != null ? a.s : 14;
   }
   function setup(sh) {
@@ -92,13 +95,14 @@ const Director = (() => {
     App.swap(() => G.reset(Math.max(14, s - lead)), true);
     Input.script = 0; Input.btn.tuck = Input.btn.jump = false;
     const steer = typeof sh.steer === 'number' ? () => sh.steer : pilot(sh.steer || {});
-    if (sh.start !== false) G.start();
+    if (sh.start !== false) G.start(); else G.mode = 'title';      // (a swap restarts a run that was on: a shot of the skier standing still takes it back)
     // ski the lead unseen (the tracks are pressed and the spray settles as in play), then a second more so the camera has caught up
     if (lead > 0) { let n = 0; while (-G.s.p[2] < s && n++ < 60 * 120) { Input.script = steer(G.runT); Input.btn.tuck = !!sh.leadTuck; tick(1 / 60, false); if (n % 6 === 5 && App.gfx.caps.backend === 'webgl2') Tracks.pre(); } }
     const st = { sh, steer, t: 0, n: 0, flashes: (sh.flash || []).slice() };
     if (typeof sh.cam === 'object' && sh.cam) { free = Object.assign({ t: 0, dur: sh.dur, base: G.root.pos.slice(), F: frameAt(-G.s.p[2]) }, sh.cam); }
     for (let i = 0; i < 30; i++) tickShot(st, 1 / 60, false, true);     // half a second of settling (lens springs, spray), not shown
-    st.t = 0; if (free) free.t = 0;
+    for (let i = 0, n = Math.round((sh.skip || 0) * 60); i < n; i++) tickShot(st, 1 / 60, false);     // skip: seconds of the shot played unseen (the montage shows one run in pieces)
+    st.t = 0; if (free) { free.t = 0; if (sh.cam.kind === 'fixed') { free.base = G.root.pos.slice(); free.F = frameAt(-G.s.p[2]); free.P = null; } }
     D.label = sh.label || '';
     return st;
   }
@@ -107,6 +111,7 @@ const Director = (() => {
     Input.script = st.steer(G.runT); Input.btn.tuck = within(sh.tuck, t); Input.btn.jump = within(sh.jump, t);
     if (!warm) while (st.flashes.length && st.flashes[0] <= t) { st.flashes.shift(); Weather.flash({}); }
     if (free) free.t += dt;
+    if (sh.start === false && G.mode === 'run') { G.mode = 'title'; G.reset(-G.s.p[2]); }      // a still shot stays still, whoever starts a run
     tick(dt * k, draw);
     st.t += dt;
   }
