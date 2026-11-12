@@ -54,7 +54,7 @@ const Sky = (() => {
       fs: `fn frag(v: VOut) -> FOut { var o: FOut;
         let ndc: vec2f = vec2f(v.uv.x * 2.0 - 1.0, 1.0 - v.uv.y * 2.0);
         let d: vec3f = normalize(U.camFwd.xyz + U.camRight.xyz * (ndc.x * U.camRight.w * U.camUp.w) + U.camUp.xyz * (ndc.y * U.camRight.w));
-        var col: vec3f = skyLut(vec3f(d.x, max(d.y, 0.0), d.z));
+        var col: vec3f = skyLut0(vec3f(d.x, max(d.y, 0.0), d.z));
         let mu: f32 = dot(d, U.sunDir.xyz);
         // the haze band at the horizon: milky and bright by day rather than yellow (at sunset it keeps all its colour)
         let hz: f32 = smoothstep(0.16, 0.0, d.y);

@@ -100,7 +100,9 @@ fn skyUV(d: vec3f, sun: vec3f) -> vec2f {
 
 // shared fog / aerial perspective (needs tSky)
 SL.fog = `
-fn skyLut(d: vec3f) -> vec3f { return texLod(tSky, skyUV(d, U.sunDir.xyz), 0.0).rgb * U.skyP.x; }
+fn skyLut0(d: vec3f) -> vec3f { return texLod(tSky, skyUV(d, U.sunDir.xyz), 0.0).rgb * U.skyP.x; }
+// (under heavy snow's overcast, U.twi.w, the air and what is mirrored take the overcast's grey, not the clear sky's blue: 05b_weather.js)
+fn skyLut(d: vec3f) -> vec3f { return mix(skyLut0(d), U.ambSky.rgb * 2.4, U.twi.w * 0.85); }
 fn fogAmount(wp: vec3f) -> f32 {
   let v: vec3f = wp - U.camPos.xyz; let dist: f32 = length(v);
   // exponential height fog, analytic integral along the ray

@@ -163,13 +163,16 @@ const Weather = (() => {
     { const sv = (1 - 0.4 * kc) * (1 - kc * smooth(0, 0.6, v)); Post.flare *= sv; Post.burst *= sv; Post.ghosts *= sv; }
     for (let i = 0; i < 3; i++) { amb[i] += FC[i] * Ef * 0.5; gnd[i] += FC[i] * Ef * 0.22; }
     G.set([sun[0], sun[1], sun[2], 260], GOFF.sunCol); G.set([amb[0], amb[1], amb[2], ex], GOFF.ambSky);
-    G.set([gnd[0], gnd[1], gnd[2]], GOFF.ambGnd); G.set([twi[0], twi[1], twi[2]], GOFF.twi);
+    G.set([gnd[0], gnd[1], gnd[2]], GOFF.ambGnd); G.set([twi[0], twi[1], twi[2], kc], GOFF.twi);      // (twi.w: how overcast, for skyLut in 02_shaderlib.js)
     G[GOFF.cloudP + 3] = lerp(Render.cloudCover, 0.46, kc);
     // for the sky (05_sky.js overcast() and bolt()) and the veil of falling snow (11_dust.js)
     const sd = Sky.sunDir(), saz = Math.atan2(sd[0], -sd[2]), sel = Math.asin(clamp(sd[1], -1, 1)), H = W.hole, f = W.fl;
     const fd = f ? [Math.sin(f.az) * Math.cos(f.el), Math.sin(f.el), -Math.cos(f.az) * Math.cos(f.el)] : [0, 1, 0];
     const bl = f && f.bolt ? W.F * 7 / ex : 0, den = lerp(0.72, 1, v);
-    W.sky = { wa: [ov[0], ov[1], ov[2], kc], wb: [saz + H[0] / Math.max(Math.cos(sel), 0.2), sel + H[1], H[2], H[3]], wc: [sc[0], sc[1], sc[2], E],
+    // (a sky only partly clouded is lit far better than one under a closed deck: the first clouds are bright, and they only darken to the
+    // overcast's grey as they close up, while the eye opens with them; a constant deck colour made the first patches a dark slab)
+    const wk = lerp(1.9, 1, smoother(0.2, 0.95, kc));
+    W.sky = { wa: [ov[0] * wk, ov[1] * wk, ov[2] * wk, kc], wb: [saz + H[0] / Math.max(Math.cos(sel), 0.2), sel + H[1], H[2], H[3]], wc: [sc[0], sc[1], sc[2], E],
       wd: [fd[0], fd[1], fd[2], Ef], we: f ? [f.az, f.top, f.seed, bl] : ZERO, wf: [0.050 * cg * kc, 0.036 * cg * kc, 0.024 * cg * kc, W.cityOut], wg: [W.cloud[0] / 1500, W.cloud[1] / 1500, 1.3 * ks, 0] };
     W.veilU = ks < 0.002 ? null : { a: [P.sig * ks * den, P.D, P.sky * ks * den, ks], b: [ov[0] * 1.12 + gnd[0] * 0.08, ov[1] * 1.12 + gnd[1] * 0.08, ov[2] * 1.12 + gnd[2] * 0.08, 0],
       c: [0.030 * cg * ks, 0.021 * cg * ks, 0.014 * cg * ks, 0], d: [fd[0], fd[1], fd[2], Ef * ks],
@@ -254,18 +257,25 @@ fn overcast(d: vec3f, mu: f32, colIn: vec3f) -> vec3f {
   let n1: f32 = texLod(tDetail, q * 0.09 + vec2f(0.13, 0.57), l1).z;
   let n2: f32 = texLod(tDetail, q * 0.31 + vec2f(0.71, 0.23) + M.wg.yx * 0.11, l1 + 1.78).z;
   let n3: f32 = texLod(tDetail, q * 1.05 + vec2f(0.37, 0.91), l1 + 3.54).z;
-  let n: f32 = saturate(0.5 + (n1 - 0.5) * 1.5 + (n2 - 0.5) * 0.8 + (n3 - 0.5) * 0.35);
+  // (low toward the horizon the deck is seen edge-on and its fine detail packs into thin horizontal strips: there it is softened, so the far
+  // cloud reads as a deep soft bank and not as flat panes stacked one over another)
+  let soft: f32 = smoothstep(0.0, 0.2, d.y);
+  let n: f32 = saturate(0.5 + (n1 - 0.5) * 1.5 + ((n2 - 0.5) * 0.8 + (n3 - 0.5) * 0.35) * mix(0.35, 1.0, soft));
   // the clouds come in from their thickest parts (the switch from a clear sky), and the break drifts past the sun with a ragged edge
   // (kept true right at the sun, so the disc goes in and out with the light on the snow)
   let kc: f32 = M.wa.w;
   // (the edge is wide while the cloud is coming in, so the first of it arrives as soft torn stratus, never a slab with a hard rim)
-  let cov: f32 = smoothstep(1.05 - 1.35 * kc, 1.05 - 1.35 * kc + mix(0.75, 0.25, kc), n + 0.35 * kc);
+  let cov: f32 = smoothstep(1.05 - 1.35 * kc, 1.05 - 1.35 * kc + mix(0.75, 0.25, kc) * mix(2.2, 1.0, soft), n + 0.35 * kc);
   let toSun: f32 = acos(clamp(mu, -1.0, 1.0));
   // (a tear, not a porthole: three times longer along the drift than across it, its edge torn at the scale of the cloud's own lumps)
   let el: f32 = asin(clamp(d.y, -1.0, 1.0));
   var dz: f32 = atan2(d.x, -d.z) - M.wb.x; dz = atan2(sin(dz), cos(dz));
   let lc: vec2f = vec2f(dz * cos(el), (el - M.wb.y) * 3.0);
-  let rag: f32 = ((n - 0.5) * 1.1 + (n3 - 0.5) * 0.5) * M.wb.z * smoothstep(0.03, 0.15, toSun);
+  // (the edge is torn by noise read in angle round the break, the same both ways: a deck's own noise is stretched flat near the horizon and
+  // tore the edge into horizontal slats)
+  let ra: f32 = texLod(tDetail, vec2f(dz, el) * 1.9 + vec2f(0.29, 0.61) + M.wg.xy * 0.02, 0.0).z;
+  let rb: f32 = texLod(tDetail, vec2f(dz, el) * 6.1 + vec2f(0.83, 0.17), 0.0).z;
+  let rag: f32 = ((ra - 0.5) * 1.3 + (rb - 0.5) * 0.6 + (n - 0.5) * 0.4) * M.wb.z * smoothstep(0.03, 0.15, toSun);
   let hole: f32 = M.wb.w * smoothstep(M.wb.z + M.wc.w, M.wb.z - M.wc.w, length(lc) + rag);
   // (thickest in front of the sun itself unless a break is there: where the light on the snow says the sun is in, no disc shows through)
   // (and while snow falls there is snow in the break too: what shows through it is a hazed blue, never the deep clear sky)
@@ -280,7 +290,9 @@ fn overcast(d: vec3f, mu: f32, colIn: vec3f) -> vec3f {
   // sky's own light, so a new patch is pale and never darker than the sky it crosses)
   c *= mix(1.6, 1.0, saturate(tau / 4.0));
   c = mix(max(c, luma(colIn) * vec3f(0.97, 0.99, 1.03) * 0.92), c, smoothstep(0.35, 0.85, kc));
-  c += M.wc.rgb * (hg(mu, 0.75) * (0.03 + 0.28 * (1.0 - smoothstep(0.0, 7.0, tau))) + 0.008);
+  // (the sun's light through thin cloud is whitened by it, and in the break itself the glow stays a soft halo: the disc shows through the
+  // snow there small, not as a blown ball the size of the break)
+  c += mix(M.wc.rgb, vec3f(luma(M.wc.rgb)), 0.35) * (hg(mu, 0.75) * (0.02 + 0.17 * (1.0 - smoothstep(0.0, 7.0, tau)) * (1.0 - 0.75 * hole)) + 0.008);
   let az: f32 = atan2(d.x, -d.z) - ${f(ca)};
   c += M.wf.rgb * ((0.06 + exp(-abs(atan2(sin(az), cos(az))) / 0.45)) * (0.15 + smoothstep(0.35, 0.0, d.y)));
   c += vec3f(0.78, 0.86, 1.0) * (M.wd.w * (0.7 + 2.6 * exp(-sq(wxAng(d, M.wd.xyz)) / 0.10)) * (0.6 + 0.8 * n));
