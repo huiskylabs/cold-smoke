@@ -193,7 +193,7 @@ fn frag(v: VOut) -> FOut {
   var tau: f32 = M.a.x * M.a.y * (1.0 - exp(-r / M.a.y));
   // (thinner in the first fifteen metres: the near trees and the skier keep their darks, and the snow stands in layers in front of the far ones)
   tau -= 0.3 * M.a.x * min(r, 15.0);
-  tau = mix(tau, M.a.z * (1.0 - 0.45 * smoothstep(0.0, 0.5, d.y)), sky);
+  tau = mix(tau, M.a.z * (1.0 - 0.45 * smoothstep(0.0, 0.5, d.y) + 0.5 * smoothstep(0.22, 0.0, d.y)), sky);     // (the low sky lies behind the most snow)
   // it does not fall evenly: denser sheets drift across on the wind, settling with the snow (read where the line of sight crosses two shells
   // round the eye, 14 and 34 m out, so they pass with the right parallax as you go)
   let w: vec3f = U.origin.xyz - M.e.xyz + vec3f(0.0, M.e.w, 0.0);
@@ -203,7 +203,7 @@ fn frag(v: VOut) -> FOut {
   tau *= 1.0 + 0.8 * (s1 - 0.5) * smoothstep(12.0, 18.0, r) + 0.7 * (s2 - 0.5) * smoothstep(30.0, 40.0, r) + 0.6 * (s3 - 0.5) * smoothstep(65.0, 90.0, r) * (1.0 - sky);
   let T: f32 = exp(-tau);
   let mu: f32 = dot(d, U.sunDir.xyz);
-  var c: vec3f = M.b.rgb + mix(U.sunCol.rgb, vec3f(luma(U.sunCol.rgb)), 0.3) * (0.05 + 0.45 * hg(mu, 0.78));
+  var c: vec3f = M.b.rgb + mix(U.sunCol.rgb, vec3f(luma(U.sunCol.rgb)), 0.3) * (0.05 + 0.32 * hg(mu, 0.72));
   var az: f32 = atan2(d.x, -d.z) - ${(+ca).toFixed(5)}; az = atan2(sin(az), cos(az));
   c += M.c.rgb * ((0.08 + 1.6 * exp(-abs(az) / 0.35)) * smoothstep(0.3, -0.05, d.y));
   c += vec3f(0.78, 0.86, 1.0) * (M.d.w * (0.9 + 2.0 * exp(-sq(acos(clamp(dot(d, M.d.xyz), -1.0, 1.0))) / 0.15)));
