@@ -521,7 +521,7 @@ const Trees = (() => {
                 [3.0, 1.0, 0, 0.3, 2.2],          // 3 glitter: single crystals left hanging in the dust
                 [1.2, 9.8, 0.10, 0.35, 0]];       // 4 veil: the load coming apart as it comes down, a white curtain
   // (of which sorts: running shares of dust, grains, clumps, glitter; the rest is veil)
-  const SHED = [0.14, 0.44, 0.66, 0.76], BRUSH = [0.40, 0.74, 0.78, 0.92];
+  const SHED = [0.14, 0.44, 0.66, 0.76], BRUSH = [0.40, 0.74, 0.78, 0.92], NEAR = [0.55, 0.70, 0.70, 1.0];
   // a point on a bough of a standing tree, in the world: r metres out along it, w across
   const _bp = [0, 0, 0, 0, 0];
   function boughPoint(c, o, b, r, w) {
@@ -569,12 +569,26 @@ const Trees = (() => {
     // (a bough stays bare for as long as its tree is in the picture as a mesh: its snow never comes back while anyone could be looking)
     if (shed.size > 40) for (const [k, e] of shed) if (e.seen < tick - 90) { shed.delete(k); if (shed.size <= 24) break; }
     if (!T.life || !dt) return;
-    // the skier brushes a tree (or hits one): it shudders, fine snow comes away all over its lower half, and a low bough lets go
+    // the skier brushes a tree (or hits one): it shudders, fine snow comes away all over its lower half, and a low bough lets go.
+    // The skier goes close by one at speed and does not touch it (`near`, said a tenth of a second before the skier is level: ux, uz point
+    // from the trunk at the skier's line, vx, vz are the skier's speed): the tree only stirs; the boughs that face the skier lose a breath
+    // of their finest snow, which the wind of the pass takes along; and one of them, above head height, lets its load go at once, so that
+    // it is coming down as the lens goes by. All of it is on the skier's side and early: a lens riding four metres behind is past the
+    // tree a quarter of a second after the skier, and a speck takes a tenth of its life to show.
     if (typeof Game !== 'undefined' && Game.events) for (const ev of Game.events) {
-      if (ev.type !== 'brush' && ev.type !== 'crash') continue;
+      if (ev.type !== 'brush' && ev.type !== 'crash' && ev.type !== 'near') continue;
       for (let i = 0; i < candN; i++) {
         const c = candA[i], o = candO[i]; if (Math.abs(c[o] - ev.x) > 0.05 || Math.abs(c[o + 2] - ev.z) > 0.05) continue;
         const key = c[o] * 8191 + c[o + 2], B = TM.kinds[c[o + 6]].B, hard = ev.type === 'crash';
+        if (ev.type === 'near') {
+          const cs = c[o + 4], sn = c[o + 5], to = b => (b.ca * cs + b.sa * sn) * ev.ux + (b.sa * cs - b.ca * sn) * ev.uz, q0 = nDust * DF; let top = null, n = 0;
+          shake.set(key, Math.max(shake.get(key) || 0, 0.25 + 0.25 * ev.k));
+          for (let k = 0; k < 120 && n < 6; k++) { const b = B[Math.floor(rnd() * B.length)]; if (b.u > 0.1 && b.u < 0.6 && to(b) > 0.5) { puff(c, o, b, 10, NEAR, 0.1); n++; } }
+          for (let q = q0; q < nDust * DF; q += DF) { dust[q + 3] += 0.3 * ev.vx; dust[q + 5] += 0.3 * ev.vz; }
+          for (const b of B) if (b.cls < 2 && b.pw < 3 && b.u > 0.15 && b.u < 0.5 && to(b) > (top ? to(top) : 0.5)) top = b;
+          if (top && !shed.has(key) && shed.size < 96) { shed.set(key, { id: top.id, t: 0, seen: tick }); puff(c, o, top, top.cls ? 100 : 150, SHED, 0.2); }
+          break;
+        }
         shake.set(key, hard ? 1.6 : 1.0);
         for (let k = 0, n = 0; k < 40 && n < (hard ? 16 : 10); k++) { const b = B[Math.floor(rnd() * B.length)]; if (b.u > (hard ? 0.9 : 0.6)) continue; puff(c, o, b, 12, BRUSH, 0.2); n++; }
         if (!shed.has(key)) letGo(c, o, key, true);       // (one bare bough to a tree: a second would hand the first its snow back)
