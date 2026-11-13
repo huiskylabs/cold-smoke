@@ -580,32 +580,25 @@ fn frag(v: VOut) -> FOut {
   let g1: vec2f = snowSlope(d1) * (0.81 * f1); let g2: vec2f = snowSlope(d2) * (0.81 * f2); let g3: vec2f = snowSlope(d3) * (0.5 * f3);
   var slope: vec2f = sm.xy + cs + g1 + g2 + g3;
   slope += snowSlope(d1) * rock * 1.2;
-  // --- (Variants 'snowr' b, 04b_snow.js) which kinds of snow lie here: w = powder, packed, wind crust, wet; ice; d the mean grain (mm)
-  var st: SnowSt; st.w = vec4f(1.0, 0.0, 0.0, 0.0); st.ice = 0.0; st.d = 0.15;
-  let fu: f32 = abs(dpdx(v.snw.x)) + abs(dpdy(v.snw.x));       // (how far across the run a pixel reaches: for the corduroy)
-  var lane: f32 = 1.0;
-  if (M.sf.w > 0.5) {
-    let tn: f32 = length(sm.xy);
-    let sunFace: f32 = dot(-sm.xy, sdir0) / max(tn, 1e-4) * smoothstep(0.05, 0.4, tn);
-    st = snowState(v.snw, tn, sunFace, conc, sm.w, mnt, wxz, smoothstep(0.02, 0.12, L.y));
-    st.w *= 1.0 - rock; st.ice *= 1.0 - rock;
-    // packed snow and ice have no wind ripples (the groomer and the edges planed them off) and a wet surface has slumped; wind crust has more
-    let flt: f32 = st.w.y + st.ice + 0.5 * st.w.w;
-    slope -= (g1 * 0.6 + g2) * (0.85 * flt) - g2 * (0.4 * st.w.z);
-    // the groomer's corduroy: ribs 3.2 cm apart down the run, rounded on top and creased between (shown only where a pixel is a good deal
-    // smaller than a rib), and the lanes of its passes, 4.2 m wide, each laid a little differently, with a low ridge where two meet
-    if (M.sg.x > 0.5 && M.sg.w < 1.5) {
-      let gk: f32 = st.w.y * smoothstep(320.0, 60.0, dist);
-      if (gk > 0.002) {
-        let u: f32 = v.snw.x; let P: f32 = 0.032;
-        let t: f32 = fract(u / P) * 2.0 - 1.0;
-        let rib: f32 = -4.0 * t * 0.0035 / P * smoothstep(0.55 * P, 0.18 * P, fu);
-        let lu: f32 = u / 4.2; let li: f32 = floor(lu); let lf2: f32 = lu - li;
-        let lr: f32 = fract(sin(li * 12.9898 + 4.1) * 43758.547);
-        lane = 1.0 + (lr - 0.5) * 0.05 * gk;
-        let seam: f32 = (smoothstep(0.0, 0.02, lf2) - smoothstep(0.02, 0.05, lf2) - smoothstep(0.95, 0.98, lf2) + smoothstep(0.98, 1.0, lf2)) * 0.6 * smoothstep(0.4, 0.1, fu);
-        slope.x += (rib + (lr - 0.5) * 0.06 + seam) * gk;
-      }
+  // --- (Variants 'snowr' b, 04b_snow.js) the groomed run: packed by a groomer on the run itself, where it is not a powder run or a ridge.
+  // Its wind ripples planed off, and (snr6) the corduroy: ribs 3.2 cm apart down the run, rounded on top and creased between (shown only
+  // where a pixel is a good deal smaller than a rib), and the lanes of its passes, 4.2 m wide, each laid a little differently, with a low
+  // ridge where two meet
+  var groom: f32 = 0.0; var lane: f32 = 1.0;
+  let fu: f32 = abs(dpdx(v.snw.x)) + abs(dpdy(v.snw.x));       // (how far across the run a pixel reaches)
+  if (M.sg.x > 0.5 && M.sg.w < 1.5) {
+    groom = (1.0 - smoothstep(-1.0, 6.0, abs(v.snw.x) - v.snw.y)) * (1.0 - smoothstep(0.02, 0.12, mnt)) * (1.0 - v.snw.z) * (1.0 - v.snw.w) * (1.0 - rock);
+    slope -= (g1 * 0.6 + g2) * (0.85 * groom);
+    let gk: f32 = groom * smoothstep(320.0, 60.0, dist);
+    if (gk > 0.002) {
+      let u: f32 = v.snw.x; let P: f32 = 0.032;
+      let t: f32 = fract(u / P) * 2.0 - 1.0;
+      let rib: f32 = -4.0 * t * 0.0035 / P * smoothstep(0.55 * P, 0.18 * P, fu);
+      let lu: f32 = u / 4.2; let li: f32 = floor(lu); let lf2: f32 = lu - li;
+      let lr: f32 = fract(sin(li * 12.9898 + 4.1) * 43758.547);
+      lane = 1.0 + (lr - 0.5) * 0.05 * gk;
+      let seam: f32 = (smoothstep(0.0, 0.02, lf2) - smoothstep(0.02, 0.05, lf2) - smoothstep(0.95, 0.98, lf2) + smoothstep(0.98, 1.0, lf2)) * 0.6 * smoothstep(0.4, 0.1, fu);
+      slope.x += (rib + (lr - 0.5) * 0.06 + seam) * gk;
     }
   }
   // --- the middle distance (15..250 m): relief a few metres across that the mesh is too coarse for and the snow maps too fine. Broad
@@ -762,63 +755,20 @@ fn frag(v: VOut) -> FOut {
   let mu: f32 = dot(-V, L);
   let fwd: f32 = pow(saturate(mu * 0.5 + 0.5), 6.0) * (0.25 + 0.75 * fres) * saturate(ndl * 4.0 + 0.6);
   // (the loose snow of a berm or a lip is all top grains: against the sun its crest glows, a little even where the wall beside it shades it)
-  // (Variants 'snowr' b: with the grains' own light (snr1) the forward peak is in R0 itself, and with the translucency (snr3) the glow of
-  // thin snow is worked out below)
-  var albAmb: vec3f = albedo;
-  if (M.sf.x > 0.5) {
-    // Kokhanovsky & Bréon: the light this snow sends toward the lens for the sun's light it takes, by the size of its grains. Normalised
-    // (KBN) so that a slope seen as the chase camera mostly sees it keeps the brightness the owner set; what changes is how it goes with
-    // the angles (brighter toward the sun, flatter across) and the colour (coarse snow greyer, the hollows blue)
-    let m0: f32 = max(wrap, 0.05); let m1: f32 = max(nv, 0.05);
-    let R0: f32 = min(kbR0(m0, m1, mu), 6.0);
-    let rs: vec3f = kbRs(st.d);
-    let deep: f32 = 1.0 + 5.0 * (1.0 - saturate(ao));
-    let imp: vec3f = vec3f(0.95, 0.963, 0.989);
-    albedo = pow(rs, vec3f(kbU(m0) * kbU(m1) / R0 * deep)) * imp;
-    albAmb = pow(rs, vec3f(kbU(0.6) * kbU(m1) * deep)) * imp;
-    direct *= R0 / 1.16;
-    direct += U.sunCol.rgb * fwd * 0.22 * ((sh * 2.5 * loose + (sh0 - sh) * 0.8 * loose) * (1.0 - M.sf.z));
-  } else {
-    direct += U.sunCol.rgb * fwd * 0.22 * (sh * (1.0 + 2.5 * loose * (1.0 - M.sf.z)) + (sh0 - sh) * 0.8 * loose * (1.0 - M.sf.z));
-  }
-  if (M.sf.w > 0.5) {
-    // wet snow is darker, and ice darker still: a clear, nearly black body with a blue cast, whose light is mostly what it mirrors
-    let wetK: vec3f = mix(vec3f(1.0), vec3f(0.84, 0.87, 0.90), st.w.w);
-    albedo = mix(albedo * wetK, vec3f(0.46, 0.56, 0.66), st.ice); albAmb = mix(albAmb * wetK, vec3f(0.50, 0.60, 0.70), st.ice);
-    albedo *= lane; albAmb *= lane;
-  }
+  direct += U.sunCol.rgb * fwd * 0.22 * (sh * (1.0 + 2.5 * loose) + (sh0 - sh) * 0.8 * loose);
+  albedo *= lane;
   // sky from above (shadows on snow are sky-blue), plus light bounced between slopes on the faces that look sideways
   // (a face in the mountain's own shadow still looks at sunlit snow across the valley: that fill keeps a whole shaded slope from going solid blue)
   let fill: vec3f = U.sunCol.rgb * (0.04 * (1.0 - far));
   let amb: vec3f = U.ambSky.rgb * (1.3 + 0.8 * N.y) + U.ambGnd.rgb * (0.50 - 0.45 * N.y) + fill + twiLight(N);
   var col: vec3f = albedo * (direct + amb * ao);
-  if (M.sf.x > 0.5 || M.sf.w > 0.5) { col = albedo * direct + albAmb * (amb * ao); }
-  // (snr3) light come through thin snow toward the lens: the lips, berms and loose crumbs of the tracks, the crests of the ripples, the
-  // cornice of a blown rib. Barré-Brisebois' approximation: the sun's direction bent by the surface (distortion 0.35), a power and a
-  // scale; it comes out blue-white, the red taken on the way
-  if (M.sf.z > 0.5) {
-    let thin: f32 = saturate(loose * 0.9 + saturate(trH * 25.0) * 0.5 + smoothstep(0.58, 0.85, d2.z) * f2 * 0.3 + saturate(-conc * 2.0) * smoothstep(0.05, 0.3, mnt) * 0.3) * (1.0 - rock);
-    let tI: f32 = pow(saturate(dot(V, -normalize(L + N * 0.35))), 6.0) * 1.8 + 0.03;
-    col += U.sunCol.rgb * pow(kbRs(max(st.d, 0.3)), vec3f(10.0)) * (tI * thin * sh0);
-  }
   // terminator: light bleeding under the surface warms the shadow edge
   col += albedo * U.sunCol.rgb * vec3f(0.55, 0.32, 0.22) * (sh * (1.0 - sh)) * 0.6;
   // sheen of the crust: a rough ice surface seen at a grazing angle against the light (this is the bright path toward the sun)
   let nh: f32 = saturate(dot(N, Hh)); let vh: f32 = saturate(dot(V, Hh));
   let F: f32 = 0.02 + 0.98 * pow(1.0 - vh, 5.0);
   // (the floor of a track is packed smoother than the crust: a tighter, brighter gleam)
-  var spec: f32 = (0.75 * ggxD(nh, mix(0.16, 0.08, pol)) + 0.25 * ggxD(nh, 0.02)) * F * saturate(ndl) / (4.0 * vh * vh + 0.05) * (1.0 + 0.35 * pol);
-  if (M.sf.w > 0.5) {
-    // (snr5) packed snow and the wind's crust are smoother than new powder; ice (index 1.31: F0 0.018) is smoother still and a film of water
-    // on wet snow (F0 0.02) is nearly a mirror. Held to a ceiling: one texel turned just so must not flash the bloom
-    let a2: f32 = mix(mix(0.16, 0.08, pol), 0.10, st.w.y + st.w.z * 0.5);
-    let G: f32 = saturate(ndl) / (4.0 * vh * vh + 0.05);
-    let F5: f32 = pow(1.0 - vh, 5.0);
-    let sB: f32 = (0.75 * ggxD(nh, a2) + 0.25 * ggxD(nh, 0.02)) * F * G * (1.0 + 0.35 * pol);
-    let sI: f32 = ggxD(nh, 0.012) * (0.018 + 0.982 * F5) * G * st.ice;
-    let sW: f32 = ggxD(nh, 0.0045) * (0.02 + 0.98 * F5) * G * st.w.w;
-    spec = mix(sB, 0.0, st.ice) + min(sI + sW, 24.0);
-  }
+  let spec: f32 = (0.75 * ggxD(nh, mix(0.16, 0.08, pol)) + 0.25 * ggxD(nh, 0.02)) * F * saturate(ndl) / (4.0 * vh * vh + 0.05) * (1.0 + 0.35 * pol);
   // glitter: single crystals flashing
   let det: f32 = ja.x * jb.y - ja.y * jb.x; let idet: f32 = det / (det * det + 1e-12);
   // (the cells are as long across the snow as a pixel's footprint is, each way: some six pixels on screen both ways. Sized by the longer
@@ -833,9 +783,9 @@ fn frag(v: VOut) -> FOut {
   var sp: vec4f;
   let spFade: f32 = smoothstep(300.0, 20.0, dist);
   if (M.sf.y > 0.5) {
-    // (snr2) soft glints, as many to a pixel at any distance; each kind of snow has its own share of them (new powder is all fresh faces,
-    // a film of water or ice has hardly any). Where the cells grow too small to show they go over into their mean: a fine sheen
-    let dens: f32 = dot(st.w, vec4f(1.25, 0.6, 0.9, 0.1)) + 0.25 * st.ice;
+    // (snr2) soft glints, as many to a pixel at any distance (fewer on the groomed run: its crystals are rounded). Where the cells grow
+    // too small to show they go over into their mean, a fine sheen, instead of being cut off
+    let dens: f32 = mix(1.0, 0.6, groom);
     let gF: f32 = smoothstep(220.0, 22.0, dist);
     sp = mix(sparkSoft(wxz, c0, N, Hh, ja, jb, idet, 380.0), sparkSoft(wxz + vec2f(3.7, 9.1), c0 * 2.0, N, Hh, ja, jb, idet, 380.0), lf);
     if (loose > 0.05 && M.sg.w < 1.5) { sp += sparkSoft(wxz + vec2f(7.3, 1.9), c0 * 0.5, N, Hh, ja, jb, idet, 380.0) * (1.6 * loose); }
@@ -852,8 +802,6 @@ fn frag(v: VOut) -> FOut {
   // (at dusk, of the afterglow)
   let Rv: vec3f = reflect(-V, N);
   col += skyLut(normalize(vec3f(Rv.x, abs(Rv.y) * 0.5 + 0.03, Rv.z))) * (pow(1.0 - nv, 4.0) * M.p.w * ao * (1.0 - rock) * (1.0 + 0.8 * pol));
-  // (snr5) ice and the water on wet snow mirror the sky by Fresnel, seen from any height
-  if (M.sf.w > 0.5) { col += skyLut(normalize(vec3f(Rv.x, abs(Rv.y) * 0.8 + 0.02, Rv.z))) * ((0.018 + 0.982 * pow(1.0 - nv, 5.0)) * (st.ice + 0.8 * st.w.w) * saturate(ao) * (1.0 - rock)); }
   // --- rock
   if (rock > 0.001) {
     // layers along the beds: thin ones a few metres thick inside formations of twenty or thirty. They follow the dip, so they run

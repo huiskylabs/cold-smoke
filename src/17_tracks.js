@@ -95,10 +95,10 @@ const Tracks = (() => {
     // (the pack gives the same under any load; it is the soft snow on it that gives more under more)
     const pdv = (VS && PDEPTH[VS.val.pdepth]) || PDEPTH.b, soft = pdv * pw * pw, deepT = smooth(0.11, 0.16, soft);
     // (skis that run fast in powder plane up in it, as a board does on water: at speed they ride at under half the depth they sink to slowly)
-    // (Variants 'snowr' b, part snr4: the snow under the skis, 04b_snow.js. Ice takes hardly a mark, wet snow the deepest, and the edges squeeze
-    // up a berm along each side by how the snow holds together. bermK goes to the stamp in its kind field, under 0.45: a ski stamp still)
+    // (Variants 'snowr' b, part snr4, 04b_snow.js: the edges squeeze up a berm along each side of the track. bermK goes to the stamp in its
+    // kind field, under 0.45: a ski stamp still)
     const sk4 = typeof SnowLook !== 'undefined' ? SnowLook.trackK(px, pz) : null, bermK = sk4 ? 0.4 * clamp(sk4.berm, 0, 1) : 0;
-    const sb = tl > 0.5 ? Math.abs(S.v[0] * rx + S.v[2] * rz) / tl : 0, vs = (VS ? VS.val.sink : 'b') + pdv + (sk4 ? 'k' : ''), firm = (SINK[VS ? VS.val.sink : 'b'] || SINK.b) * (sk4 ? sk4.depth : 1);
+    const sb = tl > 0.5 ? Math.abs(S.v[0] * rx + S.v[2] * rz) / tl : 0, vs = (VS ? VS.val.sink : 'b') + pdv + (sk4 ? 'k' : ''), firm = SINK[VS ? VS.val.sink : 'b'] || SINK.b;
     const Dt = (firm + soft * clamp(0.55 + 0.45 * (S.load || 9.8) / 9.8, 0.7, 1.4) * lerp(1, 0.45, smooth(6, 18, S.speed || 0))) * (1 + 0.15 * Math.abs(se)) * (1 - 0.4 * Math.min(1, sb / 0.5));
     // (another version chosen: the depth goes over to it in half a second even if the skier is standing, and skis that stand are pressed in afresh)
     if (vs !== vNow) { if (vNow !== null) vT = 40; vNow = vs; }
