@@ -52,7 +52,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 /* ---- loading */
 #load { display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--ink); }
 #load .mark .cn { font-size: clamp(38px, 12vmin, 64px); text-shadow: none; }
-#load .bar { width: min(46vw, 190px); height: 1px; background: var(--hair); margin-top: clamp(34px, 9vmin, 52px); overflow: hidden; }
+#load .bar { width: min(calc(var(--cw) * .46), 190px); height: 1px; background: var(--hair); margin-top: clamp(34px, 9vmin, 52px); overflow: hidden; }
 #load .bar i { display: block; height: 100%; background: var(--sun); transform-origin: 0 50%; transform: scaleX(0); transition: transform .5s cubic-bezier(.2, .6, .2, 1); }
 #load .stage { margin-top: 14px; height: 16px; font-size: 11px; letter-spacing: .5em; margin-right: -.5em; color: var(--faint); }
 
@@ -154,7 +154,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 @keyframes slide { 0%, 100% { transform: translateX(-15px); } 50% { transform: translateX(15px); } }
 /* ---- the corner: one glass capsule for the few things always within reach (the menu once a run is on, the whole screen where the browser
    allows it, sound). Each glyph is there only while it has something to do; the capsule closes up round whatever is left */
-#bar { position: absolute; right: calc(var(--gr) - 6px); top: calc(var(--gt) - 8px); display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(5, 8, 13, .26); box-shadow: inset 0 0 0 1px rgba(244, 247, 251, .10);
+#bar { position: absolute; right: max(calc(var(--gr) - 6px), var(--sr), var(--xr)); top: max(calc(var(--gt) - 8px), var(--st), var(--xt)); display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(5, 8, 13, .26); box-shadow: inset 0 0 0 1px rgba(244, 247, 251, .10);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); opacity: 0; visibility: hidden; transition: opacity .8s ease, visibility 0s linear .8s; }
 #bar.on { opacity: 1; visibility: visible; transition: opacity .8s ease, visibility 0s; }
 #app.menuopen #bar { opacity: 0; visibility: hidden; transition: opacity .25s ease, visibility 0s linear .25s; }          /* (the menu has its own 设置: sound, full screen, language) */
@@ -173,7 +173,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #menu.on { opacity: 1; visibility: visible; transition: opacity .35s ease, visibility 0s; }
 #menu .scrim { position: absolute; inset: 0; -webkit-backdrop-filter: blur(6px) saturate(1.05); backdrop-filter: blur(6px) saturate(1.05);
   background: linear-gradient(90deg, rgba(5, 8, 13, .78), rgba(5, 8, 13, .52) 34%, rgba(5, 8, 13, .30) 70%, rgba(5, 8, 13, .22)); }
-#menu nav { position: relative; flex: none; display: flex; flex-direction: column; justify-content: center; gap: var(--mg); width: clamp(168px, 22vw, 270px); padding: var(--gt) 0 var(--gb) var(--col); overflow-y: auto; scrollbar-width: none; }
+#menu nav { position: relative; flex: none; display: flex; flex-direction: column; justify-content: flex-start; gap: var(--mg); width: clamp(168px, calc(var(--cw) * .22), 270px); padding: var(--gt) 0 var(--gb) var(--col); overflow-y: auto; scrollbar-width: none; }
 #menu nav::-webkit-scrollbar { display: none; }
 #menu .mk { font-family: var(--f-lat); font-size: clamp(10px, 1.5vmin, 12px); font-weight: 500; letter-spacing: .42em; color: var(--dim); margin-bottom: calc(var(--mg) * .6); white-space: nowrap; }
 #menu nav button { position: relative; appearance: none; -webkit-appearance: none; align-self: flex-start; margin: 0; padding: 2px 0; border: 0; background: none; font-family: var(--f-song); font-weight: 300; font-size: var(--mf); line-height: 1.35;
@@ -188,11 +188,12 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 @media (hover: hover) { #menu nav button:hover { color: var(--snow); } #menu nav #m-go:hover { color: #ffe2b5; } }
 #menu nav button:focus-visible { outline: 2px solid var(--sun); outline-offset: 3px; border-radius: 4px; }
 #menu .msep { display: block; flex: none; width: 62%; height: 1px; background: var(--hair); margin: calc(var(--mg) * .4) 0; }
-#menu .mpane { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-start; padding: var(--gt) var(--gr) var(--gb) clamp(24px, 6vw, 110px); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none; }
+#menu .mpane { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-start; padding: var(--gt) var(--gr) var(--gb) clamp(24px, calc(var(--cw) * .06), 110px); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none; }
 #menu .mpane::-webkit-scrollbar { display: none; }
 #menu section { display: none; flex-direction: column; gap: clamp(10px, 2vmin, 16px); max-width: 760px; }
 /* (centred in the pane by its margins, not by the pane: a part taller than the pane then starts at its top and scrolls, never cut off above) */
-#menu section.on { margin-top: auto; margin-bottom: auto; } #menu section.on { display: flex; }
+#menu section.on { margin-top: auto; margin-bottom: auto; }
+#menu nav > :first-child { margin-top: auto; } #menu nav > :last-child { margin-bottom: auto; } #menu section.on { display: flex; }
 #menu h4 { margin: 0; font-family: var(--f-lat); font-weight: 500; font-size: clamp(10px, 1.5vmin, 12px); letter-spacing: .4em; color: var(--dim); white-space: nowrap; }
 #menu h4 + * { margin-top: -2px; } #menu .gap { height: clamp(4px, 1.5vmin, 12px); }
 #menu kbd { margin-left: .7em; padding: 0 .4em; border: 1px solid var(--hair); border-radius: 4px; font-family: var(--f-lat); font-size: .95em; letter-spacing: .05em; color: var(--faint); }
@@ -230,14 +231,14 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #menu .seedrow { display: flex; align-items: center; gap: 18px; } #menu .seedrow b { font-family: var(--f-lat); font-weight: 300; font-size: clamp(26px, 5vmin, 40px); letter-spacing: .06em; font-variant-numeric: tabular-nums; }
 /* (every key and every touch, in two columns) */
 #menu .keys { display: grid; grid-template-columns: auto 1fr; gap: clamp(6px, 1.2vmin, 10px) 18px; align-items: center; font-size: clamp(12px, 1.75vmin, 14px); letter-spacing: .1em; }
-#menu .keys2 { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px clamp(30px, 6vw, 70px); }
+#menu .keys2 { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px clamp(30px, calc(var(--cw) * .06), 70px); }
 #menu .keys b { justify-self: start; padding: 2px 8px; border: 1px solid var(--hair); border-radius: 5px; font-family: var(--f-lat); font-weight: 500; font-size: .95em; letter-spacing: .06em; white-space: nowrap; }
 #menu .keys span { color: var(--dim); }
 #menu .opts { display: flex; flex-wrap: wrap; gap: 10px; }
 /* (the versions the owner picks between: not part of the game, a page of their own, in groups, two columns where there is room) */
 #menu section[data-sec="vers"] { max-width: none; }
 #menu .vhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; }
-#menu .vgrid { columns: 2 300px; column-gap: clamp(24px, 5vw, 56px); }
+#menu .vgrid { columns: 2 300px; column-gap: clamp(24px, calc(var(--cw) * .05), 56px); }
 #menu .vgrp { break-inside: avoid; margin-bottom: 10px; }
 #menu .vgrp > i { display: block; font-style: normal; font-size: 11px; letter-spacing: .3em; color: var(--sun); margin: 2px 0 2px; }
 #menu .vrow { display: flex; align-items: center; gap: 4px; min-height: 34px; border-top: 1px solid rgba(244, 247, 251, .07); }
