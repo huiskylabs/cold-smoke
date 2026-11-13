@@ -776,7 +776,7 @@ fn frag(v: VOut) -> FOut {
     let imp: vec3f = vec3f(0.95, 0.963, 0.989);
     albedo = pow(rs, vec3f(kbU(m0) * kbU(m1) / R0 * deep)) * imp;
     albAmb = pow(rs, vec3f(kbU(0.6) * kbU(m1) * deep)) * imp;
-    direct *= R0 / 1.20;
+    direct *= R0 / 1.16;
     direct += U.sunCol.rgb * fwd * 0.22 * ((sh * 2.5 * loose + (sh0 - sh) * 0.8 * loose) * (1.0 - M.sf.z));
   } else {
     direct += U.sunCol.rgb * fwd * 0.22 * (sh * (1.0 + 2.5 * loose * (1.0 - M.sf.z)) + (sh0 - sh) * 0.8 * loose * (1.0 - M.sf.z));
