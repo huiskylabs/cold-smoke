@@ -17,7 +17,7 @@ const UI = (() => {
       bar: $('bar'), mn: $('mn'), menu: $('menu'), nav: $('menu').querySelector('nav'), pane: $('mpane'), mk: $('m-k'), mGo: $('m-go'), mTop: $('m-top'), oSnd: $('o-snd'), oFs: $('o-fs'), oLang: $('o-lang'),
       time: $('sw-time'), kinds: $('sw-seg'), ev: $('sw-ev'), view: $('sw-view'), seed: $('sw-seed'), more: $('more'), drop2: $('drop2'), vw: $('vw'),
       say: $('say'), sayK: $('say-k'), sayV: $('say-v'), cut: $('cut'), jump: $('jump'), tuck: $('tuck'),
-      pause: $('pause'), pauseS: $('pause-s'), pauseT: $('pause-t'), steer: $('steer') };
+      pause: $('pause'), pauseS: $('pause-s'), pauseT: $('pause-t'), steer: $('steer'), steerV: $('steer-v') };
     el.moreView = el.more.querySelector('[data-sec="view"]');
     I18N.capture(el.app); I18N.on(relang);
     U.layout();
@@ -74,9 +74,16 @@ const UI = (() => {
     el.app.style.setProperty('--cw', V.w + 'px'); el.app.style.setProperty('--ch', V.h + 'px');
     // (inside a frame, as on claude.ai, the phone's tilt is refused: there the finger is the only way, so the title says only that)
     let framed = !!(self.COLD_SMOKE && self.COLD_SMOKE.noTilt); try { framed = framed || window.self !== window.top; } catch (e) { framed = true; }      // (no tilt in a frame, nor in the 小红书 小工具 container)
-    el.how.textContent = T(!hh ? '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速' : framed ? '按住屏幕左右拖动转弯 · 右下角 跳 / 加速' : '倾斜手机或按住屏幕左右拖动转弯 · 右下角 跳 / 加速');
-    U.hh = hh;
+    U.hh = hh; U.framed = framed; howText();
   };
+  // (the title's line of controls, and the controls page: with fore/aft on (Variants 'fa' b) up and down are the shovels and the tails, the tuck is Shift)
+  const faOn = () => typeof Variants !== 'undefined' && Variants.val.fa === 'b';
+  function howText() {
+    const hh = U.hh, framed = U.framed, fa = faOn(); el.app.classList.toggle('fa', fa);
+    el.how.textContent = T(!hh ? (fa ? '← → 转弯 · ↑ ↓ 压板头 / 板尾 · 空格 跳 · Shift 加速' : '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速')
+      : fa ? '按住屏幕，左右拖转弯，上下拖压板头 / 板尾 · 右下角 跳 / 加速' : framed ? '按住屏幕左右拖动转弯 · 右下角 跳 / 加速' : '倾斜手机或按住屏幕左右拖动转弯 · 右下角 跳 / 加速');
+  }
+  if (typeof Variants !== 'undefined') Variants.on(n => { if (n === 'fa' && el) howText(); });
   U.stage = function (f, name) { if (!el) return; el.fill.style.transform = 'scaleX(' + f.toFixed(3) + ')'; if (name) el.stage.textContent = T(name); };
   // first frame is on the canvas: let it come up out of the dark, then set the title over it
   U.ready = function () {
@@ -117,7 +124,7 @@ const UI = (() => {
   function showHint(kind) {
     U.hintKind = kind; el.hint.className = kind + ' on';
     el.hintT.textContent = T(kind === 'tilt' ? '像握方向盘一样倾斜手机' : kind === 'drag' ? '按住屏幕，左右拖动' : kind === 'pace' ? '连着转弯，把雪扬起来'
-      : kind === 'moves' ? (U.hh ? '按住「跳」蓄力，松开起跳' : '空格 跳（按住蓄力） · ↓ 加速') : '← →  或  A D  转弯');
+      : kind === 'moves' ? (U.hh ? '按住「跳」蓄力，松开起跳' : faOn() ? '↑ 压板头入弯 · ↓ 压板尾出弯 · 空格 跳' : '空格 跳（按住蓄力） · ↓ 加速') : '← →  或  A D  转弯');
   }
   // per displayed frame
   U.frame = function (dt) {
@@ -463,7 +470,7 @@ const UI = (() => {
   let vSig = null, wxSig = null;
   const varMod = () => { try { return typeof Variants !== 'undefined' && Variants && Array.isArray(Variants.defs) ? Variants : null; } catch (e) { return null; } };
   function initVariants() {
-    if (!VGROUP[VGROUP.length - 1][1].includes('feel')) VGROUP[VGROUP.length - 1][1].unshift('feel');       // (滑行手感, 07_game.js, first under 手感)
+    if (!VGROUP[VGROUP.length - 1][1].includes('feel')) VGROUP[VGROUP.length - 1][1].unshift('feel', 'fa');       // (滑行手感, 07_game.js, first under 手感)
     el.vrows = $('sw-vrows'); el.vreset = $('sw-vreset'); el.wx = $('sw-wx'); el.wxc = $('sw-wxc');
     const V = varMod(); if (V && V.on) V.on(() => { if (U.open) paint(); });          // (a choice registered or changed elsewhere: shown at once)
     addEventListener('keydown', e => { if (e.code !== 'KeyX' || e.repeat || e.metaKey || e.ctrlKey || e.altKey || U.gone || !live()) return; U.nextWeather(e.shiftKey ? -1 : 1); });
@@ -646,6 +653,7 @@ const UI = (() => {
         const L = Math.min(View.w || innerWidth, (View.h || innerHeight) * 1.4, 900) * 0.2, c = L * 0.72, dx = clamp(d.x - d.x0, -L, L), over = Math.abs(dx) > c, neg = dx < 0;
         if (!gy.on) { gy.on = true; el.steer.style.transform = 'translate(' + d.x0.toFixed(1) + 'px, ' + gy.y.toFixed(1) + 'px)'; el.steer.style.setProperty('--c', c.toFixed(1) + 'px'); el.steer.classList.add('on'); }
         el.steer.firstElementChild.style.transform = 'scaleX(' + dx.toFixed(1) + ')';
+        if (faOn() && el.steerV) el.steerV.style.transform = 'scaleY(' + clamp(d.y - d.y0, -L, L).toFixed(1) + ')';
         if (over !== gy.over) { gy.over = over; el.steer.classList.toggle('over', over); } if (neg !== gy.neg) { gy.neg = neg; el.steer.classList.toggle('neg', neg); }
       } else if (gy.on) { gy.on = false; el.steer.classList.remove('on'); }
     }

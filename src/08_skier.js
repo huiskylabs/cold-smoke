@@ -74,7 +74,7 @@ const Skier = (() => {
   // lean/edge: body and ski roll (+ = to the skier's right); crouch 0..1: how far the legs are folded (0.38 m of travel); tuck, air 0..1; sep, headYaw: twist of
   // trunk and head; lead, stance, lift*, pitch*: where the skis are; arm*: offsets of the hands; plant*: the pole touch at a turn; dp: phase of a double-pole
   // stroke (0 = none); grab*: that hand takes hold of the same-side ski beside the binding
-  const P0 = { lean: 0, edge: 0, crouch: 0.21, tuck: 0, air: 0, sep: 0, headYaw: 0, lead: 0, stance: 0.31, fore: 0, armL: [0, 0, 0], armR: [0, 0, 0], swing: 0, liftL: 0, liftR: 0, pitchL: 0, pitchR: 0, plantL: 0, plantR: 0, dp: 0, grabL: 0, grabR: 0 };
+  const P0 = { lean: 0, edge: 0, crouch: 0.21, tuck: 0, air: 0, sep: 0, headYaw: 0, lead: 0, stance: 0.31, fore: 0, fa: 0, armL: [0, 0, 0], armR: [0, 0, 0], swing: 0, liftL: 0, liftR: 0, pitchL: 0, pitchR: 0, plantL: 0, plantR: 0, dp: 0, grabL: 0, grabR: 0 };
   const SEC0 = { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: null, idle: null };
 
   // ---- the double-pole stroke (pose.dp = phase): reach 0..PLANT, tips in the snow PLANT..REL while the body goes past them, release, recover
@@ -122,8 +122,10 @@ const Skier = (() => {
     // (the legs take the game's own value, at once: they are the suspension. The trunk is carried on them and has weight: it takes its fold from the same
     // value a moment later, cT, so legs that are driven up or let out in a frame or two work under a quiet upper body; cF: the same, only just behind)
     const c = ce(c0), dpy = dpw > 0 ? 0.8 * 0.38 * (sat(P0.crouch + cs) - ce0(c0)) : 0, cT = sec.ct ? ce(c0 + sec.ct) : c, cF = sec.cf ? ce(c0 + sec.cf) : c;
-    let H = 1.085 - 0.38 * c - 0.06 * smooth(0.7, 1, c) - 0.11 * tuck - 0.05 * gM;
-    const hinge0 = 0.36 + 0.46 * cT + 0.70 * tuck - 0.14 * air * (1 - gM) + 0.42 * gM * (1 - tuck) + (dpw > 0 ? dpw * spl(DP_H, f) : 0) + (id ? id.up : 0);
+    // (fore/aft, pose.fa: forward the hips go over the toes and the chest folds a little over them; back the hips sit behind the heels, lower)
+    const faF = Math.max(p.fa || 0, 0), faA = Math.max(-(p.fa || 0), 0);
+    let H = 1.085 - 0.38 * c - 0.06 * smooth(0.7, 1, c) - 0.11 * tuck - 0.05 * gM - 0.045 * faF - 0.06 * faA;
+    const hinge0 = 0.36 + 0.46 * cT + 0.70 * tuck - 0.14 * air * (1 - gM) + 0.42 * gM * (1 - tuck) + (dpw > 0 ? dpw * spl(DP_H, f) : 0) + (id ? id.up : 0) + 0.16 * faF + 0.05 * faA;
     // (the trunk folds no lower than the thighs it comes to lie on: pressed deeper while it is folded right over, the hips sink and the back comes up, as
     // when a compression is soaked up in a tuck; reaching for a ski in the air, the knees part and let the chest down between them)
     const hmax = PI / 2 + Math.asin(clamp((1.085 - 0.38 * cF - 0.06 * smooth(0.7, 1, cF) - 0.11 * tuck - 0.05 * gM - 0.58) / LEN.thigh, -1, 1)) - 0.66 + 0.45 * gM;
@@ -135,7 +137,7 @@ const Skier = (() => {
     let pel, hipL, hipR, zP = 0;
     for (let it = 0; it < 6; it++) {
       const D0 = Math.min(H - LEN.hipD - LEN.ankle, 0.8385), flex = smin(Math.acos(clamp(D0 / (LEN.thigh + LEN.shin), -1, 1)), 0.54, 0.15), dy = D0 - LEN.shin * Math.cos(flex);
-      zP = -LEN.shin * Math.sin(flex) + Math.sqrt(Math.max(0, LEN.thigh * LEN.thigh - dy * dy)) - 0.012 - (p.fore || 0) * 0.06 + (dpw > 0 ? dpw * spl(DP_Z, f) : 0);
+      zP = -LEN.shin * Math.sin(flex) + Math.sqrt(Math.max(0, LEN.thigh * LEN.thigh - dy * dy)) - 0.012 - (p.fore || 0) * 0.06 - 0.12 * faF + 0.09 * faA + (dpw > 0 ? dpw * spl(DP_Z, f) : 0);
       pel = [H * Math.sin(lean) + 0.07 * sl + 0.045 * ish, H * Math.cos(lean) + (liftL + liftR) * 0.5, zP];
       hipL = v3.add(v3.mad(pel, pb.X, -LEN.hipW), v3.mul(pb.Y, -LEN.hipD)); hipR = v3.add(v3.mad(pel, pb.X, LEN.hipW), v3.mul(pb.Y, -LEN.hipD));
       // (a leg is never locked straight: the last few centimetres are given up softly)
