@@ -11,9 +11,9 @@ const Input = (() => {
   // a: as it was. b: the edges hold only so much (past it the skis wash out sideways, scrubbing speed: a hard turn at speed is a wide one);
   // the faster the heavier the body is to throw from edge to edge; a key comes on over a third of a second; the snow is stickier crawling,
   // the edges' friction grows with how hard a turn presses them, deep powder drags as deep as the skis ride in it (and less as they plane
-  // up); the body goes over before the edges do, sinks onto a loaded turn, rides forward into a turn and back out of it. Default a until
-  // the owner has skied b (see the 'feel' notes through step() and updatePose)
-  Variants.def('feel', '滑行手感', [['a', '现在的'], ['b', '新的']], 'a');
+  // up); the body goes over before the edges do, sinks onto a loaded turn, rides forward into a turn and back out of it. Default b since
+  // the owner skied it (2026-11-13) (see the 'feel' notes through step() and updatePose)
+  Variants.def('feel', '滑行手感', [['a', '现在的'], ['b', '新的']], 'b');
   const I = { u: 0, btn: { jump: false, tuck: false }, jump: false, tuck: false, mode: 'touch', tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
   I.init = function (el) {
     addEventListener('keydown', e => { if (e.code !== I.mute) I.keys[e.code] = true; }); addEventListener('keyup', e => { I.keys[e.code] = false; if (e.code === I.mute) I.mute = null; });
