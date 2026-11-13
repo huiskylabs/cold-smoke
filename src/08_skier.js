@@ -124,8 +124,8 @@ const Skier = (() => {
     const c = ce(c0), dpy = dpw > 0 ? 0.8 * 0.38 * (sat(P0.crouch + cs) - ce0(c0)) : 0, cT = sec.ct ? ce(c0 + sec.ct) : c, cF = sec.cf ? ce(c0 + sec.cf) : c;
     // (fore/aft, pose.fa: forward the hips go over the toes and the chest folds a little over them; back the hips sit behind the heels, lower)
     const faF = Math.max(p.fa || 0, 0), faA = Math.max(-(p.fa || 0), 0);
-    let H = 1.085 - 0.38 * c - 0.06 * smooth(0.7, 1, c) - 0.11 * tuck - 0.05 * gM - 0.045 * faF - 0.06 * faA;
-    const hinge0 = 0.36 + 0.46 * cT + 0.70 * tuck - 0.14 * air * (1 - gM) + 0.42 * gM * (1 - tuck) + (dpw > 0 ? dpw * spl(DP_H, f) : 0) + (id ? id.up : 0) + 0.16 * faF + 0.05 * faA;
+    let H = 1.085 - 0.38 * c - 0.06 * smooth(0.7, 1, c) - 0.11 * tuck - 0.05 * gM - 0.06 * faF - 0.085 * faA;
+    const hinge0 = 0.36 + 0.46 * cT + 0.70 * tuck - 0.14 * air * (1 - gM) + 0.42 * gM * (1 - tuck) + (dpw > 0 ? dpw * spl(DP_H, f) : 0) + (id ? id.up : 0) + 0.24 * faF + 0.08 * faA;
     // (the trunk folds no lower than the thighs it comes to lie on: pressed deeper while it is folded right over, the hips sink and the back comes up, as
     // when a compression is soaked up in a tuck; reaching for a ski in the air, the knees part and let the chest down between them)
     const hmax = PI / 2 + Math.asin(clamp((1.085 - 0.38 * cF - 0.06 * smooth(0.7, 1, cF) - 0.11 * tuck - 0.05 * gM - 0.58) / LEN.thigh, -1, 1)) - 0.66 + 0.45 * gM;
@@ -137,7 +137,7 @@ const Skier = (() => {
     let pel, hipL, hipR, zP = 0;
     for (let it = 0; it < 6; it++) {
       const D0 = Math.min(H - LEN.hipD - LEN.ankle, 0.8385), flex = smin(Math.acos(clamp(D0 / (LEN.thigh + LEN.shin), -1, 1)), 0.54, 0.15), dy = D0 - LEN.shin * Math.cos(flex);
-      zP = -LEN.shin * Math.sin(flex) + Math.sqrt(Math.max(0, LEN.thigh * LEN.thigh - dy * dy)) - 0.012 - (p.fore || 0) * 0.06 - 0.12 * faF + 0.09 * faA + (dpw > 0 ? dpw * spl(DP_Z, f) : 0);
+      zP = -LEN.shin * Math.sin(flex) + Math.sqrt(Math.max(0, LEN.thigh * LEN.thigh - dy * dy)) - 0.012 - (p.fore || 0) * 0.06 - 0.16 * faF + 0.13 * faA + (dpw > 0 ? dpw * spl(DP_Z, f) : 0);
       pel = [H * Math.sin(lean) + 0.07 * sl + 0.045 * ish, H * Math.cos(lean) + (liftL + liftR) * 0.5, zP];
       hipL = v3.add(v3.mad(pel, pb.X, -LEN.hipW), v3.mul(pb.Y, -LEN.hipD)); hipR = v3.add(v3.mad(pel, pb.X, LEN.hipW), v3.mul(pb.Y, -LEN.hipD));
       // (a leg is never locked straight: the last few centimetres are given up softly)

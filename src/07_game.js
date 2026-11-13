@@ -289,11 +289,13 @@ const Game = (() => {
       fa = S.fa = clamp(Input.faT || 0, -1, 1);
       ph = clamp(-sign(S.lean) * hd / 0.55, -1, 1) * smooth(0.06, 0.22, Math.abs(S.lean));
       const top = Math.max(ph, 0), bot = Math.max(-ph, 0);
-      if (fa > 0) gripFA = 1 + fa * (0.12 * top - 0.38 * bot);
-      else { const k = -fa; gripFA = 1 + k * (0.10 * bot - 0.22 * top); turnFA = 1 - 0.25 * k; dragFA = 1 - 0.4 * k * bot; }
+      if (fa > 0) gripFA = 1 + fa * (0.25 * top - 0.55 * bot);
+      else { const k = -fa; gripFA = 1 + k * (0.15 * bot - 0.35 * top); turnFA = 1 - 0.4 * k; dragFA = 1 - 0.6 * k * bot; }
+      // (shovels pressed through the bottom of a turn swing the tails out by themselves, a skid that is seen and heard even in a gentle turn)
+      S.faKick = fa > 0 ? fa * bot * smooth(0.1, 0.3, Math.abs(S.lean)) * smooth(6, 12, sp) : 0;
       S.faPh = ph; S.faGrip = gripFA;
-    } else { S.fa = 0; S.faPh = 0; S.faGrip = 1; }
-    const wn = (S.air ? 5 : FB ? lerp(9.5, 7.5, smooth(14, 30, sp)) : 9.5) * (1 + 0.28 * fa), zeta = 0.92;
+    } else { S.fa = 0; S.faPh = 0; S.faGrip = 1; S.faKick = 0; }
+    const wn = (S.air ? 5 : FB ? lerp(9.5, 7.5, smooth(14, 30, sp)) : 9.5) * (1 + 0.5 * fa), zeta = 0.92;
     S.leanV += (wn * wn * (phiT - S.lean) - 2 * zeta * wn * S.leanV) * dt; S.lean += S.leanV * dt;
     // past the carve range the skis are pivoted across the direction of travel: a skid that brakes and throws snow. Only when asked for:
     // rolling from one edge to the other does not swing the skis. They are swung, and let come back, as a leg moves them, not at a blow
@@ -307,7 +309,7 @@ const Game = (() => {
     // carve at 30 km/h and, at 80, a wide arc that scrubs speed: nothing is on rails)
     const gripB = (FB ? lerp(GRIP_B[0], GRIP_B[1], S.powder) : 1) * gripFA;
     const exB = FB && contact && sp > 3 ? Math.max(0, Math.abs(Math.tan(S.lean)) * lerp(1.0, 0.8, S.powder) / gripB - 1) * smooth(3, 8, sp) : 0; S.wash = exB;
-    { const w = contact ? BETA_W : 9, bMax = su * hd > 0 ? Math.max(0, PI / 2 - Math.abs(hd)) : 9, bT = contact ? clamp(su * 0.62 + sign(S.lean) * Math.min(0.75, 0.6 * exB) * (1 - Math.abs(su)), -bMax, bMax) : 0; S.betaV += (w * w * (bT - S.beta) - 2 * w * S.betaV) * dt; S.beta += S.betaV * dt; }
+    { const w = contact ? BETA_W : 9, bMax = su * hd > 0 ? Math.max(0, PI / 2 - Math.abs(hd)) : 9, bT = contact ? clamp(su * 0.62 + sign(S.lean) * Math.min(0.75, 0.6 * exB) * (1 - Math.abs(su)) + sign(S.lean) * 0.35 * (S.faKick || 0) * (1 - Math.abs(su)), -bMax, bMax) : 0; S.betaV += (w * w * (bT - S.beta) - 2 * w * S.betaV) * dt; S.beta += S.betaV * dt; }
     let aLat = 0, aTan = aPole; S.aReac = 0; S.aSkid = 0; S.aCarve = 0;
     if (contact) {
       const grip = lerp(1.0, 0.8, S.powder), sb = Math.sin(S.beta), cb = Math.cos(S.beta);
