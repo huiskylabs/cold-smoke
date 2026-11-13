@@ -288,6 +288,8 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #steer.on { opacity: 1; transition: opacity .12s ease; }
 #steer i { position: absolute; display: block; background: rgba(244, 247, 251, .62); transition: background .18s ease; }
 #steer .l { left: 0; top: -.5px; width: 1px; height: 1px; transform-origin: 0 50%; }
+#steer .v { left: -.5px; top: 0; width: 1px; height: 1px; transform-origin: 50% 0; transform: scaleY(0); display: none; } #app.fa #steer .v { display: block; }
+.fa-only { display: none !important; } #app.fa .fa-only { display: revert !important; } #app.fa .nofa { display: none !important; }
 #steer .o { left: -2.5px; top: -2.5px; width: 5px; height: 5px; border-radius: 50%; }
 #steer .a, #steer .b { top: -7px; width: 1px; height: 14px; } #steer .a { left: calc(var(--c) * -1); } #steer .b { left: var(--c); }
 #steer.over .l, #steer.over.neg .a, #steer.over:not(.neg) .b { background: var(--sun); }
@@ -381,7 +383,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
     <div class="spd"><b id="spd">0</b><span class="unit">KM/H<em id="drop2"></em></span><span class="tach"><i id="tach"></i></span></div>
     <div class="drop"><b id="drop">0</b><span class="unit">落差 M</span></div>
     <div id="day"><small class="k" id="day-k"></small><b class="t" id="day-t"></b><i class="rule"></i><div class="fs" id="day-f"></div></div>
-    <div id="steer"><i class="l"></i><i class="a"></i><i class="b"></i><i class="o"></i></div>
+    <div id="steer"><i class="l"></i><i class="v" id="steer-v"></i><i class="a"></i><i class="b"></i><i class="o"></i></div>
     <div id="pad"><button id="vw" type="button" aria-label="换视角"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="6" width="11" height="9" rx="2"/><path d="M13.5 9l4-2.2v7.4l-4-2.2"/></svg></button><button id="tuck" type="button" aria-label="加速">加速</button><button id="jump" type="button" aria-label="跳">跳</button></div>
   </section>
   <div id="bar">
@@ -424,10 +426,10 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
         <p class="note">每座山由一个编号生成。地址栏里的 #seed-编号 发给别人，就是同一座山。</p></section>
       <section data-sec="keys"><h4>CONTROLS · 操作说明</h4>
         <div class="keys2 desk-only">
-          <div class="keys"><b>← →　A D</b><span>转弯（按久了会切雪）</span><b>空格</b><span>跳，按住蓄力</span><b>↓　S</b><span>压低加速，慢的时候撑杖</span><b>右键拖　I J K L</b><span>环顾四周</span></div>
+          <div class="keys"><b>← →　A D</b><span>转弯（按久了会切雪）</span><b>空格</b><span>跳，按住蓄力</span><b class="nofa">↓　S</b><span class="nofa">压低加速，慢的时候撑杖</span><b class="fa-only">↑ ↓　W S</b><span class="fa-only">压板头 · 压板尾：入弯压头切得紧，出弯压尾冲出去，弯尾还压头会搓雪减速</span><b class="fa-only">Shift</b><span class="fa-only">压低加速，慢的时候撑杖</span><b>右键拖　I J K L</b><span>环顾四周</span></div>
           <div class="keys"><b>V</b><span>换视角</span><b>T　X</b><span>换时间 · 换天气</span><b>N</b><span>下一种路段</span><b>G　P</b><span>叫出动物 · 航班</span><b>R</b><span>换一座山</span><b>M　F</b><span>静音 · 全屏</span><b>Esc　H　`</b><span>菜单 · 这一页 · 版本对比</span></div>
         </div>
-        <div class="keys hand-only"><b>按住拖动</b><span>左右拖动转弯，拖过刻度就切雪</span><b>跳</b><span>按住蓄力，松开起跳</span><b>加速</b><span>按住压低，慢的时候自动撑杖</span><b>机位</b><span>换视角</span><b>两指拖动</b><span>环顾四周</span></div>
+        <div class="keys hand-only"><b>按住拖动</b><span>左右拖动转弯，拖过刻度就切雪</span><b class="fa-only">上下拖动</b><span class="fa-only">往上压板头，往下压板尾</span><b>跳</b><span>按住蓄力，松开起跳</span><b>加速</b><span>按住压低，慢的时候自动撑杖</span><b>机位</b><span>换视角</span><b>两指拖动</b><span>环顾四周</span></div>
         <p class="note desk-only">Shift + 字母 往回切换。</p></section>
       <section data-sec="opt"><h4>SETTINGS · 设置<kbd>M</kbd><kbd>F</kbd></h4><div class="chips opts"><button type="button" id="o-snd" aria-pressed="true">声音 开</button><button type="button" id="o-fs" aria-pressed="false">全屏</button><button type="button" id="o-lang" lang="en">English</button></div>
         <p class="note">画面和声音全部由代码实时生成，戴上耳机更好。</p></section>

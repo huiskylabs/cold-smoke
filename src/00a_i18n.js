@@ -23,6 +23,11 @@ const I18N = (() => {
     '日出': 'Sunrise', '日落': 'Sunset', '加速': 'Tuck', '跳': 'Jump', '换视角': 'Change view', '菜单': 'Menu', '声音开关': 'Sound on or off', '暂停': 'Paused',
     '像握方向盘一样倾斜手机': 'Tilt the phone like a steering wheel', '按住屏幕，左右拖动': 'Hold the screen, drag left or right',
     '连着转弯，把雪扬起来': 'Link your turns, throw up the snow', '按住「跳」蓄力，松开起跳': 'Hold Jump to load up, let go to fly',
+    '← → 转弯 · ↑ ↓ 压板头 / 板尾 · 空格 跳 · Shift 加速': '← → to turn · ↑ ↓ weight on the tips / tails · Space to jump · Shift to tuck',
+    '按住屏幕，左右拖转弯，上下拖压板头 / 板尾 · 右下角 跳 / 加速': 'Hold and drag: across to turn, up for the tips, down for the tails · Jump and Tuck at bottom right',
+    '↑ 压板头入弯 · ↓ 压板尾出弯 · 空格 跳': '↑ tips into a turn · ↓ tails out of it · Space to jump',
+    '压板头 · 压板尾：入弯压头切得紧，出弯压尾冲出去，弯尾还压头会搓雪减速': 'Weight on the tips or the tails: tips into a turn to bite, tails out of it to shoot on; still on the tips at the end, the tails skid and slow you',
+    '上下拖动': 'Drag up / down', '往上压板头，往下压板尾': 'Up puts weight on the tips, down on the tails', '前后重心': 'Fore / aft',
     '空格 跳（按住蓄力） · ↓ 加速': 'Space to jump (hold to load up) · ↓ to tuck', '← →  或  A D  转弯': '← →  or  A D  to turn',
     '画面断开了': 'THE PICTURE WAS LOST', '点一下重新上山': 'Tap to ski again',
     // ---- the runs (Course: SEG_NAMES), the hours, the weather, the views, the animals

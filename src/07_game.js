@@ -14,12 +14,18 @@ const Input = (() => {
   // up); the body goes over before the edges do, sinks onto a loaded turn, rides forward into a turn and back out of it. Default b since
   // the owner skied it (2026-11-13) (see the 'feel' notes through step() and updatePose)
   Variants.def('feel', '滑行手感', [['a', '现在的'], ['b', '新的']], 'b');
-  const I = { u: 0, btn: { jump: false, tuck: false }, jump: false, tuck: false, mode: 'touch', tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
+  // fore and aft (a skier's note, 2026-11-13: left/right is only half of it; pressure moved between the shovels and the tails, timed with the
+  // turn, is what decides a carve from a skid). a: none, as before (up jumps, down tucks). b: up / W presses the shovels, down / S the tails,
+  // nothing held is centred and skis exactly as a; the jump is Space alone and the tuck moves to Shift. On a touch screen the steering finger
+  // does both: across turns, up presses the shovels, down the tails. Read in step() ('fore/aft') and updatePose; works on top of feel b
+  // (default b since the owner skied it, 2026-11-13)
+  Variants.def('fa', '前后重心', [['a', '关'], ['b', '开']], 'b');
+  const I = { u: 0, fa: 0, faV: 0, faT: 0, faScript: null, btn: { jump: false, tuck: false }, jump: false, tuck: false, mode: 'touch', tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
   I.init = function (el) {
     addEventListener('keydown', e => { if (e.code !== I.mute) I.keys[e.code] = true; }); addEventListener('keyup', e => { I.keys[e.code] = false; if (e.code === I.mute) I.mute = null; });
     // (I.mute: a key the interface has used, held down still: a space that confirmed a menu or started the run is not also a jump)
-    el.addEventListener('pointerdown', e => { const x = View.x(e); I.drag = { id: e.pointerId, x0: x, x }; try { el.setPointerCapture(e.pointerId); } catch (_) { } });
-    el.addEventListener('pointermove', e => { if (I.drag && e.pointerId === I.drag.id) I.drag.x = View.x(e); });
+    el.addEventListener('pointerdown', e => { const x = View.x(e), y = View.y(e); I.drag = { id: e.pointerId, x0: x, x, y0: y, y }; try { el.setPointerCapture(e.pointerId); } catch (_) { } });
+    el.addEventListener('pointermove', e => { if (I.drag && e.pointerId === I.drag.id) { I.drag.x = View.x(e); I.drag.y = View.y(e); } });
     const up = e => { if (I.drag && e.pointerId === I.drag.id) I.drag = null; };
     el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
     addEventListener('blur', () => { I.keys = {}; I.drag = null; });
@@ -73,7 +79,17 @@ const Input = (() => {
     I.u = t;
     // the two moves besides steering, each one thing held down: jump (Space, or W / ArrowUp) and tuck-or-pole (ArrowDown or S).
     // On a touch screen the interface's buttons set I.btn; the physics reads I.jump and I.tuck
-    const K = I.keys; I.jump = !!(K.Space || K.KeyW || K.ArrowUp || I.btn.jump); I.tuck = !!(K.ArrowDown || K.KeyS || I.btn.tuck);
+    const K = I.keys;
+    if (Variants.val.fa !== 'b') { I.jump = !!(K.Space || K.KeyW || K.ArrowUp || I.btn.jump); I.tuck = !!(K.ArrowDown || K.KeyS || I.btn.tuck); I.fa = I.faV = I.faT = 0; return; }
+    // (fore/aft b: up / W the shovels (+1), down / S the tails (-1); the jump is Space alone, the tuck Shift. A key comes on as a leg moves the
+    // weight, not at a blow: the same critically damped spring as the steering keys, nine tenths of the way in about a third of a second.
+    // The steering finger's height from where it came down does the same, at the same scale as across; a script, if set, overrides both)
+    I.jump = !!(K.Space || I.btn.jump); I.tuck = !!(K.ShiftLeft || K.ShiftRight || I.btn.tuck);
+    const kf = (K.ArrowUp || K.KeyW ? 1 : 0) - (K.ArrowDown || K.KeyS ? 1 : 0);
+    { const want = kf, w = Math.abs(want) >= Math.abs(I.fa) && want * I.fa >= 0 ? 11 : 15, x = I.fa - want, vv = I.faV, ee = Math.exp(-w * dt), bb = (vv + w * x) * dt; I.fa = want + (x + bb) * ee; I.faV = (vv - w * bb) * ee; }
+    let f = I.fa;
+    if (I.drag && I.drag.y0 != null) { const L = Math.min(View.w || innerWidth, (View.h || innerHeight) * 1.4, 900) * 0.2, dy = clamp((I.drag.y0 - I.drag.y) / L, -1, 1); f += sign(dy) * Math.max(0, Math.abs(dy) - 0.08) / 0.92; }
+    I.faT = clamp(I.faScript != null ? I.faScript : f, -1, 1);
   };
   return I;
 })();
@@ -261,7 +277,26 @@ const Game = (() => {
     const cu = clamp(uE / 0.72, -1, 1), phiT = sign(cu) * Math.pow(Math.abs(cu), 1.2) * phiMax * (S.air && S.airT > 0.14 ? 0.3 : 1) * (1 - 0.28 * smooth(0.72, 1.0, Math.abs(u)));
     // (feel b: the faster, the a little heavier the body is to throw over: the same spring up to 50 km/h, four fifths as quick from 108. Only a
     // hint of the momentum: heavier than that read as true but tiring to ski, turn after turn (owner, 2026-11-13: real vs fun, keep it light))
-    const wn = S.air ? 5 : FB ? lerp(9.5, 7.5, smooth(14, 30, sp)) : 9.5, zeta = 0.92;
+    // ---- fore/aft (Variants 'fa' b, on feel b). fa: where the weight is along the skis, +1 on the shovels, -1 on the tails, 0 centred (and then
+    // nothing below changes anything). ph: where in the turn the skier is, from the line against the fall line: +1 at the top of a turn (still
+    // above the fall line, the edges just coming up), -1 at the bottom (past it, the turn finishing), nothing running straight or where the land
+    // lies level. Pressing the shovels: the tips bite, so the body goes over quicker; at the top that is a carve that hooks up and holds a little
+    // better, held on through the bottom it lightens the tails and they wash out into a skid that brakes (the way to scrub speed). Pressing the
+    // tails: the tips are light, so the edges come up slower and the arc is wider; through the bottom the tails hold and the ski runs on out of
+    // the turn with less drag; sat back at the top the tips do not hook and the skis wash. Timed right (forward in, back out) is the clean carve
+    const FA = FB && Variants.val.fa === 'b' && !S.air;
+    let fa = 0, ph = 0, gripFA = 1, turnFA = 1, dragFA = 1;
+    if (FA) {
+      fa = S.fa = clamp(Input.faT || 0, -1, 1);
+      ph = clamp(-sign(S.lean) * hd / 0.55, -1, 1) * smooth(0.06, 0.22, Math.abs(S.lean));
+      const top = Math.max(ph, 0), bot = Math.max(-ph, 0);
+      if (fa > 0) gripFA = 1 + fa * (0.25 * top - 0.55 * bot);
+      else { const k = -fa; gripFA = 1 + k * (0.15 * bot - 0.35 * top); turnFA = 1 - 0.4 * k; dragFA = 1 - 0.6 * k * bot; }
+      // (shovels pressed through the bottom of a turn swing the tails out by themselves, a skid that is seen and heard even in a gentle turn)
+      S.faKick = fa > 0 ? fa * bot * smooth(0.1, 0.3, Math.abs(S.lean)) * smooth(6, 12, sp) : 0;
+      S.faPh = ph; S.faGrip = gripFA;
+    } else { S.fa = 0; S.faPh = 0; S.faGrip = 1; S.faKick = 0; }
+    const wn = (S.air ? 5 : FB ? lerp(9.5, 7.5, smooth(14, 30, sp)) : 9.5) * (1 + 0.5 * fa), zeta = 0.92;
     S.leanV += (wn * wn * (phiT - S.lean) - 2 * zeta * wn * S.leanV) * dt; S.lean += S.leanV * dt;
     // past the carve range the skis are pivoted across the direction of travel: a skid that brakes and throws snow. Only when asked for:
     // rolling from one edge to the other does not swing the skis. They are swung, and let come back, as a leg moves them, not at a blow
@@ -273,13 +308,13 @@ const Game = (() => {
     // powder). Asked for more, the skis wash out: the line turns only as fast as the grip allows and what is left over swings the tails out
     // into a skid, 0.6 rad of skid for each whole grip asked for beyond it, which brakes and throws snow. So the same full turn is a tight
     // carve at 30 km/h and, at 80, a wide arc that scrubs speed: nothing is on rails)
-    const gripB = FB ? lerp(GRIP_B[0], GRIP_B[1], S.powder) : 1;
+    const gripB = (FB ? lerp(GRIP_B[0], GRIP_B[1], S.powder) : 1) * gripFA;
     const exB = FB && contact && sp > 3 ? Math.max(0, Math.abs(Math.tan(S.lean)) * lerp(1.0, 0.8, S.powder) / gripB - 1) * smooth(3, 8, sp) : 0; S.wash = exB;
-    { const w = contact ? BETA_W : 9, bMax = su * hd > 0 ? Math.max(0, PI / 2 - Math.abs(hd)) : 9, bT = contact ? clamp(su * 0.62 + sign(S.lean) * Math.min(0.75, 0.6 * exB) * (1 - Math.abs(su)), -bMax, bMax) : 0; S.betaV += (w * w * (bT - S.beta) - 2 * w * S.betaV) * dt; S.beta += S.betaV * dt; }
+    { const w = contact ? BETA_W : 9, bMax = su * hd > 0 ? Math.max(0, PI / 2 - Math.abs(hd)) : 9, bT = contact ? clamp(su * 0.62 + sign(S.lean) * Math.min(0.75, 0.6 * exB) * (1 - Math.abs(su)) + sign(S.lean) * 0.35 * (S.faKick || 0) * (1 - Math.abs(su)), -bMax, bMax) : 0; S.betaV += (w * w * (bT - S.beta) - 2 * w * S.betaV) * dt; S.beta += S.betaV * dt; }
     let aLat = 0, aTan = aPole; S.aReac = 0; S.aSkid = 0; S.aCarve = 0;
     if (contact) {
       const grip = lerp(1.0, 0.8, S.powder), sb = Math.sin(S.beta), cb = Math.cos(S.beta);
-      const aC = S.bite * Math.tan(S.lean) * grip;
+      const aC = S.bite * Math.tan(S.lean) * grip * turnFA;
       const aSk = (0.95 + 0.25 * S.powder) * S.bite * sat(Math.abs(sb) / 0.34) * smooth(0.5, 3, sp);
       // (the part of a skid that turns the skier fades as the carve's does: nothing swings the line on round up the hill)
       // (feel b: the carve's own push is held to the grip; a skid pushes too, as the tails scrape round, but all of it together no more than
@@ -301,7 +336,7 @@ const Game = (() => {
         S.pdep = damp(S.pdep || 0, dT, dT > (S.pdep || 0) ? 5 : 1.7, dt);
         plow = PLOW_K * S.pdep * (1 + Math.abs(sb));
       }
-      aLat = aReac; const aDr = (aSk * Math.abs(sb) + 0.05 * Math.abs(aCb) + mu * Nf + plow) * lowV; aTan -= aDr; S.aDrag = aDr;
+      aLat = aReac; const aDr = (aSk * Math.abs(sb) + (0.05 * Math.abs(aCb) + mu * Nf) * dragFA + plow) * lowV; aTan -= aDr; S.aDrag = aDr;
       S.aReac = aReac; S.aSkid = aSk; S.aCarve = aC;
       if (S.crash > 0) { aTan -= 2.5 * lowV; }
       // (it slows, never stops: down any slope worth the name the skier still gathers speed off the run, only less of it. Tried at 1 + 0.008 v^2
@@ -346,7 +381,7 @@ const Game = (() => {
   }
 
   // ---- body language: physical state -> pose parameters (smoothed where a real body would lag)
-  const pose = G.pose = { init: false, lean: 0, bal: 0, edge: 0, crouch: 0.2, tuck: 0, air: 0, sep: 0, headYaw: 0, lead: 0, stance: 0.31, fore: 0, armL: [0, 0, 0], armR: [0, 0, 0], swing: 0, liftL: 0, liftR: 0, pitchL: 0, pitchR: 0, plantL: 0, plantR: 0, grabL: 0, grabR: 0, dp: 0, tilt: 0, rollL: 0, rollR: 0 };
+  const pose = G.pose = { init: false, lean: 0, bal: 0, edge: 0, crouch: 0.2, tuck: 0, air: 0, sep: 0, headYaw: 0, lead: 0, stance: 0.31, fore: 0, fa: 0, armL: [0, 0, 0], armR: [0, 0, 0], swing: 0, liftL: 0, liftR: 0, pitchL: 0, pitchR: 0, plantL: 0, plantR: 0, grabL: 0, grabR: 0, dp: 0, tilt: 0, rollL: 0, rollR: 0 };
   const root = G.root = { pos: [0, 0, 0], fwd: [0, 0, -1], nrm: [0, 1, 0] };
 
   // ---- flight: what a jump is going to be, worked out as the skis leave the snow (and a little before): how long in the air, what to do
@@ -740,6 +775,9 @@ const Game = (() => {
     // (the inside ski draws ahead as the edges come up: hardly at all in a shallow turn)
     pose.lead = 0.19 * sL * Math.abs(sL) + q.lead; pose.stance = 0.31 + 0.16 * Math.abs(sL) + 0.04 * w + q.st;
     fl.foreS = damp(fl.foreS || 0, clamp(-0.25 * w * (1 - q.own) + q.fore - 0.5 * fl.soak, -1, 1), 8, kd); pose.fore = fl.foreS;
+    // (fore/aft, Variants 'fa': the stance itself moved, not a spring on it. Forward: hips over the toes, shins pressed into the tongues, chest a
+    // little lower; back: hips behind the heels, sitting into the boots. 08_skier.js draws it from pose.fa; nothing of it in the air or a trick)
+    pose.fa = damp(pose.fa || 0, (S.fa || 0) * (1 - w) * (1 - q.own) * (1 - sat(S.crash * 5)) * (1 - smooth(0.3, 0.9, pose.tuck)), 9, kd);
     pose.liftL = q.lL; pose.liftR = q.lR; fl.tipUp = damp(fl.tipUp || 0, S.contact && typeof Tracks !== 'undefined' ? (Tracks.deep || 0) * lerp(0.22, 0.14, smooth(5, 18, sp)) * (1 - w) : 0, 5, dt);
     // (in deep powder the skis ride tips up, planing: the shovels come up out of the snow and the tails run low in it, more so when slow)
     // and whatever else: a ski's shovel never digs into the snow (the owner: '任何情况下雪橇的头都不应该扎到雪里面'). A real ski bends and its tip
