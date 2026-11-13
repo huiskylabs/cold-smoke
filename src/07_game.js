@@ -18,7 +18,8 @@ const Input = (() => {
   // turn, is what decides a carve from a skid). a: none, as before (up jumps, down tucks). b: up / W presses the shovels, down / S the tails,
   // nothing held is centred and skis exactly as a; the jump is Space alone and the tuck moves to Shift. On a touch screen the steering finger
   // does both: across turns, up presses the shovels, down the tails. Read in step() ('fore/aft') and updatePose; works on top of feel b
-  Variants.def('fa', '前后重心', [['a', '关'], ['b', '开']], 'a');
+  // (default b since the owner skied it, 2026-11-13)
+  Variants.def('fa', '前后重心', [['a', '关'], ['b', '开']], 'b');
   const I = { u: 0, fa: 0, faV: 0, faT: 0, faScript: null, btn: { jump: false, tuck: false }, jump: false, tuck: false, mode: 'touch', tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
   I.init = function (el) {
     addEventListener('keydown', e => { if (e.code !== I.mute) I.keys[e.code] = true; }); addEventListener('keyup', e => { I.keys[e.code] = false; if (e.code === I.mute) I.mute = null; });
