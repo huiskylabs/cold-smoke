@@ -38,6 +38,7 @@ What makes it unusual is what the repository **doesn't** contain:
 - Synthesised sound and music that follow your speed, turns and time in the air.
 - Several camera views, a photo-friendly menu, and English or Chinese UI picked from your browser.
 - Every mountain grows from a seed: share the `#seed-…` in the address bar and a friend gets the same mountain.
+- A quality setting (auto, high, balanced, smooth) in Settings, so mid-range phones stay smooth.
 - Keyboard and mouse on a computer; drag or tilt on a phone held in landscape.
 
 ### Controls
@@ -45,7 +46,7 @@ What makes it unusual is what the repository **doesn't** contain:
 | Action | Keyboard | Phone |
 |---|---|---|
 | Turn | ← → or A D | drag left / right (or tilt) |
-| Weight on the tips / tails | ↑ ↓ | drag up / down |
+| Weight on the tips / tails | ↑ ↓ or W S | drag the steering finger up / down |
 | Jump (hold to load up) | Space | hold the Jump button, let go |
 | Tuck for speed | Shift | hold the Tuck button |
 | Change camera | V (Shift+V back) | camera button above Jump |
@@ -124,6 +125,7 @@ If you like it, a ⭐ helps other people find it.
 - 合成的音效和配乐，跟着速度、转弯和滞空变化。
 - 多个机位，菜单里能换时间和天气拍照，界面中英文按浏览器自动切换。
 - 每座山由一个编号生成：把地址栏里的 `#seed-编号` 发给朋友，就是同一座山。
+- 设置里可以选画质（自动、高、均衡、流畅），中端手机也能流畅地玩。
 - 电脑用键盘鼠标；手机横屏用拖动或者倾斜。
 
 ### 操作
@@ -131,7 +133,7 @@ If you like it, a ⭐ helps other people find it.
 | 动作 | 键盘 | 手机 |
 |---|---|---|
 | 转弯 | ← → 或 A D | 左右拖动（或倾斜手机） |
-| 压板头 / 板尾 | ↑ ↓ | 上下拖动 |
+| 压板头 / 板尾 | ↑ ↓ 或 W S | 转弯的手指上下拖动 |
 | 跳（按住蓄力） | 空格 | 按住「跳」，松开起跳 |
 | 压低加速 | Shift | 按住「加速」 |
 | 换机位 | V（Shift+V 往回） | 「跳」上方的机位按钮 |
