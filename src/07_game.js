@@ -817,7 +817,10 @@ const Game = (() => {
       a[0] = side * (0.03 * pl + hx - 0.13 * g + HA[0] * ac) + (side < 0 ? q.ax : q.bx) * hk; a[1] = 0.03 * pl + hy - 0.6 * g + (HA[1] + HA[3] * out + HA[5] * inn) * ac + (side < 0 ? q.ay : q.by) * hk; a[2] = -0.10 * pl + hz + 0.32 * g - (HA[2] + HA[4] * out + HA[6] * inn) * ac + (side < 0 ? q.az : q.bz) * hk;
     }
     // (b: the poles do not swing to a clock: they nod with how the legs are loaded and with the body going over, and with the snow's chatter)
-    pose.swing = lerp(Math.sin(G.t * 2.3) * 0.25 + S.leanV * 0.12, S.leanV * 0.12 + 0.16 * clamp(fl.pump, -1, 1) + 6 * (fl.chat || 0), mo) * hk;
+    // (kp b: the hands and poles carry none of the snow's chatter, and the nod with the body going over is taken from its rate smoothed over a
+    // tenth of a second: a hand that trembled at ten or fifteen times a second read as a shaking arm, not as a skier, owner 2026-11-13)
+    const KPb = Variants.val.kp === 'b'; fl.lvS = damp(fl.lvS || 0, S.leanV || 0, KPb ? 10 : 1e6, dt);
+    pose.swing = lerp(Math.sin(G.t * 2.3) * 0.25 + S.leanV * 0.12, fl.lvS * 0.12 + 0.16 * clamp(fl.pump, -1, 1) + (KPb ? 0 : 6) * (fl.chat || 0), mo) * hk;
     // (angulation: in a turn the knees and hips go inside and the chest stays nearer upright over the outside ski; the more it is laid over the more so.
     // Through a spring: the trunk comes upright a moment after the legs tip in)
     pose.tilt = spring(fl, 'tlt', -0.17 * fl.lean * cy * smooth(0.08, 0.6, Math.abs(fl.lean)) * gnd, 9, kd) * mo;
@@ -842,7 +845,7 @@ const Game = (() => {
       // back on its heels a little. Through a spring of a little under 1 Hz: the weight shifts, it does not jump)
       const foT = FB ? clamp(((kpOn ? 0 : 0.55 * ent - 0.35 * rel) - 0.06 * (S.aDrag || 0)) * gnd, -0.6, 0.6) : 0;
       pose.fore = clamp(pose.fore + spring(fl, 'foB', foT, 5.5, kd) + (kq ? kq.f : 0), -1.8, 1.8);       // (the snow's chatter is not put into the knee bend: with the feet on the snow that moved the hips and everything above them)
-      for (const a of [pose.armL, pose.armR]) { a[1] += mo * (1.6 * ch - 0.25 * (fl.ld || 0)) * hk; a[2] -= mo * 0.4 * (fl.ld || 0) * hk; } }
+      for (const a of [pose.armL, pose.armR]) { a[1] += mo * ((KPb ? 0 : 1.6) * ch - 0.25 * (fl.ld || 0)) * hk; a[2] -= mo * 0.4 * (fl.ld || 0) * hk; } }
     if (crash > 0.001) { const wb = Math.sin(crash * 22) * crash; pose.armL[1] += 0.18 * crash + 0.05 * wb; pose.armR[1] += 0.18 * crash - 0.05 * wb; pose.sep += wb * 0.25; }
     // ---- root frame
     // the feet (on the snow they stand on the snow that is drawn; over bumps the body rides a smoother line and the legs make up the difference)
