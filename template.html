@@ -188,9 +188,11 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 @media (hover: hover) { #menu nav button:hover { color: var(--snow); } #menu nav #m-go:hover { color: #ffe2b5; } }
 #menu nav button:focus-visible { outline: 2px solid var(--sun); outline-offset: 3px; border-radius: 4px; }
 #menu .msep { display: block; flex: none; width: 62%; height: 1px; background: var(--hair); margin: calc(var(--mg) * .4) 0; }
-#menu .mpane { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; padding: var(--gt) var(--gr) var(--gb) clamp(24px, 6vw, 110px); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none; }
+#menu .mpane { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-start; padding: var(--gt) var(--gr) var(--gb) clamp(24px, 6vw, 110px); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none; }
 #menu .mpane::-webkit-scrollbar { display: none; }
-#menu section { display: none; flex-direction: column; gap: clamp(10px, 2vmin, 16px); max-width: 760px; } #menu section.on { display: flex; }
+#menu section { display: none; flex-direction: column; gap: clamp(10px, 2vmin, 16px); max-width: 760px; }
+/* (centred in the pane by its margins, not by the pane: a part taller than the pane then starts at its top and scrolls, never cut off above) */
+#menu section.on { margin-top: auto; margin-bottom: auto; } #menu section.on { display: flex; }
 #menu h4 { margin: 0; font-family: var(--f-lat); font-weight: 500; font-size: clamp(10px, 1.5vmin, 12px); letter-spacing: .4em; color: var(--dim); white-space: nowrap; }
 #menu h4 + * { margin-top: -2px; } #menu .gap { height: clamp(4px, 1.5vmin, 12px); }
 #menu kbd { margin-left: .7em; padding: 0 .4em; border: 1px solid var(--hair); border-radius: 4px; font-family: var(--f-lat); font-size: .95em; letter-spacing: .05em; color: var(--faint); }
@@ -247,7 +249,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 /* (the boards, inside 小红书 only: which board, which period, my place, then the list, scrolling in its own box) */
 #menu .rk-p { margin-top: -4px; } #menu .rk-p button { height: 30px; padding: 0 13px; font-size: 12px; }
 #menu .rk-me { margin: 2px 0 0; font-family: var(--f-lat); font-size: clamp(13px, 1.9vmin, 15px); letter-spacing: .12em; color: var(--sun); }
-#menu .rk-list { margin: 0; padding: 0 6px 0 0; list-style: none; max-height: 44vh; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+#menu .rk-list { margin: 0; padding: 0 10px 0 0; list-style: none; max-height: calc(var(--ch) * .44);  /* (the frame's own height: 44vh is the screen's, the frame's width when it is laid on its side) */ overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
 #menu .rk-list li { display: flex; align-items: baseline; min-height: 30px; border-top: 1px solid rgba(244, 247, 251, .07); font-size: clamp(12px, 1.75vmin, 14px); letter-spacing: .08em; }
 #menu .rk-list b { flex: none; width: 3em; font-family: var(--f-lat); font-weight: 300; color: var(--dim); font-variant-numeric: tabular-nums; }
 #menu .rk-list li.top b { color: var(--sun); }
