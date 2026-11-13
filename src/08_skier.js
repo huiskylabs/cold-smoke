@@ -870,11 +870,15 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   //  - each hand a weight on a soft arm, swung by the same pushes and by the legs going across under the body at an edge change; the two not quite alike
   //  - and, never still, the small corrections of balance a skier makes all the time (slow noise, more at speed and over rough snow) and a breath
   // Everything here is offsets the solver adds to the pose: off ('a') it is all zero and the figure is as it was.
-  Variants.def('bodymo', '身体动态', [['a', '原来'], ['b', '有惯性']], 'b');
-  const BD = { k: 0, p: null, v: null, aF: [0, 0, 0], aS: [0, 0, 0], lv: 0, la: 0, lp: null, r1: [0, 0], p1: [0, 0], r2: [0, 0], p2: [0, 0], hr: [0, 0], hp: [0, 0], hL: [[0, 0], [0, 0], [0, 0]], hR: [[0, 0], [0, 0], [0, 0]], br: 0 };
+  // (c: the same, about two and a half times over and less damped, plus the gestures a skier makes through every turn: owner 2026-11-13, b was too
+  // subtle to see)
+  Variants.def('bodymo', '身体动态', [['a', '原来'], ['b', '有惯性'], ['c', '明显']], 'c');
+  const BDM = { b: [1, 1, 0], c: [2.5, 0.72, 1] };      // gain, damping factor, gestures
+  const BD = { m: 1, z: 1, ge: 0, tr: 0, k: 0, p: null, v: null, aF: [0, 0, 0], aS: [0, 0, 0], lv: 0, la: 0, lp: null, r1: [0, 0], p1: [0, 0], r2: [0, 0], p2: [0, 0], hr: [0, 0], hp: [0, 0], hL: [[0, 0], [0, 0], [0, 0]], hR: [[0, 0], [0, 0], [0, 0]], br: 0 };
   K.bd = BD;
   function bodyDyn(root, cut, dt, now, X, Y, Z) {
-    const sec = st.sec, on = Variants.val.bodymo === 'b' && !sec.idle;
+    const sec = st.sec, mv = BDM[Variants.val.bodymo], on = !!mv && !sec.idle;
+    if (mv) { BD.m += (mv[0] - BD.m) * (cut ? 1 : 1 - Math.exp(-dt * 4)); BD.z = mv[1]; BD.ge += (mv[2] - BD.ge) * (cut ? 1 : 1 - Math.exp(-dt * 4)); }
     if (!sec.hL) { sec.hL = [0, 0, 0]; sec.hR = [0, 0, 0]; }
     if (cut || !BD.p || !(dt > 0)) {
       if (cut || !BD.p) { BD.p = root.pos.slice(); BD.v = null; BD.lp = null; for (const q of [BD.r1, BD.p1, BD.r2, BD.p2, BD.hr, BD.hp, ...BD.hL, ...BD.hR]) q[0] = q[1] = 0; BD.aF = [0, 0, 0]; BD.aS = [0, 0, 0]; BD.lv = BD.la = 0; }
@@ -893,21 +897,31 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     const ln = cur.lean, lv = BD.lp == null ? 0 : (ln - BD.lp) / dt; BD.lp = ln;
     const la = (lv - BD.lv) / dt; BD.lv += (lv - BD.lv) * (1 - Math.exp(-dt * 25)); BD.la += (clamp(la, -80, 80) - BD.la) * (1 - Math.exp(-dt * 20));
     // (how much of it: standing at ease, a tuck, the air or a trick have their own shapes and keep them)
-    const g = BD.k * (1 - 0.6 * sat(cur.tuck * 1.5)) * (1 - 0.7 * sat(cur.air * 2.5)) * (1 - sat((cur.grabL || 0) + (cur.grabR || 0))) * (1 - sat((cur.dp || 0) * 4));
+    const g = BD.k * BD.m * (1 - 0.6 * sat(cur.tuck * 1.5)) * (1 - 0.7 * sat(cur.air * 2.5)) * (1 - sat((cur.grabL || 0) + (cur.grabR || 0))) * (1 - sat((cur.dp || 0) * 4));
     // lower back: rolls away from a push to the side (the top is left behind), pitches forward when the feet are braked or driven up, back when they run on
-    spr(BD.r1, (-0.007 * hx - 0.004 * BD.la) * g, 8.5, 0.42, dt);
-    spr(BD.p1, (0.010 * hz + 0.0065 * hy) * g, 8, 0.45, dt);
+    spr(BD.r1, (-0.007 * hx - 0.004 * BD.la) * g, 8.5, 0.42 * BD.z, dt);
+    spr(BD.p1, (0.010 * hz + 0.0065 * hy) * g, 8, 0.45 * BD.z, dt);
     // upper back: the same, later and a touch further, and it trails the lower back (so a push runs up the spine as a wave)
-    spr(BD.r2, (BD.r1[0] * 0.9 - 0.004 * BD.la * g), 6.5, 0.38, dt);
-    spr(BD.p2, (BD.p1[0] * 1.0 + 0.004 * hy * g), 6.5, 0.40, dt);
+    spr(BD.r2, (BD.r1[0] * 0.9 - 0.004 * BD.la * g), 6.5, 0.38 * BD.z, dt);
+    spr(BD.p2, (BD.p1[0] * 1.0 + 0.004 * hy * g), 6.5, 0.40 * BD.z, dt);
     // the head: held level against the trunk's sway, nods after a bump and comes back
     spr(BD.hr, -0.75 * (BD.r1[0] + BD.r2[0]), 14, 0.7, dt);
-    spr(BD.hp, (0.006 * hy) * g - 0.5 * (BD.p1[0] + BD.p2[0]), 10, 0.38, dt);
+    spr(BD.hp, (0.006 * hy) * g - 0.5 * (BD.p1[0] + BD.p2[0]), 10, 0.38 * BD.z, dt);
     // hands: a mass on a soft arm, left behind by every push (x: across, y: up, z: back); the legs going over swing them the other way. The left and the
     // right are tuned a little apart so they never move as one
     const hk = g * (1 - sat((cur.plantL || 0) + (cur.plantR || 0)) * 0.4);
     const F = [-0.0045 * hx - 0.0035 * BD.la, -0.0040 * hy, -0.0035 * hz];
-    for (let i = 0; i < 3; i++) { spr(BD.hL[i], F[i] * hk, 7.2, 0.30, dt); spr(BD.hR[i], F[i] * hk, 6.4, 0.34, dt); }
+    for (let i = 0; i < 3; i++) { spr(BD.hL[i], F[i] * hk, 7.2, 0.30 * BD.z, dt); spr(BD.hR[i], F[i] * hk, 6.4, 0.34 * BD.z, dt); }
+    // gestures through a turn (c): as the body crosses over, the back bows a little forward and the head turns ahead into the new turn; the new
+    // inside hand comes forward and up for its plant while the old one drops back; at the apex the outside hand is low and wide, the inside hand
+    // forward. Read off the lean drawn (cur.lean) and how fast it changes (tr: 1 while crossing over, signed by the way it goes)
+    { const ge = BD.ge * BD.k * (1 - sat(cur.tuck * 1.5)) * (1 - sat(cur.air * 3)), sl = Math.sin(ln);
+      BD.tr += (clamp(BD.lv / 2.2, -1, 1) - BD.tr) * (1 - Math.exp(-dt * 10));
+      const T = BD.tr, aT = Math.abs(T);
+      BD.gp = 0.10 * aT * ge; BD.gy = 0.22 * T * ge; BD.gh = 0.12 * T * ge;
+      for (const side of [-1, 1]) { const inn = sat(side * sl * 1.4), out = sat(-side * sl * 1.4), nw = sat(side * T);      // (nw: this hand is the new inside one)
+        const o = side < 0 ? (BD.gL = BD.gL || [0, 0, 0]) : (BD.gR = BD.gR || [0, 0, 0]);
+        o[0] = ge * (side * 0.05 * out - side * 0.02 * inn); o[1] = ge * (0.09 * nw - 0.05 * out + 0.03 * inn - 0.03 * sat(-side * T)); o[2] = ge * (-0.12 * nw + 0.06 * out - 0.05 * inn + 0.05 * sat(-side * T)); } }
     BD.br = (BD.br + dt / lerp(3.4, 2.2, smooth(5, 25, Math.hypot(v[0], v[1], v[2])))) % 1;
     put(g, now, Math.hypot(v[0], v[1], v[2]));
   }
@@ -915,18 +929,19 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     const sec = st.sec, k = BD.k;
     if (!(k > 1e-3) || g == null) { sec.r2 = sec.p1 = sec.p2 = sec.hr = sec.hy = sec.br = 0; sec.hL = [0, 0, 0]; sec.hR = [0, 0, 0]; sec.yaw = 0; sec.head = 0; sec.r1 = 0; return; }
     // the small corrections of balance: slow, never repeating; a little more at speed and over rough snow
-    const n = (f, s) => vnoise1(now * f, s), live = k * (0.6 + 0.4 * smooth(4, 20, sp || 0)) * (1 - 0.5 * sat(cur.tuck * 1.5)) * (1 - sat(cur.air * 3));
+    const n = (f, s) => vnoise1(now * f, s), live = k * (1 + 1.2 * BD.ge) * (0.6 + 0.4 * smooth(4, 20, sp || 0)) * (1 - 0.5 * sat(cur.tuck * 1.5)) * (1 - sat(cur.air * 3));
     const L = (x, m) => m * Math.tanh(x / m);      // (a soft limit: a hard one held the trunk flat against its stop through every turn)
-    sec.r1 = L(BD.r1[0] + 0.014 * live * n(0.55, 71), 0.16);
-    sec.p1 = L(BD.p1[0] + 0.012 * live * n(0.45, 72), 0.20);
-    sec.r2 = L(BD.r2[0] - BD.r1[0] * 0.3 + 0.010 * live * n(0.8, 73), 0.14);
-    sec.p2 = L(BD.p2[0] + 0.010 * live * n(0.7, 74), 0.20);
-    sec.yaw = L(0.035 * live * n(0.35, 75), 0.06);
+    const lm = 1 + 1.2 * BD.ge, gL = BD.gL || [0, 0, 0], gR = BD.gR || [0, 0, 0];
+    sec.r1 = L(BD.r1[0] + 0.014 * live * n(0.55, 71), 0.16 * lm);
+    sec.p1 = L(BD.p1[0] + (BD.gp || 0) + 0.012 * live * n(0.45, 72), 0.20 * lm);
+    sec.r2 = L(BD.r2[0] - BD.r1[0] * 0.3 + 0.010 * live * n(0.8, 73), 0.14 * lm);
+    sec.p2 = L(BD.p2[0] + 0.010 * live * n(0.7, 74), 0.20 * lm);
+    sec.yaw = L((BD.gh || 0) + 0.035 * live * n(0.35, 75), 0.06 * lm + 0.12 * BD.ge);
     sec.hr = L(BD.hr[0] + 0.02 * live * n(0.6, 76), 0.15);
     sec.head = L(BD.hp[0] + 0.03 * live * n(0.5, 77), 0.2);
-    sec.hy = 0.06 * live * n(0.3, 78);
-    sec.hL = [L(BD.hL[0][0] + 0.022 * live * n(0.9, 81), 0.12), L(BD.hL[1][0] + 0.018 * live * n(1.1, 82), 0.10), L(BD.hL[2][0] + 0.02 * live * n(0.8, 83), 0.10)];
-    sec.hR = [L(BD.hR[0][0] + 0.022 * live * n(0.85, 84), 0.12), L(BD.hR[1][0] + 0.018 * live * n(1.05, 85), 0.10), L(BD.hR[2][0] + 0.02 * live * n(0.75, 86), 0.10)];
+    sec.hy = (BD.gy || 0) + 0.06 * live * n(0.3, 78);
+    sec.hL = [L(BD.hL[0][0] + gL[0] + 0.022 * live * n(0.9, 81), 0.12 * lm), L(BD.hL[1][0] + gL[1] + 0.018 * live * n(1.1, 82), 0.10 * lm), L(BD.hL[2][0] + gL[2] + 0.02 * live * n(0.8, 83), 0.10 * lm)];
+    sec.hR = [L(BD.hR[0][0] + gR[0] + 0.022 * live * n(0.85, 84), 0.12 * lm), L(BD.hR[1][0] + gR[1] + 0.018 * live * n(1.05, 85), 0.10 * lm), L(BD.hR[2][0] + gR[2] + 0.02 * live * n(0.75, 86), 0.10 * lm)];
     // (a breath while skiing: quicker the faster it goes, and shallow)
     const b = BD.br; sec.br = 0.55 * k * (b < 0.4 ? smoother(0, 0.38, b) : 1 - smoother(0.42, 0.95, b));
   }
