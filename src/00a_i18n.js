@@ -43,6 +43,10 @@ const I18N = (() => {
     // ---- the menu
     'PAUSED · 暂停': 'PAUSED', 'MENU · 菜单': 'MENU', '继续滑': 'Ski on',
     '天色与天气': 'Time & weather', '换一座山': 'New mountain', '操作说明': 'Controls', '设置': 'Settings', '回到山顶': 'Back to the top', '版本对比': 'Versions',
+    '排行榜': 'Leaderboard', 'RANKING · 排行榜': 'LEADERBOARD', '极速': 'Top speed', '最远飞行': 'Longest flight', '滑雪时长': 'Time skied', '今日': 'Today', '本周': 'This week', '总榜': 'All time',
+    '我': 'Me', '雪友': 'A skier', '读取中…': 'Loading…', '还没有成绩，滑一趟就会上榜': 'No score yet: ski a run and you are on it', '今天还没有人上榜': 'Nobody on the board yet today',
+    '还没有人上榜': 'Nobody on the board yet', '榜单还在准备，稍后再看': 'The board is getting ready, look again soon', '暂时读不到榜单，稍后再看': 'The board cannot be read right now, look again soon',
+    '今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。': 'Today and this week start again on Beijing time; all time is kept. Each skier keeps only their best.', '今日排名': 'Today',
     'TIME · 天色': 'TIME', 'WEATHER · 天气': 'WEATHER', 'VIEW · 视角': 'VIEW', 'RUN · 路段': 'RUN', 'ENCOUNTER · 偶遇': 'ENCOUNTER', 'MOUNTAIN · 山': 'MOUNTAIN',
     'CONTROLS · 操作说明': 'CONTROLS', 'SETTINGS · 设置': 'SETTINGS', 'VERSIONS · 版本对比': 'VERSIONS',
     '选中立刻生效，后面的画面会跟着变。「自动」让一天自己走下去，琥珀色小点是现在走到的时刻。': 'A pick shows at once in the picture behind. Auto lets the day go on by itself; the amber dot marks the hour it has reached.',
