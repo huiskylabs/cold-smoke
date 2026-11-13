@@ -36,9 +36,14 @@ Chromium with SwiftShader runs both backends headless.
 
 The game also ships as a 小红书 小工具 (创作服务平台 → Builder Hub → 小工具): an offline web package that opens under a note. The container's rules are in the official 小工具容器能力清单 (https://miniapp-sandbox.xiaohongshu.com/minitool/doc). The ones that matter here: scripts only as package `.js` files (no inline `<script>`, no `onclick=`, no `eval`), no network at all, code that runs on Chrome 61 / ES2017, and only html, css, js, images, woff/woff2 and json in the zip.
 
-- `node tools/build-xhs.js` writes `dist-xhs/` (`index.html`, `app.js`, `fonts/`) and `dist-xhs.zip`, the file to upload. It takes the same `src/` and `template.html` as `build.js`, leaves out `20_director.js` and the web-font loader, lowers the syntax with esbuild (`npx esbuild@0.24.2`, target chrome61), prepends `xhs/polyfills.js` (`.at`, `.flat`, `.flatMap`, `Object.fromEntries`), and refuses to zip if a rule is broken.
-- The three faces (Jost, Cormorant Garamond, Noto Serif SC cut to the characters the page asks for; all SIL OFL) are kept in `xhs/fonts/`. `node tools/fetch-xhs-fonts.js` fetches them again, for example after the title's characters change.
-- Inside the container device orientation is switched off, so a phone steers by drag (as inside the claude.ai artifact). The platform's own gyroscope API (`xhs.miniTool.onGyroscopeChange`, angular velocity only) is not used yet.
+- `node tools/build-xhs.js` writes `dist-xhs/` (`index.html`, `app.js`, `fonts/`) and `dist-xhs.zip`, the file to upload. It takes the same `src/` and `template.html` as `build.js` and changes this much:
+  - it leaves out `20_director.js`, the web-font loader, and every block in `src/` marked `/*web{*/ … /*}web*/`. Those blocks hold device orientation and the request for the whole screen, which the container forbids. Keep such code inside these markers;
+  - it lowers the syntax with esbuild (`npx esbuild@0.24.2`, target chrome61) and puts `xhs/polyfills.js` in front. That file adds `.at`, `.flat`, `.flatMap` and `Object.fromEntries`, and sets `self.COLD_SMOKE`: no tilt (the title page says to drag), and a first drawing buffer of at most 1.5 dpr and about 2 million pixels;
+  - it gives each CSS `clamp()` / `min()` / `max()` / `inset` declaration a value Chrome 61 can read. A custom property gets its plain value written in place, and its modern value is set again inside `@supports`;
+  - it refuses to zip if a container rule is broken.
+- The official checks come from the 小红书 Skill `minitool-zip-builder` (the link is on the upload page). Its audit is `node <skill>/scripts/audit_artifact.mjs dist-xhs`.
+- The three faces are kept in `xhs/fonts/`: Jost, Cormorant Garamond, and Noto Serif SC cut to the characters the page asks for, all under the SIL OFL. `node tools/fetch-xhs-fonts.js` fetches them again, for example after the title's characters change.
+- Known gaps against the Skill: there is no WebGL1 renderer, so without WebGL2 the page shows its one-line message. Flex `gap` (spacing only) has no margin fallback for WebViews older than Chrome 84.
 
 ## Choices worth knowing before changing the look
 

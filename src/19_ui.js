@@ -48,11 +48,11 @@ const UI = (() => {
     function muteKey(c) { try { if (typeof Input !== 'undefined' && Input.keys) { Input.mute = c; Input.keys[c] = false; } } catch (err) { } }
     el.snd.addEventListener('click', e => { e.stopPropagation(); U.sound(!Sound.on); if (e.detail) el.snd.blur(); });
     el.fs.addEventListener('click', e => { e.stopPropagation(); U.fullscreen(); });
-    document.addEventListener('fullscreenchange', () => {
+    /*web{*/ document.addEventListener('fullscreenchange', () => {
       const on = !!document.fullscreenElement, own = performance.now() - fsT < 1500; fsT = performance.now();
       el.fs.classList.toggle('full', on); el.fs.setAttribute('aria-pressed', on ? 'true' : 'false'); U.layout(); if (U.open) paint();
       if (!on && !own) U.pause();          // thrown out of the whole screen (the system's Esc, a back gesture): the run waits
-    });
+    }); /*}web*/
     // nothing here scrolls or zooms
     el.app.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
     document.addEventListener('gesturestart', e => e.preventDefault());
@@ -69,11 +69,11 @@ const UI = (() => {
     if (!el) return;
     const V = View.measure(), c = el.app.classList, hh = handheld();
     c.toggle('rot', V.forced); c.toggle('flip', V.forced && V.flip); c.toggle('wide', V.wide); c.toggle('short', V.short); c.toggle('desk', !hh);
-    c.toggle('hasfs', !hh && !!document.fullscreenEnabled && !!el.app.requestFullscreen);          // (a third glyph in the corner: the pill stands clear of it)
+    c.toggle('hasfs', !hh && fsAvail());          // (a third glyph in the corner: the pill stands clear of it)
     el.app.style.width = V.forced ? V.w + 'px' : ''; el.app.style.height = V.forced ? V.h + 'px' : '';
     el.app.style.setProperty('--cw', V.w + 'px'); el.app.style.setProperty('--ch', V.h + 'px');
     // (inside a frame, as on claude.ai, the phone's tilt is refused: there the finger is the only way, so the title says only that)
-    let framed = !!self.COLD_SMOKE_NO_TILT; try { framed = framed || window.self !== window.top; } catch (e) { framed = true; }      // (no tilt in a frame, nor in the 小红书 小工具 container)
+    let framed = !!(self.COLD_SMOKE && self.COLD_SMOKE.noTilt); try { framed = framed || window.self !== window.top; } catch (e) { framed = true; }      // (no tilt in a frame, nor in the 小红书 小工具 container)
     el.how.textContent = T(!hh ? '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速' : framed ? '按住屏幕左右拖动转弯 · 右下角 跳 / 加速' : '倾斜手机或按住屏幕左右拖动转弯 · 右下角 跳 / 加速');
     U.hh = hh;
   };
@@ -82,20 +82,22 @@ const UI = (() => {
   U.ready = function () {
     if (!el) return; U.state = 'title';
     el.load.classList.remove('on'); el.veil.classList.add('lift'); el.shade.classList.add('on'); el.title.classList.add('on'); el.snd.classList.add('on');
-    if (!U.hh && document.fullscreenEnabled && el.app.requestFullscreen) el.fs.classList.add('on');
+    if (!U.hh && fsAvail()) el.fs.classList.add('on');
     el.bar.classList.add('on'); paint();
   };
   U.sound = function (on) { Sound.setOn(on); el.snd.classList.toggle('mute', !on); el.snd.setAttribute('aria-pressed', on ? 'true' : 'false'); if (U.open) paint(); };
   U.keepAwake = function () { try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(w => { wake = w; }, () => { }); } catch (e) { } };
   // the whole screen, where the browser allows it. On a phone that also lets us ask for the picture to be laid wide for real
+  // (/*web{*/ … /*}web*/ is left out of the 小红书 小工具 build: the container manages the screen and forbids asking for it, tools/build-xhs.js)
+  function fsAvail() { /*web{*/ return !!document.fullscreenEnabled && !!document.documentElement.requestFullscreen; /*}web*/ return false; }
   U.fullscreen = function (on) {
-    try {
+    /*web{*/ try {
       const is = !!document.fullscreenElement; if (on == null) on = !is; if (on === is) return;
       fsT = performance.now();          // (asked for here: the change that follows, and any loss of focus it brings, is not the player leaving)
       if (!on) { document.exitFullscreen().catch(() => { }); return; }
       const d = document.documentElement; if (!d.requestFullscreen) return;
       d.requestFullscreen({ navigationUI: 'hide' }).then(() => { try { if (U.hh && screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => { }); } catch (e) { } }, () => { });
-    } catch (e) { }
+    } catch (e) { } /*}web*/
   };
   // pushing off, from the gate or from wherever a switch has just put the skier
   function launch() { Game.start(); Sound.kick(); }
@@ -412,7 +414,7 @@ const UI = (() => {
     const mt = typeof App.newMountain === 'function'; el.nav.querySelector('[data-sec="mt"]').hidden = !mt;
     if (mt) { const n = '#' + Course.seed; if (el.seed.textContent !== n) el.seed.textContent = n; }
     el.oSnd.textContent = T(Sound.on ? '声音 开' : '声音 关'); el.oSnd.classList.toggle('on', !!Sound.on); el.oSnd.setAttribute('aria-pressed', Sound.on ? 'true' : 'false');
-    const fsOK = !U.hh && !!document.fullscreenEnabled && !!document.documentElement.requestFullscreen, full = !!document.fullscreenElement;
+    const fsOK = !U.hh && fsAvail(), full = !!document.fullscreenElement;
     el.oFs.hidden = !fsOK; el.oFs.classList.toggle('on', full); el.oFs.textContent = T(full ? '退出全屏' : '全屏');
     if (el.oLang) el.oLang.textContent = EN() ? '中文' : 'English';
     paintVariants();

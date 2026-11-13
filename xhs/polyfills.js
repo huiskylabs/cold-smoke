@@ -13,5 +13,8 @@
   if (!Object.fromEntries) Object.fromEntries = function (it) { var o = {}; Array.from(it).forEach(function (e) { o[e[0]] = e[1]; }); return o; };
   if (typeof globalThis === 'undefined') self.globalThis = self;
 })();
-// the 小工具 container switches device orientation off (its gyroscope API gives angular velocity only): a phone steers by drag
-self.COLD_SMOKE_NO_TILT = true;
+// what the game does differently inside the 小工具 container (read by 19_ui.js and 99_main.js):
+//   noTilt   device orientation is switched off there, so a phone steers by drag and the title page says so
+//   maxDpr, maxPx   the first drawing buffer: at most 1.5 device pixels per CSS pixel and about 2 million pixels (the container's
+//            guidance for WebGL on phones); the frame-rate governor still lowers it further on a phone that cannot hold the frame rate
+self.COLD_SMOKE = { noTilt: true, maxDpr: 1.5, maxPx: 2.0e6 };

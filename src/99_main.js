@@ -129,9 +129,9 @@ function loop(now) {
   try { tick(dt * App.resumeK, true); UI.frame(dt); govern(now, raw); } catch (e) { App.ready = false; reportError(e); }
 }
 function fit() {
-  View.measure(); let k = Math.min(devicePixelRatio || 1, 2) * Render.scale;
+  const PL = self.COLD_SMOKE || {}; View.measure(); let k = Math.min(devicePixelRatio || 1, PL.maxDpr || 2) * Render.scale;
   // a very large display is drawn at no more than about 2400 x 1400 and stretched: past that the extra pixels cost far more than they show
-  const px = View.w * View.h * k * k, cap = +QS.get('maxpx') || 3.4e6; if (px > cap) k *= Math.sqrt(cap / px);
+  const px = View.w * View.h * k * k, cap = +QS.get('maxpx') || PL.maxPx || 3.4e6; if (px > cap) k *= Math.sqrt(cap / px);
   const w = +QS.get('w') || Math.round(View.w * k), h = +QS.get('h') || Math.round(View.h * k);
   Render.resize(Math.max(64, w), Math.max(64, h));
 }
