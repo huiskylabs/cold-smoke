@@ -74,6 +74,7 @@ const Skier = (() => {
   // lean/edge: body and ski roll (+ = to the skier's right); crouch 0..1: how far the legs are folded (0.38 m of travel); tuck, air 0..1; sep, headYaw: twist of
   // trunk and head; lead, stance, lift*, pitch*: where the skis are; arm*: offsets of the hands; plant*: the pole touch at a turn; dp: phase of a double-pole
   // stroke (0 = none); grab*: that hand takes hold of the same-side ski beside the binding
+  Variants.def('stance', '滑行姿态', [['a', '原来'], ['b', '参考真人']], 'b');
   const P0 = { lean: 0, edge: 0, crouch: 0.21, tuck: 0, air: 0, sep: 0, headYaw: 0, lead: 0, stance: 0.31, fore: 0, armL: [0, 0, 0], armR: [0, 0, 0], swing: 0, liftL: 0, liftR: 0, pitchL: 0, pitchR: 0, plantL: 0, plantR: 0, dp: 0, grabL: 0, grabR: 0 };
   const SEC0 = { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: null, idle: null };
 
@@ -105,6 +106,10 @@ const Skier = (() => {
     const gL = smooth(0, 1, p.grabL || 0), gR = smooth(0, 1, p.grabR || 0), gM = Math.max(gL, gR), gS = gR - gL;
     const f = clamp(p.dp || 0, 0, 1), dpw = f > 0 ? (1 - smooth(0, 0.7, tuck)) * (1 - air) * (1 - gM) * (1 - smooth(0.14, 0.5, Math.abs(lean))) : 0;   // (nobody double-poles on one edge)
     const PL = LEN.pole, J = {}, F = new Array(K.NB);
+    // the stance as the reference shows it (Variants 'stance' b, from the Steep footage and pose tracking of it, 2026-11-13): folded further at the hips,
+    // arms long and loose (elbows open to 140-155 degrees, not held at a right angle), hands low by the hips and well out to the sides, elbows out.
+    // sk: how much of it (the standing-at-ease pose, a tuck, the air, a stroke or a grab keep their own)
+    const sk = (Variants.val.stance === 'b' ? 1 : 0) * (1 - smooth(0, 0.6, tuck)) * (1 - sat(air * 3)) * (1 - gM) * (1 - (f > 0 ? 1 : 0)) * (sec.idle ? 1 - sec.idle.rest : 1);
     // standing at ease (see update): rest 0..1 with the pole tips set down at T (u: one lifted, to be set down afresh), up: the trunk more upright, br: a
     // breath drawn 0..1, sh: the weight on the left (-1) or right (+1) ski, hy, hp, ty: where head and shoulders are turned, sx: the body's slow sway
     const id = sec.idle || null, ish = id ? id.sh : 0, ibr = id ? id.br : (sec.br || 0);      // (br: also the shallow breath of a skier on the move, bodyDyn)
@@ -123,7 +128,7 @@ const Skier = (() => {
     // value a moment later, cT, so legs that are driven up or let out in a frame or two work under a quiet upper body; cF: the same, only just behind)
     const c = ce(c0), dpy = dpw > 0 ? 0.8 * 0.38 * (sat(P0.crouch + cs) - ce0(c0)) : 0, cT = sec.ct ? ce(c0 + sec.ct) : c, cF = sec.cf ? ce(c0 + sec.cf) : c;
     let H = 1.085 - 0.38 * c - 0.06 * smooth(0.7, 1, c) - 0.11 * tuck - 0.05 * gM;
-    const hinge0 = 0.36 + 0.46 * cT + 0.70 * tuck - 0.14 * air * (1 - gM) + 0.42 * gM * (1 - tuck) + (dpw > 0 ? dpw * spl(DP_H, f) : 0) + (id ? id.up : 0);
+    const hinge0 = 0.36 + 0.24 * sk + 0.46 * cT + 0.70 * tuck - 0.14 * air * (1 - gM) + 0.42 * gM * (1 - tuck) + (dpw > 0 ? dpw * spl(DP_H, f) : 0) + (id ? id.up : 0);
     // (the trunk folds no lower than the thighs it comes to lie on: pressed deeper while it is folded right over, the hips sink and the back comes up, as
     // when a compression is soaked up in a tuck; reaching for a ski in the air, the knees part and let the chest down between them)
     const hmax = PI / 2 + Math.asin(clamp((1.085 - 0.38 * cF - 0.06 * smooth(0.7, 1, cF) - 0.11 * tuck - 0.05 * gM - 0.58) / LEN.thigh, -1, 1)) - 0.66 + 0.45 * gM;
@@ -211,7 +216,7 @@ const Skier = (() => {
       // (the plane of its own leg, seen from behind: hand and pole are carried on the outer side of it, so with the legs laid over in a turn the outside
       // hand rides above the outside knee and its pole trails level and high, clear of thigh and hip)
       const hipS = side < 0 ? hipL : hipR, ankS = side < 0 ? J.ankleL : J.ankleR, lg = v3.sub(hipS, ankS), nl = v3.norm([side * lg[1], -side * lg[0], 0]), off = q => v3.dot(v3.sub(q, ankS), nl);
-      let t = v3.add(J.chest, fr(hf, side * (0.275 + 0.03 * c + wide), -0.075 - 0.02 * c, -0.375));
+      let t = v3.add(J.chest, fr(hf, side * (lerp(0.275, 0.40, sk) + 0.03 * c + wide), lerp(-0.075, -0.33, sk) - 0.02 * c, lerp(-0.375, -0.24, sk)));
       t = v3.add(t, [side * 0.05 * inside - side * 0.02 * outside, -0.06 * inside * al + 0.06 * outside, -0.05 * outside - 0.04 * inside]);
       t = v3.add(t, [sec.hand[0], sec.hand[1] + side * sec.drop, sec.hand[2]]);
       { const o = side < 0 ? sec.hL : sec.hR; if (o) t = v3.add(t, o); }      // (the hand's own swing: bodyDyn)
@@ -306,7 +311,7 @@ const Skier = (() => {
       // back, so the elbow swung round under it within three frames, and round again on the way forward: there the elbow stays above and behind the arm,
       // where the drive left it. kb: how far the hand of a stroke is behind its shoulder)
       const kb = dpw > 0 ? dpw * smooth(0, 0.45, v3.dot(ax, hl.Z)) : 0;
-      const ep = v3.add(v3.add(sq(kb > 0 ? fr(hl, side * lerp(0.25, 0.08, kb), lerp(-1, 1, kb), 0.25) : fr(hl, side * 0.25, -1, 0.25), 1), sq(fr(hl, 0, 0, 1), 0.35)), sq(fr(hl, side, 0, 0.2), lerp(0.15, 0.10, tuck)));
+      const ep = v3.add(v3.add(sq(kb > 0 ? fr(hl, side * lerp(0.25, 0.08, kb), lerp(-1, 1, kb), 0.25) : fr(hl, side * 0.25, -1, 0.25), 1), sq(fr(hl, 0, 0, 1), 0.35)), sq(fr(hl, side, 0, 0.2), lerp(0.15, 0.10, tuck) + 0.55 * sk));
       let e = ik2(sh, t, LEN.uarm, LEN.farm + LEN.grip, ep);
       { const q = pushOut(e, 0.055, side, 7); if (q !== e) e = ik2(sh, t, LEN.uarm, LEN.farm + LEN.grip, v3.sub(q, v3.lerp(sh, t, 0.5))); }
       if (planted > 0 && tipT) d = nlerp(d, v3.norm(v3.sub(tipT, t)), planted);
