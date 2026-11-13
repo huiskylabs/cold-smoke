@@ -14,7 +14,7 @@ const UI = (() => {
   U.init = function () {
     el = { app: $('app'), veil: $('veil'), shade: $('shade'), load: $('load'), fill: $('load-fill'), stage: $('load-stage'), title: $('title'), go: $('go'), how: $('how'), hud: $('hud'),
       seg: $('seg'), segEn: $('seg-en'), segCn: $('seg-cn'), hint: $('hint'), hintT: $('hint-t'), spd: $('spd'), tach: $('tach'), drop: $('drop'), snd: $('snd'), fs: $('fs'),
-      bar: $('bar'), mn: $('mn'), menu: $('menu'), nav: $('menu').querySelector('nav'), pane: $('mpane'), mk: $('m-k'), mGo: $('m-go'), mTop: $('m-top'), oSnd: $('o-snd'), oFs: $('o-fs'), oLang: $('o-lang'),
+      bar: $('bar'), mn: $('mn'), menu: $('menu'), nav: $('menu').querySelector('nav'), pane: $('mpane'), mk: $('m-k'), mGo: $('m-go'), mTop: $('m-top'), oSnd: $('o-snd'), oFs: $('o-fs'), oLang: $('o-lang'), oQ: $('o-q'),
       time: $('sw-time'), kinds: $('sw-seg'), ev: $('sw-ev'), view: $('sw-view'), seed: $('sw-seed'), more: $('more'), drop2: $('drop2'), vw: $('vw'),
       say: $('say'), sayK: $('say-k'), sayV: $('say-v'), cut: $('cut'), jump: $('jump'), tuck: $('tuck'),
       pause: $('pause'), pauseS: $('pause-s'), pauseT: $('pause-t'), steer: $('steer'), steerV: $('steer-v') };
@@ -333,7 +333,7 @@ const UI = (() => {
       if (d.sec && b.parentNode === el.nav) { show(d.sec); return; }
       if (d.time) U.setTime(d.time); else if (d.seg) U.gotoKind(d.seg); else if (d.view) U.setView(d.view); else if (d.new) U.newMountain();
       else if ('animal' in d) { U.animal(d.animal); U.menu(false); } else if (d.plane) { U.plane(); U.menu(false); }
-      else if (b === el.oSnd) U.sound(!Sound.on); else if (b === el.oFs) U.fullscreen(); else if (b === el.oLang) I18N.set(EN() ? 'zh' : 'en');
+      else if (b === el.oSnd) U.sound(!Sound.on); else if (b === el.oFs) U.fullscreen(); else if (b === el.oLang) I18N.set(EN() ? 'zh' : 'en'); else if (b === el.oQ) { Quality.cycle(); paint(); }
       else if (d.vn) { const V = varMod(); if (V) try { V.set(d.vn, d.vid); } catch (err) { console.warn(err); } paint(); }
       else if (d.vreset) { const V = varMod(); if (V && V.reset) try { V.reset(); } catch (err) { console.warn(err); } paint(); }
       else if (d.wx) U.setWeather(d.wx);
@@ -430,6 +430,7 @@ const UI = (() => {
     const fsOK = !U.hh && fsAvail(), full = !!document.fullscreenElement;
     el.oFs.hidden = !fsOK; el.oFs.classList.toggle('on', full); el.oFs.textContent = T(full ? '退出全屏' : '全屏');
     if (el.oLang) el.oLang.textContent = EN() ? '中文' : 'English';
+    if (el.oQ) { const q = T(Quality.label()); if (el.oQ.textContent !== q) el.oQ.textContent = q; el.oQ.classList.toggle('on', Quality.pick !== 'auto'); }
     paintVariants();
   }
   // the language changed (the menu's own switch): the page's fixed words are I18N's; everything written from here is written again

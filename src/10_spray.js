@@ -132,7 +132,7 @@ const Spray = (() => {
     return [lerp(0.62, 1.12, s), lerp(0.62, 1.4, s)];
   };
   let gfx, puffBuf, grainBuf, puffCPU, grainCPU, pipePuff, pipePuffSun, pipeComp, pipeGrain, accTex, accT, sunTex, sunT, hw = 0, hh = 0;
-  let ph = 0, gh = 0;                                    // ring heads
+  let ph = 0, gh = 0, liveP = null, liveG = null;                                   // ring heads
   const dirtyP = [], dirtyG = [];                        // [first, count] ranges written since the last upload
   let accP = 0, accG = 0;
   const rnd = RNG(977);
@@ -155,7 +155,7 @@ const Spray = (() => {
   P.init = function (g) {
     gfx = g;
     puffCPU = new Float32Array(P.NP * P.PF); grainCPU = new Float32Array(P.NG * P.GF);
-    puffBuf = gfx.buffer(puffCPU, 'vertex', true); grainBuf = gfx.buffer(grainCPU, 'vertex', true);
+    puffBuf = gfx.buffer(puffCPU, 'vertex', true); grainBuf = gfx.buffer(grainCPU, 'vertex', true); liveP = LiveRing(P.NP, P.PF); liveG = LiveRing(P.NG, P.GF);
     pipePuff = gfx.pipeline({
       name: 'sprayPuff', lib: [SL.common, SL.depth, SL.shadow, SL.sprayTau, GROUND_SSL, FLIGHT_SSL, PUFF_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'add4',
       buffers: [{ instanced: true, attrs: [['a0', 'vec4f'], ['a1', 'vec4f'], ['a2', 'vec4f'], ['a3', 'vec4f']] }],
@@ -211,7 +211,7 @@ const Spray = (() => {
     c[i + 4] = vx; c[i + 5] = vy; c[i + 6] = vz; c[i + 7] = u;
     c[i + 8] = LO || lerp(brake || 1.0, 6.0, Math.pow(1 - f, 2.5)); c[i + 9] = vsO || 0.28 + 6.9 * Math.pow(1 - f, 2.6); c[i + 10] = lerp(0.8, 3.3, f) * (0.75 + 0.5 * rnd()) * (lifeK || 1); c[i + 11] = r0;
     c[i + 12] = lerp(0.07, 0.30, f) * (0.7 + 0.6 * rnd()) * (gK || 1); c[i + 13] = dens; c[i + 14] = f; c[i + 15] = stretch;
-    mark(dirtyP, ph); ph = (ph + 1) % P.NP; P.stats.puffs++;
+    mark(dirtyP, ph); ph = (ph + 1) % P.NP; liveP.put(); P.stats.puffs++;
   };
   // a breath in cold air (the skier waiting at the top of the run): a little vapour pushed out a hand's breadth from the mouth. It does not fall: it
   // swells, rises a little, goes off with the wind and is gone within a second. p, v: world space; dens: its optical depth as it leaves the mouth
@@ -219,7 +219,7 @@ const Spray = (() => {
     const o = Render.origin, i = ph * P.PF, c = puffCPU;
     c[i] = p[0] - o[0]; c[i + 1] = p[1] - o[1]; c[i + 2] = p[2] - o[2]; c[i + 3] = t0; c[i + 4] = v[0]; c[i + 5] = v[1]; c[i + 6] = v[2]; c[i + 7] = rnd();
     c[i + 8] = 0.30; c[i + 9] = -0.25; c[i + 10] = 0.8 + 0.3 * rnd(); c[i + 11] = 0.06; c[i + 12] = 0.16 + 0.04 * rnd(); c[i + 13] = dens; c[i + 14] = 0.6; c[i + 15] = 1;
-    mark(dirtyP, ph); ph = (ph + 1) % P.NP; P.stats.puffs++;
+    mark(dirtyP, ph); ph = (ph + 1) % P.NP; liveP.put(); P.stats.puffs++;
   };
   // one crystal or crumb. f: 0 a crumb the size of a hazelnut (flies an arc, down in half a second) .. 1 a flake (rides the air of the sheet, sifts down)
   P.grain = function (t0, px, py, pz, vx, vy, vz, f, power, lifeK, brake) {
@@ -227,7 +227,7 @@ const Spray = (() => {
     c[i] = px - o[0]; c[i + 1] = py - o[1]; c[i + 2] = pz - o[2]; c[i + 3] = t0;
     c[i + 4] = vx; c[i + 5] = vy; c[i + 6] = vz; c[i + 7] = rnd();
     c[i + 8] = lerp(brake || 1.2, 8.0, (1 - f) * (1 - f)); c[i + 9] = 0.45 + 8.5 * Math.pow(1 - f, 2.2); c[i + 10] = lerp(0.9, 4.2, f) * (0.7 + 0.6 * rnd()) * (lifeK || 1); c[i + 11] = power;
-    mark(dirtyG, gh); gh = (gh + 1) % P.NG; P.stats.grains++;
+    mark(dirtyG, gh); gh = (gh + 1) % P.NG; liveG.put(); P.stats.grains++;
   };
   function upload(buf, cpu, list, stride) {
     for (const [first, count] of list) gfx.updateBuffer(buf, first * stride * 4, cpu.subarray(first * stride, (first + count) * stride));
@@ -238,7 +238,7 @@ const Spray = (() => {
     for (let i = 0; i < P.NG; i++) { const o = i * P.GF; grainCPU[o] -= d[0]; grainCPU[o + 1] -= d[1]; grainCPU[o + 2] -= d[2]; }
     dirtyP.length = 0; dirtyG.length = 0; dirtyP.push([0, P.NP]); dirtyG.push([0, P.NG]);
   };
-  P.clear = function () { puffCPU.fill(0); grainCPU.fill(0); dirtyP.length = 0; dirtyG.length = 0; dirtyP.push([0, P.NP]); dirtyG.push([0, P.NG]); };
+  P.clear = function () { puffCPU.fill(0); grainCPU.fill(0); dirtyP.length = 0; dirtyG.length = 0; dirtyP.push([0, P.NP]); dirtyG.push([0, P.NG]); liveP.clear(); liveG.clear(); };
 
   // ---- emission: called once per physics substep (120 Hz) so trails stay continuous at any frame rate
   P.intensity = 0;
@@ -527,11 +527,12 @@ const Spray = (() => {
   // before the scene: the snow cloud as the sun sees it (the slope, the skier and the cloud itself all read it)
   P.pre = function (R) {
     upload(puffBuf, puffCPU, dirtyP, P.PF); upload(grainBuf, grainCPU, dirtyG, P.GF);
+    liveP.trim(puffCPU, ph, R.time); liveG.trim(grainCPU, gh, R.time); P.stats.live = liveP.n; P.stats.liveG = liveG.n;
     const hb = Terrain.heightBinding(R.origin, 1); P.hb = hb;
     gfx.beginPass(sunT, { color: [0, 0, 0, 0] });
     // night: 0 by day, at golden hour and at dusk (they keep the look they had), 1 once the sun is well under (see the end of SPRAY_COMP_FS)
     P.nt = P.night != null ? P.night : smooth(-0.07, -0.16, Sky.sunElev);
-    if (P.enabled && P.shadows) gfx.draw(pipePuffSun, { u: { hx: hb.xf, sn: [(1 - 0.6 * P.nt) * P.shadowK, 0, 0, 0], lf: liftU() }, tex: { tH: hb.tex }, vb: [puffBuf], count: 4, instances: P.NP });
+    if (P.enabled && P.shadows) { const d = { u: { hx: hb.xf, sn: [(1 - 0.6 * P.nt) * P.shadowK, 0, 0, 0], lf: liftU() }, tex: { tH: hb.tex }, vb: [puffBuf], count: 4 }; liveP.spans(ph, (b, n) => { d.base = b; d.instances = n; gfx.draw(pipePuffSun, d); }); }
     gfx.endPass();
   };
   // (a phone draws the rim of the curtain with one noise instead of two: P.grainy off there and whenever the governor has had to shrink the picture)
@@ -539,7 +540,7 @@ const Spray = (() => {
   P.offscreen = function (R) {
     P.grainy = !touchSmall && !(Render.scale < 0.75);
     gfx.beginPass(accT, { color: [0, 0, 0, 0] });
-    if (P.enabled) gfx.draw(pipePuff, { u: { hx: P.hb.xf, hx2: [P.nearBlur, P.shutter && R.motionBlur !== false && R.dt > 0 ? Post.shutter / Math.max(R.dt, 1 / 240) : 0, P.streakMax, P.lens], fc: [P.face, P.grainy ? 1 : 0, 0, 0], lf: liftU() }, tex: { tH: P.hb.tex, tDepth: R.depth, tDetail: Tex.detail, tShadow: R.shadowTex, tSunTau: sunTex }, vb: [puffBuf], count: 4, instances: P.NP });
+    if (P.enabled) { const d = { u: { hx: P.hb.xf, hx2: [P.nearBlur, P.shutter && R.motionBlur !== false && R.dt > 0 ? Post.shutter / Math.max(R.dt, 1 / 240) : 0, P.streakMax, P.lens], fc: [P.face, P.grainy ? 1 : 0, 0, 0], lf: liftU() }, tex: { tH: P.hb.tex, tDepth: R.depth, tDetail: Tex.detail, tShadow: R.shadowTex, tSunTau: sunTex }, vb: [puffBuf], count: 4 }; liveP.spans(ph, (b, n) => { d.base = b; d.instances = n; gfx.draw(pipePuff, d); }); }
     gfx.endPass();
   };
   P.fx = function (R) {
@@ -549,7 +550,7 @@ const Spray = (() => {
     // (the owner's choice between the two nights is eased, not switched)
     { const want = typeof Variants !== 'undefined' && Variants.val.nspray === 'b' ? 1 : 0; P.moonMix = R.dt > 0 ? damp(P.moonMix, want, 6, R.dt) : want; }
     gfx.draw(pipeComp, { u: { p: [hw, hh, P.bump, P.tear], q: [wr(o[0], 3.1), wr(o[1], 3.1), wr(o[2], 3.1), P.speck], r: [P.keyhole, nt, P.moonMix, 0], c: [Math.sin(az), -Math.cos(az), 0, 0] }, tex: { tSpray: accTex, tDepth: R.depth, tNoise: Tex.noise }, count: 3 });
-    gfx.draw(pipeGrain, { u: { hx: P.hb.xf, gp: [P.crumb, P.grainShutter, nt, P.moonMix] }, tex: { tH: P.hb.tex, tDepth: R.depth, tShadow: R.shadowTex, tSunTau: sunTex }, vb: [grainBuf], count: 4, instances: P.NG });
+    { const d = { u: { hx: P.hb.xf, gp: [P.crumb, P.grainShutter, nt, P.moonMix] }, tex: { tH: P.hb.tex, tDepth: R.depth, tShadow: R.shadowTex, tSunTau: sunTex }, vb: [grainBuf], count: 4 }; liveG.spans(gh, (b, n) => { d.base = b; d.instances = n; gfx.draw(pipeGrain, d); }); }
   };
   return P;
 })();
