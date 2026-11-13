@@ -24,7 +24,7 @@ const Input = (() => {
     el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
     addEventListener('blur', () => { I.keys = {}; I.drag = null; });
     // where the browser hands out tilt without asking (Android), listen from the start: the title page can then tell which way up it is held
-    try { if (typeof DeviceOrientationEvent !== 'undefined' && !DeviceOrientationEvent.requestPermission) { addEventListener('deviceorientation', I.onOrient); I.listening = true; } } catch (e) { }
+    /*web{*/ try { if (typeof DeviceOrientationEvent !== 'undefined' && !DeviceOrientationEvent.requestPermission) { addEventListener('deviceorientation', I.onOrient); I.listening = true; } } catch (e) { } /*}web*/
   };
   // sideways component of gravity in screen space: the same number whether the phone is held upright like a wheel or flat like a tray
   I.onOrient = function (e) {
@@ -36,13 +36,15 @@ const Input = (() => {
     if (I.zeroPending) { I.zero = clamp(I.gx, -0.3, 0.3); I.zeroPending = false; }       // however the phone is held as the run starts is 'straight ahead'
     I.tiltSeen = performance.now(); I.tiltOK = true;
   };
-  // must be called from a tap (iOS asks for permission); resolves true if motion events may arrive
+  // must be called from a tap (iOS asks for permission); resolves true if motion events may arrive.
+  // (/*web{*/ … /*}web*/ is left out of the 小红书 小工具 build, where device orientation is switched off and the finger steers: tools/build-xhs.js)
   I.requestTilt = async function () {
-    try {
+    /*web{*/ try {
       if (typeof DeviceOrientationEvent === 'undefined') return false;
       if (DeviceOrientationEvent.requestPermission) { const r = await DeviceOrientationEvent.requestPermission(); if (r !== 'granted') return false; }
       if (!I.listening) { addEventListener('deviceorientation', I.onOrient); I.listening = true; } return true;
-    } catch (e) { return false; }
+    } catch (e) { return false; } /*}web*/
+    return false;
   };
   I.tiltLive = () => I.tiltOK && performance.now() - I.tiltSeen < 600;
   I.update = function (dt) {

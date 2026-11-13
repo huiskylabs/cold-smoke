@@ -8,7 +8,7 @@ async function boot(stage) {
   const manual = QS.has('manual'), step = async (f, name) => { if (stage) stage(f, name); if (!manual) await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); };
   const canvas = document.getElementById('view');
   await step(0.03, '醒来');
-  let gfx = null; const want = QS.get('backend');
+  let gfx = null; const want = QS.get('backend') || (gpuFellBack() ? 'webgl2' : null);
   if (want !== 'webgl2') { try { gfx = await createGPU(canvas, { offscreen: QS.has('offscreen') }); } catch (e) { console.warn('WebGPU init failed', e); gfx = null; } }
   if (!gfx) gfx = createGL(canvas);
   if (!gfx) throw new Error('这台设备的浏览器不支持 WebGL2，画面无法启动。');
@@ -129,9 +129,9 @@ function loop(now) {
   try { tick(dt * App.resumeK, true); UI.frame(dt); govern(now, raw); } catch (e) { App.ready = false; reportError(e); }
 }
 function fit() {
-  View.measure(); let k = Math.min(devicePixelRatio || 1, 2) * Render.scale;
+  const PL = self.COLD_SMOKE || {}; View.measure(); let k = Math.min(devicePixelRatio || 1, PL.maxDpr || 2) * Render.scale;
   // a very large display is drawn at no more than about 2400 x 1400 and stretched: past that the extra pixels cost far more than they show
-  const px = View.w * View.h * k * k, cap = +QS.get('maxpx') || 3.4e6; if (px > cap) k *= Math.sqrt(cap / px);
+  const px = View.w * View.h * k * k, cap = +QS.get('maxpx') || PL.maxPx || 3.4e6; if (px > cap) k *= Math.sqrt(cap / px);
   const w = +QS.get('w') || Math.round(View.w * k), h = +QS.get('h') || Math.round(View.h * k);
   Render.resize(Math.max(64, w), Math.max(64, h));
 }
@@ -148,6 +148,17 @@ function govern(now, raw) {
   else if (Gov.fast >= 12 && Render.scale < 1 && Gov.downs < 5 && now - Gov.last > 20000) { Render.scale = Math.min(1, Render.scale * 1.08); Gov.fast = 0; Gov.last = now; fit(); }
 }
 App.gov = Gov;
+// If WebGPU starts but the game cannot be built on it (a stricter shader compiler than the ones it was tested on, say), start again on WebGL2
+// rather than leave an error on a black page. Once per visit: the choice is kept for the tab, and in the address.
+function gpuFellBack() { try { return sessionStorage.getItem('cs-backend') === 'webgl2'; } catch (e) { return false; } }
+function retryOnWebGL2(e) {
+  if (!App.gfx || App.gfx.caps.backend !== 'webgpu' || QS.get('backend') || gpuFellBack()) return false;
+  console.warn('WebGPU could not build the game, starting again on WebGL2', e);
+  try { sessionStorage.setItem('cs-backend', 'webgl2'); } catch (x) { }
+  const q = new URLSearchParams(location.search); q.set('backend', 'webgl2');
+  try { location.replace(location.pathname + '?' + q + location.hash); } catch (x) { location.reload(); }
+  return true;
+}
 function reportError(e) {
   console.error(e && e.message ? e.message : e); if (e && e.vs) console.log(e.vs.slice(0, 20000)); if (e && e.fs) console.log(e.fs.slice(0, 20000));
   const el = document.getElementById('fatal'); if (el) { el.hidden = false; el.textContent = I18N.t(String(e && e.message ? e.message : e)); }
@@ -274,5 +285,5 @@ addEventListener('resize', () => App.redraw());
 if (QS.has('manual') && !QS.has('ui')) document.getElementById('app').classList.add('bare');
 else {
   UI.init();
-  boot(UI.stage).then(() => { UI.ready(); lastT = performance.now(); requestAnimationFrame(loop); if (QS.has('autostart')) UI.go(); }).catch(reportError);
+  boot(UI.stage).then(() => { UI.ready(); lastT = performance.now(); requestAnimationFrame(loop); if (QS.has('autostart')) UI.go(); }).catch(e => { if (!retryOnWebGL2(e)) reportError(e); });
 }
