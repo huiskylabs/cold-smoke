@@ -18,7 +18,9 @@ const SEG_KEYS = ['slope', 'hw', 'dish', 'shoulder', 'gul', 'gw', 'gAmp', 'rollA
 const SEG_NAMES = { bowl: '开阔大坡', steeps: '陡坡', glade: '树林', rollers: '起伏', gully: '雪槽', kickers: '跳台', powder: '深粉雪', ridge: '山脊', moguls: '蘑菇' };
 // how fast each kind of run is covered (metres of mountain per second, measured with the test pilot, who weaves): its length is set so
 // that it lasts about half a minute
-const SEG_PACE = { bowl: 19.6, steeps: 29.3, glade: 13.2, rollers: 14.3, gully: 15.4, kickers: 17.8, powder: 14.5, ridge: 21.7, moguls: 16.0 };
+// (re-measured for the feel the owner chose, 2026-11-13 (Variants 'feel' b: deep powder drags, a hard turn at speed washes out): the
+// pilot's speed on two fixed mountains, scaled from the old figures by b over a)
+const SEG_PACE = { bowl: 18.7, steeps: 28.6, glade: 11.6, rollers: 14.1, gully: 14.6, kickers: 17.0, powder: 10.8, ridge: 21.2, moguls: 15.3 };
 const HREF_SLOPE = 0.36;        // reference plane removed from heights before they go into float textures
 const TREE_CELL = 4.5;
 

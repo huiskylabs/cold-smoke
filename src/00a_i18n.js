@@ -70,6 +70,7 @@ const I18N = (() => {
     '斑块': 'Patches', '岩带': 'Bands', '多岩': 'Rocky', '月牙': 'Crescent', '盈凸': 'Gibbous', '阵雪': 'Showers', '暴风雪': 'Blizzard', '风旗云杉': 'Flag spruce',
     '宽旗': 'Wide flags', '羽毛旗': 'Feather flags', '浅': 'Shallow', '适中': 'Medium', '深': 'Deep', '大一点': 'Louder', '更大': 'Loudest',
     '按半秒就搓': 'Skid after ½ s', '按两秒才搓': 'Skid after 2 s', '横过来才搓': 'Side-on only',
+    '滑行手感': 'Ski feel',
   };
   const KEY = 'coldsmoke.lang';
   const L = { EN, lang: 'zh', subs: [] };
