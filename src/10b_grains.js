@@ -214,7 +214,7 @@ const Grains = (() => {
   const GNK = { a: 0, b: 1, c: 1.8 }, gritN = () => typeof Variants !== 'undefined' ? GNK[Variants.val.sparkle] ?? 1 : 1;
   const sparkK = () => typeof Variants !== 'undefined' ? SPK[Variants.val.sparkle] ?? 1 : 1;
   const clumpK = () => typeof Variants !== 'undefined' ? CLK[Variants.val.clumps] ?? 1 : 1;
-  let gfx, cBuf, kBuf, cCPU, kCPU, pipeC, pipeK, ch = 0, kh = 0, poolK = 1;
+  let gfx, cBuf, kBuf, cCPU, kCPU, pipeC, pipeK, ch = 0, kh = 0, poolK = 1, liveC = null, liveK = null;
   const dirtyC = [], dirtyK = [];
   const org = [0, 0, 0];
   const rnd = RNG(4211);
@@ -227,7 +227,7 @@ const Grains = (() => {
     G.NC = q > 0 ? Math.round(q) : hand || (navigator.deviceMemory || 8) < 4 ? 20480 : 49152;
     poolK = G.NC / 49152;
     cCPU = new Float32Array(G.NC * G.CF); kCPU = new Float32Array(G.NK * G.KF);
-    cBuf = gfx.buffer(cCPU, 'vertex', true); kBuf = gfx.buffer(kCPU, 'vertex', true);
+    cBuf = gfx.buffer(cCPU, 'vertex', true); kBuf = gfx.buffer(kCPU, 'vertex', true); liveC = LiveRing(G.NC, G.CF); liveK = LiveRing(G.NK, G.KF);
     pipeC = gfx.pipeline({
       name: 'grainCrystal', lib: [SL.common, SL.hash, SL.depth, SL.shadow, SL.sprayTau, GROUND_SSL, FLIGHT_SSL, GLINT_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'add',
       buffers: [{ instanced: true, attrs: [['a0', 'vec4f'], ['a1', 'vec4f'], ['a2', 'vec4f']] }],
@@ -263,7 +263,7 @@ const Grains = (() => {
     for (const [first, count] of list) gfx.updateBuffer(buf, first * stride * 4, cpu.subarray(first * stride, (first + count) * stride));
     list.length = 0;
   }
-  G.clear = function () { if (!cCPU) return; cCPU.fill(0); kCPU.fill(0); impacts.length = 0; dirtyC.length = 0; dirtyK.length = 0; dirtyC.push([0, G.NC]); dirtyK.push([0, G.NK]); };
+  G.clear = function () { if (!cCPU) return; cCPU.fill(0); kCPU.fill(0); impacts.length = 0; dirtyC.length = 0; dirtyK.length = 0; dirtyC.push([0, G.NC]); dirtyK.push([0, G.NK]); liveC.clear(); liveK.clear(); };
 
   // one crystal: world position and velocity; brake = how far the air lets its throw carry (m), vs = the speed it settles at, life (s), light
   function crystal(t0, x, y, z, vx, vy, vz, brake, vs, life, power) {
@@ -271,7 +271,7 @@ const Grains = (() => {
     c[i] = x - org[0]; c[i + 1] = y - org[1]; c[i + 2] = z - org[2]; c[i + 3] = t0;
     c[i + 4] = vx; c[i + 5] = vy; c[i + 6] = vz; c[i + 7] = rnd();
     c[i + 8] = brake; c[i + 9] = vs; c[i + 10] = life; c[i + 11] = power;
-    mark(dirtyC, ch); ch = (ch + 1) % G.NC; G.stats.crystals++;
+    mark(dirtyC, ch); ch = (ch + 1) % G.NC; liveC.put(); G.stats.crystals++;
   }
   // Grains.crystals(t, p, v, n, opts): n crystals thrown from about p (world) at about v. opts: spread (m/s of scatter, 0.6), r (m round p, 0.1),
   // life (s, 3), brake (m, 1.6), vs ([slowest, fastest] settling speed, [0.3, 1.0]), power (1). n is the realistic count: the owner's choice
@@ -280,12 +280,12 @@ const Grains = (() => {
     if (!cCPU || !G.enabled) return 0;
     sync();
     const o = opts || {}, sp = o.spread != null ? o.spread : 0.6, r = o.r != null ? o.r : 0.1, life = o.life || 3, brake = o.brake || 1.6, vs = o.vs || [0.3, 1.0], pw = o.power || 1;
-    let m = n * sparkK() * poolK; const whole = Math.floor(m); m = whole + (rnd() < m - whole ? 1 : 0);
+    const qk = Quality.L.glitter; let m = n * sparkK() * poolK * qk; const whole = Math.floor(m); m = whole + (rnd() < m - whole ? 1 : 0);
     for (let k = 0; k < m; k++) {
       const a = rnd() * TAU, b = rnd() * 2 - 1, s = Math.sqrt(1 - b * b), rr = r * Math.cbrt(rnd()), g = 0.65 + 0.7 * rnd();
       const jx = Math.cos(a) * s, jy = b, jz = Math.sin(a) * s, js = sp * Math.sqrt(rnd());
       crystal(t + (o.dt || 0) * rnd(), p[0] + jx * rr, p[1] + jy * rr, p[2] + jz * rr, v[0] * g + jx * js, v[1] * g + jy * js, v[2] * g + jz * js,
-        brake * (0.6 + 0.8 * rnd()), lerp(vs[0], vs[1], Math.pow(rnd(), 1.5)), life * (0.6 + 0.8 * rnd()), pw * (0.5 + rnd()) / Math.sqrt(poolK));
+        brake * (0.6 + 0.8 * rnd()), lerp(vs[0], vs[1], Math.pow(rnd(), 1.5)), life * (0.6 + 0.8 * rnd()), pw * (0.5 + rnd()) / Math.sqrt(poolK * qk));
     }
     return m;
   };
@@ -324,7 +324,7 @@ const Grains = (() => {
     c[i + 4] = v[0]; c[i + 5] = v[1]; c[i + 6] = v[2]; c[i + 7] = rnd();
     c[i + 8] = tau; c[i + 9] = vt; c[i + 10] = T; c[i + 11] = size;
     c[i + 12] = vT[0]; c[i + 13] = vT[2]; c[i + 14] = (rnd() < 0.5 ? -1 : 1) * (3 + 12 * rnd()); c[i + 15] = 0;
-    mark(dirtyK, kh); kh = (kh + 1) % G.NK; G.stats.clumps++;
+    mark(dirtyK, kh); kh = (kh + 1) % G.NK; liveK.put(); G.stats.clumps++;
     const ip = kpos([0, 0, 0], p, v, vT, tau, T), ex = Math.exp(-T / tau), vi = [(v[0] - vT[0]) * ex + vT[0], (v[1] - vT[1]) * ex + vT[1], (v[2] - vT[2]) * ex + vT[2]];
     const pow = o.powder || 0, S = typeof Spray !== 'undefined' && Spray.puff ? Spray : null;
     // it sheds as it goes: a wisp or two of smoke left hanging along its arc, and a crumb or two that glitter down after it
@@ -479,14 +479,15 @@ const Grains = (() => {
     if (!G.enabled || !pipeC) return;
     sync();
     upload(cBuf, cCPU, dirtyC, G.CF); upload(kBuf, kCPU, dirtyK, G.KF);
+    liveC.trim(cCPU, ch, R.time); liveK.trim(kCPU, kh, R.time); G.stats.live = liveC.n; G.stats.liveK = liveK.n;
     const occ = Post.occTex; if (!occ) return;
     const hb = Spray.hb || Terrain.heightBinding(R.origin, 1), ow = Math.max(1, Render.W >> 1) - 1, oh = Math.max(1, Render.H >> 1) - 1;
     // by night the moon's flashes are few and faint: the lamp's carry it (Spray.nt: 0 by day, at golden hour and dusk; 1 in the night proper)
     const nt = Spray.nt || 0, wk = typeof Weather !== 'undefined' ? Weather.k || 0 : 0;
     // (under the snow cloud of heavy weather the light is spread: even in a break the sun is through haze, and the glitter goes with it)
     const sunK = (1 - 0.97 * nt) * (1 - 0.6 * wk);
-    if (sparkK() > 0) gfx.draw(pipeC, { u: { hx: hb.xf, cp: [G.flashP, G.flashK, sunK, G.shutK], cq: [ow, oh, G.glowK, G.lampK], cr: [G.occK, G.gritK * (GRK[typeof Variants !== 'undefined' ? Variants.val.sparkle : 'b'] ?? 1), G.rmin * Math.max(1, Render.H / 1170), 0] }, tex: { tH: hb.tex, tDepth: R.depth, tShadow: R.shadowTex, tSunTau: Spray.sunTex, tOcc: occ }, vb: [cBuf], count: 4, instances: G.NC });
-    gfx.draw(pipeK, { u: { kp: [G.clumpShut, 0, 1, nt], kq: [ow, oh, 0, 0] }, tex: { tDepth: R.depth, tShadow: R.shadowTex, tSunTau: Spray.sunTex, tOcc: occ }, vb: [kBuf], count: 4, instances: G.NK });
+    if (sparkK() > 0) { const d = { u: { hx: hb.xf, cp: [G.flashP, G.flashK, sunK, G.shutK], cq: [ow, oh, G.glowK, G.lampK], cr: [G.occK, G.gritK * (GRK[typeof Variants !== 'undefined' ? Variants.val.sparkle : 'b'] ?? 1), G.rmin * Math.max(1, Render.H / 1170), 0] }, tex: { tH: hb.tex, tDepth: R.depth, tShadow: R.shadowTex, tSunTau: Spray.sunTex, tOcc: occ }, vb: [cBuf], count: 4 }; liveC.spans(ch, (b, n) => { d.base = b; d.instances = n; gfx.draw(pipeC, d); }); }
+    { const d = { u: { kp: [G.clumpShut, 0, 1, nt], kq: [ow, oh, 0, 0] }, tex: { tDepth: R.depth, tShadow: R.shadowTex, tSunTau: Spray.sunTex, tOcc: occ }, vb: [kBuf], count: 4 }; liveK.spans(kh, (b, n) => { d.base = b; d.instances = n; gfx.draw(pipeK, d); }); }
   };
   return G;
 })();

@@ -11,6 +11,12 @@ const Render = (() => {
     gfx = g; canvas = cv; R.gfx = g;
     smap = gfx.texture({ w: R.shadowRes, h: R.shadowRes, format: 'depth', filter: 'linear', compare: true }); shadowT = gfx.target({ depth: smap }); R.shadowTex = smap;
   };
+  // a different shadow map (Quality: 2048 texels across, fewer on a weaker phone). The shaders read its size, so only the map changes
+  R.setShadowRes = function (n) {
+    if (!gfx || n === R.shadowRes) { R.shadowRes = n; return; }
+    gfx.destroyTarget(shadowT); gfx.destroyTexture(smap); R.shadowRes = n;
+    smap = gfx.texture({ w: n, h: n, format: 'depth', filter: 'linear', compare: true }); shadowT = gfx.target({ depth: smap }); R.shadowTex = smap;
+  };
   R.resize = function (w, h) {
     if (w === R.W && h === R.H) return;
     if (scene) { gfx.destroyTarget(scene); gfx.destroyTarget(R.hdrOnly); gfx.destroyTarget(R.hdrOnlyB); gfx.destroyTexture(hdr); gfx.destroyTexture(hdrB); gfx.destroyTexture(depth); }

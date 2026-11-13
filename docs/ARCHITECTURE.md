@@ -5,6 +5,7 @@
 ## Scope
 
 The game is landscape only. The first target is a browser window on a computer (keyboard and mouse), the second a phone held in landscape. A phone held upright gets the picture turned a quarter turn. WebGPU is the main renderer; WebGL2 is an automatic fallback.
+Mid-range phones are looked after by the Quality levels below.
 
 ## Build
 
@@ -41,6 +42,13 @@ The game also ships as a 小红书 小工具 (创作服务平台 → Builder Hub
 - The official checks come from the 小红书 Skill `minitool-zip-builder` (the link is on the upload page). Its audit is `node <skill>/scripts/audit_artifact.mjs dist-xhs`.
 - The three faces are kept in `xhs/fonts/`: Jost, Cormorant Garamond, and Noto Serif SC cut to the characters the page asks for, all under the SIL OFL. `node tools/fetch-xhs-fonts.js` fetches them again, for example after the title's characters change.
 - Known gaps against the Skill: there is no WebGL1 renderer, so without WebGL2 the page shows its one-line message. Flex `gap` (spacing only) has no margin fallback for WebViews older than Chrome 84.
+
+## Quality (mid-range phones)
+
+- Particles: spray, glitter and clumps are written into fixed rings, and only the run of each ring still alive is drawn (`LiveRing` in `00_util.js`; `gfx.draw` takes `base`, the first instance). Before this every slot of every ring was drawn every frame, mostly dead quads. The picture is unchanged (frames compare pixel for pixel on both backends).
+- `00c_quality.js`: three levels, 高 / 均衡 / 流畅. 高 is the game as designed. 均衡 draws at most 1.25 device pixels per CSS pixel, a 1536 shadow map, three quarters of the fine snow in the air and 70 % of the glitter; 流畅 1.0 dpr, a 1024 shadow map, no motion blur, half the snow in the air, 45 % of the glitter, the far trees to 380 m and one bloom level fewer.
+- A computer starts at 高. A phone's first level is guessed from the GPU's name (Adreno, Mali, PowerVR…; `Quality.classify`). When the frame rate cannot be held, the governor in `99_main.js` first draws smaller (to 75 %), then steps down a level and remembers it (`cs.q.auto`; inside 小红书 also in the container's storage), so next time the phone starts there. After a full minute with room to spare it may step back up once.
+- Settings has a 画质 / Quality chip: 自动 / 高 / 均衡 / 流畅 (`cs.q.pick`). `?quality=0|1|2` forces a level for tests.
 
 ## Look and feel choices (read before changing the look)
 

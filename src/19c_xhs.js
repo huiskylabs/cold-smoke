@@ -21,7 +21,7 @@ const XHS = self.XHS = (() => {
 
   // ---- settings kept in the container's storage: one JSON object of the same keys the page keeps in localStorage
   const prefs = {}; let dirty = 0, saveT = null;
-  const OURS = k => /^cs\.v\./.test(k) || k === 'coldsmoke.lang';
+  const OURS = k => /^cs\.v\./.test(k) || /^cs\.q\./.test(k) || k === 'coldsmoke.lang';
   function put(k, v) { if (prefs[k] === v) return; prefs[k] = v; try { localStorage.setItem(k, v); } catch (e) { } dirty++; if (!saveT) saveT = setTimeout(save, 1500); }
   function save() {
     saveT = null; if (!dirty || !has('setStorage')) return; dirty = 0;
@@ -43,6 +43,7 @@ const XHS = self.XHS = (() => {
       } catch (e) { console.warn('prefs not read', e && e.errMsg); }
     }
     Variants.on((n, id, first) => { if (!first) put('cs.v.' + n, id); });
+    Quality.keep = (k, v) => put(k, v);                                  // (the picked or learned Quality level, 00c_quality.js)
     I18N.on(l => put('coldsmoke.lang', l));
     document.addEventListener('visibilitychange', () => { if (document.hidden && saveT) { clearTimeout(saveT); save(); } });
   };

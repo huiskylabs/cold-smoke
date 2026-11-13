@@ -65,7 +65,7 @@ const I18N = (() => {
     '静音 · 全屏': 'Mute · full screen', '菜单 · 这一页 · 版本对比': 'Menu · this page · versions',
     '按住拖动': 'Hold & drag', '左右拖动转弯，拖过刻度就切雪': 'Drag left or right to turn, past the mark to carve', '按住蓄力，松开起跳': 'Hold to load up, let go to fly',
     '按住压低，慢的时候自动撑杖': 'Hold to tuck; poles by itself when slow', '机位': 'Camera', '两指拖动': 'Two-finger drag', 'Shift + 字母 往回切换。': 'Shift + the letter steps back.',
-    '声音 开': 'Sound on', '声音 关': 'Sound off', '语言': 'Language',
+    '声音 开': 'Sound on', '声音 关': 'Sound off', '画质 自动': 'Quality: auto', '画质 高': 'Quality: high', '画质 均衡': 'Quality: balanced', '画质 流畅': 'Quality: smooth', '语言': 'Language',
     '给验收用，不是游戏的一部分 · 小圆点是推荐的版本': 'For review, not part of the game · the dot marks the recommended version', '恢复推荐': 'Reset to recommended', '推荐': 'Recommended',
     // ---- the versions page (Variants: the rows' names and their versions, as each module registers them)
     '镜头': 'Camera', '人物与动作': 'Skier & motion', '画面': 'Picture', '雪': 'Snow', '场景与天气': 'Scene & weather', '手感': 'Feel', '新加的': 'New',

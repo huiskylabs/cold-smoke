@@ -270,8 +270,18 @@ function createGL(canvas) {
           for (const a of b.attrs) { const n = SSL_SIZE[a[1]]; gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, n, gl.FLOAT, false, stride, off); if (b.instanced) gl.vertexAttribDivisor(loc, 1); off += n * 4; loc++; }
         });
         if (d.ib) gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, d.ib.gl);
-        vaos.set(key, vao);
+        vaos.set(key, vao); vao.base = 0;
       } else gl.bindVertexArray(vao);
+      // d.base: the first instance to read (WebGL2 has no first instance, so the instanced attributes are pointed that far into their buffers)
+      const base = d.base || 0;
+      if (vao.base !== base) {
+        vao.base = base; let loc = 0;
+        (desc.buffers || []).forEach((b, bi) => {
+          const stride = b.attrs.reduce((s, a) => s + SSL_SIZE[a[1]], 0) * 4; let off = b.instanced ? base * stride : 0;
+          if (b.instanced) gl.bindBuffer(gl.ARRAY_BUFFER, vb[bi].gl);
+          for (const a of b.attrs) { const n = SSL_SIZE[a[1]]; if (b.instanced) gl.vertexAttribPointer(loc, n, gl.FLOAT, false, stride, off); off += n * 4; loc++; }
+        });
+      }
       const mode = desc.topology === 'strip' ? gl.TRIANGLE_STRIP : desc.topology === 'lines' ? gl.LINES : gl.TRIANGLES, inst = d.instances == null ? 1 : d.instances;
       if (inst <= 0 || d.count <= 0) return;
       if (d.ib) gl.drawElementsInstanced(mode, d.count, gl.UNSIGNED_INT, (d.first || 0) * 4, inst); else gl.drawArraysInstanced(mode, d.first || 0, d.count, inst);
@@ -469,7 +479,7 @@ async function createGPU(canvas, opt = {}) {
       }
       pass.setBindGroup(2, tg);
       const vb = d.vb || []; for (let i = 0; i < vb.length; i++) pass.setVertexBuffer(i, vb[i].gpu);
-      if (d.ib) { pass.setIndexBuffer(d.ib.gpu, 'uint32'); pass.drawIndexed(d.count, inst, d.first || 0, 0, 0); } else pass.draw(d.count, inst, d.first || 0, 0);
+      if (d.ib) { pass.setIndexBuffer(d.ib.gpu, 'uint32'); pass.drawIndexed(d.count, inst, d.first || 0, 0, d.base || 0); } else pass.draw(d.count, inst, d.first || 0, d.base || 0);
     },
     endFrame() { device.queue.writeBuffer(arena, 0, arenaCPU.buffer, 0, Math.min(ARENA, Math.ceil(arenaOff * 4 / 4) * 4 + 256)); device.queue.submit([enc.finish()]); enc = null; for (const d of dead) d.destroy(); dead.length = 0; },
     resize() { texGroups.clear(); },

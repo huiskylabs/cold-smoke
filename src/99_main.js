@@ -9,6 +9,8 @@ async function boot(stage) {
   const canvas = document.getElementById('view');
   await step(0.03, '醒来');
   if (typeof XHS !== 'undefined') await XHS.restore();               // (inside 小红书: the player's settings from the container's own storage)
+  Quality.decide(); App.applyQuality(true);                             // how much this device is asked to draw (00c_quality.js)
+  if (DEV) console.log('quality', Quality.tier, Quality.why, Quality.gpu);
   let gfx = null; const want = QS.get('backend') || (gpuFellBack() ? 'webgl2' : null);
   if (want !== 'webgl2') { try { gfx = await createGPU(canvas, { offscreen: QS.has('offscreen') }); } catch (e) { console.warn('WebGPU init failed', e); gfx = null; } }
   if (!gfx) gfx = createGL(canvas);
@@ -130,24 +132,42 @@ function loop(now) {
   try { tick(dt * App.resumeK, true); UI.frame(dt); govern(now, raw); } catch (e) { App.ready = false; reportError(e); }
 }
 function fit() {
-  const PL = self.COLD_SMOKE || {}; View.measure(); let k = Math.min(devicePixelRatio || 1, PL.maxDpr || 2) * Render.scale;
+  const PL = self.COLD_SMOKE || {}, L = Quality.L; View.measure(); let k = Math.min(devicePixelRatio || 1, PL.maxDpr || 2, L.maxDpr) * Render.scale;
   // a very large display is drawn at no more than about 2400 x 1400 and stretched: past that the extra pixels cost far more than they show
-  const px = View.w * View.h * k * k, cap = +QS.get('maxpx') || PL.maxPx || 3.4e6; if (px > cap) k *= Math.sqrt(cap / px);
+  // (and a lower Quality level asks for fewer still)
+  const px = View.w * View.h * k * k, cap = +QS.get('maxpx') || Math.min(PL.maxPx || 3.4e6, L.maxPx); if (px > cap) k *= Math.sqrt(cap / px);
   const w = +QS.get('w') || Math.round(View.w * k), h = +QS.get('h') || Math.round(View.h * k);
   Render.resize(Math.max(64, w), Math.max(64, h));
 }
-// 60 frames a second come first. If this machine cannot hold them at full sharpness the picture is drawn a little smaller and stretched
-// (nothing is switched off), and it goes back up when there is room again
-const Gov = { on: QS.get('gov') !== '0' && !QS.get('w'), acc: 0, n: 0, slow: 0, fast: 0, last: 0, downs: 0, t0: 0 };
+// 60 frames a second come first. If this machine cannot hold them at full sharpness the picture is drawn a little smaller and stretched,
+// and it goes back up when there is room again. If even that is not enough, the Quality level steps down (00c_quality.js; only while it is
+// on 自动) and the picture starts again at full size for that level; after a long while with room to spare it may step back up, once
+const Gov = { on: QS.get('gov') !== '0' && !QS.get('w'), acc: 0, n: 0, slow: 0, fast: 0, last: 0, downs: 0, t0: 0, calm: 0 };
 function govern(now, raw) {
   if (!Gov.on || raw > 1) return;                                         // (a tab coming back to the front is not a slow frame)
   if (!Gov.t0) Gov.t0 = now; if (now - Gov.t0 < 3000) return;             // the first seconds are still compiling and warming up
   Gov.acc += raw; Gov.n++; if (Gov.acc < 1) return;
   const avg = Gov.acc / Gov.n; Gov.acc = 0; Gov.n = 0;
   if (avg > 1 / 50) { Gov.slow++; Gov.fast = 0; } else if (avg < 1 / 57) { Gov.fast++; Gov.slow = 0; } else { Gov.slow = 0; Gov.fast = 0; }
-  if (Gov.slow >= 2 && Render.scale > 0.6) { Render.scale = Math.max(0.6, Render.scale * (avg > 1 / 36 ? 0.8 : 0.9)); Gov.slow = 0; Gov.downs++; Gov.last = now; fit(); }
+  const floor = Quality.L.floor;
+  if (Gov.slow >= 2 && Render.scale > floor) { Render.scale = Math.max(floor, Render.scale * (avg > 1 / 36 ? 0.8 : 0.9)); Gov.slow = 0; Gov.downs++; Gov.last = now; fit(); }
+  else if (Gov.slow >= 2 && Quality.step(1)) { Render.scale = 1; Gov.slow = 0; Gov.fast = 0; Gov.downs = 0; Gov.calm = 0; Gov.last = now; App.applyQuality(); }
   else if (Gov.fast >= 12 && Render.scale < 1 && Gov.downs < 5 && now - Gov.last > 20000) { Render.scale = Math.min(1, Render.scale * 1.08); Gov.fast = 0; Gov.last = now; fit(); }
+  // (a level back up: a full minute at full size, every second of it with room to spare, and only once a visit)
+  if (avg < 1 / 57 && Render.scale >= 1) Gov.calm++; else Gov.calm = 0;
+  if (Gov.calm >= 60 && Quality.ups < 1 && Quality.tier > 0 && now - Gov.last > 60000 && Quality.step(-1)) { Gov.calm = 0; Gov.fast = 0; Gov.last = now; App.applyQuality(); }
 }
+// a Quality level into the modules that read it once (the rest read Quality.L as they draw). first: before anything is built
+App.applyQuality = function (first) {
+  const L = Quality.L;
+  Render.motionBlur = L.blur; Trees.far = L.far;
+  if (first) { Render.shadowRes = L.shadow; Post.bloomLevels = L.bloom; return; }
+  Render.setShadowRes(L.shadow);
+  if (Post.bloomLevels !== L.bloom) { Post.bloomLevels = L.bloom; if (Render.W) Post.resize(Render.W, Render.H); }
+  if (App.ready && !QS.get('w')) fit();
+  if (App.redraw) App.redraw();
+};
+Quality.on((t, from) => { if (from === 'pick') { Render.scale = 1; Gov.slow = Gov.fast = Gov.downs = Gov.calm = 0; } App.applyQuality(); });
 App.gov = Gov;
 // If WebGPU starts but the game cannot be built on it (a stricter shader compiler than the ones it was tested on, say), start again on WebGL2
 // rather than leave an error on a black page. Once per visit: the choice is kept for the tab, and in the address.
@@ -272,7 +292,7 @@ window.__ski = {
   // set the time of day: seconds into the 10-minute day, or a name (day, golden, sunset, dusk, night, dawn, sunrise)
   tod(t) { Sky.setClock(typeof t === 'string' ? Sky.times[t] : t); Sky.update(); Clouds.baked = false; Vista.shadowElev = -9; Vista.updateShadow(true); return +Sky.sunElev.toFixed(4); },
   game: () => Game, input: () => Input, app: () => App, ui: () => UI, i18n: () => I18N,
-  get m() { return { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Skier, Tex, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Atmo, Deer, View, Variants, Weather, Grains }; },
+  get m() { return { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Skier, Tex, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Atmo, Deer, View, Variants, Weather, Grains, Quality }; },
 };
 App.fit = fit;
 window.__ski.gates = Gates;

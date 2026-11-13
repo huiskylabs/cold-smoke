@@ -123,3 +123,29 @@ const View = (() => {
   };
   return V;
 })();
+
+// ---------------------------------------------------------------- the live part of a ring of particles
+// Spray and glitter are written into fixed rings in turn, and each record says when it was thrown (slot 3) and how long it lives (slot 10).
+// Most of a ring is long dead at any moment, yet every slot used to be drawn: a phone paid for tens of thousands of empty quads a frame.
+// A LiveRing counts the records written since the oldest one still alive, so only that run of the ring is drawn (one or two spans, as it wraps).
+// The look is the same: a record is only dropped once its own life is over.
+function LiveRing(N, stride) {
+  const L = { N, n: 0 };
+  L.put = () => { if (L.n < L.N) L.n++; };                       // after each record written
+  L.clear = () => { L.n = 0; };
+  // drop from the old end what has died by `now` (the time the shaders get, U.camPos.w); head = the next slot to be written
+  L.trim = function (cpu, head, now) {
+    while (L.n > 0) {
+      const o = (((head - L.n) % N + N) % N) * stride, t0 = cpu[o + 3];
+      if (now - t0 < cpu[o + 10] && t0 - now < 60) break;          // (still alive, or yet to be thrown; a record far in the future is a stale clock)
+      L.n--;
+    }
+  };
+  // f(first, count) for each span to draw
+  L.spans = function (head, f) {
+    const n = L.n; if (!n) return;
+    const s = ((head - n) % N + N) % N;
+    if (s + n <= N) f(s, n); else { f(s, N - s); f(0, n - (N - s)); }
+  };
+  return L;
+}
