@@ -211,7 +211,7 @@ const Sky = (() => {
   Variants.def('moon', '夜里的月亮', [['a', '月牙'], ['b', '盈凸']], 'b');
   // the aurora (AURORA_SSL below): on every clear night, or only now and then (a minute or two of it every few minutes), or never.
   // Its strength breathes slowly; the curtain drifts along the sky and its rays shimmer. How bright it is at all is S.auroraK
-  Variants.def('aurora', '极光', [['a', '每个晴夜'], ['b', '偶尔'], ['c', '关']], 'a');
+  Variants.def('aurora', '极光', [['a', '每个晴夜'], ['b', '偶尔'], ['c', '关']], 'b');
   S.auroraK = 0.35;
   S.aurora = function (t) {
     const v = Variants.val.aurora; if (v === 'c') return 0;
