@@ -71,6 +71,7 @@ const I18N = (() => {
     '宽旗': 'Wide flags', '羽毛旗': 'Feather flags', '浅': 'Shallow', '适中': 'Medium', '深': 'Deep', '大一点': 'Louder', '更大': 'Loudest',
     '按半秒就搓': 'Skid after ½ s', '按两秒才搓': 'Skid after 2 s', '横过来才搓': 'Side-on only',
     '滑行手感': 'Ski feel',
+    '身体动态': 'Body motion', '有惯性': 'With inertia',
   };
   const KEY = 'coldsmoke.lang';
   const L = { EN, lang: 'zh', subs: [] };
