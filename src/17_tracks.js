@@ -95,7 +95,10 @@ const Tracks = (() => {
     // (the pack gives the same under any load; it is the soft snow on it that gives more under more)
     const pdv = (VS && PDEPTH[VS.val.pdepth]) || PDEPTH.b, soft = pdv * pw * pw, deepT = smooth(0.11, 0.16, soft);
     // (skis that run fast in powder plane up in it, as a board does on water: at speed they ride at under half the depth they sink to slowly)
-    const sb = tl > 0.5 ? Math.abs(S.v[0] * rx + S.v[2] * rz) / tl : 0, vs = (VS ? VS.val.sink : 'b') + pdv, firm = SINK[VS ? VS.val.sink : 'b'] || SINK.b;
+    // (Variants 'snowr' b, part snr4: the snow under the skis, 04b_snow.js. Ice takes hardly a mark, wet snow the deepest, and the edges squeeze
+    // up a berm along each side by how the snow holds together. bermK goes to the stamp in its kind field, under 0.45: a ski stamp still)
+    const sk4 = typeof SnowLook !== 'undefined' ? SnowLook.trackK(px, pz) : null, bermK = sk4 ? 0.4 * clamp(sk4.berm, 0, 1) : 0;
+    const sb = tl > 0.5 ? Math.abs(S.v[0] * rx + S.v[2] * rz) / tl : 0, vs = (VS ? VS.val.sink : 'b') + pdv + (sk4 ? 'k' : ''), firm = (SINK[VS ? VS.val.sink : 'b'] || SINK.b) * (sk4 ? sk4.depth : 1);
     const Dt = (firm + soft * clamp(0.55 + 0.45 * (S.load || 9.8) / 9.8, 0.7, 1.4) * lerp(1, 0.45, smooth(6, 18, S.speed || 0))) * (1 + 0.15 * Math.abs(se)) * (1 - 0.4 * Math.min(1, sb / 0.5));
     // (another version chosen: the depth goes over to it in half a second even if the skier is standing, and skis that stand are pressed in afresh)
     if (vs !== vNow) { if (vNow !== null) vT = 40; vNow = vs; }
@@ -136,7 +139,7 @@ const Tracks = (() => {
       // (where the other ski's boot is, in this one's frame: to its right, toward its tip. Far away if that one is in the air)
       cpu[o + 8] = se; cpu[o + 9] = ot[3] ? ot[0] - fx : 99; cpu[o + 10] = T.D; cpu[o + 11] = lift;
       // (... how high that one rides; and the depth a ski scrapes to when it goes sideways, which hangs on the snow alone)
-      cpu[o + 12] = th; cpu[o + 13] = ot[3] ? ot[1] : 99; cpu[o + 14] = (firm + soft) * 0.6; cpu[o + 15] = 0;
+      cpu[o + 12] = th; cpu[o + 13] = ot[3] ? ot[1] : 99; cpu[o + 14] = (firm + soft) * 0.6; cpu[o + 15] = bermK;
       cpu[o + 16] = T.deep; cpu[o + 17] = ldr; cpu[o + 18] = pw; cpu[o + 19] = mar;
     }
     // riding in the snow: the furrow the two skis and the legs plough behind the boots (d.w = 2). One stamp a step from the point between
@@ -543,8 +546,10 @@ fn frag(v: VOut) -> FOut {
   let sg: f32 = select(-1.0, 1.0, q.x > c.x);
   let hi: f32 = max(0.0, -sg * sphi); let sk: f32 = min(1.0, max(0.0, sg * ldr) / 0.45); let tr: f32 = min(1.0, max(0.0, -sg * ldr) / 0.10);
   // (powder is pressed down more than it is squeezed out: a deep trench with a low wide swell beside it, not a roll)
-  let Hs: f32 = (D * mix(0.22, 0.10, pw) + D * 0.55 * hi * (1.0 - sk) + sk * (0.045 + 0.035 * pw)) * (1.0 - tr);
-  let Ws: f32 = max(mix(0.022 + 0.07 * pw, 0.085, hi) + 0.17 * sk, 2.0 * M.p.y);
+  // (bk, Variants 'snowr' b: the berm the edges squeeze up along the track, by the snow (kind field d.w, 0..0.4 on a ski's stamp))
+  let bk: f32 = select(0.0, v.d.w * 2.5, v.d.w < 0.45);
+  let Hs: f32 = (D * mix(0.22, 0.10, pw) + D * 0.55 * hi * (1.0 - sk) + sk * (0.045 + 0.035 * pw) + bk * (0.45 * D + 0.004)) * (1.0 - tr);
+  let Ws: f32 = max((mix(0.022 + 0.07 * pw, 0.085, hi) + 0.17 * sk) * (1.0 + 0.3 * bk), 2.0 * M.p.y);
   let so: f32 = max(sdu - softD, 0.0);
   let val: f32 = mix(Rq, Hs * sq(saturate(1.0 - so / Ws)) * (0.7 + 0.6 * lump.z), smoothstep(0.0, softD, sdu));
   // nothing is piled round a shovel that rides up over the snow (one running under it has a face of snow before the boot, and that is
