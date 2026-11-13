@@ -63,7 +63,26 @@ function defineGlobals(list) { GLOBALS.length = 0; GLOBALS_SIZE = 0; for (const 
 function numberLines(s) { return s.split('\n').map((l, i) => String(i + 1).padStart(4) + ' ' + l).join('\n'); }
 
 // Build both shader texts for a pipeline description.
+// smoothstep with its edges written high-to-low (a fade *out*, used all over the shaders) is undefined in GLSL and a hard error in WGSL when
+// the edges are constants: Safari's WebGPU refuses the whole module ("smoothstep called with 'low' not less than 'high'"), Chrome lets it
+// pass. Every such call is rewritten to the same curve the right way round: smoothstep(a, b, x) = 1 - smoothstep(b, a, x)
+function fixSmoothstep(src) {
+  const num = (x) => { x = x.trim(); if (!/^[-+*/(). 0-9eE]+$/.test(x) || !/\d/.test(x)) return null; try { const v = Function('return (' + x + ')')(); return isFinite(v) ? v : null; } catch (e) { return null; } };
+  let out = '', i = 0;
+  for (;;) {
+    const k = src.indexOf('smoothstep(', i);
+    if (k < 0) return out + src.slice(i);
+    if (k > 0 && /[\w.]/.test(src[k - 1])) { out += src.slice(i, k + 11); i = k + 11; continue; }
+    let j = k + 11, d = 1; const args = []; let a0 = j;
+    for (; j < src.length; j++) { const c = src[j]; if (c === '(') d++; else if (c === ')') { if (--d === 0) break; } else if (c === ',' && d === 1) { args.push(src.slice(a0, j)); a0 = j + 1; } }
+    args.push(src.slice(a0, j));
+    const A = args.map(fixSmoothstep), lo = num(A[0] || ''), hi = num(A[1] || '');
+    out += src.slice(i, k) + (A.length === 3 && lo !== null && hi !== null && lo > hi ? '(1.0 - smoothstep(' + A[1].trim() + ', ' + A[0].trim() + ', ' + A[2].trim() + '))' : 'smoothstep(' + A.join(',') + ')');
+    i = j + 1;
+  }
+}
 function buildShader(desc, lang) {
+  desc = Object.assign({}, desc, { lib: (desc.lib || []).map(fixSmoothstep), vs: fixSmoothstep(desc.vs), fs: desc.fs ? fixSmoothstep(desc.fs) : desc.fs });
   const attrs = []; (desc.buffers || []).forEach(b => b.attrs.forEach(a => attrs.push(a)));
   const vary = Object.entries(desc.varyings || {});
   const ufields = Object.entries(desc.uniforms || {});
