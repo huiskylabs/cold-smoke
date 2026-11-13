@@ -8,6 +8,7 @@ async function boot(stage) {
   const manual = QS.has('manual'), step = async (f, name) => { if (stage) stage(f, name); if (!manual) await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); };
   const canvas = document.getElementById('view');
   await step(0.03, '醒来');
+  if (typeof XHS !== 'undefined') await XHS.restore();               // (inside 小红书: the player's settings from the container's own storage)
   let gfx = null; const want = QS.get('backend') || (gpuFellBack() ? 'webgl2' : null);
   if (want !== 'webgl2') { try { gfx = await createGPU(canvas, { offscreen: QS.has('offscreen') }); } catch (e) { console.warn('WebGPU init failed', e); gfx = null; } }
   if (!gfx) gfx = createGL(canvas);
