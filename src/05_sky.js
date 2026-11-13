@@ -46,8 +46,8 @@ const Sky = (() => {
         o.color = vec4f(c, 1.0); return o; }`,
     });
     pipeSky = gfx.pipeline({
-      name: 'sky', lib: [SL.common, SL.hash, SL.fog, NEBULA_SSL, vistaSSL(), CLOUDSEA_SSL, CIRRUS_SSL, NIGHT_SSL, CONTRAIL_SSL, ANTISOLAR_SSL, weatherSkySSL()], buffers: [], varyings: { uv: 'vec2f' },
-      uniforms: { p: 'vec4f', nr: 'vec4f', nu: 'vec4f', nf: 'vec4f', sd: 'vec4f', mo: 'vec4f', hi: 'vec4f', fr: 'vec4f', pa: 'vec4f', pb: 'vec4f', pc: 'vec4f', cs: 'vec4f', ab: 'vec4f', ns: 'vec4f',
+      name: 'sky', lib: [SL.common, SL.hash, SL.noise, SL.fog, NEBULA_SSL, vistaSSL(), CLOUDSEA_SSL, CIRRUS_SSL, NIGHT_SSL, AURORA_SSL, CONTRAIL_SSL, ANTISOLAR_SSL, weatherSkySSL()], buffers: [], varyings: { uv: 'vec2f' },
+      uniforms: { au: 'vec4f', p: 'vec4f', nr: 'vec4f', nu: 'vec4f', nf: 'vec4f', sd: 'vec4f', mo: 'vec4f', hi: 'vec4f', fr: 'vec4f', pa: 'vec4f', pb: 'vec4f', pc: 'vec4f', cs: 'vec4f', ab: 'vec4f', ns: 'vec4f',
         wa: 'vec4f', wb: 'vec4f', wc: 'vec4f', wd: 'vec4f', we: 'vec4f', wf: 'vec4f', wg: 'vec4f' },
       textures: { tSky: '2d', tNebA: '2d', tNebB: '2d', tDetail: '2d', tFarA: '2d', tFarB: '2d', tCityA: '2d', tCityB: '2d', tCitySh: '2d', tSeaA: '2d', tSeaB: '2d' }, depthFunc: 'lequal', depthWrite: false, cull: 'none',
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let uv: vec2f = vec2f(f32((a.vid << 1u) & 2u), f32(a.vid & 2u)); v.clip = vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, 1.0, 1.0); v.uv = uv; return v; }`,
@@ -70,6 +70,8 @@ const Sky = (() => {
         let nbc: vec3f = mix(vec3f(luma(nb.rgb)), nb.rgb, M.p.w);
         // stars come out as the sky lets them; where the nebula glows they sink into it
         if (U.skyP.w > 0.003) { col += stars(d) * (U.skyP.w * smoothstep(-0.01, 0.10, d.y) / (1.0 + 2.5 * luma(nb.rgb) * M.nu.w)); }
+        // the aurora: out when the stars are (a clear dark sky), behind everything that stands or floats in front of the sky
+        if (M.au.x * U.skyP.w > 0.002) { col += aurora(d, M.au.y, M.au.z, M.au.w) * (M.au.x * U.skyP.w); }
         col += nbc * (M.p.x * skyL + M.p.y) * smoothstep(-0.01, 0.15, d.y) * smoothstep(0.04, mix(0.12, 0.26, U.sunDir.w), ang) * U.fx.z * M.nu.w;
         col += moonDisc(d);
         col += meteor(d);
@@ -207,13 +209,24 @@ const Sky = (() => {
 
   S.nebDay = 0.55; S.nebNight = 0.33; S.nebSat = 0.45; S.polar = 0.34; S.glare = 0.075;
   Variants.def('moon', '夜里的月亮', [['a', '月牙'], ['b', '盈凸']], 'b');
+  // the aurora (AURORA_SSL below): on every clear night, or only now and then (a minute or two of it every few minutes), or never.
+  // Its strength breathes slowly; the curtain drifts along the sky and its rays shimmer. How bright it is at all is S.auroraK
+  Variants.def('aurora', '极光', [['a', '每个晴夜'], ['b', '偶尔'], ['c', '关']], 'a');
+  S.auroraK = 0.35;
+  S.aurora = function (t) {
+    const v = Variants.val.aurora; if (v === 'c') return 0;
+    const n = (x) => { const i = Math.floor(x), f = x - i, h = (k) => { const q = Math.sin(k * 127.1 + 311.7) * 43758.5453; return q - Math.floor(q); }; return lerp(h(i), h(i + 1), f * f * (3 - 2 * f)); };
+    const breathe = 0.7 + 0.3 * n(t / 23) + 0.15 * Math.sin(t * 0.21);
+    const k = v === 'b' ? smooth(0.55, 0.75, n(t / 70)) : 1;
+    return S.auroraK * breathe * k;
+  };
   S.draw = function () {
     Vista.updateShadow(); const b = Nebula.basis(), md = S.moonDir(), cam = Render.cam.pos;
     // strobes: two quick white flashes and a slow red beacon
     const ph = (Render.time * 0.9) % 1, strobe = (ph < 0.045 || (ph > 0.13 && ph < 0.175)) ? 1 : 0, beacon = Math.pow(Math.max(0, Math.sin(Render.time * 4.2)), 8);
     // (under the overcast the far summits lose the sun with everything else)
     const wx = typeof Weather !== 'undefined' ? Weather.sky : null, wk = wx && Weather.sunK != null ? Weather.sunK : 1;
-    gfx.draw(pipeSky, { u: { p: [S.nebDay, S.nebNight * S.nebNightK, S.polar * lerp(0.5, 1, S.milk), lerp(1.0, S.nebSat, S.milk)], nr: b.nr, nu: b.nu, nf: b.nf,
+    gfx.draw(pipeSky, { u: { au: [S.aurora(Render.time), 0.12, Render.time * 0.0035, Render.time], p: [S.nebDay, S.nebNight * S.nebNightK, S.polar * lerp(0.5, 1, S.milk), lerp(1.0, S.nebSat, S.milk)], nr: b.nr, nu: b.nu, nf: b.nf,
       sd: [S.disc[0], S.disc[1], S.disc[2], S.isMoon ? 0 : 1], mo: [md[0], md[1], md[2], S.moonVis], hi: [S.sunHi[0], S.sunHi[1], S.sunHi[2], S.night], fr: [S.sunFar[0] * wk, S.sunFar[1] * wk, S.sunFar[2] * wk, strobe + 0.5 * beacon],
       pa: PL.on ? [PL.x - cam[0], PL.z - cam[2], S.hiAlt, 1] : [0, 0, S.hiAlt, 0], pb: [PL.hx, PL.hz, PL.len, PL.v], pc: [PL.cut, S.glare, (Variants.val.moon === 'b' ? 1 : 0) * S.night, 0], cs: [Clouds.sea.f, Clouds.sea.oA, Clouds.sea.oB, 0], ab: S.anti, ns: [NSKY.step(Render.time)[0], NSKY.v[1], 0, 0],
       wa: wx ? wx.wa : [0, 0, 0, 0], wb: wx ? wx.wb : [0, 0, 0, 0], wc: wx ? wx.wc : [0, 0, 0, 0], wd: wx ? wx.wd : [0, 0, 0, 0], we: wx ? wx.we : [0, 0, 0, 0], wf: wx ? wx.wf : [0, 0, 0, 0], wg: wx ? wx.wg : [0, 0, 0, 0] },
@@ -224,6 +237,24 @@ const Sky = (() => {
 
 // ---- what the night adds: the stars (turning, and twinkling through the air), a shooting star now and then, and the moon (a young crescent
 // with the rest of its disc faintly lit by the earth, and a halo of thin haze round it)
+// the aurora: one green curtain hanging across the sky with a violet glow above it. Its lower edge is a wavy line a little above the
+// horizon (b0, radians up); fine rays run up it, it is brighter in some stretches than others, and it drifts (sh) and shimmers (tm)
+const AURORA_SSL = `
+fn aurora(d: vec3f, b0: f32, sh: f32, tm: f32) -> vec3f {
+  let e: f32 = d.y;
+  if (e < -0.01) { return vec3f(0.0); }
+  let a: f32 = atan2(d.z, d.x) + sh;
+  let base: f32 = b0 + 0.09 * sin(a * 2.1 + 1.1) + 0.05 * sin(a * 4.9 + 0.4 + tm * 0.013) + 0.05 * (vnoise2(vec2f(a * 3.0, 1.7 + tm * 0.01)) - 0.5);
+  let h: f32 = e - base;
+  if (h < -0.04) { return vec3f(0.0); }
+  let r: f32 = fbm2(vec2f(a * 46.0 + 4.0 * vnoise2(vec2f(a * 5.0, 2.0 + tm * 0.02)), 0.5 + h * 1.5 + tm * 0.05));
+  let rays: f32 = 0.15 + 1.5 * pow(r, 3.0);
+  let lower: f32 = smoothstep(-0.04, 0.004, h);
+  let fall: f32 = exp(-max(h, 0.0) * 8.0);
+  let tall: f32 = exp(-max(h, 0.0) * 1.6);
+  let band: f32 = 0.25 + 0.75 * smoothstep(-0.5, 0.9, sin(a * 1.7 + 0.7)) * (0.6 + 0.8 * vnoise2(vec2f(a * 2.2, 5.3)));
+  return (vec3f(0.10, 1.0, 0.42) * fall + vec3f(0.62, 0.16, 0.78) * (tall - fall) * 0.6) * lower * rays * band;
+}`;
 const NIGHT_SSL = `
 // one star's own row of random numbers, read off at its own pace and smoothed from each to the next: an irregular flutter, never a sine
 fn starFlick(t: f32, id: f32) -> f32 { let i: f32 = floor(t); let f: f32 = t - i; return mix(hash21(vec2f(i, id)), hash21(vec2f(i + 1.0, id)), f * f * (3.0 - 2.0 * f)); }
