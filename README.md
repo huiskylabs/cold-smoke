@@ -6,7 +6,7 @@
 
 **一个人，一座山，一直往下滑。整个游戏是一个 HTML 文件，画面和声音全部由代码生成。**
 
-[**▶ Play in your browser / 在线试玩**](https://huisky.xyz/cold-smoke) · [English](#english) · [中文](#中文)
+[**▶ Play in your browser / 在线试玩**](https://huisky.xyz/cold-smoke/play) · [English](#english) · [中文](#中文)
 
 ![Cold Smoke gameplay](docs/media/hero.gif)
 
