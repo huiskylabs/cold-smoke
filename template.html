@@ -242,6 +242,18 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #menu .vrow button.on { background: rgba(244, 247, 251, .15); color: var(--snow); }
 #menu .vrow button.rec::after, #menu .vreset::after { content: ""; position: absolute; top: 3px; right: 3px; width: 3px; height: 3px; border-radius: 50%; background: rgba(255, 208, 138, .9); }
 #menu .vreset { position: relative; } #menu .vreset.idle { opacity: .45; cursor: default; }
+/* (the boards, inside 小红书 only: which board, which period, my place, then the list, scrolling in its own box) */
+#menu .rk-p { margin-top: -4px; } #menu .rk-p button { height: 30px; padding: 0 13px; font-size: 12px; }
+#menu .rk-me { margin: 2px 0 0; font-family: var(--f-lat); font-size: clamp(13px, 1.9vmin, 15px); letter-spacing: .12em; color: var(--sun); }
+#menu .rk-list { margin: 0; padding: 0 6px 0 0; list-style: none; max-height: 44vh; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+#menu .rk-list li { display: flex; align-items: baseline; min-height: 30px; border-top: 1px solid rgba(244, 247, 251, .07); font-size: clamp(12px, 1.75vmin, 14px); letter-spacing: .08em; }
+#menu .rk-list b { flex: none; width: 3em; font-family: var(--f-lat); font-weight: 300; color: var(--dim); font-variant-numeric: tabular-nums; }
+#menu .rk-list li.top b { color: var(--sun); }
+#menu .rk-list span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 12px; }
+#menu .rk-list em { flex: none; font-style: normal; font-family: var(--f-lat); color: var(--dim); font-variant-numeric: tabular-nums; }
+#menu .rk-list .rk-none { color: var(--dim); }
+#day .rk { margin-top: clamp(10px, 2vmin, 16px); font-family: var(--f-lat); font-weight: 500; font-size: clamp(9px, 1.45vmin, 12px); letter-spacing: .24em; color: var(--sun); white-space: nowrap; }
+#day .rk:empty { display: none; }
 /* held in the hands the menu is the whole of a short screen: smaller words, a narrower column */
 #app:not(.desk) #menu { --mf: 16px; --mg: 4px; } #app:not(.desk) #menu nav { width: 168px; } #app:not(.desk) #menu .mpane { padding-left: 40px; }
 /* what a key just changed, said once: in the column of type on the left, clear of the sun (at the gate where the name of a run would stand, in a run under the hints) */
@@ -380,7 +392,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
     <div id="hint"><i></i><span id="hint-t"></span></div>
     <div class="spd"><b id="spd">0</b><span class="unit">KM/H<em id="drop2"></em></span><span class="tach"><i id="tach"></i></span></div>
     <div class="drop"><b id="drop">0</b><span class="unit">落差 M</span></div>
-    <div id="day"><small class="k" id="day-k"></small><b class="t" id="day-t"></b><i class="rule"></i><div class="fs" id="day-f"></div></div>
+    <div id="day"><small class="k" id="day-k"></small><b class="t" id="day-t"></b><i class="rule"></i><div class="fs" id="day-f"></div><small class="rk" id="day-r"></small></div>
     <div id="steer"><i class="l"></i><i class="a"></i><i class="b"></i><i class="o"></i></div>
     <div id="pad"><button id="vw" type="button" aria-label="换视角"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="6" width="11" height="9" rx="2"/><path d="M13.5 9l4-2.2v7.4l-4-2.2"/></svg></button><button id="tuck" type="button" aria-label="加速">加速</button><button id="jump" type="button" aria-label="跳">跳</button></div>
   </section>
@@ -404,6 +416,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
       <button type="button" data-sec="seg">路段</button>
       <button type="button" data-sec="ev">偶遇</button>
       <button type="button" data-sec="mt">换一座山</button>
+      <button type="button" data-sec="rank" hidden>排行榜</button>
       <i class="msep"></i>
       <button type="button" class="sm" data-sec="keys">操作说明</button>
       <button type="button" class="sm" data-sec="opt">设置</button>
@@ -422,6 +435,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
         <p class="note">选了就回到滑雪：动物会出现在前方不远处，航班从天上飞过。</p></section>
       <section data-sec="mt"><h4>MOUNTAIN · 山<kbd>R</kbd></h4><div class="seedrow"><b id="sw-seed"></b><button type="button" class="pill" data-new="1">换一座山</button></div>
         <p class="note">每座山由一个编号生成。地址栏里的 #seed-编号 发给别人，就是同一座山。</p></section>
+      <section data-sec="rank"></section>
       <section data-sec="keys"><h4>CONTROLS · 操作说明</h4>
         <div class="keys2 desk-only">
           <div class="keys"><b>← →　A D</b><span>转弯（按久了会切雪）</span><b>空格</b><span>跳，按住蓄力</span><b>↓　S</b><span>压低加速，慢的时候撑杖</span><b>右键拖　I J K L</b><span>环顾四周</span></div>
