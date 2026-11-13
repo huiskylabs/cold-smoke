@@ -32,6 +32,14 @@ Chromium with SwiftShader runs both backends headless.
 - `tools/uishot.js` loads the real page (loading page, title, tap to start; it uses the WebGL2 path because that is the one a headless page screenshot can see) and takes page screenshots: `node tools/uishot.js <outPrefix> 844 390 2 "load ;; title ;; shot:title ;; go ;; wait:7000 ;; shot:run"`. `DESKTOP=1` uses a mouse-and-keyboard context.
 - `tools/lstat.py` and `tools/patch.py` measure lightness (L*) of frames and patches; `tools/collage_wide.py` builds the comparison sheets.
 
+## 小红书 小工具 package
+
+The game also ships as a 小红书 小工具 (创作服务平台 → Builder Hub → 小工具): an offline web package that opens under a note. The container's rules are in the official 小工具容器能力清单 (https://miniapp-sandbox.xiaohongshu.com/minitool/doc). The ones that matter here: scripts only as package `.js` files (no inline `<script>`, no `onclick=`, no `eval`), no network at all, code that runs on Chrome 61 / ES2017, and only html, css, js, images, woff/woff2 and json in the zip.
+
+- `node tools/build-xhs.js` writes `dist-xhs/` (`index.html`, `app.js`, `fonts/`) and `dist-xhs.zip`, the file to upload. It takes the same `src/` and `template.html` as `build.js`, leaves out `20_director.js` and the web-font loader, lowers the syntax with esbuild (`npx esbuild@0.24.2`, target chrome61), prepends `xhs/polyfills.js` (`.at`, `.flat`, `.flatMap`, `Object.fromEntries`), and refuses to zip if a rule is broken.
+- The three faces (Jost, Cormorant Garamond, Noto Serif SC cut to the characters the page asks for; all SIL OFL) are kept in `xhs/fonts/`. `node tools/fetch-xhs-fonts.js` fetches them again, for example after the title's characters change.
+- Inside the container device orientation is switched off, so a phone steers by drag (as inside the claude.ai artifact). The platform's own gyroscope API (`xhs.miniTool.onGyroscopeChange`, angular velocity only) is not used yet.
+
 ## Choices worth knowing before changing the look
 
 - The day sun stands low and ahead of the skier (elevation 0.20 rad): the spray is backlit and is the brightest thing after the sun. Day exposure is 0.145 and backlit snow is micro-shadowed, so the foreground sits near L*65 to 70, not white.

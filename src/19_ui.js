@@ -73,7 +73,7 @@ const UI = (() => {
     el.app.style.width = V.forced ? V.w + 'px' : ''; el.app.style.height = V.forced ? V.h + 'px' : '';
     el.app.style.setProperty('--cw', V.w + 'px'); el.app.style.setProperty('--ch', V.h + 'px');
     // (inside a frame, as on claude.ai, the phone's tilt is refused: there the finger is the only way, so the title says only that)
-    let framed = false; try { framed = window.self !== window.top; } catch (e) { framed = true; }
+    let framed = !!self.COLD_SMOKE_NO_TILT; try { framed = framed || window.self !== window.top; } catch (e) { framed = true; }      // (no tilt in a frame, nor in the 小红书 小工具 container)
     el.how.textContent = T(!hh ? '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速' : framed ? '按住屏幕左右拖动转弯 · 右下角 跳 / 加速' : '倾斜手机或按住屏幕左右拖动转弯 · 右下角 跳 / 加速');
     U.hh = hh;
   };
