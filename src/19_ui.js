@@ -458,10 +458,10 @@ const UI = (() => {
   // amber. A press switches at once (each module eases its own change); 恢复推荐 puts every choice back to the recommended version
   const VGROUP = [['镜头', ['cam', 'wood', 'shots', 'tips', 'fptuck', 'edge', 'chatter', 'buffet']], ['人物与动作', ['body', 'cloth', 'poles', 'motion']],
     ['画面', ['ghost', 'hi', 'nspray', 'nsky', 'cu']], ['雪', ['spray', 'curtain', 'sparkle', 'clumps', 'lens', 'pdepth', 'drift']], ['场景与天气', ['rock', 'moon', 'snow', 'rtree', 'flag', 'sink', 'wind']], ['手感', ['keys']]];
-  VGROUP[VGROUP.length - 1][1].unshift('feel');       // (滑行手感, 07_game.js: on its own line, so the row above stays as other branches change it)
   let vSig = null, wxSig = null;
   const varMod = () => { try { return typeof Variants !== 'undefined' && Variants && Array.isArray(Variants.defs) ? Variants : null; } catch (e) { return null; } };
   function initVariants() {
+    if (!VGROUP[VGROUP.length - 1][1].includes('feel')) VGROUP[VGROUP.length - 1][1].unshift('feel');       // (滑行手感, 07_game.js, first under 手感)
     el.vrows = $('sw-vrows'); el.vreset = $('sw-vreset'); el.wx = $('sw-wx'); el.wxc = $('sw-wxc');
     const V = varMod(); if (V && V.on) V.on(() => { if (U.open) paint(); });          // (a choice registered or changed elsewhere: shown at once)
     addEventListener('keydown', e => { if (e.code !== 'KeyX' || e.repeat || e.metaKey || e.ctrlKey || e.altKey || U.gone || !live()) return; U.nextWeather(e.shiftKey ? -1 : 1); });
