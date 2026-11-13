@@ -8,6 +8,7 @@ async function boot(stage) {
   const manual = QS.has('manual'), step = async (f, name) => { if (stage) stage(f, name); if (!manual) await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); };
   const canvas = document.getElementById('view');
   await step(0.03, '醒来');
+  if (typeof XHS !== 'undefined') await XHS.restore();               // (inside 小红书: the player's settings from the container's own storage)
   let gfx = null; const want = QS.get('backend') || (gpuFellBack() ? 'webgl2' : null);
   if (want !== 'webgl2') { try { gfx = await createGPU(canvas, { offscreen: QS.has('offscreen') }); } catch (e) { console.warn('WebGPU init failed', e); gfx = null; } }
   if (!gfx) gfx = createGL(canvas);
@@ -101,6 +102,7 @@ function tick(dt, draw) {
   Render.computeGlobals(App.t, dt, st);
   for (const ev of Game.events) {
     Sound.event(ev);
+    if (typeof XHS !== 'undefined') XHS.event(ev);
     if (ev.type === 'land') Spray.slap(App.t, Game.root.pos, S.v, S.n, clamp(ev.v / 5, 0.3, 2.2));
     else if (ev.type === 'pole') Spray.poles(App.t, Game.root, Game.pose.stance);
     // snow knocked off the boughs

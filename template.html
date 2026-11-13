@@ -15,7 +15,9 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
   /* the frame the picture is shown in: its size (set from script) and the safe margins on each of its own sides */
   --cw: 100vw; --ch: 100vh;
   --sl: env(safe-area-inset-left, 0px); --sr: env(safe-area-inset-right, 0px); --st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px);
-  --gl: max(20px, var(--sl)); --gr: max(20px, var(--sr)); --gt: calc(var(--st) + 16px); --gb: calc(var(--sb) + 18px);
+  /* (--xl … --xb: room for the host's own buttons over the page, inside 小红书 only, set from script in the frame's own sides: 19c_xhs.js) */
+  --xl: 0px; --xr: 0px; --xt: 0px; --xb: 0px;
+  --gl: max(20px, var(--sl), var(--xl)); --gr: max(20px, var(--sr), var(--xr)); --gt: calc(max(var(--st), var(--xt)) + 16px); --gb: calc(max(var(--sb), var(--xb)) + 18px);
   --col: calc(var(--gl) + clamp(4px, calc(var(--cw) * .04), 76px)); }
 /* a phone held upright: the picture is laid on its side and the player turns the phone (works with the rotation lock on) */
 #app.rot { inset: auto; left: 50%; top: 50%; width: 100vh; height: 100vw; transform: translate(-50%, -50%) rotate(90deg);
@@ -419,6 +421,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
       <button type="button" data-sec="ev">偶遇</button>
       <button type="button" data-sec="mt">换一座山</button>
       <button type="button" data-sec="rank" hidden>排行榜</button>
+      <button type="button" data-sec="share" hidden>分享</button>
       <i class="msep"></i>
       <button type="button" class="sm" data-sec="keys">操作说明</button>
       <button type="button" class="sm" data-sec="opt">设置</button>
@@ -438,6 +441,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
       <section data-sec="mt"><h4>MOUNTAIN · 山<kbd>R</kbd></h4><div class="seedrow"><b id="sw-seed"></b><button type="button" class="pill" data-new="1">换一座山</button></div>
         <p class="note">每座山由一个编号生成。地址栏里的 #seed-编号 发给别人，就是同一座山。</p></section>
       <section data-sec="rank"></section>
+      <section data-sec="share"></section>
       <section data-sec="keys"><h4>CONTROLS · 操作说明</h4>
         <div class="keys2 desk-only">
           <div class="keys"><b>← →　A D</b><span>转弯（按久了会切雪）</span><b>空格</b><span>跳，按住蓄力</span><b class="nofa">↓　S</b><span class="nofa">压低加速，慢的时候撑杖</span><b class="fa-only">↑ ↓　W S</b><span class="fa-only">压板头 · 压板尾：入弯压头切得紧，出弯压尾冲出去，弯尾还压头会搓雪减速</span><b class="fa-only">Shift</b><span class="fa-only">压低加速，慢的时候撑杖</span><b>右键拖　I J K L</b><span>环顾四周</span></div>

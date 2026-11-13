@@ -64,6 +64,7 @@ const UI = (() => {
     initSplits();
     initVariants();
     if (typeof Rank !== 'undefined') try { Rank.init(); } catch (e) { console.warn(e); }          // (the boards, inside 小红书 only: 19b_rank.js)
+    if (typeof XHS !== 'undefined') try { XHS.init(el); } catch (e) { console.warn(e); }            // (the host's buttons, vibration, notes, follow: 19c_xhs.js)
   };
   // how the frame lies: wide or tall, turned or not; the stylesheet does the rest
   U.layout = function () {
@@ -76,6 +77,7 @@ const UI = (() => {
     // (inside a frame, as on claude.ai, the phone's tilt is refused: there the finger is the only way, so the title says only that)
     let framed = !!(self.COLD_SMOKE && self.COLD_SMOKE.noTilt); try { framed = framed || window.self !== window.top; } catch (e) { framed = true; }      // (no tilt in a frame, nor in the 小红书 小工具 container)
     U.hh = hh; U.framed = framed; howText();
+    if (typeof XHS !== 'undefined') XHS.layout();
   };
   // (the title's line of controls, and the controls page: with fore/aft on (Variants 'fa' b) up and down are the shovels and the tails, the tuck is Shift)
   const faOn = () => typeof Variants !== 'undefined' && Variants.val.fa === 'b';
@@ -373,6 +375,7 @@ const UI = (() => {
     for (const x of el.pane.children) x.classList.toggle('on', x.dataset.sec === s);
     el.pane.scrollTop = 0; paint();
     if (s === 'rank' && typeof Rank !== 'undefined') Rank.show();
+    if (s === 'share' && typeof XHS !== 'undefined') XHS.show();
   }
   // U.menu(): open or close; U.menu('view'): open at that part (or, open at it already, close)
   U.menu = function (on) {

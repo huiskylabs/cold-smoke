@@ -43,6 +43,11 @@ const I18N = (() => {
     // ---- the menu
     'PAUSED · 暂停': 'PAUSED', 'MENU · 菜单': 'MENU', '继续滑': 'Ski on',
     '天色与天气': 'Time & weather', '换一座山': 'New mountain', '操作说明': 'Controls', '设置': 'Settings', '回到山顶': 'Back to the top', '版本对比': 'Versions',
+    '分享': 'Share', 'SHARE · 分享': 'SHARE', '发一篇笔记': 'Post a note', '存到相册': 'Save to photos', '关注作者': 'Follow the author', '已关注作者': 'Following the author',
+    '震动 开': 'Vibration on', '震动 关': 'Vibration off', '已存到相册': 'Saved to photos', '没能存到相册': 'Could not save to photos', '没能打开发笔记': 'Could not open the note editor',
+    '已关注，谢谢': 'Following. Thank you', '今天不能再提示关注了': 'No more follow prompts today', '正在截图…': 'Taking the picture…',
+    '把此刻的画面带进一篇笔记，速度、落差和山的编号会写在正文里，发之前都可以改。': 'Takes the picture as it is now into a new note, with your speed, drop and mountain number in the text. You can change all of it before posting.',
+    '喜欢这座山，可以关注做它的人，新的版本会先在主页发。': 'If you like this mountain, follow the person who made it: new versions are posted there first.',
     '排行榜': 'Leaderboard', 'RANKING · 排行榜': 'LEADERBOARD', '极速': 'Top speed', '最远飞行': 'Longest flight', '滑雪时长': 'Time skied', '今日': 'Today', '本周': 'This week', '总榜': 'All time',
     '我': 'Me', '雪友': 'A skier', '读取中…': 'Loading…', '还没有成绩，滑一趟就会上榜': 'No score yet: ski a run and you are on it', '今天还没有人上榜': 'Nobody on the board yet today',
     '还没有人上榜': 'Nobody on the board yet', '榜单还在准备，稍后再看': 'The board is getting ready, look again soon', '暂时读不到榜单，稍后再看': 'The board cannot be read right now, look again soon',
