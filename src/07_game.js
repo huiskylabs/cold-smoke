@@ -828,16 +828,20 @@ const Game = (() => {
     // speed the snow was met with (ld). At speed the snow is never quite smooth: a tremor through the legs and the hands, faster the faster it goes.
     { const lv = fl.lbV || 0, aL = Math.abs(fl.lb), rel = sat(-fl.lb * lv / 1.2) * smooth(0.04, 0.3, aL), ent = sat(fl.lb * lv / 1.2) * smooth(0.55, 0.12, aL);       // (read off the lean that is drawn: its rate is smooth)
       const fx = spring(fl, 'xo', (0.13 * rel - 0.17 * ent) * gnd, 11, kd);
+      // (Variants 'kp' b, 07e_keypose.js: the knees, the fore/aft, the fold at the hips and the angulation are four poses through the turn instead,
+      // with holds between them; the two readings above stand back. Fed the lean that is drawn, as the body knows where in the turn it is)
+      const kq = typeof KeyPose !== 'undefined' ? KeyPose.step(fl.lb * cy, dt, gnd * mo, first) : null, kpOn = !!kq && Variants.val.kp === 'b';
       if (dt > 0) { if (fl.wasAir && !S.air) fl.ldV = (fl.ldV || 0) + Math.min(S.landV || 0, 9) * 0.2; const x = fl.ld || 0, vv = fl.ldV || 0, W = 7, Z = 0.3, ac = -W * W * x - 2 * Z * W * vv;
         fl.ldV = vv + ac * dt; fl.ld = x + fl.ldV * dt; } fl.wasAir = S.air;
       if (dt > 0) fl.dist = ((fl.dist || 0) + sp * dt) % 4096;
       const ch = fl.chat = 0.011 * smooth(10, 30, sp) * (1 - w) * (1 - 0.6 * (S.powder || 0)) * (vnoise1(fl.dist * 0.42, 31) * 0.7 + vnoise1(fl.dist * 1.1, 37) * 0.3);
-      pose.crouch = clamp(pose.crouch + mo * (fx + (fl.ld || 0) * (1 - w)), 0, 1);
+      pose.crouch = clamp(pose.crouch + mo * ((kpOn ? kq.c : fx) + (fl.ld || 0) * (1 - w)), 0, 1);
+      pose.kh = kq ? kq.h : 0; pose.kAng = kq ? kq.a : 0;
       // (feel b: fore and aft on the snow. Into a new turn the shins press the boots and the hips go forward over the feet; through the apex they
       // are centred; out of it the weight comes back toward the tails; and whatever the snow is braking with (a skid, the powder) sets the body
       // back on its heels a little. Through a spring of a little under 1 Hz: the weight shifts, it does not jump)
-      const foT = FB ? clamp((0.55 * ent - 0.35 * rel - 0.06 * (S.aDrag || 0)) * gnd, -0.6, 0.6) : 0;
-      pose.fore = clamp(pose.fore + spring(fl, 'foB', foT, 5.5, kd), -1, 1);       // (the snow's chatter is not put into the knee bend: with the feet on the snow that moved the hips and everything above them)
+      const foT = FB ? clamp(((kpOn ? 0 : 0.55 * ent - 0.35 * rel) - 0.06 * (S.aDrag || 0)) * gnd, -0.6, 0.6) : 0;
+      pose.fore = clamp(pose.fore + spring(fl, 'foB', foT, 5.5, kd) + (kq ? kq.f : 0), -1.8, 1.8);       // (the snow's chatter is not put into the knee bend: with the feet on the snow that moved the hips and everything above them)
       for (const a of [pose.armL, pose.armR]) { a[1] += mo * (1.6 * ch - 0.25 * (fl.ld || 0)) * hk; a[2] -= mo * 0.4 * (fl.ld || 0) * hk; } }
     if (crash > 0.001) { const wb = Math.sin(crash * 22) * crash; pose.armL[1] += 0.18 * crash + 0.05 * wb; pose.armR[1] += 0.18 * crash - 0.05 * wb; pose.sep += wb * 0.25; }
     // ---- root frame
