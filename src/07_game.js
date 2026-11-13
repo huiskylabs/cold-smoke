@@ -257,9 +257,9 @@ const Game = (() => {
     const gn = GRAV * n[1];
     const phiMax = Math.min(0.96, Math.atan(Math.max(sp, 2.5) ** 2 / (10.5 * gn))) * (1 - 0.3 * S.tuckIn);
     const cu = clamp(uE / 0.72, -1, 1), phiT = sign(cu) * Math.pow(Math.abs(cu), 1.2) * phiMax * (S.air && S.airT > 0.14 ? 0.3 : 1) * (1 - 0.28 * smooth(0.72, 1.0, Math.abs(u)));
-    // (feel b: the faster, the heavier the body is to throw over: the same spring from 30 km/h down, two thirds as quick at 100. An edge change
-    // takes half a second slow and seven tenths flat out: the momentum is felt in the transition, not only in the arc)
-    const wn = S.air ? 5 : FB ? lerp(9.5, 6.0, smooth(8, 28, sp)) : 9.5, zeta = 0.92;
+    // (feel b: the faster, the a little heavier the body is to throw over: the same spring up to 50 km/h, four fifths as quick from 108. Only a
+    // hint of the momentum: heavier than that read as true but tiring to ski, turn after turn (owner, 2026-11-13: real vs fun, keep it light))
+    const wn = S.air ? 5 : FB ? lerp(9.5, 7.5, smooth(14, 30, sp)) : 9.5, zeta = 0.92;
     S.leanV += (wn * wn * (phiT - S.lean) - 2 * zeta * wn * S.leanV) * dt; S.lean += S.leanV * dt;
     // past the carve range the skis are pivoted across the direction of travel: a skid that brakes and throws snow. Only when asked for:
     // rolling from one edge to the other does not swing the skis. They are swung, and let come back, as a leg moves them, not at a blow
