@@ -102,7 +102,6 @@ function tick(dt, draw) {
   Render.computeGlobals(App.t, dt, st);
   for (const ev of Game.events) {
     Sound.event(ev);
-    if (typeof XHS !== 'undefined') XHS.event(ev);
     if (ev.type === 'land') Spray.slap(App.t, Game.root.pos, S.v, S.n, clamp(ev.v / 5, 0.3, 2.2));
     else if (ev.type === 'pole') Spray.poles(App.t, Game.root, Game.pose.stance);
     // snow knocked off the boughs

@@ -64,7 +64,7 @@ const UI = (() => {
     initSplits();
     initVariants();
     if (typeof Rank !== 'undefined') try { Rank.init(); } catch (e) { console.warn(e); }          // (the boards, inside 小红书 only: 19b_rank.js)
-    if (typeof XHS !== 'undefined') try { XHS.init(el); } catch (e) { console.warn(e); }            // (the host's buttons, vibration, notes, follow: 19c_xhs.js)
+    if (typeof XHS !== 'undefined') try { XHS.init(el); } catch (e) { console.warn(e); }            // (the host's buttons, settings, notes, follow: 19c_xhs.js)
   };
   // how the frame lies: wide or tall, turned or not; the stylesheet does the rest
   U.layout = function () {

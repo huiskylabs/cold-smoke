@@ -4,9 +4,7 @@
 //   getWindowInfo (9.49+)   the host's own buttons (back, 我, share) lie over the page: the frame's gutters (--xl … --xb on #app) are widened
 //                           on whichever side of the frame each one stands, so the speed, the menu glyph and the rest stay clear of them.
 //                           The frame may be laid on its side (#app.rot), so each button is carried into the frame's own coordinates first.
-//   vibrateShort (9.50+)    a landing is felt in the hand (light, medium or heavy by how hard and how long the flight was), so is a fall.
-//                           A 震动 chip in 设置 turns it off.
-//   setStorage (9.46+)      the player's settings (the versions picked, the language, vibration) kept in the container's storage, which
+//   setStorage (9.46+)      the player's settings (the versions picked, the language) kept in the container's storage, which
 //                           lasts; the page's localStorage is not promised to there. Read back before the game is built.
 //   postNote + writeTempFile + saveImageToPhotosAlbum   分享 in the menu: the picture as it stands into a new note, with the run's figures in
 //                           the text; or the picture into the phone's photos.
@@ -15,7 +13,7 @@ const XHS = self.XHS = (() => {
   const X = { on: false };
   const T = s => I18N.t(s), EN = () => I18N.en();
   const KEY = 'coldsmoke.prefs';
-  let mt = null, app = null, sec = null, navB = null, vibB = null, probes = null, info = null, infoAt = 0, asking = null;
+  let mt = null, app = null, sec = null, navB = null, probes = null, info = null, infoAt = 0, asking = null;
   const has = n => !!mt && typeof mt[n] === 'function';
   const code = e => (e && typeof e.errCode === 'number') ? e.errCode : (e && +e.errCode) || 0;
   try { const m = window.xhs && window.xhs.miniTool; if (m && typeof m === 'object') mt = m; } catch (e) { }
@@ -23,7 +21,7 @@ const XHS = self.XHS = (() => {
 
   // ---- settings kept in the container's storage: one JSON object of the same keys the page keeps in localStorage
   const prefs = {}; let dirty = 0, saveT = null;
-  const OURS = k => /^cs\.v\./.test(k) || k === 'coldsmoke.lang' || k === 'cs.xhs.vib';
+  const OURS = k => /^cs\.v\./.test(k) || k === 'coldsmoke.lang';
   function put(k, v) { if (prefs[k] === v) return; prefs[k] = v; try { localStorage.setItem(k, v); } catch (e) { } dirty++; if (!saveT) saveT = setTimeout(save, 1500); }
   function save() {
     saveT = null; if (!dirty || !has('setStorage')) return; dirty = 0;
@@ -48,7 +46,6 @@ const XHS = self.XHS = (() => {
     I18N.on(l => put('coldsmoke.lang', l));
     document.addEventListener('visibilitychange', () => { if (document.hidden && saveT) { clearTimeout(saveT); save(); } });
   };
-  const vibOn = () => prefs['cs.xhs.vib'] !== '0';
 
   // ---- the host's buttons
   X.layout = function () {
@@ -84,31 +81,11 @@ const XHS = self.XHS = (() => {
     X.gutters = g;
   }
 
-  // ---- vibration: landings by how hard and how long, a fall heavy; never two within a tenth of a second
-  let lastVib = 0;
-  function buzz(type) {
-    if (!has('vibrateShort') || !vibOn() || document.hidden) return;
-    const t = performance.now(); if (t - lastVib < 110) return; lastVib = t;
-    try { const p = mt.vibrateShort({ type }); if (p && p.catch) p.catch(() => { }); } catch (e) { }
-  }
-  X.event = function (ev) {
-    if (!mt) return;
-    if (ev.type === 'land') {
-      const v = ev.v || 0, a = ev.airT || 0;
-      if (v > 9 || a > 2.2) buzz('heavy'); else if (v > 5 || a > 1.1) buzz('medium'); else if (v > 2.2 || a > 0.45) buzz('light');
-    } else if (ev.type === 'crash') buzz('heavy');
-  };
-
-  // ---- the menu: 分享 (a note, the photos, the author) and the 震动 chip in 设置
+  // ---- the menu: 分享 (a note, the photos, the author)
   const node = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   X.init = function () {
     if (!mt) return;
     const menu = document.getElementById('menu'); if (!menu) return;
-    if (has('vibrateShort')) {
-      const row = menu.querySelector('section[data-sec="opt"] .chips');
-      if (row) { vibB = node('button'); vibB.type = 'button'; row.appendChild(vibB); paintVib(); vibB.addEventListener('click', e => { e.stopPropagation(); put('cs.xhs.vib', vibOn() ? '0' : '1'); paintVib(); if (vibOn()) buzz('light'); }); }
-      I18N.on(paintVib);
-    }
     navB = menu.querySelector('nav [data-sec="share"]'); sec = menu.querySelector('section[data-sec="share"]');
     if (navB && sec && (has('postNote') || has('saveImageToPhotosAlbum') || has('followAuthor'))) {
       navB.hidden = false;
@@ -118,7 +95,6 @@ const XHS = self.XHS = (() => {
     X.layout();
     addEventListener('resize', () => setTimeout(X.layout, 80));
   };
-  function paintVib() { if (!vibB) return; const on = vibOn(); vibB.textContent = T(on ? '震动 开' : '震动 关'); vibB.classList.toggle('on', on); vibB.setAttribute('aria-pressed', on ? 'true' : 'false'); }
 
   let followSt = 0, msg = null;
   X.show = function () {
