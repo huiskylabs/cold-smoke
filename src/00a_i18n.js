@@ -60,7 +60,7 @@ const I18N = (() => {
     '逆光光斑': 'Lens ghosts', '高光': 'Highlights', '夜间雪雾': 'Spray at night', '夜空颜色': 'Night sky colour', '小云': 'Small clouds',
     '雪幕高度': 'Spray height', '闪光': 'Sparkle', '雪团': 'Snow clumps', '镜头上的雪': 'Snow on the lens', '粉雪深度': 'Powder depth', '风吹雪': 'Blowing snow',
     '岩壁': 'Rock walls', '夜里的月亮': 'Moon at night', '大雪样式': 'Heavy snow style', '山脊树': 'Ridge trees', '跳台旗': 'Jump flags', '入雪深浅': 'Ski sink', '风声': 'Wind sound',
-    '键盘转弯': 'Keyboard turns',
+    '键盘转弯': 'Keyboard turns', '滑行手感': 'Ski feel',
     '现在的': 'Current', '原来': 'Original', '原样': 'As was', '新的': 'New', '低机位': 'Low', '折中': 'Middle', '贴近': 'Closer', '原位淡树': 'Fade trees',
     '不变': 'Fixed', '按路段大变': 'Big', '轻微变化': 'Subtle', '贴板': 'On the ski', '大腿': 'Thigh', '头盔': 'Helmet', '压低': 'Low', '面前': 'In front',
     '无': 'None', '轻': 'Light', '明显': 'Strong', '关': 'Off', '开': 'On', '有': 'On', '更强': 'Stronger', '没有': 'None', '真实': 'Realistic', '多一些': 'More', '再多一点': 'Even more',
