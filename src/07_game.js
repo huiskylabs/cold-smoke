@@ -431,7 +431,10 @@ const Game = (() => {
         if (S.crash <= 0.2) G.events.push({ type: 'crash', v: imp, x: tn.x, z: tn.z, h: tn.h, r: tn.r });
         S.crash = 0.9; S.leanV += (rx * nx + rz * nz) * 4;
       } else if (d < tn.h * 0.20 && sp > 3) {
-        if (S.brush <= 0) G.events.push({ type: 'brush', x: tn.x, z: tn.z, h: tn.h, r: tn.r });
+        if (S.brush <= 0) { G.events.push({ type: 'brush', x: tn.x, z: tn.z, h: tn.h, r: tn.r }); S.rusT = 0; }
+        // (version b of 'tpass', 14_trees.js: for as long as the body is in among the boughs they go on rustling against it and shedding
+        // snow, a little more often the faster it goes through them)
+        else if (typeof Variants !== 'undefined' && Variants.val.tpass === 'b' && (S.rusT = (S.rusT || 0) + dt) > lerp(0.3, 0.16, sat(sp / 16))) { S.rusT = 0; G.events.push({ type: 'rustle', x: tn.x, z: tn.z, h: tn.h, r: tn.r, d: d / (tn.h * 0.20), v: sp }); }
         S.brush = 1; const k = 1 - 0.28 * dt; v[0] *= k; v[2] *= k;
         // the boughs give, but only so far: inside half their reach they shoulder the skier back out
         const soft = tn.h * 0.115;
