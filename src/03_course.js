@@ -32,10 +32,10 @@ const SEG_PACE = { bowl: 18.7, steeps: 28.6, glade: 11.6, rollers: 14.1, gully: 
 //   never spans the run: there is always a way round, and the first turns of a mountain are free of them.
 // tdiff scales all of it, and the run itself: slope and width. Every level keeps a clean line down; nothing here moves the camera.
 const TERR_LV = {
-  //   slope  width pitch  tilt   bank  drops  dropH       rocks islands mogul
-  a: { slope: 0.82, hw: 1.22, pitch: 0.22, tilt: 0.035, bank: 1.6, drops: 0, dropH: [0, 0], rocks: 0.5, isl: 0.6, mog: 0.75 },
-  b: { slope: 1.00, hw: 1.00, pitch: 0.42, tilt: 0.075, bank: 3.2, drops: 0.6, dropH: [1.2, 2.0], rocks: 1.0, isl: 1.0, mog: 1.0 },
-  c: { slope: 1.10, hw: 0.86, pitch: 0.60, tilt: 0.12, bank: 5.0, drops: 1.4, dropH: [1.8, 3.5], rocks: 1.6, isl: 1.4, mog: 1.2 },
+  //   slope  width pitch  tilt   bank  drops  dropH       rocks islands mogul  pace (how far a run of ~30 s reaches at this level: test pilot, 2026-11-14)
+  a: { slope: 0.82, hw: 1.22, pitch: 0.22, tilt: 0.035, bank: 1.6, drops: 0, dropH: [0, 0], rocks: 0.5, isl: 0.6, mog: 0.75, pace: 0.81 },
+  b: { slope: 1.00, hw: 1.00, pitch: 0.42, tilt: 0.075, bank: 3.2, drops: 0.6, dropH: [1.2, 2.0], rocks: 1.0, isl: 1.0, mog: 1.0, pace: 0.93 },
+  c: { slope: 1.10, hw: 0.86, pitch: 0.60, tilt: 0.12, bank: 5.0, drops: 1.4, dropH: [1.8, 3.5], rocks: 1.6, isl: 1.4, mog: 1.2, pace: 1.04 },
 };
 // how much of each the kinds of run take (pitch, sides, rock): busy or narrow runs less, the open ones more
 const TERR_K = {
@@ -138,7 +138,8 @@ const Course = ((vn1, vn2, h2U) => {
       for (const k of SEG_KEYS) p[k] = base[k];
       p.slope *= 0.93 + rng() * 0.14; p.hw *= v(); p.rollL *= v(); p.rollA *= v(); p.gAmp *= v(); p.gul *= v(); p.mean *= v();
       if (LV) { p.slope = Math.min(0.68, p.slope * LV.slope); p.hw *= LV.hw; p.mog *= LV.mog; p.rollA *= Math.min(1, LV.slope); }
-      const len = C.segs.length === 0 ? 590 : SEG_PACE[type] * (27 + rng() * 6);       // about half a minute each
+      let len = C.segs.length === 0 ? 590 : SEG_PACE[type] * (27 + rng() * 6);       // about half a minute each
+      if (LV && C.segs.length) len *= LV.pace;
       const seg = { type, s0: planned, len, p, idx: C.segs.length, seed: (rng() * 1e9) | 0 };
       C.segs.push(seg);
       if (p.kick > 0) {   // a line of jumps down the middle, alternating sides slightly; a pair of young spruce marks each lip (mark)
