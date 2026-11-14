@@ -9,9 +9,10 @@
 // come round.
 const Tracks = (() => {
   const T = { N: 1024, enabled: true, pipes: [], D: 0.045, ski: { hw: 0.057, tail: 0.80, tip: 0.92 } };
-  // (a snowboard, Variants 'ride' b (08a_board.js): one track as wide as the board, pressed from the middle of the board; the shaders take the
+  // (a snowboard, Variants 'ride' b (08a_board.js): one track as wide as the board, pressed from the middle of the board, only along the
+  // running length between the contact points (nose and tail are kicked up off the snow); the shaders take the
   // sizes as constants, so a change of ride builds them again)
-  const SKI = T.ski, BOARD = { hw: 0.13, tail: 0.76, tip: 0.80 }, board = () => typeof Board !== 'undefined' && Board.on();
+  const SKI = T.ski, BOARD = { hw: 0.13, tail: 0.58, tip: 0.60 }, board = () => typeof Board !== 'undefined' && Board.on();
   let rideNow = null;
   const ssl = () => { const k = T.ski; return TRACK_SSL.replace('const SKI_HW: f32 = 0.057; const SKI_TAIL: f32 = 0.80; const SKI_TIP: f32 = 0.92;', `const SKI_HW: f32 = ${k.hw.toFixed(3)}; const SKI_TAIL: f32 = ${k.tail.toFixed(3)}; const SKI_TIP: f32 = ${k.tip.toFixed(3)};`); };   // D: how deep the skis are riding now (m)
   const MAXI = 1024, FL = 20, REACH = 2.4;           // steps of ski kept to press in again; floats in one; how far from the boot a stamp can reach (m)
@@ -108,13 +109,16 @@ const Tracks = (() => {
     // wider than the ski: the owner's "block" round the skis. Real skis on firm snow: the snow comes right up to the ski, a thin line of
     // shadow along one edge and of light along the other, and behind the tail a shallow clean groove of the ski's own width)
     // (the pack gives the same under any load; it is the soft snow on it that gives more under more)
-    const pdv = (VS && PDEPTH[VS.val.pdepth]) || PDEPTH.b, soft = pdv * pw * pw, deepT = smooth(0.11, 0.16, soft);
+    // (a board floats: its base is four or five times a ski's, so it sinks about a third as far into soft snow and less into the pack, and it
+    // planes up on top of powder instead of running under it)
+    const flo = T.ski === BOARD ? 0.35 : 1;
+    const pdv = (VS && PDEPTH[VS.val.pdepth]) || PDEPTH.b, soft = pdv * pw * pw * flo, deepT = smooth(0.11, 0.16, soft);
     // (skis that run fast in powder plane up in it, as a board does on water: at speed they ride at under half the depth they sink to slowly)
     // (Variants 'snowr' b, part snr4, 04b_snow.js: the edges squeeze up a berm along each side of the track. bermK goes to the stamp in its
     // kind field, under 0.45: a ski stamp still)
     const sk4 = typeof SnowLook !== 'undefined' ? SnowLook.trackK(px, pz) : null, bermK = sk4 ? 0.4 * clamp(sk4.berm, 0, 1) : 0;
     const sb = tl > 0.5 ? Math.abs(S.v[0] * rx + S.v[2] * rz) / tl : 0, vs = (VS ? VS.val.sink : 'b') + pdv + (sk4 ? 'k' : ''), firm = SINK[VS ? VS.val.sink : 'b'] || SINK.b;
-    const Dt = (firm + soft * clamp(0.55 + 0.45 * (S.load || 9.8) / 9.8, 0.7, 1.4) * lerp(1, 0.45, smooth(6, 18, S.speed || 0))) * (1 + 0.15 * Math.abs(se)) * (1 - 0.4 * Math.min(1, sb / 0.5));
+    const Dt = (firm * (flo < 1 ? 0.6 : 1) + soft * clamp(0.55 + 0.45 * (S.load || 9.8) / 9.8, 0.7, 1.4) * lerp(1, 0.45, smooth(6, 18, S.speed || 0))) * (1 + 0.15 * Math.abs(se)) * (1 - 0.4 * Math.min(1, sb / 0.5));
     // (another version chosen: the depth goes over to it in half a second even if the skier is standing, and skis that stand are pressed in afresh)
     if (vs !== vNow) { if (vNow !== null) vT = 40; vNow = vs; }
     const kD = Dset ? Math.max(1 - Math.exp(-mv / 0.6), vT > 0 ? 0.12 : 0) : 1;

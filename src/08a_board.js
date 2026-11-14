@@ -16,7 +16,7 @@
 const Board = (() => {
   const VS = typeof Variants !== 'undefined' ? Variants : null;
   if (VS) VS.def('ride', '滑具', [['a', '双板'], ['b', '单板']], 'a');
-  const BD = { len: 1.56, hw: 0.13, waist: 0.128, half: 0.25, kick: 0.055, th: 0.013, yawF: -0.26, yawB: 0.15 };   // board (m), half the stance, binding angles (rad, + toward the tail)
+  const BD = { len: 1.56, hw: 0.13, waist: 0.128, half: 0.25, kickN: 0.085, kickT: 0.065, run: 0.58, th: 0.013, yawF: -0.26, yawB: 0.15 };   // board (m), half the stance, binding angles (rad, + toward the tail)
   const K = Skier, L = K.LEN, basis = K.basis, ik2 = K.ik2, frameXY = K.frameXY, fr = K.fr, B = K.B;
   // the quarter turn: rider space (x, y, z) -> figure space (-z, y, x)
   const Qp = q => [-q[2], q[1], q[0]], QM = m4.fromBasis([0, 0, 1], [0, 1, 0], [-1, 0, 0], [0, 0, 0]);
@@ -116,15 +116,16 @@ const Board = (() => {
   }
 
   // ---- the board's mesh, in its own space (x toward the toe edge, y up, -z the nose; the middle of the base at 0): a twin with a waist, round
-  // nose and tail kicked up, a little thicker under the bindings. Made for the left foot's bone (K.build places it there by .at)
+  // nose and tail kicked well up past the contact points (it rides on its running length only), a little thicker under the bindings. Made for the left foot's bone (K.build places it there by .at)
   function mesh() {
-    const mb = meshBuilder(), rings = [], N = 64, hl = BD.len / 2, flat = hl - 0.16;
+    const mb = meshBuilder(), rings = [], N = 72, hl = BD.len / 2, flat = BD.run;
     for (let i = 0; i <= N; i++) {
       const t = i / N, z = lerp(hl, -hl, t), az = Math.abs(z);
       // sidecut: widest at the contact points, waist between; rounded ends
       let w = lerp(BD.waist, BD.hw + 0.020, smooth(0.0, flat, az) ** 2);
       if (az > flat) w *= Math.sqrt(Math.max(0.04, 1 - ((az - flat) / (hl - flat + 0.004)) ** 2));
-      const yb = BD.kick * Math.pow(smooth(flat - 0.04, hl, az), 1.6), th = lerp(0.006, BD.th, smooth(hl, 0.3, az));
+      // (only the running length between the contact points lies on the snow; past them nose and tail curve up, the nose higher: 8.5 cm, 6.5)
+      const yb = (z < 0 ? BD.kickN : BD.kickT) * Math.pow(smooth(flat - 0.02, hl, az), 1.5), th = lerp(0.006, BD.th, smooth(hl, 0.3, az));
       const r = [[-w, yb], [w, yb], [w, yb + th * 0.55], [w * 0.97, yb + th], [-w * 0.97, yb + th], [-w, yb + th * 0.55]];
       rings.push(r.map(q => [[q[0], q[1], z], [0, 1, 0]]));
     }
