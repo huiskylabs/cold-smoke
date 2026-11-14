@@ -209,16 +209,30 @@ const Sky = (() => {
 
   S.nebDay = 0.55; S.nebNight = 0.33; S.nebSat = 0.45; S.polar = 0.34; S.glare = 0.075;
   Variants.def('moon', '夜里的月亮', [['a', '月牙'], ['b', '盈凸']], 'b');
-  // the aurora (AURORA_SSL below): on every clear night, or only now and then (a minute or two of it every few minutes), or never.
-  // Its strength breathes slowly; the curtain drifts along the sky and its rays shimmer. How bright it is at all is S.auroraK
-  Variants.def('aurora', '极光', [['a', '每个晴夜'], ['b', '偶尔'], ['c', '关']], 'b');
+  // the night's show (the owner: nebula and aurora together are too busy, "它们不能同时出现"): each night is a nebula night, an aurora night
+  // or, now and then, a plain night of stars alone; never both. The pick is made per night (from the mountain's seed and which night it
+  // is), so it changes only at noon, when the nebula is a pale ghost and the aurora is out anyway; the nebula then fades with the dusk on
+  // an aurora night, and the aurora only comes up with the stars, so the two never share the sky even for a moment.
+  // a = they take turns night by night, b = by chance (nebula 45%, aurora 35%, stars alone 20%), c = no aurora (the nebula every night)
+  Variants.def('aurora', '极光', [['a', '和星云轮流'], ['b', '随机'], ['c', '关']], 'b');
   S.auroraK = 0.35;
+  S.show = function () {
+    const v = Variants.val.aurora; if (v === 'c') return 'nebula';
+    const n = Math.floor(S.clock / S.cycle), sd = typeof Course !== 'undefined' ? Course.seed % 9973 : 0;
+    const h = (k) => { const q = Math.sin(k * 127.1 + 311.7) * 43758.5453; return q - Math.floor(q); };
+    if (v === 'a') return ((n + sd) & 1) ? 'aurora' : 'nebula';
+    const r = h(n * 1.618 + sd * 0.731);
+    if (n === 0) return r < 0.55 ? 'nebula' : 'aurora';          // the first night always shows something
+    return r < 0.45 ? 'nebula' : r < 0.80 ? 'aurora' : 'none';
+  };
+  // the nebula's share of the sky: all of it by day; at night only on a nebula night
+  S.nebShow = function () { return S.show() === 'nebula' ? 1 : 1 - S.nebNightK; };
+  // the aurora's strength breathes slowly; the curtain drifts along the sky and its rays shimmer. How bright it is at all is S.auroraK
   S.aurora = function (t) {
-    const v = Variants.val.aurora; if (v === 'c') return 0;
+    if (S.show() !== 'aurora') return 0;
     const n = (x) => { const i = Math.floor(x), f = x - i, h = (k) => { const q = Math.sin(k * 127.1 + 311.7) * 43758.5453; return q - Math.floor(q); }; return lerp(h(i), h(i + 1), f * f * (3 - 2 * f)); };
     const breathe = 0.7 + 0.3 * n(t / 23) + 0.15 * Math.sin(t * 0.21);
-    const k = v === 'b' ? smooth(0.55, 0.75, n(t / 70)) : 1;
-    return S.auroraK * breathe * k;
+    return S.auroraK * breathe;
   };
   S.draw = function () {
     Vista.updateShadow(); const b = Nebula.basis(), md = S.moonDir(), cam = Render.cam.pos;
@@ -226,7 +240,7 @@ const Sky = (() => {
     const ph = (Render.time * 0.9) % 1, strobe = (ph < 0.045 || (ph > 0.13 && ph < 0.175)) ? 1 : 0, beacon = Math.pow(Math.max(0, Math.sin(Render.time * 4.2)), 8);
     // (under the overcast the far summits lose the sun with everything else)
     const wx = typeof Weather !== 'undefined' ? Weather.sky : null, wk = wx && Weather.sunK != null ? Weather.sunK : 1;
-    gfx.draw(pipeSky, { u: { au: [S.aurora(Render.time), 0.12, Render.time * 0.0035, Render.time], p: [S.nebDay, S.nebNight * S.nebNightK, S.polar * lerp(0.5, 1, S.milk), lerp(1.0, S.nebSat, S.milk)], nr: b.nr, nu: b.nu, nf: b.nf,
+    gfx.draw(pipeSky, { u: { au: [S.aurora(Render.time), 0.12, Render.time * 0.0035, Render.time], p: [S.nebDay, S.nebNight * S.nebNightK, S.polar * lerp(0.5, 1, S.milk), lerp(1.0, S.nebSat, S.milk)], nr: b.nr, nu: [b.nu[0], b.nu[1], b.nu[2], b.nu[3] * S.nebShow()], nf: b.nf,
       sd: [S.disc[0], S.disc[1], S.disc[2], S.isMoon ? 0 : 1], mo: [md[0], md[1], md[2], S.moonVis], hi: [S.sunHi[0], S.sunHi[1], S.sunHi[2], S.night], fr: [S.sunFar[0] * wk, S.sunFar[1] * wk, S.sunFar[2] * wk, strobe + 0.5 * beacon],
       pa: PL.on ? [PL.x - cam[0], PL.z - cam[2], S.hiAlt, 1] : [0, 0, S.hiAlt, 0], pb: [PL.hx, PL.hz, PL.len, PL.v], pc: [PL.cut, S.glare, (Variants.val.moon === 'b' ? 1 : 0) * S.night, 0], cs: [Clouds.sea.f, Clouds.sea.oA, Clouds.sea.oB, 0], ab: S.anti, ns: [NSKY.step(Render.time)[0], NSKY.v[1], 0, 0],
       wa: wx ? wx.wa : [0, 0, 0, 0], wb: wx ? wx.wb : [0, 0, 0, 0], wc: wx ? wx.wc : [0, 0, 0, 0], wd: wx ? wx.wd : [0, 0, 0, 0], we: wx ? wx.we : [0, 0, 0, 0], wf: wx ? wx.wf : [0, 0, 0, 0], wg: wx ? wx.wg : [0, 0, 0, 0] },
