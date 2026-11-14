@@ -21,15 +21,43 @@ const SEG_NAMES = { bowl: '开阔大坡', steeps: '陡坡', glade: '树林', rol
 // (re-measured for the feel the owner chose, 2026-11-13 (Variants 'feel' b: deep powder drags, a hard turn at speed washes out): the
 // pilot's speed on two fixed mountains, scaled from the old figures by b over a)
 const SEG_PACE = { bowl: 18.7, steeps: 28.6, glade: 11.6, rollers: 14.1, gully: 14.6, kickers: 17.0, powder: 10.8, ridge: 21.2, moguls: 15.3 };
+// ---- the richer mountain (Variants 'terr' b) and how much of it there is (Variants 'tdiff': 轻松 / 标准 / 野雪). With 'terr' a the
+// mountain is the one it always was, to the last bit, whatever 'tdiff' says. With b three things come onto it, each from a random stream of
+// its own, so the deck, the runs and the jumps of a seed stay what they are:
+//   the pitch changes along the run: a run is no longer one even slope but steeper and easier pitches, with a rollover where it steepens
+//   (the snow drops out of sight beyond it) and a bench where it eases, the same fall over the whole run;
+//   the run is no longer the same on both sides: stretches where it leans to one side (off-camber) and stretches where one edge curls up
+//   into a natural wall (a side hit) to ride up and come back down;
+//   rock: snow-capped boulders along the edges and out on the open runs, and small drops, a snow-covered ledge with a soft landing below. A drop
+//   never spans the run: there is always a way round, and the first turns of a mountain are free of them.
+// tdiff scales all of it, and the run itself: slope and width. Every level keeps a clean line down; nothing here moves the camera.
+const TERR_LV = {
+  //   slope  width pitch  tilt   bank  drops  dropH       rocks islands mogul
+  a: { slope: 0.82, hw: 1.22, pitch: 0.22, tilt: 0.035, bank: 1.6, drops: 0, dropH: [0, 0], rocks: 0.5, isl: 0.6, mog: 0.75 },
+  b: { slope: 1.00, hw: 1.00, pitch: 0.42, tilt: 0.075, bank: 3.2, drops: 0.6, dropH: [1.2, 2.0], rocks: 1.0, isl: 1.0, mog: 1.0 },
+  c: { slope: 1.10, hw: 0.86, pitch: 0.60, tilt: 0.12, bank: 5.0, drops: 1.4, dropH: [1.8, 3.5], rocks: 1.6, isl: 1.4, mog: 1.2 },
+};
+// how much of each the kinds of run take (pitch, sides, rock): busy or narrow runs less, the open ones more
+const TERR_K = {
+  bowl: [1, 1, 1], steeps: [0.7, 0.6, 0.5], glade: [0.9, 0.7, 0.8], rollers: [0.5, 0.8, 0.8], gully: [0.9, 0.4, 0.6],
+  kickers: [0.4, 0.5, 0.4], powder: [1, 0.9, 1.2], ridge: [0.8, 0, 0.3], moguls: [0.6, 0.6, 0.3],
+};
+if (typeof Variants !== 'undefined') {
+  Variants.def('terr', '地形', [['a', '原来'], ['b', '丰富']], 'b');
+  Variants.def('tdiff', '地形难度', [['a', '轻松'], ['b', '标准'], ['c', '野雪']], 'b');
+  // (a change lays the same mountain out again)
+  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
+}
 const HREF_SLOPE = 0.36;        // reference plane removed from heights before they go into float textures
 const TREE_CELL = 4.5;
 
 const Course = ((vn1, vn2, h2U) => {
-  const C = { seed: 261111, segs: [], feats: new Map(), mogK: 1 };
-  const CH = 2048, NF = 16;       // metres per cache chunk, fields per metre
-  const F = { baseY: 0, cx: 1, hw: 2, dish: 3, shoulder: 4, gul: 5, gw: 6, goff: 7, roll: 8, mog: 9, forest: 10, glade: 11, powder: 12, ridge: 13, wall: 14, rtail: 15 };
+  const C = { seed: 261111, segs: [], feats: new Map(), mogK: 1, rich: false, lv: 'b', isl: 1 };
+  const CH = 2048, NF = 18;       // metres per cache chunk, fields per metre
+  const F = { baseY: 0, cx: 1, hw: 2, dish: 3, shoulder: 4, gul: 5, gw: 6, goff: 7, roll: 8, mog: 9, forest: 10, glade: 11, powder: 12, ridge: 13, wall: 14, rtail: 15, tilt: 16, bank: 17 };
   const chunks = new Map();
   let rng = RNG(C.seed), planned = 0, lastTypes = [], deck = [], pairs = [];
+  let LV = null, trng = rng;      // the richer mountain: its level (TERR_LV) or null for the mountain as it was, and its own random stream
   // running integrals carried across chunks
   const integ = new Map();   // chunkIndex -> {baseY, rollPh, gPh} at chunk start
 
@@ -49,7 +77,11 @@ const Course = ((vn1, vn2, h2U) => {
     n = Math.floor(+n); if (n >= 1) C.seed = (n - 1) % 999999 + 1;
     KEY = hashU(C.seed) ^ hashU(HOME); KZ = Math.imul(KEY, 0x9e3779b1);
     C.segs = []; C.feats.clear(); chunks.clear(); integ.clear(); rng = RNG(FIRST ^ KEY); planned = 0; lastTypes = []; deck = []; pairs = [];
-    hand = []; dealt = []; toss = RNG(KEY + TOSS); planTo(4000);
+    hand = []; dealt = []; toss = RNG(KEY + TOSS);
+    const tv = typeof Variants !== 'undefined' ? Variants.val : {};
+    C.lv = TERR_LV[tv.tdiff] ? tv.tdiff : 'b'; LV = tv.terr === 'b' ? TERR_LV[C.lv] : null; C.rich = !!LV; C.isl = LV ? LV.isl : 1;
+    trng = RNG((KEY ^ 0x7e4a11) + 131 * C.lv.charCodeAt(0));
+    planTo(4000);
     return C.seed;
   };
   C.reset = C.setSeed;
@@ -105,6 +137,7 @@ const Course = ((vn1, vn2, h2U) => {
       const base = SEG_TYPES[type], p = {}, v = () => 0.85 + rng() * 0.3;
       for (const k of SEG_KEYS) p[k] = base[k];
       p.slope *= 0.93 + rng() * 0.14; p.hw *= v(); p.rollL *= v(); p.rollA *= v(); p.gAmp *= v(); p.gul *= v(); p.mean *= v();
+      if (LV) { p.slope = Math.min(0.68, p.slope * LV.slope); p.hw *= LV.hw; p.mog *= LV.mog; p.rollA *= Math.min(1, LV.slope); }
       const len = C.segs.length === 0 ? 590 : SEG_PACE[type] * (27 + rng() * 6);       // about half a minute each
       const seg = { type, s0: planned, len, p, idx: C.segs.length, seed: (rng() * 1e9) | 0 };
       C.segs.push(seg);
@@ -116,9 +149,118 @@ const Course = ((vn1, vn2, h2U) => {
         const n = 1 + Math.floor(rng() * 2);
         for (let i = 0; i < n; i++) addFeat({ s: seg.s0 + 120 + rng() * (len - 240), u: (rng() - 0.5) * 30, len: 12, wid: 10, h: 1.1 + rng() * 0.6, kind: 'kicker' });
       }
+      if (LV) enrich(seg, type);
       planned += len;
     }
   }
+  // ---- the richer mountain (Variants 'terr' b): what one run gets, all drawn from trng
+  function enrich(seg, type) {
+    const k = TERR_K[type], p = seg.p, r = trng, s1 = seg.s0 + seg.len, from = seg.idx === 0 ? 240 : seg.s0 + 50, to = s1 - 60;
+    // the pitch: easier and steeper stretches one after another, each 60-150 m. Where it steepens the change is quick (a rollover: the snow
+    // beyond drops out of sight), where it eases it is drawn out (a bench, no slam into it). The stretches are scaled so the run falls as
+    // far as it did; no stretch is steeper than 36 degrees or flat enough to stall on
+    const A = LV.pitch * k[0];
+    if (A > 0.01) {
+      const pk = []; let s = from + r() * 30, up = r() < 0.5 ? 1 : -1;
+      while (s < to - 60) { pk.push({ s, m: 1 + up * A * (0.55 + 0.45 * r()), tl: up > 0 ? 9 + r() * 8 : 18 + r() * 16 }); s += 60 + r() * 90; up = -up; }
+      if (pk.length) {
+        pk.push({ s: Math.min(s, to), m: 1, tl: 24 });
+        let a = 0, w = 0; for (let i = 0; i < pk.length - 1; i++) { const L = pk[i + 1].s - pk[i].s; a += pk[i].m * L; w += L; }
+        for (let i = 0; i < pk.length - 1; i++) pk[i].m = clamp(pk[i].m * w / a, 0.16 / p.slope, 0.72 / p.slope);
+        seg.pk = pk;
+      }
+    }
+    // the sides: stretches of 70-150 m that are plain, lean to one side (off-camber), or have one edge curled up into a wall (a side hit)
+    if (k[1] > 0) {
+      const xs = []; let s = from + r() * 40;
+      while (s < to - 50) {
+        const q = r(), a = r() < 0.5 ? -1 : 1, b = r() < 0.5 ? -1 : 1, ta = 0.6 + 0.4 * r(), tb = 0.6 + 0.4 * r();
+        xs.push({ s, tilt: q > 0.3 && q < 0.6 || q > 0.9 ? a * LV.tilt * k[1] * ta : 0, bank: q > 0.6 ? b * LV.bank * k[1] * tb : 0 });
+        s += 70 + r() * 80;
+      }
+      if (xs.length) { xs.push({ s: Math.min(s, to), tilt: 0, bank: 0 }); seg.xs = xs; }
+    }
+    // rock. Drops first: a ledge 8-15 m wide set toward one edge (the rest of the run goes round it), a run-in that rises gently
+    // onto it, and below the face a landing that is steeper than the run, so the skis come down along the snow, not onto it
+    const R = LV.rocks * k[2];
+    if (LV.drops > 0 && k[2] >= 0.6 && p.hw > 20 && !p.kick) {
+      const n = Math.floor(LV.drops * k[2] + r());
+      for (let i = 0; i < n; i++) {
+        const D = LV.dropH[0] + r() * (LV.dropH[1] - LV.dropH[0]), wid = 8 + r() * 7, side = r() < 0.5 ? -1 : 1;
+        const u = side * (p.hw - wid * 0.5 - 2 - r() * 5), sl = Math.max(from + 60, 700) + r() * Math.max(1, to - Math.max(from + 60, 700) - 60);
+        if (sl > to - 60) continue;
+        if (busy(sl - 80, sl + 50, u, wid * 0.5 + 6)) continue;
+        addFeat({ s: sl - 40, len: 58, lip: sl, u, wid, h: D, kind: 'drop' });
+      }
+    }
+    // boulders, capped with snow: most along the edges of the run, some out on it (never down its middle). The uphill side is long and
+    // rounded, so a skier who rides onto one is lifted off it, not stopped; the sides and the downhill face are steep, and that is where
+    // the rock shows
+    if (R > 0.01) {
+      const n = Math.floor(R * (seg.len / 110) * (0.6 + 0.8 * r()));
+      for (let i = 0; i < n; i++) {
+        let sc = from + r() * Math.max(1, to - from), edge = r() < 0.7 || p.hw < 24 || C.lv === 'a', side = r() < 0.5 ? -1 : 1;
+        const g = r() < 0.3 ? 2 + Math.floor(r() * 2) : 1;
+        let u = side * (edge ? p.hw * (0.66 + 0.3 * r()) : p.hw * (0.36 + 0.32 * r()));
+        for (let j = 0; j < g; j++) {
+          const rad = 1.2 + 1.8 * r(), h = (0.5 + 0.9 * r()) * (C.lv === 'c' ? 1.3 : 1) * Math.min(1, rad / 1.6);
+          if (!busy(sc - rad - 6, sc + rad + 6, u, rad + 3)) addFeat({ s: sc - 2.2 * rad, len: 3.4 * rad, cs: sc, u, rad, h, kind: 'rock' });
+          sc += (r() - 0.3) * 7; u += (r() - 0.5) * 6;
+        }
+      }
+    }
+  }
+  // anything already standing within [sa, sb] down the run and `room` metres of u across it?
+  function busy(sa, sb, u, room) {
+    for (let b = Math.floor((sa - 30) / 32); b <= Math.floor(sb / 32); b++) for (const f of C.feats.get(b) || []) {
+      const fa = f.s, fb2 = f.s + f.len, half = f.kind === 'rock' ? f.rad : (f.wid || 10) * 0.5;
+      if (fb2 > sa && fa < sb && Math.abs(f.u - u) < room + half) return true;
+    }
+    return false;
+  }
+  // the pitch at s, as a factor on the run's own slope (1 where nothing was laid out)
+  function pitchAt(s) {
+    const pk = segAt(s).pk; if (!pk) return 1;
+    let m = 1;
+    for (let i = 0; i < pk.length; i++) { const q = pk[i], h = q.tl * 0.5; if (s < q.s - h) break; const m0 = i ? pk[i - 1].m : 1; m = m0 + (q.m - m0) * smooth(q.s - h, q.s + h, s); }
+    return m;
+  }
+  // the sides at s: [lean across the run, height of the wall on one edge (signed: + on the right)], changing over 36 m
+  const _sd = [0, 0];
+  function sideAt(s) {
+    const xs = segAt(s).xs; _sd[0] = 0; _sd[1] = 0; if (!xs) return _sd;
+    for (let i = 0; i < xs.length; i++) {
+      const q = xs[i]; if (s < q.s - 18) break;
+      const w = smooth(q.s - 18, q.s + 18, s), t0 = i ? xs[i - 1].tilt : 0, b0 = i ? xs[i - 1].bank : 0;
+      _sd[0] = t0 + (q.tilt - t0) * w; _sd[1] = b0 + (q.bank - b0) * w;
+    }
+    return _sd;
+  }
+  const dropLip = (f, du) => 1.6 * vnoise1(du / 3.3 + f.lip * 0.17, 81) + 0.6 * vnoise1(du / 1.1 + f.lip * 0.29, 82);
+  // trees keep clear of a drop (its run-in, face and landing) and stand off a boulder
+  function clearAt(s, u) {
+    const fb = C.feats.get(Math.floor(s / 32)); if (!fb) return 1;
+    let k = 1;
+    for (let i = 0; i < fb.length; i++) {
+      const f = fb[i];
+      if (f.kind === 'drop') { if (s > f.s - 6 && s < f.s + f.len + 22) k = Math.min(k, smooth(f.wid * 0.5 + 4, f.wid * 0.5 + 10, Math.abs(u - f.u))); }
+      else if (f.kind === 'rock') k = Math.min(k, smooth(f.rad + 0.5, f.rad + 3, Math.hypot(s - f.cs, u - f.u)));
+    }
+    return k;
+  }
+  // where a boulder shows bare rock (0..1; the terrain shader bares only what is steep within it). A drop stays snow: a ledge with a
+  // rounded, wind-packed lip (bare rock on its face was tried and read as a dark slab)
+  C.rockAt = function (x, z) {
+    if (!LV) return 0;
+    const s = -z, fb = C.feats.get(Math.floor(s / 32)); if (!fb) return 0;
+    let u = null, k = 0;
+    for (let i = 0; i < fb.length; i++) {
+      const f = fb[i]; if (f.kind !== 'rock') continue;
+      if (u === null) u = x - at(s, _py).cx;
+      k = Math.max(k, smooth(1.2, 0.85, Math.hypot((s - f.cs) * (s < f.cs ? 0.45 : 1), u - f.u) / f.rad));
+    }
+    return k;
+  };
   function addFeat(f) { const b0 = Math.floor((f.s - 4) / 32), b1 = Math.floor((f.s + f.len + 30) / 32); for (let b = b0; b <= b1; b++) { let a = C.feats.get(b); if (!a) C.feats.set(b, a = []); a.push(f); } }
 
   function segAt(s) {
@@ -180,7 +322,8 @@ const Course = ((vn1, vn2, h2U) => {
         const s = ci * CH + i, o = i * NF, p = paramsAt(s, _pp);
         base64[i] = y; c[o + F.cx] = centre(s, p.mean); c[o + F.hw] = p.hw; c[o + F.dish] = p.dish; c[o + F.shoulder] = p.shoulder; c[o + F.gul] = p.gul; c[o + F.gw] = p.gw;
         c[o + F.goff] = p.gAmp * Math.sin(gph); c[o + F.roll] = p.rollA * Math.sin(rph); c[o + F.mog] = p.mog; c[o + F.forest] = p.forest; c[o + F.glade] = p.glade; c[o + F.powder] = p.powder; c[o + F.ridge] = p.ridge;
-        if (i < CH) { const p2 = paramsAt(s + 0.5, _pp); y -= p2.slope; rph += TAU / p2.rollL; gph += TAU / 78; }
+        if (LV) { const sd = sideAt(s), nr = 1 - p.ridge; c[o + F.tilt] = sd[0] * nr; c[o + F.bank] = sd[1] * nr; }
+        if (i < CH) { const p2 = paramsAt(s + 0.5, _pp); if (LV) y -= p2.slope * pitchAt(s + 0.5); else y -= p2.slope; rph += TAU / p2.rollL; gph += TAU / 78; }
       }
       integ.set(ci + 1, { baseY: y, rollPh: rph, gPh: gph });
     }
@@ -196,7 +339,7 @@ const Course = ((vn1, vn2, h2U) => {
   const _py = {};
   C.yawAt = function (s) { const a = at(s - 5, _py).cx; return Math.atan2(at(s + 35, _py).cx - a, 40); };
 
-  const cur = { baseY: 0, cx: 0, hw: 40, dish: 0, shoulder: 0.3, gul: 0, gw: 10, goff: 0, roll: 0, mog: 0, forest: 0, glade: 0, powder: 0, ridge: 0, wall: 1, rtail: 0, s: 0 };
+  const cur = { baseY: 0, cx: 0, hw: 40, dish: 0, shoulder: 0.3, gul: 0, gw: 10, goff: 0, roll: 0, mog: 0, forest: 0, glade: 0, powder: 0, ridge: 0, wall: 1, rtail: 0, tilt: 0, bank: 0, s: 0 };
   function at(s, out) {
     out = out || cur;
     const ci = Math.floor(s / CH), c = chunk(ci), fs = s - ci * CH, i = Math.min(CH - 1, Math.floor(fs)), f = fs - i, o = i * NF, o2 = o + NF;
@@ -206,6 +349,7 @@ const Course = ((vn1, vn2, h2U) => {
     out.goff = c[o + 7] + (c[o2 + 7] - c[o + 7]) * f; out.roll = c[o + 8] + (c[o2 + 8] - c[o + 8]) * f; out.mog = c[o + 9] + (c[o2 + 9] - c[o + 9]) * f;
     out.forest = c[o + 10] + (c[o2 + 10] - c[o + 10]) * f; out.glade = c[o + 11] + (c[o2 + 11] - c[o + 11]) * f; out.powder = c[o + 12] + (c[o2 + 12] - c[o + 12]) * f; out.ridge = c[o + 13] + (c[o2 + 13] - c[o + 13]) * f;
     out.wall = c[o + 14] + (c[o2 + 14] - c[o + 14]) * f; out.rtail = c[o + 15] + (c[o2 + 15] - c[o + 15]) * f;
+    out.tilt = c[o + 16] + (c[o2 + 16] - c[o + 16]) * f; out.bank = c[o + 17] + (c[o2 + 17] - c[o + 17]) * f;
     out.s = s; return out;
   }
   C.at = at;
@@ -239,6 +383,9 @@ const Course = ((vn1, vn2, h2U) => {
     let h = c.baseY;
     const e = au - hw;
     h += c.dish * Math.min(1.6, (u * u) / (hw * hw));
+    // (the richer mountain) a run that leans to one side, and one edge curled up into a wall: concave, steepening to its top at the edge
+    if (c.tilt !== 0) h += c.tilt * u / Math.sqrt(1 + u * u / (1.44 * hw * hw));
+    if (c.bank !== 0) { const t = sat(((c.bank > 0 ? u : -u) / hw - 0.45) / 0.55); h += Math.abs(c.bank) * t * t; }
     // forested banks either side of the run, each stretch of the run with its own; on a ridge they fall away instead. Farther out they
     // level off into the valley's own walls, which do not care what the run below is doing
     // (from fifteen metres out the land answers less to the ridge here and more to the ridge above: c.rtail)
@@ -306,7 +453,21 @@ const Course = ((vn1, vn2, h2U) => {
     // kickers and other placed features
     const fb = C.feats.get(Math.floor(s / 32));
     if (fb) for (let i = 0; i < fb.length; i++) {
-      const f = fb[i], t = (s - f.s) / f.len; if (t < -0.2 || t > 2.6) continue;
+      const f = fb[i];
+      if (f.kind === 'rock') {
+        const q = Math.hypot((s - f.cs) * (s < f.cs ? 0.45 : 1), u - f.u) / f.rad;
+        if (q < 1) h += f.h * (0.45 * Math.sqrt(1 - q * q) + 0.55 * smooth(1, 0.5, q));      // (round on top, steep but not sheer at the sides: a sheer one cannot be drawn without teeth)
+        continue;
+      }
+      if (f.kind === 'drop') {
+        // run-in rising onto the step, the face (it takes 0.65 of the height in a metre), then a landing that falls away 0.35 more over twelve
+        // (the lip is not a ruled line: it wanders a metre or two either way across the step, and so do the step's two ends)
+        const du = u - f.u, w2 = f.wid * 0.5 + 1.5 * vnoise1(f.lip * 0.31 + (du > 0 ? 3.1 : 7.7), 83);
+        const lat = smooth(w2 + 4, w2 - 1, Math.abs(du)); if (lat <= 0) continue;
+        const d = s - f.lip - dropLip(f, du), k = d < 0 ? smooth(f.s - f.lip, -4, d) : d < 1.4 ? 1 - 0.65 * smooth(0, 1.4, d) : 0.35 * (1 - smooth(1.4, 13, d));
+        h += f.h * k * lat; continue;
+      }
+      const t = (s - f.s) / f.len; if (t < -0.2 || t > 2.6) continue;
       // (a marked jump is a built wedge, half as wide as the hump it replaces: its sides are shovelled and packed to a batter of about 45-55
       // degrees, rounded over at the shoulder and run out into the snow at the toe, as a park crew shapes them. The sides are what the eye
       // finds from above)
@@ -363,7 +524,7 @@ const Course = ((vn1, vn2, h2U) => {
     if (au < c.hw && s > 150) {
       const lane = 0.42 * c.hw * vnoise1(s / 150 + 2.3, C.seed + 9), isl = vnoise2(x / 30 + 7.1, z / 46, 26);
       const g = c.forest * smooth(0.50, 0.66, isl) * smooth(6, 11, Math.abs(u - lane)) * smooth(150, 230, s) * (1 - c.ridge);
-      d = Math.max(d, g * 0.7);
+      d = Math.max(d, g * 0.7 * C.isl);
     }
     // the ridge: wind-stunted spruce, plastered white, in loose groups along both edges of the crest (they are what goes by at speed up there)
     _ridge = c.ridge;
@@ -371,6 +532,7 @@ const Course = ((vn1, vn2, h2U) => {
       const g = c.ridge * smooth(c.hw - 4.5, c.hw - 1.5, au) * smooth(c.hw + 8, c.hw + 3, au) * smooth(-0.2, 0.4, vnoise2(x / 21, z / 34, 27));
       d = Math.max(d, g * 0.55);
     }
+    if (LV && d > 0 && e < 14) d *= clearAt(s, u);
     if (s < 60) d *= smooth(8, 60, s + au);       // keep the start gate clear
     return d;
   };
