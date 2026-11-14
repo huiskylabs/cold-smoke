@@ -171,7 +171,7 @@ const Game = (() => {
   // on the title page, with no sun ahead, the lens looks a little to the left of the valley (and the skier stands on the right third, see updateCamera)
   G.titleYaw = -0.05;
   const cam = G.cam = { pos: [0, 3, 8], yaw: 0, roll: 0, fov: 1.3, anchor: [0, 0, 0], pitch: -0.2, side: 0, gy: 0, init: false, fwd: [0, 0, -1] };
-  const pc = {}, tn = { ok: false }, tnc = { ok: false };
+  const pc = {}, tn = { ok: false }, tnc = { ok: false }, rk = {}, ROCK_CAP = 0.3;
   let acc = 0;
 
   G.reset = function (s0 = 14) {
@@ -419,6 +419,18 @@ const Game = (() => {
     p[0] += v[0] * dt; p[1] += v[1] * dt; p[2] += v[2] * dt;
     // trees: brushing the branches slows a little and shakes snow loose, hitting a trunk throws the skier off line
     S.brush = Math.max(0, S.brush - dt * 3); S.crash = Math.max(0, S.crash - dt);
+    // boulders: riding onto one is the low swell the body is told of (Course.rockCap); where the rock stands up as a wall the skier is
+    // stopped by it the way a trunk stops them, or turned along its flank by a glancing touch. Never thrown up off it
+    if (Course.rockHit && e < 2 && Course.rockHit(p[0], p[2], rk)) {
+      const nx = rk.nx, nz = rk.nz, vd = v[0] * nx + v[2] * nz;
+      p[0] = rk.x + nx * 0.02; p[2] = rk.z + nz * 0.02;
+      if (vd < 0) {
+        const imp = -vd, hd = Math.hypot(v[0], v[2]) || 1, head = imp / hd;      // head: 1 straight at it, small for a glance
+        v[0] -= (1 + 0.2 * head) * vd * nx; v[2] -= (1 + 0.2 * head) * vd * nz;
+        const k = 1 - 0.55 * smooth(0.25, 0.8, head); v[0] *= k; v[2] *= k;
+        if (imp > 6 && head > 0.45) { if (S.crash <= 0.2) G.events.push({ type: 'crash', v: imp, x: rk.x, z: rk.z, h: rk.h, r: 1 }); S.crash = 0.9; S.leanV += (rx * nx + rz * nz) * 4; }
+      }
+    }
     Course.nearTree(p[0], p[2], tn);
     if (tn.ok && e < 2.5) {
       const trunk = 0.14 + tn.h * 0.012, d = tn.d;
@@ -1166,12 +1178,15 @@ const Game = (() => {
       // (and each frame's time is cut into equal steps of at most 1/120 s and spent whole: nothing carried over to the next frame. With a
       // remainder carried, a frame got one step, the next three, as the clock eased: the owner still saw the flight stutter)
       const ns = Math.min(Math.max(Math.ceil(acc / H - 1e-6), 1), 10), Hs = acc / ns; G.hs = Hs;
+      // (a boulder or a mound of packed snow beside the run is, to the body, only a low swell: Course.rockCap, while the physics and the
+      // forecast of the flight ask. The skis and legs below still follow the snow as it is drawn)
+      Course.rockCap = ROCK_CAP;
       if (acc > 1e-7) for (let k = 0; k < ns; k++) { step(Hs, Input.u); acc -= Hs; n++; G.stepT = G.t - Math.max(acc, 0); if (G.onStep) G.onStep(S, Hs); }
       acc = 0;
       if (n === 10) acc = 0;
       G.dist = -S.p[2]; G.drop = G.y0 - S.p[1]; if (S.speed > G.topSpeed) G.topSpeed = S.speed;
     }
-    G.nSteps = n; updateFlight(dt, n); updatePose(dt); updateCamera(dt);
+    Course.rockCap = ROCK_CAP; G.nSteps = n; updateFlight(dt, n); Course.rockCap = 0; updatePose(dt); updateCamera(dt);
   };
   G.step = step;
   return G;
