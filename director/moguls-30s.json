@@ -4,5 +4,5 @@
   "steer":{"rhythm":true,"amp":0.3,"wide":5},
   "variants":{"mog":"b"},
   "cam":"chase",
-  "cuts":[[0,"chase"],[3.5,"low"],[7,"right"],[10,"tips"],[13,"front"],[16,"chase"],[19,"left"],[22,"fp"],[25,"far"],[27.5,"chase"]]}
+  "cuts":[[0,"chase"],[3.5,"low"],[6.3,"right"],[10,"tips"],[13,"front"],[16,"chase"],[19,"left"],[22,"fp"],[25,"far"],[26.4,"chase"]]}
 ]
