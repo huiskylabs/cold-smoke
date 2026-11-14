@@ -208,7 +208,7 @@
       jump: keys([[0, P.ride], [0.3, P.ride], [0.6, P.crouch], [0.82, P.pop], [1.2, P.grab], [1.45, P.grab], [1.65, P.open], [1.9, P.land], [2.7, P.ride], [3.0, P.ride]]) }); } return sbCache.get(sk); };
   // the board turns on its edges: toe edge at 0.25, heel edge at 0.75 (the same key at both ends, so it loops)
   const sbTurn = (u, sk) => { const t = u * 3.0, K = sbOf(sk); return { pose: K.turn(t) }; };
-  const sbJump = (u, sk) => { const t = u * 3.0; return { pose: sbOf(sk).jump(t), lift: flight(t, 0.8, 1.7, 0.8) }; };
+  const sbJump = (u, sk) => { const t = u * 3.0; return { pose: sbOf(sk).jump(t), lift: flight(t, 0.8, 1.7, 0.8), reach: { hand: 'R', w: Human.smooth(0.95, 1.2, t) * (1 - Human.smooth(1.45, 1.62, t)) } }; };
   const sbRide = (u, sk) => { const P = sbOf(sk).P; return { pose: Human.lerpPose(P.ride, P.open, 0.5 - 0.5 * Math.cos(2 * Math.PI * u)) }; };
 
   const CLIPS = [
@@ -257,7 +257,6 @@
   // ski clips solve both legs onto the skis, which is too slow per frame: the clip is solved once at 96 phases and read back by interpolation
   const baked = new WeakMap();
   function sample(sk, clip, t) {
-    if (clip.gear === 'board') return solve(sk, clip, t);
     if (!baked.has(sk)) baked.set(sk, {}); const B = baked.get(sk), N = 96;
     if (!B[clip.name]) { const F = Array.from({ length: N }, (_, i) => solve(sk, clip, clip.dur * i / N)); B[clip.name] = clip.gear ? F : plant(sk, clip, F); }
     const x = (((t / clip.dur) % 1 + 1) % 1) * N, i = Math.floor(x) % N;
@@ -270,6 +269,7 @@
       r.pose.root.rot[0] -= Math.atan2((c[0][1] - c[1][1] + c[3][1] - c[4][1]) / 2, Math.hypot(c[1][0] - c[0][0], c[1][2] - c[0][2])) / D; } };
     if (clip.gear === 'ski' && clip.name !== 'carve') level();
     if (clip.gear === 'ski') parallel(sk, r.pose);
+    if (clip.gear === 'board') bind(sk, r.pose, r.reach);
     return ground(sk, r.pose, r.lift, clip.gear);
   }
   // two skis run side by side: same heading (+z), flat fore and aft, the same edge angle, the same height, half a stance each side of the middle.
@@ -294,6 +294,27 @@
           for (let r = c + 1; r < 6; r++) { const m = A[r][c] / A[c][c]; for (let q = c; q < 6; q++) A[r][q] -= m * A[c][q]; g[r] -= m * g[c]; } }
         const d = new Array(6); for (let r = 5; r >= 0; r--) { let v = g[r]; for (let q = r + 1; q < 6; q++) v -= A[r][q] * d[q]; d[r] = v / A[r][r]; }
         KS.forEach((k, j) => { L[k] = cl(k, L[k] + Math.max(-12, Math.min(12, d[j]))); }); } }
+  }
+  // a snowboard holds both feet: each in its binding, a fixed half stance from the middle, at its duck angle, flat on the deck. The board is where
+  // the written pose puts it; each leg's six angles are solved onto its binding. `reach` = { hand, w }: that hand takes hold of the board's nearer
+  // edge between the feet (w 0..1 blends the arm from the written pose to the hold).
+  function bind(sk, pose, reach) {
+    const P = Human.Skeleton.pose, I = sk.idx, Q = Human.q, PW = 8, KS = ['flex', 'abd', 'rot', 'knee', 'ankle', 'inv'];
+    const sole = (xf, s, o) => { const c = contacts(sk, xf), fwd = V.norm(V.sub(c[o + 1], c[o])); let up = Q.rot(xf.R[I['foot_' + s]], [0, 1, 0]); return { mid: V.lerp(c[o], c[o + 1], 0.5), fwd, up: V.norm(V.sub(up, V.mul(fwd, V.dot(up, fwd)))) }; };
+    const xf0 = P(sk, pose), b = gear(sk, xf0, 'board')[0], deck = V.add(b.c, V.mul(b.n, 0.009)), half = 0.25 * sk.M.S / 1756, duck = 14 * D;
+    for (const [s, o, sg] of [['L', 0, 1], ['R', 3, -1]]) { const f0 = sole(xf0, s, o), e = Math.sign(V.dot(f0.mid, b.ax) - V.dot(deck, b.ax)) || sg;
+      const tm = V.add(deck, V.mul(b.ax, e * half)), tf = V.norm(V.add(V.mul(b.side, Math.sign(V.dot(f0.fwd, b.side)) * Math.cos(duck)), V.mul(b.ax, e * Math.sin(duck)))), tr = V.cross(b.n, tf), L = pose['leg_' + s];
+      for (const q of KS) L[q] = Math.max(Human.ROM.leg[q][0], Math.min(Human.ROM.leg[q][1], L[q]));
+      dls(L, KS, Human.ROM.leg, () => { const f = sole(P(sk, pose), s, o); return [(f.mid[0] - tm[0]) * PW, (f.mid[1] - tm[1]) * PW, (f.mid[2] - tm[2]) * PW, V.dot(f.fwd, b.n), V.dot(f.fwd, b.ax) - V.dot(tf, b.ax), V.dot(f.up, tr)]; }, 12, 1e-5); }
+    // the hold: the arm reaches, and the trunk bends and leans toward the board for what the arm cannot (as a rider folds to grab)
+    if (reach && reach.w > 0.001) { const A = pose['arm_' + reach.hand], Sp = pose.spine, bi = I['fingers_mcp_' + reach.hand], grip = () => Human.Skeleton.apply(P(sk, pose), sk, bi, sk.bones[bi].J);
+      const toe = Math.sign(V.dot(sole(P(sk, pose), 'L', 0).fwd, b.side)) || 1, h = V.sub(grip(), deck);
+      const t = V.add(deck, V.add(V.mul(b.side, toe * b.W / 2), V.add(V.mul(b.ax, Math.max(-0.12, Math.min(0.12, V.dot(h, b.ax)))), V.mul(b.n, 0.015))));
+      const KA = ['elev', 'plane', 'axial', 'elbow', 'sflex', 'slat'], RA = Object.assign({ sflex: Human.ROM.spine.flex, slat: Human.ROM.spine.lat }, Human.ROM.arm);
+      const L = { get sflex() { return Sp.flex; }, set sflex(v) { Sp.flex = v; }, get slat() { return Sp.lat; }, set slat(v) { Sp.lat = v; } };
+      for (const q of KA.slice(0, 4)) Object.defineProperty(L, q, { get: () => A[q], set: v => { A[q] = v; } });
+      const raw = KA.map(q => L[q]); dls(L, KA, RA, () => { const g = grip(); return [(g[0] - t[0]) * PW, (g[1] - t[1]) * PW, (g[2] - t[2]) * PW]; }, 16, 1e-5);
+      KA.forEach((q, n) => { L[q] = raw[n] + (L[q] - raw[n]) * reach.w; }); }
   }
   // joint angles `KS` of one limb `L` (inside the limits `R`) moved until the residuals res() vanish: damped least squares on a numeric Jacobian
   function dls(L, KS, R, res, iters, damp) {
@@ -363,5 +384,5 @@
     return out;
   }
   for (const c of CLIPS) c.gear = c.group === 'ski' ? 'ski' : c.group === 'board' ? 'board' : null;
-  Human.Motion = { CLIPS, sample, ground, contacts, gear, fitCarve, cyc, keys, com, plant, parallel };
+  Human.Motion = { CLIPS, sample, ground, contacts, gear, fitCarve, cyc, keys, com, plant, parallel, bind };
 })();

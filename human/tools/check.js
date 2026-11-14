@@ -7,6 +7,7 @@
 //            back at one steady speed (spread around that speed is reported); in the other clips a planted foot should not move at all (typ = the median, p90 = nine steps in ten are below this)
 //   balance  how far the centre of mass is outside the area of support, seen from above (cm), in frames on the ground. A carve leans on purpose:
 //            there the sideways pull the lean needs is given (g) instead
+//   gear     skis: the widest angle between the two skis (deg); snowboard: the narrowest and widest distance between the feet (cm; bindings do not move)
 //   speed    the fastest joint angle change (deg/s) and where; `seam` = the jump from the last step back to the first, as a multiple of a usual step
 //   air      time off the ground (s), the height reached (m), and the height a body in free fall reaches in that time (g t^2 / 8)
 const fs = require('fs'), path = require('path');
@@ -28,11 +29,14 @@ const gearPts = B => { const o = []; for (const b of B) for (const a of [-0.3, 0
 const rows = [];
 for (const clip of M.CLIPS) { if (only.length && !only.includes(clip.name)) continue;
   const dt = clip.dur / N, F = [];
-  let rom = [0, ''];
+  let rom = [0, '']; const gq = clip.gear === 'board' ? [1e9, 0] : [0, 0];
   for (let k = 0; k < N; k++) { const t = k * dt, raw = clip.at(k / N, sk).pose; for (const [n, d] of S.pose(sk, raw).over) if (Math.abs(d) > rom[0]) rom = [Math.abs(d), n];
     const pose = M.sample(sk, clip, t), xf = S.pose(sk, pose), c = M.contacts(sk, xf), g = clip.gear ? gearPts(M.gear(sk, xf, clip.gear)) : null;
+    if (clip.gear === 'ski') { const B = M.gear(sk, xf, 'ski'), dot = B[0].ax[0] * B[1].ax[0] + B[0].ax[1] * B[1].ax[1] + B[0].ax[2] * B[1].ax[2]; gq[0] = Math.max(gq[0], Math.acos(Math.min(1, dot)) * 57.2958); }
+    if (clip.gear === 'board') { const B = M.gear(sk, xf, 'board')[0], m = o => [0, 1, 2].map(i => (c[o][i] + c[o + 1][i]) / 2), w = Math.hypot(...m(0).map((v, i) => v - m(3)[i])) * 100; gq[0] = Math.min(gq[0], w); gq[1] = Math.max(gq[1], w); }
     F.push({ pose: flat(pose, '', {}), c, low: Math.min(...(g || c).map(p => p[1])) - floor, sup: (g || c), com: com(xf) }); }
   const r = { clip: clip.name, zh: clip.zh, rom: rom[0] > 0.05 ? f1(rom[0]) + ' ' + rom[1] : '0' };
+  r.gear = clip.gear === 'ski' ? 'skis ' + f1(gq[0]) + ' deg apart' : clip.gear === 'board' ? 'stance ' + gq[0].toFixed(0) + '-' + gq[1].toFixed(0) + ' cm' : '-';
   r.sink = f1(Math.max(0, -Math.min(...F.map(f => f.low))) * 100);
   // planted feet (no gear): the lower of heel and ball within 1.2 cm of the floor in both this step and the next
   if (!clip.gear) { const gait0 = clip.name === 'walk' || clip.name === 'run', low = (k, o, j) => F[k].c[o + j][1] - floor < 0.012 && F[(k + 1) % N].c[o + j][1] - floor < 0.012, vel = (k, o, j) => [(F[(k + 1) % N].c[o + j][0] - F[k].c[o + j][0]) / dt, (F[(k + 1) % N].c[o + j][2] - F[k].c[o + j][2]) / dt];
