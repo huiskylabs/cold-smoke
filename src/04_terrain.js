@@ -82,7 +82,7 @@ function makeSnowTexture(gfx, sunAz) {
 const PATCH = { m: 6, sub: 20 };
 
 const Terrain = (() => {
-  const T = { LEVELS: 8, N: 256, G: 128, BIAS: 24, levels: [], ready: false, sheen: 0.55 };
+  const T = { lift: [0, 0], LEVELS: 8, N: 256, G: 128, BIAS: 24, levels: [], ready: false, sheen: 0.55 };
   const N = T.N, G = T.G;
   let gfx, vb, ibFull, ibRing = {}, pipe, pipeShadow, cntFull, cntRing, vbP, ibP, cntP;
   const tmpH = new Float32Array(N * N), tmpN = new Uint16Array(N * N * 4), tmpS = new Uint16Array(N * N * 4);
@@ -266,6 +266,7 @@ const Terrain = (() => {
     // (Variants 'rock': how far toward the banded rock, and how much of it; eased over a few frames so a switch dissolves rather than jumps)
     const rv = rockV(); uni.pt[0] += clamp(rv[0] - uni.pt[0], -0.08, 0.08); uni.pt[1] += clamp(rv[1] - uni.pt[1], -0.01, 0.01);
     uni.pt[2] = X0 * 0.5 - origin[0]; uni.pt[3] = Z0 * 0.5 - origin[2]; uni.pk[0] = Tu.pc[0] - origin[0]; uni.pk[1] = Tu.pc[1] - origin[2]; uni.pk[2] = Tu.D; uni.pk[3] = amp;
+    T.lift[0] = Tu.D * amp; T.lift[1] = Tu.tb ? Tu.tb[3] : 0;      // (for whatever else lies on the snow: Gates' dye and lamplight take the same lift)
     // (Variants 'snowr': which parts of the new snow are on, and the run's lie down the hill from the camera)
     Object.assign(uni, SnowLook.frame(origin, typeof Render !== 'undefined' && Render.cam ? Render.cam.pos : [Tu.pc[0], 0, Tu.pc[1]]));
     uni.tk = Tu.tk; uni.tb = Tu.tb; uni.sa0 = Tu.sa0; uni.sa1 = Tu.sa1; uni.sa2 = Tu.sa2; uni.sb0 = Tu.sb0; uni.sb1 = Tu.sb1; uni.sb2 = Tu.sb2; uni.la0 = Tu.la0; uni.la1 = Tu.la1; uni.lb0 = Tu.lb0; uni.lb1 = Tu.lb1;
