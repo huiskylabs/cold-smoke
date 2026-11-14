@@ -44,7 +44,7 @@
     slabs: [['neck_lo', -1, (1560 - 1462) / 163], ['neck_hi', (1560 - 1462) / 163, 2]] };
   // left arm (T-pose, along +x), one loft from the shoulder joint to the wrist, cut into slabs on the upper arm, its twist bones, the forearm and
   // its twist bones (so the elbow is one continuous surface). u = +y (top: the outside of the arm), v = +z (front). Stations at x (mm).
-  const ARMS = [[150, 44, 38, 44, 44, 'arm'], [176, 54, 44, 50, 52, 'arm'], [230, 50, 42, 47, 50, 'arm'], [290, 45, 41, 44, 48, 'arm'], [350, 42, 40, 43, 47, 'arm'],
+  const ARMS = [[150, 40, 38, 44, 44, 'arm'], [176, 46, 44, 50, 52, 'arm'], [230, 50, 42, 47, 50, 'arm'], [290, 45, 41, 44, 48, 'arm'], [350, 42, 40, 43, 47, 'arm'],
     [400, 41, 40, 44, 46, 'arm'], [450, 38, 40, 40, 42, 'arm'], [490, 36, 41, 35, 38, 'forearm'], [506, 35, 40, 34, 38, 'forearm'], [530, 39, 41, 38, 40, 'forearm'],
     [560, 41, 42, 41, 39, 'forearm'], [610, 37, 38, 36, 34, 'forearm'], [660, 30, 30, 31, 29, 'wrist'], [720, 20, 21, 29, 28, 'wrist'], [770, 18, 19, 30, 29, 'wrist']];
   const ARM = { name: 'arm', group: 'arm', A: ['upperarm', null], B: ['hand', null], u: [0, 1, 0], v: [0, 0, 1],
@@ -61,11 +61,11 @@
     slabs: [['thumb_cmc', -1, 0.42], ['thumb_mcp', 0.42, 0.72], ['thumb_ip', 0.72, 2]] };
   // left leg, one loft from the hip joint to the ankle, cut into slabs on the thigh, its twist bone, the shin and its twist bone. u = +x
   // (outside), v = +z (front). Stations at height y (mm): rU+ (outside), rU- (inside), rV+ (front), rV- (back), centre offset back
-  const LEGS = [[937, 44, 50, 40, 52, -10, 'thigh'], [880, 60, 72, 56, 74, -8, 'thigh'], [846, 74, 82, 70, 84, -6, 'thigh'], [800, 79, 80, 77, 82, -4, 'thigh'],
-    [740, 76, 74, 76, 76, -2, 'thigh'], [680, 72, 69, 71, 68, 0, 'lowthigh'], [600, 66, 64, 64, 58, 0, 'lowthigh'], [530, 59, 60, 58, 52, 0, 'lowthigh'],
+  const LEGS = [[937, 44, 50, 40, 52, -10, 'thigh'], [880, 60, 72, 56, 74, -8, 'thigh'], [846, 80, 74, 70, 84, -6, 'thigh'], [800, 84, 73, 77, 82, -4, 'thigh'],
+    [740, 79, 70, 76, 76, -2, 'thigh'], [680, 72, 69, 71, 68, 0, 'lowthigh'], [600, 66, 64, 64, 58, 0, 'lowthigh'], [530, 59, 60, 58, 52, 0, 'lowthigh'],
     [490, 55, 57, 56, 50, -1, 'lowthigh'], [470, 53, 55, 54, 50, -2, 'calf'], [440, 50, 53, 50, 52, -2, 'calf'], [400, 48, 51, 44, 56, -3, 'calf'],
-    [360, 48, 52, 40, 62, -4, 'calf'], [300, 44, 47, 37, 56, -4, 'calf'], [240, 37, 39, 34, 44, -4, 'calf'], [180, 31, 33, 31, 35, -4, 'ankle'],
-    [120, 29, 29, 29, 30, -4, 'ankle'], [80, 33, 33, 31, 33, -4, 'ankle'], [55, 28, 28, 28, 30, -6, 'ankle']];
+    [360, 48, 52, 40, 62, -4, 'calf'], [300, 40, 43, 37, 62, -6, 'calf'], [240, 32, 34, 33, 50, -6, 'calf'], [180, 27, 28, 30, 40, -6, 'ankle'],
+    [120, 26, 26, 28, 36, -5, 'ankle'], [80, 33, 33, 31, 33, -4, 'ankle'], [55, 28, 28, 28, 30, -6, 'ankle']];
   const LEG = { name: 'leg', group: 'leg', A: ['thigh', null], B: ['talus', null], u: [1, 0, 0], v: [0, 0, 1],
     st: LEGS.map(([y, a, b, c, d, cv, g]) => [(895 - y) / 819, a, b, c, d, 2.3, 0, cv, g]),
     slabs: [['thigh_twist', -1, 0.25], ['thigh', 0.25, 0.52], ['shin', 0.52, 0.76], ['shin_twist', 0.76, 2]] };
@@ -76,27 +76,27 @@
     st: FOOTS.map(([z, a, b, c, d, n, cu, cv]) => [(z + 70) / 272, a, b, c, d, n, cu, cv, 'foot']),
     slabs: [['foot', -1, (25 + 70) / 272], ['midfoot', (25 + 70) / 272, (128 + 70) / 272], ['toe_hallux', (128 + 70) / 272, 2]] };
   // the shoulder's top, neck to acromion (the trapezius slope over the clavicle and the scapula's spine). u = +y (up), v = +z
-  const SHOULDER = { name: 'shoulder', group: 'trunk', blend: 0.03, A: ['thorax_hi', [22, 1505, -46]], B: ['scapula', [194, 1448, -12]], u: [0, 1, 0], v: [0, 0, 1],
-    st: [[-0.05, 30, 50, 40, 52, 2.2, 0, 0, 'chest'], [0.3, 30, 48, 42, 52, 2.2, 0, 0, 'chest'], [0.7, 27, 40, 42, 48, 2.2, 0, 0, 'chest'], [1.0, 26, 32, 38, 40, 2.2, 0, 0, 'chest'], [1.1, 18, 22, 24, 26, 2.0, 0, 0, 'chest']],
+  const SHOULDER = { name: 'shoulder', group: 'trunk', blend: 0.045, A: ['thorax_hi', [22, 1482, -46]], B: ['scapula', [174, 1428, -12]], u: [0, 1, 0], v: [0, 0, 1],
+    st: [[-0.05, 24, 50, 40, 52, 2.2, 0, 0, 'chest'], [0.3, 21, 46, 42, 52, 2.2, 0, 0, 'chest'], [0.7, 17, 38, 40, 46, 2.2, 0, 0, 'chest'], [1.0, 12, 26, 32, 34, 2.2, 0, 0, 'chest'], [1.1, 8, 16, 20, 22, 2.0, 0, 0, 'chest']],
     slabs: [['thorax_hi', -1, 0.35], ['clavicle', 0.35, 0.7], ['scapula', 0.7, 2]] };
   const LOFTS_SIDE = [SHOULDER, ARM, PALM, FING, THUMB, LEG, FOOT];
 
   // head (mannequin forms): ellipsoids on the head and jaw, centre and radii in mm
   const HEAD = [   // (forms join with a 3 cm blend)
     ['head', [0, 1668, -8], [76, 90, 97]],         // cranium
-    ['head', [0, 1622, 22], [62, 66, 72]],         // face
+    ['head', [0, 1614, 22], [64, 72, 74]],         // face
     ['head', [0, 1682, 62], [52, 16, 24]],         // brow
     ['head', [0, 1636, 88], [11, 20, 14]],         // nose
     ['head', [73, 1648, -6], [9, 29, 17]], ['head', [-73, 1648, -6], [9, 29, 17]],     // ears
-    ['jaw', [0, 1572, 40], [50, 30, 50]],          // jaw
-    ['jaw', [0, 1550, 70], [24, 18, 18]],          // chin
+    ['jaw', [0, 1566, 40], [57, 34, 52]],          // jaw
+    ['jaw', [0, 1542, 66], [27, 20, 20]],          // chin
   ];
 
   // muscles (left side): name, group, origin bone, origin, insertion bone, insertion, belly radius, flatness (thickness / width), thickness
   // direction (reference frame), where along the line the belly peaks, blend (mm), how much of its thickness stands out of the base
   const MUSCLES = [
     ['deltoid_ant', 'arm', 'scapula', [150, 1452, 40], 'upperarm', [302, 1398, 18], 24, 0.6, [0, 0.6, 1], 0.4, 12, 0.45],
-    ['deltoid_mid', 'arm', 'scapula', [190, 1458, -8], 'upperarm', [306, 1410, 0], 26, 0.6, [0, 1, 0], 0.35, 12, 0.45],
+    ['deltoid_mid', 'arm', 'scapula', [190, 1446, -8], 'upperarm', [306, 1404, 0], 26, 0.6, [0, 1, 0], 0.35, 12, 0.45],
     ['deltoid_post', 'arm', 'scapula', [150, 1448, -64], 'upperarm', [302, 1400, -16], 23, 0.6, [0, 0.6, -1], 0.4, 12, 0.45],
     ['biceps', 'arm', 'scapula', [215, 1400, 24], 'forearm', [535, 1400, 10], 22, 0.85, [0, 0, 1], 0.6, 10, 0.4],
     ['triceps_long', 'arm', 'scapula', [168, 1386, -30], 'forearm', [500, 1408, -36], 23, 0.7, [0, 0, -1], 0.4, 10, 0.35],
@@ -128,7 +128,7 @@
     ['gastro_med', 'leg', 'thigh', [68, 500, -42], 'shin', [88, 175, -58], 33, 0.75, [-0.5, 0, -1], 0.32, 10, 0.35],
     ['gastro_lat', 'leg', 'thigh', [118, 500, -42], 'shin', [98, 195, -55], 27, 0.75, [0.5, 0, -1], 0.3, 10, 0.35],
     ['tib_ant', 'leg', 'shin', [112, 440, 40], 'shin', [92, 110, 40], 15, 0.8, [0.5, 0, 1], 0.3, 8, 0.2],
-    ['patella', 'leg', 'thigh', [91, 505, 56], 'shin', [91, 448, 58], 22, 0.6, [0, 0, 1], 0.5, 8, 0.3],
+    ['patella', 'leg', 'thigh', [91, 505, 56], 'shin', [91, 448, 58], 22, 0.6, [0, 0, 1], 0.5, 12, 0.15],
   ];
 
   // ---- build a body for a skeleton (sk.M holds the measurements)

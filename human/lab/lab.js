@@ -169,7 +169,7 @@
     }
     if (st.auto && g && !st.anim && !st.busy && now - (st.autoT || 0) > 1600) { st.autoT = now; const i = Human.POSES.findIndex(p => p.name === st.pose); goPose(Human.POSES[(i + 1) % Human.POSES.length].name); }
     if (st.spin && !st.drag) st.yaw += 0.0025;
-    gl.viewport(0, 0, cv.width, cv.height); gl.clearColor(0.86, 0.865, 0.875, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST);
+    gl.viewport(0, 0, cv.width, cv.height); if (st.white) gl.clearColor(1, 1, 1, 1); else gl.clearColor(0.86, 0.865, 0.875, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST);
     // camera: orbit around the body's centre (followed smoothly)
     // framing: the camera keeps the whole posed skeleton in view (followed smoothly)
     if (g && g.xf) { let lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9]; for (const p of g.xf.P) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], p[a]); hi[a] = Math.max(hi[a], p[a]); }
@@ -177,14 +177,14 @@
       const k = st.capture ? 1 : 0.08; st.target = V.lerp(st.target, c, k); st.fit = (st.fit || ext) + (ext - (st.fit || ext)) * k; }
     const dist = st.dist * (st.fit || 1.85) / 1.85;
     const e = V.add(st.target, [Math.sin(st.yaw) * Math.cos(st.pitch) * dist, Math.sin(st.pitch) * dist, Math.cos(st.yaw) * Math.cos(st.pitch) * dist]);
-    const PR = persp(0.62, cv.width / cv.height, 0.05, 60);
+    const PR = persp(st.fov || 0.62, cv.width / cv.height, 0.05, 200);
     // with the panel open on a wide screen, the body is drawn in the space to its right
     if (!document.body.classList.contains('hide') && cv.clientWidth > 700) PR[8] = -(320 / cv.clientWidth);
     const VP = mm(PR, look(e, st.target, [0, 1, 0]));
     // floor
     gl.useProgram(pFloor); gl.uniformMatrix4fv(U(pFloor, 'uVP'), false, VP);
     if (g && g.xf) { const I = g.sk.idx, a = g.xf.P[I.talus_L], b = g.xf.P[I.talus_R], p = g.xf.P[I.pelvis]; gl.uniform4f(U(pFloor, 'uFeet'), a[0], a[2] + 0.04, b[0], b[2] + 0.04); gl.uniform3f(U(pFloor, 'uBody'), p[0], p[2], Math.max(0, 0.9 - p[1]) * 0.1); }
-    gl.bindVertexArray(fvao); gl.drawArrays(gl.TRIANGLES, 0, 6);
+    if (!st.white) { gl.bindVertexArray(fvao); gl.drawArrays(gl.TRIANGLES, 0, 6); }
     if (g) {
       gl.useProgram(pBody); gl.uniformMatrix4fv(U(pBody, 'uVP'), false, VP); gl.uniform3fv(U(pBody, 'uCam'), e);
       gl.uniform1i(U(pBody, 'uLook'), { skin: 0, clay: 1, weights: 2, disp: 2 }[st.look]);
@@ -243,7 +243,7 @@
   const q = new URLSearchParams(location.search);
   if (q.get('pose')) st.pose = q.get('pose'); if (q.get('mode')) st.mode = q.get('mode'); if (q.get('look')) st.look = q.get('look');
   if (q.get('yaw')) st.yaw = +q.get('yaw'); if (q.get('pitch')) st.pitch = +q.get('pitch'); if (q.get('dist')) st.dist = +q.get('dist'); if (q.get('spin') === '0') st.spin = false;
-  if (q.get('auto') === '1') st.auto = true; if (q.get('ui') === '0') document.body.classList.add('hide');
+  if (q.get('auto') === '1') st.auto = true; if (q.get('fov')) st.fov = +q.get('fov'); if (q.get('white') === '1') st.white = true; if (q.get('ui') === '0') document.body.classList.add('hide');
   for (const k of ['sex', 'stature', 'mass', 'bodyFat', 'frame', 'cell']) if (q.get(k)) st.params[k] = +q.get(k);
   // capture mode (for video renders): no animation loop; a script calls __lab.renderFrame(ms) for each frame
   st.capture = q.get('capture') === '1'; st.renderFrame = t => frame(t);
