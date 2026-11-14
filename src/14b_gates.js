@@ -176,7 +176,7 @@ const Gates = (() => {
         let d: f32 = length(U.camPos.xyz - wp);
         wp.y = wp.y + 0.004 + 0.00002 * d * d;
         // (round the skier the drawn snow is raised by the depth the skis ride at, terrain's snowLift: the sheet goes up with it, or a disc of
-        // it round the skier would lie under the snow)
+        // it round the skier would lie under the snow, as the kicker's blue dye did)
         wp.y = wp.y + M.p.z * smoothstep(mix(2.15, 7.5, M.p.w), mix(1.0, 3.0, M.p.w), length(wp.xz - U.player.xz));
         v.wp = wp; ${extra}
         v.clip = U.viewProj * vec4f(wp, 1.0);
