@@ -323,7 +323,11 @@ const Game = (() => {
     // the uphill edges leans into the hill that much more, at any speed: so a slow skier can still hold a line across the slope, turn on up
     // it and stand there, where before, slow, the lean was too small to hold against the hill and the line sagged back down at ~11 km/h)
     const cu = clamp(uE / 0.72, -1, 1), gHold = FB && TB && contact ? Math.max(0, sign(cu) * GRAV * ry) : 0;
-    const phiMax = Math.min(0.96, Math.atan(Math.max(sp, 2.5) ** 2 / (10.5 * gn) + gHold / gn)) * (1 - 0.3 * S.tuckIn);
+    // (turning brake b: slow, the steering held right over asks for a turn far tighter than a ski bends to, from a 10.5 m arc at 40 km/h
+    // down to 4 m at a crawl, the way a slow skier pivots round a tree. The sidecut below cannot carve that, so the skis are swung and
+    // scraped round: a short skidded turn that also scrubs speed)
+    const rMin = TB ? lerp(4, 10.5, Math.max(smooth(4, 11, sp), 1 - smooth(0.6, 0.9, Math.abs(u)))) : 10.5;
+    const phiMax = Math.min(0.96, Math.atan(Math.max(sp, 2.5) ** 2 / (rMin * gn) + gHold / gn)) * (1 - 0.3 * S.tuckIn);
     // how much skid the player asks for, 0..1: by steering past 0.72 (a, b, c), or (keys d) by the weight forward while steering at all
     const skQ = Variants.val.keys === 'd' && Input.mode !== 'tilt' ? smooth(0.15, 0.8, Math.max(0, Input.faT || 0)) * smooth(0.2, 0.5, Math.abs(u)) : smooth(0.72, 1.0, Math.abs(u));
     const phiT = sign(cu) * Math.pow(Math.abs(cu), 1.2) * phiMax * (S.air && S.airT > 0.14 ? 0.3 : 1) * (1 - 0.28 * skQ * (TB ? smooth(2.5, 6, sp) : 1));      // (b: the lean given up to a skid only where there is one: under 9 km/h a full key skids nothing, see su)
@@ -366,7 +370,7 @@ const Game = (() => {
     // the edges can hold across the line is the smaller of the grip and v^2 / that radius, and a turn asked beyond it is a skid)
     // (the part of the edges' work that only holds the skier against the slope bends no arc, so the sidecut does not limit it)
     const carveB = FB && TB ? Math.min(gripB, (sp * sp / (TB_RSC * Math.max(0.3, Math.cos(S.lean))) + gHold) / Math.max(S.bite, 0.5 * GRAV)) : gripB;
-    const exB = FB && contact && sp > 3 ? Math.max(0, Math.abs(Math.tan(S.lean)) * lerp(1.0, 0.8, S.powder) / Math.max(carveB, 0.05) - 1) * smooth(3, 8, sp) : 0; S.wash = exB;
+    const exB = FB && contact && sp > (TB ? 1 : 3) ? Math.max(0, Math.abs(Math.tan(S.lean)) * lerp(1.0, 0.8, S.powder) / Math.max(carveB, 0.05) - 1) * (TB ? smooth(1, 3, sp) : smooth(3, 8, sp)) : 0; S.wash = exB;
     { const w = contact ? BETA_W : 9, bMax = su * hd > 0 ? Math.max(0, PI / 2 - Math.abs(hd)) : 9, bT = contact ? clamp(su * (TB ? TB_SK : 0.62) + sign(S.lean) * Math.min(0.75, 0.6 * exB) * (1 - Math.abs(su)) + sign(S.lean) * 0.35 * (S.faKick || 0) * (1 - Math.abs(su)), -bMax, bMax) : 0; S.betaV += (w * w * (bT - S.beta) - 2 * w * S.betaV) * dt; S.beta += S.betaV * dt; }
     // ---- moguls (Variants 'mog' b). gF: the rise, along the line of travel just ahead of the boots, of the part of each bump the legs take
     // (the drawn snow less what the body rides): 0 on the smooth line and on a face that falls away. What the legs do costs speed, twice:
