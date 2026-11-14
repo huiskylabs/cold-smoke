@@ -72,8 +72,42 @@ const Director = (() => {
       return side * amp;
     };
   }
+  // (zipper: an expert's line through the bumps. One edge change on each crest, as the rhythm pilot, but the skis are steered to a heading
+  // only `th` rad either side of the fall line (not held at a fixed steer), so the line stays in a narrow corridor straight down the field
+  // and the speed stays up and even; a crest that does not come within `tmax` s is not waited for any longer)
+  function zipperPilot(o) {
+    const th = o.th != null ? o.th : 0.2, K = o.K || 2, base = o.base != null ? o.base : 0.3, kl = o.kl || 0.06, lane = o.lane || 0, tmax = o.tmax || 2, tmin = o.tmin || 0.25;
+    let side = 1, arm = 0, tSide = 0, last = null, laneM = null, lsd = 0, ofs = 10;
+    // (the corridor is kept in the bumps. Every field has a smooth line winding through it (mogField is 0 near it, 03_course.js), so the
+    // lane is held on one side of that line, `gap` m from it (8-13 m: the bumps are full beyond 6.5), and follows it as it winds instead of
+    // crossing it. The side is chosen once, where the field starts, for the whole way down (more room and fewer trees over the next 600 m);
+    // the gap is then chosen frame by frame to keep the lane clear of trunks and inside the field, and the corridor slides at most 2.5 m/s)
+    const fieldAt = (u, s) => { const c = Course.at(s); return c.mog > 0.01 ? Course.bumps(c.cx + u, -s) / c.mog : 0; };
+    const chan = (s, hw) => { let a = 0, n = 0; for (let u = -0.7 * hw; u <= 0.7 * hw; u += 0.5) if (fieldAt(u, s) < 0.3) { a += u; n++; } return n ? a / n : 0; };
+    const tn = {}, clearM = o.clear || 5;
+    const trees = (u, s) => { let dm = 1e9; for (const d of [4, 8, 12, 16]) { const c = Course.at(s + d); for (const e of [-2, 0, 2]) { Course.nearTree(c.cx + u + e, -(s + d), tn); if (tn.ok) dm = Math.min(dm, tn.d); } } return clamp((clearM - dm) / 3, 0, 1); };
+    const fill = (u, s) => { let m = 1; for (const d of [4, 8, 12, 16]) for (const e of [-2, 0, 2]) m = Math.min(m, fieldAt(u + e, s + d)); return m; };
+    const score = (u, s) => fill(u, s) - trees(u, s);
+    const gaps = [8, 9, 10, 11, 12, 13];
+    const bestGap = (sd, s, hw, near) => { const g0 = chan(s + 10, hw); let best = near, bs = -1e9; for (const gp of gaps) { const u = g0 + sd * gp; if (Math.abs(u) > 0.78 * hw) continue; const q = score(u, s) - 0.02 * Math.abs(gp - near); if (q > bs) { bs = q; best = gp; } } return { gap: best, q: bs, u: g0 + sd * best }; };
+    const plan = (s, hw) => { let best = 1, bs = -1e9; for (const sd of [-1, 1]) { let m = 0; for (let d = 0; d < 600; d += 15) { const b = bestGap(sd, s + d, Course.at(s + d).hw, 10); m += b.q > -1e8 ? b.q : -2; } if (m > bs) { bs = m; best = sd; } } return best; };
+    return t => {
+      const S = G.s, s = -S.p[2], c = Course.at(s), g = S.mogG || 0;
+      if (last == null) last = t; const dt = Math.max(0, t - last); tSide += dt; last = t;
+      if (g > 0.04) arm = 1; else if (arm && g <= 0) { arm = 0; if (tSide > tmin) { side = -side; tSide = 0; } }
+      if (tSide > tmax) { side = -side; tSide = 0; }
+      if (o.stay !== false && c.mog > 0.01) {
+        if (!lsd) lsd = plan(s, c.hw);
+        const b = bestGap(lsd, s, c.hw, ofs); ofs = b.gap;
+        if (laneM == null) laneM = b.u; else laneM += clamp(b.u - laneM, -2.5 * dt, 2.5 * dt);
+      }
+      const off = S.p[0] - (c.cx + (laneM != null ? laneM : lane * c.hw)), a = Math.atan2(S.v[0], -S.v[2]) - Course.yawAt(s);
+      return clamp(side * base + K * (side * th - clamp(kl * off, -0.35, 0.35) - a), -0.9, 0.9);
+    };
+  }
   function pilot(o) {
     if (o.rhythm) return rhythmPilot(o);
+    if (o.zipper) return zipperPilot(o);
     const amp = o.amp != null ? o.amp : 0.45, per = o.period || 5.2, lane = o.lane || 0, pc = {}, tn = {};
     return t => {
       const S = G.s, p = S.p, s = -p[2], look = 10 + Math.max(S.speed, 4) * 0.9, c = Course.at(s + look, pc);
