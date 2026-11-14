@@ -25,8 +25,8 @@
   const MEAN = { S: [1756, 1629], kg: [85.5, 67.8], forearm: [310 * 0.9, 264 * 0.9], wrist: [176, 155], ankle: [229, 216], lowthigh: [409, 401],
     foot: [271, 246], footB: [102, 93], hand: [193, 181], head: [574, 561], headB: [154, 148], headL: [200, 190], hip: [346, 354], bicristal: [275, 273] };
 
-  Human.DEFAULTS = { sex: 0, stature: 1.756, mass: 75, bodyFat: 18, frame: 0 };
-  Human.PRESETS = { male: { sex: 0, stature: 1.756, mass: 75, bodyFat: 18, frame: 0 }, female: { sex: 1, stature: 1.629, mass: 60, bodyFat: 27, frame: 0 } };
+  Human.DEFAULTS = { sex: 0, stature: 1.756, mass: 75, bodyFat: 18, frame: 0, def: 1 };
+  Human.PRESETS = { male: { sex: 0, stature: 1.756, mass: 75, bodyFat: 18, frame: 0, def: 1 }, female: { sex: 1, stature: 1.629, mass: 60, bodyFat: 27, frame: 0, def: 1 } };
 
   Human.measure = (p = {}) => {
     p = Object.assign({}, Human.DEFAULTS, p);

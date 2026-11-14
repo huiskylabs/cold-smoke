@@ -13,7 +13,7 @@
   .chip.on { background: var(--acc); color: #fff; border-color: var(--acc); } .chip.go { background: #222; color: #fff; border-color: #222; }
   label { display: grid; grid-template-columns: 1fr 120px 40px; align-items: center; gap: 6px; margin: 3px 0; font-size: 12px; }
   label b { font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; } input[type=range] { width: 100%; }
-  .row { margin-top: 6px; }
+  .row { margin-top: 6px; } .grp { display: block; color: var(--dim); font-size: 11px; margin: 4px 0 3px; }
   table { border-collapse: collapse; width: 100%; font-size: 12px; font-variant-numeric: tabular-nums; } td, th { padding: 2px 4px; text-align: right; } td:first-child, th:first-child { text-align: left; } th { color: var(--dim); font-weight: 500; }
   #metrics p { margin: 6px 0; font-size: 12px; } .dim { color: var(--dim); }
   #status { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: rgba(0,0,0,0.75); color: #fff; padding: 6px 14px; border-radius: 999px; font-size: 12px; transition: opacity .3s; pointer-events: none; }
@@ -22,9 +22,10 @@
 </style>
 <canvas id="gl"></canvas>
 <div id="ui">
-  <h1>人体实验室 · 第 1 步</h1>
-  <p class="sub">全部由代码算出：59 根骨、ANSUR 体型、34 块肌肉，不用任何模型文件。拖动旋转，滚轮缩放。</p>
+  <h1>人体实验室 · 第 2 步</h1>
+  <p class="sub">全部由代码算出：59 根骨、ANSUR 体型、肌肉和动作，不用任何模型文件。拖动旋转，滚轮缩放。</p>
   <h2>姿势（压力测试）</h2><div id="poses"></div>
+  <h2>动作</h2><div id="clips"></div>
   <h2>蒙皮方法</h2><div id="modes"></div>
   <h2>显示</h2><div id="looks"></div>
   <h2>体型</h2><div id="sliders"></div>

@@ -50,14 +50,15 @@
   const ARM = { name: 'arm', group: 'arm', A: ['upperarm', null], B: ['hand', null], u: [0, 1, 0], v: [0, 0, 1],
     st: ARMS.map(([x, a, b, c, d, g]) => [(x - 176) / 586, a, b, c, d, x < 480 ? 2.2 : x < 650 ? 2.3 : 2.6, 0, -2, g]),
     slabs: [['upperarm_twist_01', -1, 0.19], ['upperarm_twist_02', 0.19, 0.38], ['upperarm', 0.38, 0.563], ['forearm', 0.563, 0.71], ['forearm_twist_01', 0.71, 0.85], ['forearm_twist_02', 0.85, 2]] };
+  // the hand is a glove: the palm, the four fingers as one padded block (it curls at two rows of knuckles) and the thumb
   const PALM = { name: 'palm', group: 'arm', blend: 0.022, A: ['hand', null], B: ['fingers_mcp', null], u: [0, 1, 0], v: [0, 0, 1],
-    st: [[-0.05, 17, 18, 30, 29, 2.6, 0, 0, 'wrist'], [0.3, 15, 17, 38, 36, 3.0, 0, 0, 'wrist'], [0.75, 14, 16, 42, 40, 3.2, 0, 0, 'wrist'], [1.0, 12, 13, 42, 40, 3.0, 0, 0, 'wrist']],
+    st: [[-0.05, 18, 19, 30, 29, 2.6, 0, 0, 'wrist'], [0.3, 17, 19, 38, 36, 2.8, 0, 0, 'wrist'], [0.75, 16, 18, 41, 39, 2.8, 0, 0, 'wrist'], [1.0, 14, 15, 40, 38, 2.7, 0, 0, 'wrist']],
     slabs: [['hand', -1, 2]] };
   const FING = { name: 'fingers', group: 'arm', A: ['fingers_mcp', null], B: ['fingers_mcp', [952, 1402, -2]], u: [0, 1, 0], v: [0, 0, 1],
-    st: [[0.0, 11, 11, 40, 38, 3.0, 0, 0, 'wrist'], [0.45, 9.5, 9.5, 37, 35, 3.0, 0, 0, 'wrist'], [0.8, 8, 8, 33, 31, 2.8, 0, 0, 'wrist'], [0.95, 6, 6, 24, 22, 2.4, 0, 0, 'wrist'], [1.0, 3, 3, 10, 10, 2, 0, 0, 'wrist']],
+    st: [[0.0, 13, 14, 39, 37, 2.6, 0, 0, 'wrist'], [0.45, 12, 13, 37, 35, 2.6, 0, 0, 'wrist'], [0.78, 11, 11, 33, 31, 2.5, 0, 0, 'wrist'], [0.93, 9, 9, 26, 24, 2.3, 0, 0, 'wrist'], [1.0, 5, 5, 14, 13, 2, 0, 0, 'wrist']],
     slabs: [['fingers_mcp', -1, 0.47], ['fingers_ip', 0.47, 2]] };
   const THUMB = { name: 'thumb', group: 'arm', A: ['thumb_cmc', null], B: ['thumb_ip', [860, 1384, 68]], u: [0, 1, 0], v: [0, 0, 1],
-    st: [[-0.1, 13, 15, 15, 15, 2.2, 0, 0, 'wrist'], [0.2, 12, 13, 13, 13, 2.2, 0, 0, 'wrist'], [0.55, 10, 10, 11, 11, 2.2, 0, 0, 'wrist'], [0.9, 8, 8, 9, 9, 2.2, 0, 0, 'wrist'], [1.0, 4, 4, 5, 5, 2, 0, 0, 'wrist']],
+    st: [[-0.1, 14, 16, 16, 16, 2.2, 0, 0, 'wrist'], [0.2, 13, 14, 15, 15, 2.2, 0, 0, 'wrist'], [0.55, 12, 12, 13, 13, 2.2, 0, 0, 'wrist'], [0.9, 10, 10, 11, 11, 2.2, 0, 0, 'wrist'], [1.0, 6, 6, 7, 7, 2, 0, 0, 'wrist']],
     slabs: [['thumb_cmc', -1, 0.42], ['thumb_mcp', 0.42, 0.72], ['thumb_ip', 0.72, 2]] };
   // left leg, one loft from the hip joint to the ankle, cut into slabs on the thigh, its twist bone, the shin and its twist bone. u = +x
   // (outside), v = +z (front). Stations at height y (mm): rU+ (outside), rU- (inside), rV+ (front), rV- (back), centre offset back
@@ -113,7 +114,14 @@
     ['trap_upper', 'trunk', 'neck_lo', [8, 1562, -60], 'scapula', [176, 1458, -24], 24, 0.5, [0, 1, -0.3], 0.35, 16, 0.2],
     ['trap_mid', 'trunk', 'thorax_hi', [5, 1420, -108], 'scapula', [150, 1446, -55], 22, 0.35, [0, 0, -1], 0.4, 14, 0.25],
     ['trap_low', 'trunk', 'thorax_mid', [5, 1270, -112], 'scapula', [95, 1410, -100], 22, 0.35, [0, 0, -1], 0.45, 14, 0.25],
-    ['rectus_abd', 'trunk', 'pelvis', [30, 955, 94], 'thorax_mid', [55, 1265, 114], 28, 0.4, [0, 0, 1], 0.5, 16, 0.12],
+    // rectus abdominis in four bellies between its tendinous bands (the bands and the linea alba are the gaps between them)
+    ['rectus_abd1', 'trunk', 'pelvis', [36, 948, 96], 'pelvis', [38, 1042, 101], 31, 0.4, [0, 0, 1], 0.55, 10, 0.22, 1],
+    ['rectus_abd2', 'trunk', 'lumbar_lo', [38, 1050, 102], 'lumbar_hi', [40, 1124, 106], 31, 0.4, [0, 0, 1], 0.5, 10, 0.26, 1],
+    ['rectus_abd3', 'trunk', 'lumbar_hi', [40, 1132, 107], 'thorax_lo', [42, 1198, 110], 31, 0.4, [0, 0, 1], 0.5, 10, 0.26, 1],
+    ['rectus_abd4', 'trunk', 'thorax_lo', [42, 1206, 111], 'thorax_mid', [52, 1264, 113], 30, 0.4, [0, 0, 1], 0.5, 10, 0.22, 1],
+    ['serratus1', 'trunk', 'thorax_mid', [108, 1292, 86], 'thorax_mid', [134, 1262, 42], 16, 0.5, [1, 0, 1], 0.45, 8, 0.16, 1],
+    ['serratus2', 'trunk', 'thorax_mid', [112, 1258, 88], 'thorax_lo', [138, 1228, 44], 16, 0.5, [1, 0, 1], 0.45, 8, 0.16, 1],
+    ['serratus3', 'trunk', 'thorax_lo', [116, 1224, 86], 'thorax_lo', [140, 1194, 46], 15, 0.5, [1, 0, 1], 0.45, 8, 0.14, 1],
     ['oblique', 'trunk', 'thorax_mid', [125, 1240, 45], 'pelvis', [112, 1030, 52], 34, 0.4, [1, 0, 0.3], 0.62, 18, 0.15],
     ['erector', 'trunk', 'pelvis', [32, 980, -116], 'thorax_mid', [32, 1330, -100], 26, 0.6, [0, 0, -1], 0.4, 14, 0.2],
     ['glute_max', 'trunk', 'pelvis', [40, 1010, -132], 'thigh', [118, 815, -72], 50, 0.6, [0.3, 0, -1], 0.35, 18, 0.0],
@@ -185,12 +193,14 @@
       parts.push({ kind: 'ell', bone: I.thorax_mid, c, r: V.mul([r * 1.05, r * 0.95, r * 0.8], k), group: 'trunk', blend: 0.03, cen: c, rad: r * k + 0.04 });
     }
     const muscles = [];
-    for (const s of ['L', 'R']) for (const [name, group, ob, oa, ib, ia, r0, flat, out, tp, kb, show] of MUSCLES) {
+    // muscle definition: how far the bellies stand out of the skin. M.p.def is the user's setting (1 = a fit, active man); fat smooths it away
+    const lean = Math.max(0.3, Math.min(1.5, (30 - M.p.bodyFat) / 12)), DEF = 1.5 * (M.p.def != null ? M.p.def : 1) * lean;
+    for (const s of ['L', 'R']) for (const [name, group, ob, oa, ib, ia, r0, flat, out, tp, kb, show, pad] of MUSCLES) {
       const sx = s === 'R' ? -1 : 1, nm = b => (b === 'pelvis' || b.startsWith('thorax') || b.startsWith('lumbar') || b.startsWith('neck') || b === 'head') ? b : b + '_' + s;
       const mir = x => [x[0] * sx, x[1], x[2]];
       const A = map(nm(ob), mir(oa)), B = map(nm(ib), mir(ia));
       const m = { kind: 'muscle', name: name + '_' + s, group: group === 'neck' ? 'neck' : group === 'trunk' ? 'trunk' : group + '_' + s, ob: I[nm(ob)], ib: I[nm(ib)], A, B,
-        L0: V.len(V.sub(B, A)), r0: r0 * k * msc, flat, out: V.norm(mir(out)), tp, blend: kb / 1000 * 1.8, show };
+        L0: V.len(V.sub(B, A)), r0: r0 * k * msc, flat, out: V.norm(mir(out)), tp, blend: kb / 1000 * 1.8, show, pad: !!pad };
       muscles.push(m); parts.push(m);
     }
     const groups = ['trunk', 'neck', 'arm_L', 'arm_R', 'leg_L', 'leg_R'];
@@ -201,7 +211,7 @@
     const snap = P => { for (let it = 0; it < 3; it++) { const d = dist(c0, P[0], P[1], P[2]), g = V.norm(grad(c0, P[0], P[1], P[2])); P = V.sub(P, V.mul(g, d)); } return P; };
     for (const m of muscles) {
       m.A = snap(m.A); m.B = snap(m.B); m.L0 = V.len(V.sub(m.B, m.A));
-      m.h0 = m.r0 * m.flat * (m.show != null ? m.show : 0.3) * 0.9;
+      m.h0 = m.r0 * m.flat * (m.show != null ? m.show : 0.3) * DEF;
     }
     return body;
   }
@@ -245,12 +255,13 @@
       const qx = dx - pc.an[0] * t * pc.L, qy = dy - pc.an[1] * t * pc.L, qz = dz - pc.an[2] * t * pc.L;
       const a = qx * pc.e1[0] + qy * pc.e1[1] + qz * pc.e1[2], b = qx * pc.e2[0] + qy * pc.e2[1] + qz * pc.e2[2];
       const tt = t < p.tp ? 0.5 * t / p.tp : 0.5 + 0.5 * (t - p.tp) / (1 - p.tp);
-      const sn = Math.sin(Math.PI * tt), prof = Math.sqrt(sn) * (1.5 - 0.5 * sn), w = pc.r * prof;
+      // a belly tapers to its tendons; a pad (the abdominal segments, the serratus digits) is flat-topped with soft edges
+      const sn = Math.sin(Math.PI * tt), e4 = (2 * tt - 1) ** 4, prof = p.pad ? 1 - e4 : Math.sqrt(sn) * (1.5 - 0.5 * sn), w = pc.r * (p.pad ? 1 : prof);
       if (w < 1e-4) return 0;
       const rho = b / w, r2 = rho * rho; if (r2 >= 1) return 0;
       const s1 = Human.smooth(-1.2 * w, 0, a) * (1 - Human.smooth(1.5 * w, 3.5 * w, a)); if (s1 <= 0) return 0;
       const side = s1;
-      const f = (1 - r2) * (1 - r2);
+      const f = p.pad ? (1 - r2) * (1 + 0.6 * r2) : (1 - r2) * (1 - r2);
       return pc.h * prof * f * side;
     }
     const o = p.bone * 15, inv = c.inv, px = x - inv[o + 9], py = y - inv[o + 10], pz = z - inv[o + 11];

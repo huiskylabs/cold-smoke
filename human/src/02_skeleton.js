@@ -82,15 +82,15 @@
   // root: pos (metres, added to the pelvis), rot (deg, x y z intrinsic: x + tips the pelvis forward).
   Human.restPose = () => ({
     root: { pos: [0, 0, 0], rot: [0, 0, 0] }, spine: { flex: 0, lat: 0, twist: 0 }, neck: { flex: 0, lat: 0, yaw: 0 }, jaw: 0,
-    arm_L: { elev: 0, plane: 0, axial: 0, elbow: 0, pron: 0, wflex: 0, wdev: 0, grip: 0.15, thumb: 0.1, shrug: 0, protract: 0 },
-    arm_R: { elev: 0, plane: 0, axial: 0, elbow: 0, pron: 0, wflex: 0, wdev: 0, grip: 0.15, thumb: 0.1, shrug: 0, protract: 0 },
+    arm_L: { elev: 0, plane: 0, axial: 0, elbow: 0, pron: 0, wflex: 0, wdev: 0, grip: 0.3, thumb: 0.25, shrug: 0, protract: 0 },
+    arm_R: { elev: 0, plane: 0, axial: 0, elbow: 0, pron: 0, wflex: 0, wdev: 0, grip: 0.3, thumb: 0.25, shrug: 0, protract: 0 },
     leg_L: { flex: 0, abd: 0, rot: 0, knee: 0, ankle: 0, inv: 0, toe: 0 },
     leg_R: { flex: 0, abd: 0, rot: 0, knee: 0, ankle: 0, inv: 0, toe: 0 },
   });
   // joint ranges (CDC / Soucie 2011 and AAOS normative values; research/02). A pose outside them is clamped and the overrun reported.
   const ROM = {
     spine: { flex: [-30, 90], lat: [-35, 35], twist: [-45, 45] }, neck: { flex: [-55, 50], lat: [-40, 40], yaw: [-75, 75] },
-    arm: { elev: [0, 175], plane: [-50, 135], axial: [-90, 70], elbow: [0, 148], pron: [-85, 80], wflex: [-65, 75], wdev: [-20, 30], grip: [0, 1], thumb: [0, 1], shrug: [-10, 30], protract: [-20, 30] },
+    arm: { elev: [0, 175], plane: [-90, 135], axial: [-90, 70], elbow: [0, 148], pron: [-85, 80], wflex: [-65, 75], wdev: [-20, 30], grip: [0, 1], thumb: [0, 1], shrug: [-10, 30], protract: [-20, 30] },
     leg: { flex: [-18, 130], abd: [-20, 45], rot: [-45, 45], knee: [0, 140], ankle: [-25, 55], inv: [-10, 25], toe: [-35, 80] },
   };
   Human.ROM = ROM;

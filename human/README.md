@@ -14,3 +14,11 @@ A reusable human for 雪迹 and later games: no model files, no textures. Everyt
 - `tools/render.js` renders a turntable, a pose loop and a skinning comparison sheet (needs playwright and ffmpeg).
 
 Data: ANSUR II (US Army, public release), CDC / AAOS joint ranges, McClure 2001 shoulder rhythm, de Leva 1996. Research notes behind every number: the project's research reports 01–08.
+
+## Motion (src/08_motion.js)
+
+`Human.Motion.CLIPS` are functions of a phase that return an anatomical pose; `Human.Motion.sample(sk, clip, t)` puts the feet (or the skis /
+snowboard under them) on the floor and adds the flight. Daily: walk, run (textbook gait curves), jump, squat. Skis: carved turn (lean, hip
+height and shoulder turn per phase from `data/mocap/turn_cycle_cc_slalom.json`, CC BY 3.0, the legs solved onto parallel skis), tuck, moguls,
+two jumps. Snowboard: ride, toe / heel edge, jump with a grab. `Human.Motion.gear` gives the skis / board as boxes. The lab plays them under
+"动作" (`?clip=walk`). Muscle definition is the `def` parameter (0..2); it fades with body fat.

@@ -71,6 +71,19 @@
   const fvao = gl.createVertexArray(), fbuf = gl.createBuffer();
   gl.bindVertexArray(fvao); gl.bindBuffer(gl.ARRAY_BUFFER, fbuf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-30, -30, 30, -30, 30, 30, -30, -30, 30, 30, -30, 30]), gl.STATIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); gl.bindVertexArray(null);
+  // skis / snowboard: a few boxes rebuilt every frame
+  const gvao = gl.createVertexArray(), gbufP = gl.createBuffer(), gbufN = gl.createBuffer(); let gearN = 0;
+  gl.bindVertexArray(gvao); gl.bindBuffer(gl.ARRAY_BUFFER, gbufP); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gbufN); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 0, 0); gl.bindVertexArray(null);
+  function gearMesh(boxes) {
+    const P = [], N = [];
+    for (const b of boxes) { const A = [V.mul(b.ax, b.L / 2), V.mul(b.n, b.T / 2), V.mul(b.side, b.W / 2)];
+      for (let a = 0; a < 3; a++) for (const sg of [1, -1]) { const n = V.mul(A[a], sg), u = A[(a + 1) % 3], w = A[(a + 2) % 3], nn = V.norm(n);
+        for (const [i, j] of [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]]) { P.push(...V.add(b.c, V.add(n, V.add(V.mul(u, i), V.mul(w, j))))); N.push(...nn); } } }
+    gearN = P.length / 3;
+    gl.bindBuffer(gl.ARRAY_BUFFER, gbufP); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(P), gl.DYNAMIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, gbufN); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(N), gl.DYNAMIC_DRAW);
+  }
   function upload(m) {
     gl.bindVertexArray(vao);
     const at = (buf, loc, n, data, usage) => { gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, data, usage); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, n, gl.FLOAT, false, 0, 0); };
@@ -108,10 +121,11 @@
     st.built = g; st.cache.clear();
     upload({ pos: g.pos, nrm: g.nrm, ao, col: g.col, idx: mesh.idx });
     status(''); st.busy = false;
+    const playing = st.clip && st.clip.clip.name; st.clip = null;
     st.cur = poseOf(st.pose); st.from = st.cur; st.anim = null; await settle();
-    panel();
+    panel(); if (playing || st.startClip) { playClip(playing || st.startClip, st.capture); st.startClip = null; }
   }
-  const poseOf = name => Human.ground(st.built.sk, (Human.POSES.find(p => p.name === name) || Human.POSES[0]).pose);
+  const poseOf = name => Human.Motion.ground(st.built.sk, (Human.POSES.find(p => p.name === name) || Human.POSES[0]).pose);
 
   // ---------------------------------------------------------------- posing
   // the projection (mode c) for a pose: its displacements, kept in the frame of each vertex's main bone so that they turn with the limb while the
@@ -155,13 +169,33 @@
     st.pose = name; panel();
   }
 
+  // ---------------------------------------------------------------- clips (Human.Motion): the pose is sampled every frame; in mode c the
+  // projection is worked out at a few phases of the clip (one per frame, while it already plays) and blended between them
+  function playClip(name, sync) {
+    const clip = Human.Motion.CLIPS.find(c => c.name === name); if (!clip || !st.built || st.busy) return;
+    const K = Math.max(8, Math.min(24, Math.round(clip.dur * 8)));
+    st.clip = { clip, K, t0: st.capture ? st.clock || 0 : performance.now() }; st.anim = null; st.auto = false; st.pose = ''; panel();
+    if (sync && st.mode === 'c') for (let k = 0; k < K; k++) clipProj(k);
+  }
+  const clipProj = k => { const c = st.clip; return projectionFor(c.clip.name + '#' + k, Human.Motion.sample(st.built.sk, c.clip, c.clip.dur * k / c.K)); };
+  function clipFrame(now) {
+    const c = st.clip, g = st.built, t = (now - c.t0) / 1000 * (st.slow ? 0.25 : 1), u = ((t / c.clip.dur) % 1 + 1) % 1;
+    st.cur = Human.Motion.sample(g.sk, c.clip, t);
+    if (st.mode !== 'c') { st.curP = null; apply(st.cur, null, null, 1); return; }
+    const x = u * c.K, i = Math.floor(x) % c.K, j = (i + 1) % c.K, has = k => st.cache.has(c.clip.name + '#' + k + '|c');
+    if (has(i) && has(j)) { st.curP = clipProj(j); apply(st.cur, clipProj(i), st.curP, x - Math.floor(x)); status(''); }
+    else { st.curP = null; apply(st.cur, null, null, 1); let n = 0; for (let k = 0; k < c.K; k++) if (has(k)) n++;
+      status('体积投影 ' + n + ' / ' + c.K + '…'); clipProj(has(i) ? j : i); }
+  }
+
   // ---------------------------------------------------------------- frame
   function frame(now) {
     if (!st.capture) requestAnimationFrame(frame);
     const dpr = Math.min(2, window.devicePixelRatio || 1), w = cv.clientWidth, h = cv.clientHeight;
     if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
     const g = st.built;
-    if (g && st.anim) {
+    if (g && st.clip && !st.busy) clipFrame(now);
+    else if (g && st.anim) {
       const a = st.anim, u = Math.min(1, (now - a.t0) / a.dur), s = u * u * (3 - 2 * u);
       st.cur = Human.lerpPose(a.from, a.to, s);
       apply(st.cur, a.fromP, a.toP, s);
@@ -190,15 +224,21 @@
       gl.uniform1i(U(pBody, 'uLook'), { skin: 0, clay: 1, weights: 2, disp: 2 }[st.look]);
       gl.uniform3f(U(pBody, 'uL1'), Math.sin(st.yaw + 0.9) * 0.8, 0.9, Math.cos(st.yaw + 0.9) * 0.8); gl.uniform3f(U(pBody, 'uL2'), Math.sin(st.yaw - 2.0), 0.3, Math.cos(st.yaw - 2.0));
       gl.bindVertexArray(vao); gl.drawElements(gl.TRIANGLES, g.idx.length, gl.UNSIGNED_INT, 0);
+      const kind = st.clip && st.clip.clip.gear;
+      if (kind && g.xf) { gearMesh(Human.Motion.gear(g.sk, g.xf, kind)); gl.uniform1i(U(pBody, 'uLook'), 2); gl.bindVertexArray(gvao); gl.vertexAttrib1f(2, 1); gl.vertexAttrib3f(3, 0.16, 0.2, 0.3); gl.disable(gl.CULL_FACE); gl.drawArrays(gl.TRIANGLES, 0, gearN); }
     }
   }
 
   // ---------------------------------------------------------------- panel
-  const SL = [['sex', '性别（男 0 → 女 1）', 0, 1, 0.05], ['stature', '身高 m', 1.5, 2.0, 0.01], ['mass', '体重 kg', 45, 120, 1], ['bodyFat', '体脂 %', 6, 40, 1], ['frame', '骨架宽窄', -1, 1, 0.1]];
+  const SL = [['sex', '性别（男 0 → 女 1）', 0, 1, 0.05], ['stature', '身高 m', 1.5, 2.0, 0.01], ['mass', '体重 kg', 45, 120, 1], ['bodyFat', '体脂 %', 6, 40, 1], ['frame', '骨架宽窄', -1, 1, 0.1], ['def', '肌肉线条', 0, 2, 0.1]];
   function panel() {
     const g = st.built;
     $('#poses').innerHTML = Human.POSES.map(p => `<button class="chip${p.name === st.pose ? ' on' : ''}" data-pose="${p.name}">${p.zh}</button>`).join('') +
       `<button class="chip${st.auto ? ' on' : ''}" id="auto">自动轮播</button>`;
+    const cn = st.clip && st.clip.clip.name;
+    $('#clips').innerHTML = [['daily', '日常'], ['ski', '双板滑雪'], ['board', '单板滑雪']].map(([k, l]) => `<span class="grp">${l}</span>` +
+      Human.Motion.CLIPS.filter(c => c.group === k).map(c => `<button class="chip${c.name === cn ? ' on' : ''}" data-clip="${c.name}">${c.zh}</button>`).join('')).join('') +
+      `<div class="row"><button class="chip${st.slow ? ' on' : ''}" id="slow">慢放 ¼</button></div>`;
     $('#modes').innerHTML = [['a', 'a 线性混合 LBS'], ['b', 'b 对偶四元数 DQS'], ['c', 'c DQS + 体积投影']].map(([k, l]) => `<button class="chip${st.mode === k ? ' on' : ''}" data-mode="${k}">${l}</button>`).join('');
     $('#looks').innerHTML = [['skin', '皮肤'], ['clay', '石膏'], ['weights', '蒙皮权重'], ['disp', '投影位移']].map(([k, l]) => `<button class="chip${st.look === k ? ' on' : ''}" data-look="${k}">${l}</button>`).join('') +
       `<button class="chip${st.spin ? ' on' : ''}" id="spin">转台</button>`;
@@ -220,10 +260,12 @@
   }
   document.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.pose) goPose(b.dataset.pose);
-    else if (b.dataset.mode) { st.mode = b.dataset.mode; panel(); settle(); }
-    else if (b.dataset.look) { st.look = b.dataset.look; panel(); if (st.built) apply(st.cur, null, st.curP, 1); }
-    else if (b.id === 'auto') { st.auto = !st.auto; panel(); }
+    if (b.dataset.pose) { st.clip = null; status(''); goPose(b.dataset.pose); }
+    else if (b.dataset.clip) playClip(b.dataset.clip);
+    else if (b.id === 'slow') { const c = st.clip, now = performance.now(); if (c) { const t = (now - c.t0) * (st.slow ? 0.25 : 1); c.t0 = now - t / (st.slow ? 1 : 0.25); } st.slow = !st.slow; panel(); }
+    else if (b.dataset.mode) { st.mode = b.dataset.mode; panel(); if (!st.clip) settle(); }
+    else if (b.dataset.look) { st.look = b.dataset.look; panel(); if (st.built && !st.clip) apply(st.cur, null, st.curP, 1); }
+    else if (b.id === 'auto') { st.auto = !st.auto; if (st.auto && st.clip) { st.clip = null; st.pose = 'apose'; goPose('apose'); } panel(); }
     else if (b.id === 'spin') { st.spin = !st.spin; panel(); }
     else if (b.dataset.preset) { st.params = Object.assign({}, Human.PRESETS[b.dataset.preset]); panel(); build(); }
     else if (b.id === 'rebuild') build();
@@ -241,13 +283,13 @@
 
   // url options (for renders): ?pose=squat&mode=c&look=skin&yaw=0.3&spin=0&dist=2.6
   const q = new URLSearchParams(location.search);
-  if (q.get('pose')) st.pose = q.get('pose'); if (q.get('mode')) st.mode = q.get('mode'); if (q.get('look')) st.look = q.get('look');
+  if (q.get('pose')) st.pose = q.get('pose'); if (q.get('clip')) st.startClip = q.get('clip'); if (q.get('slow') === '1') st.slow = true; if (q.get('mode')) st.mode = q.get('mode'); if (q.get('look')) st.look = q.get('look');
   if (q.get('yaw')) st.yaw = +q.get('yaw'); if (q.get('pitch')) st.pitch = +q.get('pitch'); if (q.get('dist')) st.dist = +q.get('dist'); if (q.get('spin') === '0') st.spin = false;
   if (q.get('auto') === '1') st.auto = true; if (q.get('fov')) st.fov = +q.get('fov'); if (q.get('white') === '1') st.white = true; if (q.get('ui') === '0') document.body.classList.add('hide');
-  for (const k of ['sex', 'stature', 'mass', 'bodyFat', 'frame', 'cell']) if (q.get(k)) st.params[k] = +q.get(k);
+  for (const k of ['sex', 'stature', 'mass', 'bodyFat', 'frame', 'def', 'cell']) if (q.get(k)) st.params[k] = +q.get(k);
   // capture mode (for video renders): no animation loop; a script calls __lab.renderFrame(ms) for each frame
   st.capture = q.get('capture') === '1'; st.renderFrame = t => frame(t);
-  st.goPose = goPose; st.build = build; st.ready = false;
+  st.goPose = goPose; st.playClip = playClip; st.build = build; st.ready = false;
   panel(); if (!st.capture) requestAnimationFrame(frame);
   build().then(() => { st.ready = true; });
 })();
