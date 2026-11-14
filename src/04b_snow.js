@@ -1,4 +1,4 @@
-// ---------------------------------------------------------------- the snow, version b (Variants 'snowr', default a: the snow as it was)
+// ---------------------------------------------------------------- the snow, version b (Variants 'snowr', default b since the owner merged it 2026-11-14; a: the snow as it was)
 // From the snow-rendering research the owner asked for (2026-11-13). The first b had six parts; side by side the owner could not tell most
 // of them from a, so only the three that show were kept, each on its own switch:
 //   snr2 闪光不闪烁  glints after Wang & Bowles 2016 ("Sparkly but not too sparkly"): each glint a soft dot never smaller than about a
@@ -14,7 +14,7 @@ const SnowLook = (() => {
   const S = { N: 16, DZ: 50, BACK: 100 };
   const VS = typeof Variants !== 'undefined' ? Variants : null;
   const PARTS = [['snr2', '└ 闪光不闪烁'], ['snr4', '└ 雪痕边埂'], ['snr6', '└ 压雪纹']];
-  if (VS) { VS.def('snowr', '雪面渲染', [['a', '现在的'], ['b', '新的']], 'a'); for (const [n, l] of PARTS) VS.def(n, l, [['on', '开'], ['off', '关']], 'on'); }
+  if (VS) { VS.def('snowr', '雪面渲染', [['a', '原来的'], ['b', '新的']], 'b'); for (const [n, l] of PARTS) VS.def(n, l, [['on', '开'], ['off', '关']], 'on'); }
   S.b = () => !!VS && VS.val.snowr === 'b';
   S.on = n => S.b() && VS.val[n] !== 'off';
   // the uniforms the terrain takes: sf.y = soft glints; sg = (groomed run, tracks, -, quality level); sn = (z of the table's first row,
