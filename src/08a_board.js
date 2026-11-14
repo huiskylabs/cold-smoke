@@ -76,15 +76,18 @@ const Board = (() => {
     const hl = basis(yawC, 0, 0), reach = (L.uarm + L.farm + L.grip) * 0.97;
     const hand = (side, g) => {
       const sh = side < 0 ? J.shL : J.shR;
-      let o = side < 0 ? [-0.30, -0.40, -0.20] : [0.10, -0.48, -0.13];
-      o = v3.add(o, v3.mul([side < 0 ? -0.04 : 0.04, -0.04, -0.10], ts));
-      o = v3.add(o, v3.mul([side < 0 ? 0.04 : -0.02, 0.10, -0.22], hs));
-      o = v3.add(o, v3.mul(side < 0 ? [-0.14, 0.22, -0.02] : [0.20, 0.20, 0.04], air * (1 - gM)));
-      o = v3.add(o, v3.mul([side < 0 ? 0.12 : -0.05, -0.08, -0.16], tuck));
+      // (as riders in Steep and on real slopes carry them: arms long and loose, elbows only soft, hands down at hip height and a little out from
+      // the body; the front hand leads, over the front knee toward the nose, the back one hangs by the back hip. On the toes both go low and
+      // ahead over the toe edge; on the heels they reach forward over the toes to hold the seat's weight; in the air they open out for balance)
+      let o = side < 0 ? [-0.24, -0.50, -0.13] : [0.12, -0.55, -0.03];
+      o = v3.add(o, v3.mul(side < 0 ? [-0.06, -0.06, -0.12] : [0.02, -0.04, -0.10], ts));
+      o = v3.add(o, v3.mul(side < 0 ? [0.06, 0.10, -0.24] : [-0.06, 0.12, -0.24], hs));
+      o = v3.add(o, v3.mul(side < 0 ? [-0.20, 0.24, -0.02] : [0.22, 0.22, 0.06], air * (1 - gM)));
+      o = v3.add(o, v3.mul([side < 0 ? 0.12 : -0.05, 0.05, -0.18], tuck));
       let t = v3.add(sh, fr(hl, o[0], o[1], o[2]));
       if (g > 0) t = v3.lerp(t, v3.add(O, fr(bb, side < 0 ? -0.36 : 0.0, 0.035, -BD.hw - 0.02)), g);
       const d0 = v3.sub(t, sh), dl = v3.len(d0); if (dl > reach) t = v3.mad(sh, d0, reach / dl);
-      const e = ik2(sh, t, L.uarm, L.farm + L.grip, fr(hl, side * 0.5, -0.6, 0.45));
+      const e = ik2(sh, t, L.uarm, L.farm + L.grip, fr(hl, side * 0.7, -0.2, 0.7));      // (the elbow out and back, never forward)
       return { w: t, e, d: v3.norm(fr(hl, side * 0.1, -1, -0.35)) };
     };
     const hL = hand(-1, gL), hR = hand(1, gR);

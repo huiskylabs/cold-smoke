@@ -526,11 +526,10 @@ const Skier = (() => {
       loc(leg[k].mF, x, y, z); const a = q[0], b = q[1], d = q[2];
       let s = rbx(a, b, d, 0, 0.088, -0.02, 0.052, 0.040, 0.152, 0.032); s = smax(s, (b - 0.150 - 0.33 * (d + 0.02)) * 0.95, 0.02);    // shell, lower over the toes
       s = smin(s, E(a, b, d, 0, 0.135, 0.02, 0.05, 0.06, 0.085), 0.025);                                                               // instep
-      // (on a snowboard, sb: no ski binding. A snowboard binding instead: a short baseplate under the sole, a highback up the back of the calf,
-      // and two straps, over the toes and across the instep. The boot keeps its shell: its 30 cm sit on a 26 cm board as a real boot does)
+      // (on a snowboard, sb: no ski binding. A snowboard binding instead: a short baseplate under the sole and two straps, over the toes and
+      // across the instep. No highback: modelled apart from the boot it stood up behind the heel as a black slab, the owner's "two boards standing up". The boot keeps its shell: its 30 cm sit on a 26 cm board as a real boot does)
       if (sb) {
         let n = rbx(a, b, d, 0, 0.012, -0.01, 0.062, 0.012, 0.165, 0.006);                                                             // baseplate
-        n = smin(n, rbx(a, b, d, 0, 0.16, 0.168, 0.058, 0.13, 0.010, 0.008), 0.02);                                                     // highback
         n = Math.min(n, rbx(a, b, d, 0, 0.148, 0.0, 0.060, 0.016, 0.034, 0.008), rbx(a, b, d, 0, 0.088, -0.13, 0.058, 0.014, 0.024, 0.008));   // straps
         ftB = s; ftN = n; return smin(s, n, 0.004);
       }
