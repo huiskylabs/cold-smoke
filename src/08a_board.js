@@ -1,0 +1,135 @@
+// ---------------------------------------------------------------- the snowboard: the same figure, stood sideways on one board (Variants 'ride' b)
+// One board under both boots, no poles. The rider stands across the board, regular (left foot forward): the board runs along the skis' line
+// (-z in the figure's own space, the nose ahead), the body faces +x, the toes. So a turn to the right is a toeside turn and a turn to the left a
+// heelside one: the game's lean and edge go straight onto the board's edge, and the body leans with them toward the toes or back over the heels.
+// The pose is made from four key poses, blended by what the game asks for and never sprung (the owner's rule: no springs layered on a pose):
+//   toeside: knees driven forward and in over the toe edge, hips a little behind that line, chest following the lean, hands low and ahead;
+//   heelside: seat down and back behind the heels, legs long, chest folded forward over the knees, hands reaching ahead toward the toes;
+//   crouch: both knees folded, the seat sinks between the boots, the chest comes down over the front knee;
+//   air: knees drawn up, board level under the body, arms out for balance; a grab takes the toe edge (back hand between the boots, front
+//   hand by the front binding).
+// The game's ↑ / ↓ (fore/aft, pose.fa) moves the weight along the board: hips and shoulders over the nose or over the tail, the front or
+// back knee folding the more.
+// Everything is worked in the rider's own space first (x along the board toward the tail, -z toward the toes, as if the rider faced -z the way
+// the skier does) and turned a quarter turn into the figure's space at the end.
+const Board = (() => {
+  const VS = typeof Variants !== 'undefined' ? Variants : null;
+  if (VS) VS.def('ride', '滑具', [['a', '双板'], ['b', '单板']], 'a');
+  const BD = { len: 1.56, hw: 0.125, waist: 0.122, half: 0.27, kick: 0.055, th: 0.013, yawF: -0.26, yawB: 0.15 };   // board (m), half the stance, binding angles (rad, + toward the tail)
+  const K = Skier, L = K.LEN, basis = K.basis, ik2 = K.ik2, frameXY = K.frameXY, fr = K.fr, B = K.B;
+  // the quarter turn: rider space (x, y, z) -> figure space (-z, y, x)
+  const Qp = q => [-q[2], q[1], q[0]], QM = m4.fromBasis([0, 0, 1], [0, 1, 0], [-1, 0, 0], [0, 0, 0]);
+  const Qb = b => ({ X: Qp(b.X), Y: Qp(b.Y), Z: Qp(b.Z) });
+  const yawIn = (bb, yaw) => { const y = basis(yaw, 0, 0); return { X: fr(bb, ...y.X), Y: fr(bb, ...y.Y), Z: fr(bb, ...y.Z) }; };
+
+  function solve(p, sec) {
+    sec = sec || K.SEC0;
+    const lean = p.lean || 0, edge = p.edge || 0, tuck = sat(p.tuck || 0), air = sat(p.air || 0), fa = clamp(p.fa || 0, -1, 1), sep = p.sep || 0;
+    const gL = smooth(0, 1, p.grabL || 0), gR = smooth(0, 1, p.grabR || 0), gM = Math.max(gL, gR), id = sec.idle || null;
+    const ts = smooth(0.04, 0.75, lean), hs = smooth(0.04, 0.75, -lean);      // how far into a toeside / heelside turn
+    const J = {}, F = new Array(K.NB);
+    // ---- the board: rolled onto its edge (toes down = forward in rider space), the nose lifted in deep snow; the edge stays on the snow
+    const nu = clamp(((p.tipL || 0) + (p.tipR || 0)) * 0.5, -0.05, 0.3);
+    const bb = basis(0, edge, nu), O = [0, BD.hw * Math.abs(Math.sin(edge)), 0];
+    const fbL = yawIn(bb, BD.yawF), fbR = yawIn(bb, BD.yawB);
+    J.footL = v3.mad(O, bb.X, -BD.half); J.footR = v3.mad(O, bb.X, BD.half);
+    J.ankleL = v3.mad(J.footL, fbL.Y, L.ankle); J.ankleR = v3.mad(J.footR, fbR.Y, L.ankle);
+    // ---- legs folded: the game's crouch, deeper for a tuck, drawn up in the air, all the way for a grab
+    let c = sat(p.crouch == null ? 0.21 : p.crouch);
+    c = Math.max(c, 0.42 * tuck); c = lerp(c, Math.max(c, 0.5), air * 0.7); c = lerp(c, 0.9, gM);
+    // ---- pelvis: on the line from the board's edge leaned over by the lean (toward the toes is -z), the seat a little behind it in a toeside
+    // turn (knees forward, hips back), well behind the heels in a heelside one, over the nose or the tail by fore/aft
+    const pz = 0.07 * ts + 0.09 * hs + 0.07 * c + 0.03, px = -0.085 * fa;
+    const yawP = -0.30 + 0.25 * sep, pitchP = 0.18 + 0.40 * c + 0.45 * Math.max(lean, 0) + 0.30 * hs + 0.35 * tuck, rollP = -0.08 * fa;
+    const pb = basis(yawP, pitchP * 0.6, rollP);
+    let H = 0.99 - 0.34 * c - 0.06 * hs - 0.03 * ts - 0.05 * tuck, pel, hipL, hipR;
+    for (let it = 0; it < 8; it++) {
+      pel = [px, H * Math.cos(lean), -H * Math.sin(lean) + pz];
+      hipL = v3.add(v3.mad(pel, pb.X, -L.hipW), v3.mul(pb.Y, -L.hipD)); hipR = v3.add(v3.mad(pel, pb.X, L.hipW), v3.mul(pb.Y, -L.hipD));
+      const over = Math.max(v3.len(v3.sub(hipL, J.ankleL)), v3.len(v3.sub(hipR, J.ankleR))) - (L.thigh + L.shin) * 0.972;
+      if (over <= -0.025) break; H -= (over >= 0.025 ? over : (over + 0.025) * (over + 0.025) / 0.1) * 1.1;
+    }
+    J.pelvis = pel; J.hipL = hipL; J.hipR = hipR;
+    // knees: over the toes of their own boot (the bindings are turned out, so the knees part a little), never back behind the shin
+    const kneeDir = (fb, sx) => v3.norm(v3.add(v3.mul(fb.Z, -1), [sx, 0.15, 0]));
+    J.kneeL = ik2(hipL, J.ankleL, L.thigh, L.shin, kneeDir(fbL, -0.12)); J.kneeR = ik2(hipR, J.ankleR, L.thigh, L.shin, kneeDir(fbR, 0.12));
+    J.kneeRawL = J.kneeL; J.kneeRawR = J.kneeR;
+    // ---- trunk: hinged forward with the toeside lean, folded over the knees in a heelside turn (the seat is behind the heels: the chest comes
+    // forward to keep the weight over the edge), shoulders turned a little more toward the nose than the hips
+    const hinge = 0.20 + 0.34 * c + 0.62 * Math.max(lean, 0) + 0.12 * Math.min(lean, 0) + 0.55 * hs + 0.55 * tuck + 0.25 * gM + (id ? id.up : 0);
+    const up2 = Math.min(hinge * 1.1 + 0.06 - 0.035 * (id ? id.br : 0), 1.6), rollT = -0.10 * fa + (id ? id.sx : 0);
+    const yawC = -0.42 + 0.35 * sep + (id ? id.ty : 0);
+    const t1 = basis((yawP + yawC) * 0.5, hinge, rollT), t2 = basis(yawC, up2, rollT * 0.8);
+    J.chest = v3.mad(pel, t1.Y, L.spine); J.neck = v3.mad(J.chest, t2.Y, L.chest);
+    J.shL = v3.add(v3.mad(J.neck, t2.X, -L.shW), v3.mul(t2.Y, -L.shD)); J.shR = v3.add(v3.mad(J.neck, t2.X, L.shW), v3.mul(t2.Y, -L.shD));
+    // head: eyes level, looking down the run over the front shoulder (more round toward the nose on the heels, more toward the toes on the toes)
+    const yawH = -1.12 + 0.18 * ts - 0.15 * hs + (p.headYaw || 0) * 0.5 + (id ? id.hy : 0), hp = Math.max(0.10 + 0.08 * c + (id ? id.hp : 0), up2 - 1.0);
+    const hb = basis(yawH, hp, 0.04 * fa), nY = v3.norm(v3.add(t2.Y, hb.Y));
+    J.skull = v3.mad(J.neck, nY, L.neck); J.head = v3.add(v3.mad(J.skull, hb.Y, L.head), v3.mul(hb.Z, -0.015));
+    // ---- hands: relaxed, the front one out toward the nose, the back one by the back hip; low and ahead on the toes, reaching forward on the
+    // heels, wide in the air, in front of the knees in a tuck; a grab takes the toe edge
+    const hl = basis(yawC, 0, 0), reach = (L.uarm + L.farm + L.grip) * 0.97;
+    const hand = (side, g) => {
+      const sh = side < 0 ? J.shL : J.shR;
+      let o = side < 0 ? [-0.30, -0.40, -0.20] : [0.10, -0.48, -0.13];
+      o = v3.add(o, v3.mul([side < 0 ? -0.04 : 0.04, -0.04, -0.10], ts));
+      o = v3.add(o, v3.mul([side < 0 ? 0.04 : -0.02, 0.10, -0.22], hs));
+      o = v3.add(o, v3.mul(side < 0 ? [-0.14, 0.22, -0.02] : [0.20, 0.20, 0.04], air * (1 - gM)));
+      o = v3.add(o, v3.mul([side < 0 ? 0.12 : -0.05, -0.08, -0.16], tuck));
+      let t = v3.add(sh, fr(hl, o[0], o[1], o[2]));
+      if (g > 0) t = v3.lerp(t, v3.add(O, fr(bb, side < 0 ? -0.36 : 0.0, 0.035, -BD.hw - 0.02)), g);
+      const d0 = v3.sub(t, sh), dl = v3.len(d0); if (dl > reach) t = v3.mad(sh, d0, reach / dl);
+      const e = ik2(sh, t, L.uarm, L.farm + L.grip, fr(hl, side * 0.5, -0.6, 0.45));
+      return { w: t, e, d: v3.norm(fr(hl, side * 0.1, -1, -0.35)) };
+    };
+    const hL = hand(-1, gL), hR = hand(1, gR);
+    J.gripL = hL.w; J.elbowL = hL.e; J.gripR = hR.w; J.elbowR = hR.e; J.poleDL = hL.d; J.poleDR = hR.d;
+    J.wristL = v3.mad(J.elbowL, v3.norm(v3.sub(J.gripL, J.elbowL)), L.farm); J.wristR = v3.mad(J.elbowR, v3.norm(v3.sub(J.gripR, J.elbowR)), L.farm);
+    J.tipL = J.gripL.slice(); J.tipR = J.gripR.slice(); J.plantedL = 0; J.plantedR = 0;      // (no poles: nothing is ever planted)
+    // ---- frames, as the skier's (08_skier.js)
+    F[B.pelvis] = m4.fromBasis(pb.X, pb.Y, pb.Z, pel);
+    F[B.spine] = frameXY(pel, v3.sub(J.chest, pel), v3.add(pb.X, t1.X));
+    F[B.chest] = frameXY(J.chest, v3.sub(J.neck, J.chest), t2.X);
+    F[B.neck] = frameXY(J.neck, nY, v3.add(t2.X, hb.X));
+    F[B.head] = m4.fromBasis(hb.X, hb.Y, hb.Z, J.skull);
+    const limb = (i0, a, b2, c2, xh) => { const ax = v3.cross(v3.sub(b2, a), v3.sub(c2, b2)); const hx = v3.len(ax) > 1e-4 ? v3.norm(ax) : xh; F[i0] = frameXY(a, v3.sub(b2, a), hx); F[i0 + 1] = frameXY(b2, v3.sub(c2, b2), hx); };
+    limb(B.uarmL, J.shL, J.elbowL, J.gripL, [1, 0, 0]); F[B.handL] = frameXY(J.wristL, v3.sub(J.gripL, J.elbowL), v3.cross(v3.sub(J.gripL, J.elbowL), hL.d));
+    limb(B.uarmR, J.shR, J.elbowR, J.gripR, [1, 0, 0]); F[B.handR] = frameXY(J.wristR, v3.sub(J.gripR, J.elbowR), v3.cross(v3.sub(J.gripR, J.elbowR), hR.d));
+    limb(B.thighL, hipL, J.kneeL, J.ankleL, [-1, 0, 0]); limb(B.thighR, hipR, J.kneeR, J.ankleR, [-1, 0, 0]);
+    F[B.footL] = m4.fromBasis(fbL.X, fbL.Y, fbL.Z, J.footL); F[B.footR] = m4.fromBasis(fbR.X, fbR.Y, fbR.Z, J.footR);
+    F[B.poleL] = frameXY(J.gripL, v3.mul(J.poleDL, -1), [1, 0, 0]); F[B.poleR] = frameXY(J.gripR, v3.mul(J.poleDR, -1), [1, 0, 0]);
+    // the board itself (its own space: x toward the toe edge, y up, -z the nose)
+    const Mb = m4.fromBasis(v3.mul(bb.Z, -1), bb.Y, bb.X, O);
+    // ---- a quarter turn into the figure's space
+    for (const k in J) if (Array.isArray(J[k]) && J[k].length === 3) J[k] = Qp(J[k]);
+    for (let i = 0; i < F.length; i++) if (F[i]) F[i] = m4.mul(QM, F[i]);
+    J.boardC = Qp(O); J.boardM = m4.mul(QM, Mb);
+    return { J, F, hb: Qb(hb), t1: Qb(t1), t2: Qb(t2), pb: Qb(pb), fbL: Qb(fbL), fbR: Qb(fbR), caps: [], c, hinge, up2, dp: null, hp: [null, null], br: id ? id.br : 0, board: true };
+  }
+
+  // ---- the board's mesh, in its own space (x toward the toe edge, y up, -z the nose; the middle of the base at 0): a twin with a waist, round
+  // nose and tail kicked up, a little thicker under the bindings. Made for the left foot's bone (K.build places it there by .at)
+  function mesh() {
+    const mb = meshBuilder(), rings = [], N = 64, hl = BD.len / 2, flat = hl - 0.16;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N, z = lerp(hl, -hl, t), az = Math.abs(z);
+      // sidecut: widest at the contact points, waist between; rounded ends
+      let w = lerp(BD.waist, BD.hw + 0.020, smooth(0.0, flat, az) ** 2);
+      if (az > flat) w *= Math.sqrt(Math.max(0.04, 1 - ((az - flat) / (hl - flat + 0.004)) ** 2));
+      const yb = BD.kick * Math.pow(smooth(flat - 0.04, hl, az), 1.6), th = lerp(0.006, BD.th, smooth(hl, 0.3, az));
+      const r = [[-w, yb], [w, yb], [w, yb + th * 0.55], [w * 0.97, yb + th], [-w * 0.97, yb + th], [-w, yb + th * 0.55]];
+      rings.push(r.map(q => [[q[0], q[1], z], [0, 1, 0]]));
+    }
+    mb.sweep(rings, [9, 1, 0, 0], [0, 0, 1], [0, 0, -1]);
+    const mm = mb.done();
+    return mm;
+  }
+  // the part handed to Skier.build: the board mesh, and where it sits in the left foot's frame (that frame is the board's turned by the binding)
+  K.boardPart = function () {
+    const s = solve(K.P0), m = K.fixMesh(mesh());
+    m.at = m4.mul(m4.invert(s.F[B.footL]), s.J.boardM);
+    return m;
+  };
+  K.solveBoard = solve;
+  return { BD, solve, on: () => VS && VS.val.ride === 'b' };
+})();

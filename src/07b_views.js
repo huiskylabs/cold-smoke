@@ -223,7 +223,9 @@
     const v = FV, p = root.pos; for (const q of FK) v[q] = lerp(VD.fp[q], VD.tips[q], tk);
     // where the head is this frame (the figure is only posed after the camera, so its own record of itself is a frame old: 0.4 m at speed)
     // (should the figure ever be put together some other way, the view still has to stand: then the head is taken where the figure last had it, or where a head is)
-    let sv = null, J = null; try { sv = Skier.solve(Object.assign(pz, Skier.P0, G.pose)); J = sv.J.head; } catch (_) { sv = null; }
+    // (on a snowboard, Variants 'ride' b, the board's own solver; and what is kept in the picture is the board's nose: brd)
+    const brd = !!(Skier.boardOn && Skier.boardOn());
+    let sv = null, J = null; try { sv = (brd ? Skier.solveBoard : Skier.solve)(Object.assign(pz, Skier.P0, G.pose)); J = sv.J.head; } catch (_) { sv = null; }
     if (!J) { let w = null; try { w = Skier.world; } catch (_) { } J = w && w.J && w.J.head || HEAD0; sv = null; }
     const Y = v3.norm(root.nrm), X = v3.norm(v3.cross(Y, v3.mul(root.fwd, -1))), Z = v3.cross(X, Y);
     // (the place over the skis rides with the snow under the skier and goes a little way over with the body in a turn)
@@ -239,11 +241,11 @@
     // across, they are much further down the picture than their bare distance says)
     let ta = 0, tn2 = 0; const fv = v.fov + v.fovK * k + B.kick, th = Math.tan(fv / 2), qs = Math.sin(qy), qc = Math.cos(qy), first = F.init || dt <= 0, mt = [0, 0, 0];       // (mt: half way between the two tips, from the lens)
     for (let i = 0; i < 2; i++) {
-      const m = sv && sv.F && Skier.B && sv.F[i ? Skier.B.footR : Skier.B.footL]; if (!m) { ta += 0.52; continue; }
-      const a = m[12] + m[4] * 0.125 - m[8] * 0.96, b = m[13] + m[5] * 0.125 - m[9] * 0.96, c = m[14] + m[6] * 0.125 - m[10] * 0.96;
+      const m = sv && sv.F && Skier.B && (brd ? sv.J.boardM : sv.F[i ? Skier.B.footR : Skier.B.footL]); if (!m) { ta += 0.52; continue; }
+      const yo = brd ? 0.03 : 0.125, zo = brd ? 0.12 : 0.96, a = m[12] + m[4] * yo - m[8] * zo, b = m[13] + m[5] * yo - m[9] * zo, c = m[14] + m[6] * yo - m[10] * zo;
       const dx = p[0] + X[0] * a + Y[0] * b + Z[0] * c - hx, dy = p[1] + X[1] * a + Y[1] * b + Z[1] * c - hy, dz = p[2] + X[2] * a + Y[2] * b + Z[2] * c - hz; ta += 0.5 * Math.atan2(-dy, Math.max(dx * qs - dz * qc, 0.05));
       // (for that the tips are taken at the snow, on the skis' own lines: where their upper ends are goes over with their edges)
-      const ex = m[4] * 0.125, ey = m[5] * 0.125, ez = m[6] * 0.125;
+      const ex = m[4] * yo, ey = m[5] * yo, ez = m[6] * yo;
       mt[0] += 0.5 * (dx - X[0] * ex - Y[0] * ey - Z[0] * ez); mt[1] += 0.5 * (dy - X[1] * ex - Y[1] * ey - Z[1] * ez); mt[2] += 0.5 * (dz - X[2] * ex - Y[2] * ey - Z[2] * ez); tn2++;
     }
     const pT = clamp(Math.max(Math.min(Math.atan2(gq + 0.3 - hy, Lg) + v.tilt, Math.atan(v.tips * th) - ta), -Math.atan(v.sky * th)), -1.0, 0.3);
