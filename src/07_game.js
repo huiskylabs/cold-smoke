@@ -20,6 +20,13 @@ const Input = (() => {
   // does both: across turns, up presses the shovels, down the tails. Read in step() ('fore/aft') and updatePose; works on top of feel b
   // (default b since the owner skied it, 2026-11-13)
   Variants.def('fa', '前后重心', [['a', '关'], ['b', '开']], 'b');
+  // moguls (owner, 2026-11-14: over the bumps the speed hardly dropped, which is not true: a good skier folds the legs deep to soak up each bump,
+  // and that costs speed; nobody hops bump to bump at speed). a: as it was, a flat extra friction over a field (0.12 of the load). b: what
+  // the legs do costs what it costs. Every face that rises under the skis is folded into by the legs against the load they carry (that
+  // work, load x fold, is taken from the speed: a bump's own height paid each time), the quicker the fold the more the legs' damping
+  // burns (grows with speed), and a face met faster than a leg can fold (MOG_WMAX) is a blow, its speed into the snow lost as in a landing.
+  // The smooth line through a field costs nothing. Measured against FIS mogul courses (26 deg, men need 11.8 m/s for full speed marks)
+  Variants.def('mog', '蘑菇减速', [['a', '原来'], ['b', '真实']], 'b');
   const I = { u: 0, fa: 0, faV: 0, faT: 0, faScript: null, btn: { jump: false, tuck: false }, jump: false, tuck: false, mode: 'touch', tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
   I.init = function (el) {
     addEventListener('keydown', e => { if (e.code !== I.mute) I.keys[e.code] = true; }); addEventListener('keyup', e => { I.keys[e.code] = false; if (e.code === I.mute) I.mute = null; });
@@ -105,6 +112,10 @@ const Game = (() => {
   // (feel b) the most the edges hold across the line, in parts of the load, on packed snow and in deep powder; the snow's friction there at speed;
   // the drag of powder ploughed, per metre of depth the skis ride at (m/s^2 per m)
   const GRIP_B = [1.0, 0.95], MU_B = [0.035, 0.04], PLOW_K = 3.5;
+  // (mogul b) the blow of each face met: speed lost per unit of rise, as a share of the speed squared. Over a field (a bump rises some half
+  // a metre more than the body rides, every 5.2 m) it comes to about a sixth of the run's energy per bump at speed, the sin^2 of the 25
+  // degrees a face turns the skis through; with the legs' own work it holds a skier going straight down the bumps near 35-40 km/h, weaving through them nearer 30
+  const MOG_I = 0.3;
   // the jump: time to wind up, how far the legs fold for it, the speed a tap and a full wind-up give, how long the drive lasts; how far a tuck sits down
   const CHG_T = 0.65, CHG_E = 0.27, POP_V0 = 1.5, POP_V1 = 3.3, POP_T = 0.14, TUCK_E = 0.07;
   // the wind-up: the body starts down at once and slows into the bottom of the crouch, where it stays while the key is held (owner 2026-11-12)
@@ -327,16 +338,27 @@ const Game = (() => {
       // planing up to under half of it from 6 to 18 m/s), deeper and slower as they settle in than as they plane out, and up to twice as
       // much with the skis thrown across it
       const mog = c.mog > 0.01 ? MOG_MU * Course.bumps(p[0], p[2]) : 0, lowV = sat(sp / 0.6);       // (a field of bumps is slow going; the smooth line through it is not)
-      let mu = lerp(0.028, 0.06, S.powder) + mog, plow = 0, Nf = N;
+      const MB = Variants.val.mog === 'b'; let aMog = 0;
+      if (MB && c.mog > 0.01 && sp > 1) {
+        // (mogul b) the part of each bump the legs take (the drawn snow less what the body rides) and its rise along the line of travel just
+        // ahead of the boots (gF, 0 on the smooth line and nothing on a face that falls away). The legs fold that far against the load
+        // (load x rise), and the face turns the skis up into it, a blow that grows with the speed squared (MOG_I)
+        const dH = (x, z) => { Course.mogK = 1; const a = Course.height(x, z, 0.5); Course.mogK = MOG_K; const b = Course.height(x, z, 0.5); Course.mogK = 1; return a - b; };
+        const hx = tx / (Math.hypot(tx, tz) || 1), hz = tz / (Math.hypot(tx, tz) || 1), gF = (dH(p[0] + hx * 0.35, p[2] + hz * 0.35) - dH(p[0] - hx * 0.15, p[2] - hz * 0.15)) / 0.5;
+        const up = Math.max(0, gF);
+        aMog = up * (Math.max(N, 0.6 * GRAV) + MOG_I * sp * sp);
+      }
+      S.aMog = aMog;
+      let mu = lerp(0.028, 0.06, S.powder) + (MB ? 0 : mog), plow = 0, Nf = N;
       if (FB) {
-        mu = lerp(MU_B[0], MU_B[1], S.powder) * (1 + 1.5 * Math.exp(-sp / 1.5)) + mog; Nf = Math.hypot(N, aReac);
+        mu = lerp(MU_B[0], MU_B[1], S.powder) * (1 + 1.5 * Math.exp(-sp / 1.5)) + (MB ? 0 : mog); Nf = Math.hypot(N, aReac);
         // (only where the skis ride IN the snow, as the tracks have it (Tracks.deep): over the soft few centimetres on a packed run or among the
         // trees they ride on top and plough nothing to speak of)
         const pdv = { a: 0.10, b: 0.18, c: 0.50 }[Variants.val.pdepth] || 0.18, soft = pdv * S.powder * S.powder, dT = soft * smooth(0.05, 0.14, soft) * clamp(0.55 + 0.45 * S.load / GRAV, 0.7, 1.4) * lerp(1, 0.45, smooth(6, 18, sp));
         S.pdep = damp(S.pdep || 0, dT, dT > (S.pdep || 0) ? 5 : 1.7, dt);
         plow = PLOW_K * S.pdep * (1 + Math.abs(sb));
       }
-      aLat = aReac; const aDr = (aSk * Math.abs(sb) + (0.05 * Math.abs(aCb) + mu * Nf) * dragFA + plow) * lowV; aTan -= aDr; S.aDrag = aDr;
+      aLat = aReac; const aDr = (aSk * Math.abs(sb) + (0.05 * Math.abs(aCb) + mu * Nf) * dragFA + plow + aMog) * lowV; aTan -= aDr; S.aDrag = aDr;
       S.aReac = aReac; S.aSkid = aSk; S.aCarve = aC;
       if (S.crash > 0) { aTan -= 2.5 * lowV; }
       // (it slows, never stops: down any slope worth the name the skier still gathers speed off the run, only less of it. Tried at 1 + 0.008 v^2
