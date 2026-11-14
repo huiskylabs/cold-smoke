@@ -47,8 +47,10 @@ const Mocap = (() => {
     out.crouch = -(at(C.hip, u) - M.hip) * k * LEG / 0.38;
     out.sep = 0.8 * Math.tanh(0.8 * at(C.tw, u) * k / 0.65 / 0.8);       // (the figure turns the chest by sep and the hips by a third of it: 0.65 of it between them; the source's
     // twist is the noisiest thing in it, so four fifths of it, and rounded off toward 0.8 rather than stopped there)
-    out.hL[0] = (at(C.lx, u) - M.lx) * k * LEG; out.hL[1] = (at(C.ly, u) - M.ly) * k * LEG; out.hL[2] = 0.5 * (at(C.lz, u) - M.lz) * k * LEG;
-    out.hR[0] = (at(C.rx, u) - M.rx) * k * LEG; out.hR[1] = (at(C.ry, u) - M.ry) * k * LEG; out.hR[2] = 0.5 * (at(C.rz, u) - M.rz) * k * LEG;
+    out.hL[0] = (at(C.lx, u) - M.lx) * k * LEG; out.hL[1] = 0.5 * (at(C.ly, u) - M.ly) * k * LEG; out.hL[2] = 0.5 * (at(C.lz, u) - M.lz) * k * LEG;
+    out.hR[0] = (at(C.rx, u) - M.rx) * k * LEG; out.hR[1] = 0.5 * (at(C.ry, u) - M.ry) * k * LEG; out.hR[2] = 0.5 * (at(C.rz, u) - M.rz) * k * LEG;
+    // (heights at half: the figure already carries the inside hand lower and the outside one higher as it leans, and the two together put the inside
+    // fist below the belt with its pole dragged flat)
     const real = smooth(0.15, 0.35, amp);
     out.plR = bump(u, -0.08, 0.22) * real; out.plL = bump(u, 0.92, 0.22) * real;
     return out;
