@@ -1121,7 +1121,10 @@ fn frag(v: VOut) -> FOut {
   // And a bough about to brush the lens thins out and is gone. (It is never left as a sprinkle of dark specks over the picture: below a
   // third of its pixels it is dropped altogether.)
   let g: f32 = treeGrain(v.clip.xy);
-  let kd: f32 = smoothstep(0.8, 1.7, dist);
+  var kd: f32 = smoothstep(0.8, 1.7, dist);
+  // (version b of 'tpass': the trees stay, and a crown the lens is passing through is not a wall: within three metres of the lens its boughs
+  // thin to a veil of needles going by, two in five of them still there right against the glass)
+  if (M.k.w > 0.5) { kd = select(0.0, mix(0.4, 1.0, smoothstep(0.9, 3.2, dist)), dist > 0.7); }
   let keep: f32 = min(v.ex.y, kd);
   if (kd < 0.34 || g < v.ex.x || (keep < 0.999 && g >= keep)) { discard; }
   // (version b of 'tpass': the trees all stay, and only the boughs standing right between the lens and the skier are thinned, in a window
@@ -1132,9 +1135,9 @@ fn frag(v: VOut) -> FOut {
     if (L2 > 1.0) {
       let tt: f32 = clamp(dot(v.wp - U.camPos.xyz, ab) / L2, 0.0, 1.0);
       let dq: vec3f = v.wp - U.camPos.xyz - ab * tt;
-      let rd: f32 = length(vec3f(dq.x, dq.y * 0.6, dq.z));
-      let rad: f32 = mix(1.15, 0.6, tt);
-      let hole: f32 = (1.0 - smoothstep(rad * 0.55, rad, rd)) * (1.0 - smoothstep(0.8, 0.9, tt));
+      let rd: f32 = length(vec3f(dq.x, dq.y * 0.55, dq.z));
+      let rad: f32 = mix(2.0, 0.85, tt);
+      let hole: f32 = (1.0 - smoothstep(rad * 0.5, rad, rd)) * (1.0 - smoothstep(0.82, 0.93, tt));
       if (hole > 0.0 && g < hole) { discard; }
     }
   }${TREE_FACE('v.wp', 'V')}
