@@ -52,7 +52,7 @@ const HREF_SLOPE = 0.36;        // reference plane removed from heights before t
 const TREE_CELL = 4.5;
 
 const Course = ((vn1, vn2, h2U) => {
-  const C = { seed: 261111, segs: [], feats: new Map(), mogK: 1, rich: false, lv: 'b', isl: 1 };
+  const C = { seed: 261111, segs: [], feats: new Map(), mogK: 1, rockCap: 0, rich: false, lv: 'b', isl: 1 };
   const CH = 2048, NF = 18;       // metres per cache chunk, fields per metre
   const F = { baseY: 0, cx: 1, hw: 2, dish: 3, shoulder: 4, gul: 5, gw: 6, goff: 7, roll: 8, mog: 9, forest: 10, glade: 11, powder: 12, ridge: 13, wall: 14, rtail: 15, tilt: 16, bank: 17 };
   const chunks = new Map();
@@ -205,7 +205,11 @@ const Course = ((vn1, vn2, h2U) => {
         let u = side * (edge ? p.hw * (0.66 + 0.3 * r()) : p.hw * (0.36 + 0.32 * r()));
         for (let j = 0; j < g; j++) {
           const rad = 1.2 + 1.8 * r(), h = (0.5 + 0.9 * r()) * (C.lv === 'c' ? 1.3 : 1) * Math.min(1, rad / 1.6);
-          if (!busy(sc - rad - 6, sc + rad + 6, u, rad + 3)) addFeat({ s: sc - 2.2 * rad, len: 3.4 * rad, cs: sc, u, rad, h, kind: 'rock' });
+          // (fewer than were first laid out, and almost none out on the run: every other group along the edges is left out, and of those out
+          // on the run only a third on 野雪. The draws are all still made, so everything laid out after them stays where it was. Along the
+          // edges they are not rock at all but mounds of firm, wind-packed snow, the stuff moguls are made of: f.snow, no rock shows)
+          const keep = edge ? (i & 1) === 0 : C.lv === 'c' && i % 3 === 0;
+          if (keep && !busy(sc - rad - 6, sc + rad + 6, u, rad + 3)) addFeat({ s: sc - 2.2 * rad, len: 3.4 * rad, cs: sc, u, rad, h: edge ? h * 0.75 : h, kind: 'rock', snow: edge });
           sc += (r() - 0.3) * 7; u += (r() - 0.5) * 6;
         }
       }
@@ -299,11 +303,35 @@ const Course = ((vn1, vn2, h2U) => {
     const s = -z, fb = C.feats.get(Math.floor(s / 32)); if (!fb) return 0;
     let u = null, k = 0;
     for (let i = 0; i < fb.length; i++) {
-      const f = fb[i]; if (f.kind !== 'rock') continue;
+      const f = fb[i]; if (f.kind !== 'rock' || f.snow) continue;
       if (u === null) u = x - at(s, _py).cx;
       k = Math.max(k, smooth(1.2, 0.85, Math.hypot((s - f.cs) * (s < f.cs ? 0.45 : 1), u - f.u) / f.rad));
     }
     return k;
+  };
+  // (for the game) a boulder is something to go round, not a ramp: the skier's body is told only of a low swell where one stands (C.rockCap,
+  // set while the physics asks), and where the drawn rock stands more than ROCK_WALL above the snow it is a wall, as a trunk is. rockHit
+  // fills o with the point on that wall's foot nearest the skier and its outward normal, and returns the rock (null where there is none)
+  const ROCK_WALL = 0.45;
+  function rockQ0(f) {        // the q at which the drawn rock stands ROCK_WALL high (its profile falls from the middle out)
+    if (f.q0 === undefined) { let a = 0, b = 1; for (let i = 0; i < 18; i++) { const q = (a + b) * 0.5, hr = f.h * (0.45 * Math.sqrt(1 - q * q) + 0.55 * smooth(1, 0.5, q)); if (hr > ROCK_WALL) a = q; else b = q; } f.q0 = f.h > ROCK_WALL ? a : 0; }
+    return f.q0;
+  }
+  C.rockHit = function (x, z, o) {
+    if (!LV) return null;
+    const s = -z, fb = C.feats.get(Math.floor(s / 32)); if (!fb) return null;
+    const c = at(s, _py), u = x - c.cx;
+    for (let i = 0; i < fb.length; i++) {
+      const f = fb[i]; if (f.kind !== 'rock' || f.snow) continue;
+      const q0 = rockQ0(f); if (q0 <= 0) continue;
+      const k = s < f.cs ? 0.45 : 1, ds = (s - f.cs) * k, du = u - f.u, q = Math.hypot(ds, du) / f.rad;
+      if (q >= q0) continue;
+      const g = q > 1e-4 ? q0 / q : 0, gs = q > 1e-4 ? ds : -1, gu = q > 1e-4 ? du : 0;
+      o.x = c.cx + f.u + (q > 1e-4 ? du * g : 0); o.z = -(f.cs + (q > 1e-4 ? ds * g : -q0 * f.rad) / k);
+      let nx = gu, nz = -gs * k; const l = Math.hypot(nx, nz) || 1; o.nx = nx / l; o.nz = nz / l; o.h = f.h;
+      return f;
+    }
+    return null;
   };
   function addFeat(f) { const b0 = Math.floor((f.s - 4) / 32), b1 = Math.floor((f.s + f.len + 30) / 32); for (let b = b0; b <= b1; b++) { let a = C.feats.get(b); if (!a) C.feats.set(b, a = []); a.push(f); } }
 
@@ -507,7 +535,7 @@ const Course = ((vn1, vn2, h2U) => {
       const f = fb[i];
       if (f.kind === 'rock') {
         const q = Math.hypot((s - f.cs) * (s < f.cs ? 0.45 : 1), u - f.u) / f.rad;
-        if (q < 1) h += f.h * (0.45 * Math.sqrt(1 - q * q) + 0.55 * smooth(1, 0.5, q));      // (round on top, steep but not sheer at the sides: a sheer one cannot be drawn without teeth)
+        if (q < 1) { const hr = f.h * (0.45 * Math.sqrt(1 - q * q) + 0.55 * smooth(1, 0.5, q)); h += C.rockCap > 0 ? C.rockCap * (1 - Math.exp(-hr / C.rockCap)) : hr; }      // (round on top, steep but not sheer at the sides: a sheer one cannot be drawn without teeth)
         continue;
       }
       if (f.kind === 'drop') {
