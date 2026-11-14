@@ -221,12 +221,11 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
     catch (e) { console.error(e); X.error = String(e && e.stack || e); X.exit(); }
   }
   // the sharpness steps down while the frames come late, and back up a little after a long while with room. 'Late' is against the
-  // headset's own rate (Vision Pro shows 90 a second; others 72, 60...): the session's frameRate where it says, else the quickest frames seen
+  // headset's own rate (Vision Pro shows 90 a second; others 72, 60...): the session's frameRate where it says, else the quickest second seen
   function govern(raw) {
     if (raw > 0.5) return;
-    gov.min = Math.min(gov.min || 1, Math.max(raw, 1 / 240));
     gov.acc += raw; gov.n++; if (gov.acc < 1) return;
-    const avg = gov.acc / gov.n; gov.acc = 0; gov.n = 0; X.stats.avg = avg;
+    const avg = gov.acc / gov.n; gov.acc = 0; gov.n = 0; X.stats.avg = avg; gov.min = Math.min(gov.min, avg);
     const fr = X.session && X.session.frameRate, frame = fr > 20 ? 1 / fr : Math.max(gov.min, 1 / 120); X.stats.target = frame;
     if (avg > frame * 1.12 && X.scale > X.minScale) { X.scale = Math.max(X.minScale, X.scale * 0.88); X.sized = false; gov.fast = 0; }
     else if (avg < frame * 1.04) { if (++gov.fast >= 15 && X.scale < X.maxScale) { X.scale = Math.min(X.maxScale, X.scale * 1.06); X.sized = false; gov.fast = 0; } }
