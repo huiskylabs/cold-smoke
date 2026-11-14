@@ -343,7 +343,7 @@ const Game = (() => {
       const hl = Math.hypot(v[0], v[2]) || 1, hx = v[0] / hl, hz = v[2] / hl, gF = (dH(p[0] + hx * 0.35, p[2] + hz * 0.35) - dH(p[0] - hx * 0.15, p[2] - hz * 0.15)) / 0.5;
       S.mogT += dt; S.mogF += dt; S.mogR = Math.max(0, S.mogR - MOG_RD * dt);
       // (a crest: the rise under the boots turning to a fall (S.mogA: a real rise seen since the last one). An edge change waiting from just before it counts now; else the crest waits for one)
-      if (gF > 0.04) S.mogA = 1;
+      if (gF > 0.04 * Course.mogShape().H / 0.92) S.mogA = 1;
       else if (S.mogA && gF <= 0) { S.mogA = 0; if (sp > 2) { if (S.mogF < MOG_WIN) { S.mogR += 0.6 * (1 - S.mogR); S.mogF = 9; S.mogT = 9; } else S.mogT = 0; } }
       S.mogG = gF;
       // (an edge change: the player's steering from one side to the other, the moment it is asked for: the body follows a tenth of a second on)
@@ -358,7 +358,7 @@ const Game = (() => {
       const up = Math.max(0, gF);
       // (and in rhythm the legs pump: folded into the face, they are pressed out again down its back, pushing the skis down the falling snow,
       // the way a rider keeps speed over a pump track; charged anyhow they only hang on, or the skis leave the snow)
-      if (contact && sp > 1) { const ld = Math.max(N, 0.6 * GRAV); S.mogL = up * ld; S.mogB = MOG_I * (1 - MOG_RK * S.mogR) * sp * sp * up * up; S.mogP = MOG_P * S.mogR * Math.max(0, -gF) * ld; mogA = S.mogL + S.mogB - S.mogP; }
+      if (contact && sp > 1) { const ld = Math.max(N, 0.6 * GRAV); S.mogL = up * ld; S.mogB = MOG_I * Course.mogShape().I * (1 - MOG_RK * S.mogR) * sp * sp * up * up; S.mogP = MOG_P * S.mogR * Math.max(0, -gF) * ld; mogA = S.mogL + S.mogB - S.mogP; }
     } else { S.mogR = Math.max(0, (S.mogR || 0) - MOG_RD * dt); S.mogG = 0; }
     S.aMog = mogA;
     let aLat = 0, aTan = aPole; S.aReac = 0; S.aSkid = 0; S.aCarve = 0;

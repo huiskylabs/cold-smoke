@@ -26,6 +26,18 @@ const TREE_CELL = 4.5;
 
 const Course = ((vn1, vn2, h2U) => {
   const C = { seed: 261111, segs: [], feats: new Map(), mogK: 1 };
+  // the shape of a mogul field (owner, 2026-11-14: are the bumps too tall and too close together? What do real ones look like?).
+  // L: metres from one row of bumps to the next down the fall line; W: across; H: crest over trough of an average bump (big scales it
+  // B0..B0+B1); Q: where in a row the crest stands (the rest is the short steep face below); R: how round the crown is; J: how far rows wander.
+  // a: as it was (a dense field of tall, pointed bumps: 0.5-1.3 m, faces to about 40 degrees). b: a resort field skiers made, as measured
+  // (Physics Today: natural moguls about 5.7 m apart, a checkerboard; 0.4-0.8 m tall): lower, rounder, a little uneven. c: a built FIS
+  // course (moguls about 3.5-4 m apart down the line, 26-28 degree pitch), close, tall and regular
+  Variants.def('mogf', '蘑菇形状', [['a', '原来'], ['b', '雪场'], ['c', '比赛']], 'b');
+  const MOGF = {
+    a: { L: 5.2, W: 4.2, H: 0.92, B0: 0.58, B1: 0.84, Q: 0.62, R: 0, J: 0.13, I: 1 },
+    b: { L: 5.6, W: 5.0, H: 0.58, B0: 0.65, B1: 0.7, Q: 0.58, R: 0.7, J: 0.22, I: 2.2 },
+    c: { L: 3.7, W: 4.0, H: 0.8, B0: 0.88, B1: 0.24, Q: 0.55, R: 0.6, J: 0.04, I: 1 },
+  };
   const CH = 2048, NF = 16;       // metres per cache chunk, fields per metre
   const F = { baseY: 0, cx: 1, hw: 2, dish: 3, shoulder: 4, gul: 5, gw: 6, goff: 7, roll: 8, mog: 9, forest: 10, glade: 11, powder: 12, ridge: 13, wall: 14, rtail: 15 };
   const chunks = new Map();
@@ -290,13 +302,15 @@ const Course = ((vn1, vn2, h2U) => {
     if (c.ridge > 0.01) { const q = (au - hw - 1.5) / 4.2; if (q > -3 && q < 3) h += c.ridge * 1.5 * Math.exp(-q * q) * (0.75 + 0.25 * vnoise1(s / 37, 41)); }
     if (c.roll !== 0) h += c.roll * smooth(hw * 1.5, hw * 0.7, au);
     if (c.mog > 0.01 && cell <= 1) {
-      const row = s / 5.2, r0 = Math.floor(row), ph = (r0 & 1) * 0.5 + 0.13 * vnoise1(r0 * 1.7, 9);
-      const col = u / 4.2 + ph, bx = Math.cos(col * TAU), q = row - r0;
+      const M = MOGF[Variants.val.mogf] || MOGF.a;
+      const row = s / M.L, r0 = Math.floor(row), ph = (r0 & 1) * 0.5 + M.J * vnoise1(r0 * 1.7, 9);
+      const col = u / M.W + ph, b0 = 0.5 + 0.5 * Math.cos(col * TAU), q = row - r0;
       // (C.mogK: the skier's legs soak up half of every bump, so the body is told about a field half as tall as the one that is drawn)
-      // each bump rises gently from above and drops off short and steep below, the way skis carve them; no two are the same size
-      const along = q < 0.62 ? smooth(0, 0.62, q) : 1 - smooth(0.62, 1, q);
-      const big = 0.58 + 0.84 * (hash2U(Math.floor(col + 0.5) + 4096, r0 + 4096) & 0xffff) / 65536;
-      h += C.mogK * c.mog * 0.92 * big * (0.5 + 0.5 * bx) * along * mogField(u, s, hw) - c.mog * 0.2;
+      // each bump rises gently from above and drops off short and steep below, the way skis carve them; no two are the same size.
+      // (M.R rounds the top: 2b - b^2 is the same bump with a broad crown and the trough between two bumps left a narrow rut, as skis cut them)
+      const along = q < M.Q ? smooth(0, M.Q, q) : 1 - smooth(M.Q, 1, q), bx = b0 + M.R * (b0 - b0 * b0);
+      const big = M.B0 + M.B1 * (hash2U(Math.floor(col + 0.5) + 4096, r0 + 4096) & 0xffff) / 65536;
+      h += C.mogK * c.mog * M.H * big * bx * along * mogField(u, s, hw) - c.mog * 0.2;
     }
     // natural undulation
     h += 1.7 * vnoise2(x / 61, z / 61, 3);
@@ -320,6 +334,7 @@ const Course = ((vn1, vn2, h2U) => {
     }
     return h;
   };
+  C.MOGF = MOGF; C.mogShape = () => MOGF[Variants.val.mogf] || MOGF.a;
   // where the bumps of a mogul field stand (0..1): across the run short of its edges, except along one smooth line that winds down
   // through them. That line is the fast way; the bumps either side of it are slow going and throw the skier about
   function mogField(u, s, hw) { return smooth(hw * 1.1, hw * 0.8, Math.abs(u)) * smooth(2.4, 6.5, Math.abs(u - 0.5 * hw * vnoise1(s / 105 + 7.3, C.seed + 31))); }

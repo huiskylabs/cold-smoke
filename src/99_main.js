@@ -219,6 +219,8 @@ App.swap = function (place, now = QS.has('manual')) {
   if (now) { Terrain.rebuildStep(); if (sw.run) Game.start(); return; }
   App.swapping = sw; if (veil) { veil.style.transition = 'opacity .2s ease-in'; veil.classList.remove('lift'); }
 };
+// a change of mogul shape (Variants 'mogf') remakes the ground under the skier, as another place would
+Variants.on((n, id, first) => { if (n === 'mogf' && !first) { const s0 = -Game.s.p[2]; App.swap(() => Game.reset(s0)); } });
 App.onTick.push(() => {
   const sw = App.swapping, t = performance.now(); if (!sw) return;
   Gov.acc = Gov.n = Gov.slow = 0;                // (these frames say nothing about how fast this machine draws)
