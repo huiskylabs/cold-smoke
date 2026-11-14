@@ -45,8 +45,12 @@ const TERR_K = {
 if (typeof Variants !== 'undefined') {
   Variants.def('terr', '地形', [['a', '原来'], ['b', '丰富']], 'b');
   Variants.def('tdiff', '地形难度', [['a', '轻松'], ['b', '标准'], ['c', '野雪']], 'b');
+  // 山肩 (a trial, off unless picked; only on the richer mountain): where one run ends the slope eases onto a shoulder and the run widens, then
+  // the snow rolls over into the next face, and just below the roll a way leaves on each side. So from the shoulder the next face and its
+  // ways down can be read before dropping in. The camera does nothing new: the view opens because the ground does
+  Variants.def('look', '山肩看线', [['a', '没有'], ['b', '有']], 'a');
   // (a change lays the same mountain out again)
-  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
+  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'look') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
 }
 const HREF_SLOPE = 0.36;        // reference plane removed from heights before they go into float textures
 const TREE_CELL = 4.5;
@@ -57,6 +61,7 @@ const Course = ((vn1, vn2, h2U) => {
   const F = { baseY: 0, cx: 1, hw: 2, dish: 3, shoulder: 4, gul: 5, gw: 6, goff: 7, roll: 8, mog: 9, forest: 10, glade: 11, powder: 12, ridge: 13, wall: 14, rtail: 15, tilt: 16, bank: 17 };
   const chunks = new Map();
   let rng = RNG(C.seed), planned = 0, lastTypes = [], deck = [], pairs = [];
+  let LOOK = false, lrng = rng;   // 山肩 (Variants 'look' b) and its own random stream: with it off nothing here draws or changes anything
   let LV = null, trng = rng;      // the richer mountain: its level (TERR_LV) or null for the mountain as it was, and its own random stream
   // running integrals carried across chunks
   const integ = new Map();   // chunkIndex -> {baseY, rollPh, gPh} at chunk start
@@ -81,6 +86,7 @@ const Course = ((vn1, vn2, h2U) => {
     const tv = typeof Variants !== 'undefined' ? Variants.val : {};
     C.lv = TERR_LV[tv.tdiff] ? tv.tdiff : 'b'; LV = tv.terr === 'b' ? TERR_LV[C.lv] : null; C.rich = !!LV; C.isl = LV ? LV.isl : 1;
     trng = RNG((KEY ^ 0x7e4a11) + 131 * C.lv.charCodeAt(0));
+    LOOK = !!LV && tv.look === 'b'; C.look = LOOK; lrng = RNG((KEY ^ 0x51a9d3) + 131 * C.lv.charCodeAt(0));
     planTo(4000);
     return C.seed;
   };
@@ -151,6 +157,7 @@ const Course = ((vn1, vn2, h2U) => {
         for (let i = 0; i < n; i++) addFeat({ s: seg.s0 + 120 + rng() * (len - 240), u: (rng() - 0.5) * 30, len: 12, wid: 10, h: 1.1 + rng() * 0.6, kind: 'kicker' });
       }
       if (LV) enrich(seg, type);
+      if (LOOK && seg.idx > 0) overlook(seg, type);
       planned += len;
     }
   }
@@ -230,6 +237,31 @@ const Course = ((vn1, vn2, h2U) => {
       if (ln.length) seg.ln = ln;
     }
   }
+  // ---- 山肩 (Variants 'look' b). The shoulder and the roll are the same at every join of two runs (LK_*, no random draw); the two ways
+  // that leave below the roll are drawn from lrng: one among the trees, one a gully, a little wider than the others so they read from above
+  const LK_BENCH = 0.6, LK_FACE = 1.3, LK_WIDE = 0.35;
+  function overlook(seg, type) {
+    if (!(TERR_K[type][1] > 0) || seg.len < 420) return;
+    const r = lrng, p = seg.p, ln = [], gside = r() < 0.5 ? -1 : 1;
+    for (const side of [-1, 1]) {
+      const kind = side === gside ? 'gully' : 'trees', w = kind === 'gully' ? 8 + r() * 2 : 6 + r() * 2;
+      const s0 = seg.s0 + 30 + r() * 15, L = Math.min(240 + r() * 120, seg.len - 150);
+      ln.push({ s0, s1: s0 + L, off: side * (p.hw + w + 12 + r() * 10), w, kind, ph: r() * 50, L1: 55 + r() * 30, L2: 60 + r() * 30 });
+    }
+    seg.ln = (seg.ln || []).concat(ln);
+  }
+  // the shoulder at a join B: [how much of a shoulder s is on (0..1), how much of the face below it]. The snow eases over 40 m, lies easy
+  // for some 60 m, and rolls over 80 m: slow enough a change that the skis stay on the snow at any speed the run before can give
+  const _lk = [0, 0, 0];
+  function lookAt(s) {
+    const sg = segAt(s); let b = 0, f = 0, c = 0;
+    for (let k = 0; k < 2; k++) {
+      const B = k ? sg.s0 + sg.len : sg.s0; if (!k && sg.idx === 0) continue;
+      const roll = smooth(B - 25, B + 55, s);
+      b += smooth(B - 110, B - 70, s) * (1 - roll); f += roll * (1 - smooth(B + 130, B + 170, s)); c += smooth(B - 110, B - 70, s) * (1 - smooth(B + 70, B + 120, s));
+    }
+    _lk[0] = b; _lk[1] = f; _lk[2] = c; return _lk;      // ([2]: where no tree stands on the run, the shoulder and the roll: nothing in the way of the look down)
+  }
   // the lanes beside the run at s (null if none), and for one of them where its middle is, as an offset from the run's centre line
   // (a lane may run on past the end of its own run, into the next: a run's lanes are those it laid out and those of the run before)
   function lanesAt(s) { const sg = segAt(s); if (sg.lnAll === undefined) { const pv = sg.idx ? C.segs[sg.idx - 1].ln || [] : []; const a = (sg.ln || []).concat(pv); sg.lnAll = a.length ? a : null; } return sg.lnAll; }
@@ -264,6 +296,11 @@ const Course = ((vn1, vn2, h2U) => {
   }
   // the pitch at s, as a factor on the run's own slope (1 where nothing was laid out)
   function pitchAt(s) {
+    if (!LOOK) return pitch0(s);
+    const sg = segAt(s), k = lookAt(s), m = pitch0(s);
+    return clamp(m + (LK_BENCH - m) * k[0] + (LK_FACE - m) * k[1], 0.16 / sg.p.slope, 0.72 / sg.p.slope);
+  }
+  function pitch0(s) {
     const pk = segAt(s).pk; if (!pk) return 1;
     let m = 1;
     for (let i = 0; i < pk.length; i++) { const q = pk[i], h = q.tl * 0.5; if (s < q.s - h) break; const m0 = i ? pk[i - 1].m : 1; m = m0 + (q.m - m0) * smooth(q.s - h, q.s + h, s); }
@@ -366,6 +403,7 @@ const Course = ((vn1, vn2, h2U) => {
       for (let i = 0; i <= CH; i++) {
         const s = ci * CH + i, o = i * NF, p = paramsAt(s, _pp);
         base64[i] = y; c[o + F.cx] = centre(s, p.mean); c[o + F.hw] = p.hw; c[o + F.dish] = p.dish; c[o + F.shoulder] = p.shoulder; c[o + F.gul] = p.gul; c[o + F.gw] = p.gw;
+        if (LOOK) c[o + F.hw] = p.hw * (1 + LK_WIDE * lookAt(s)[0]);
         c[o + F.goff] = p.gAmp * Math.sin(gph); c[o + F.roll] = p.rollA * Math.sin(rph); c[o + F.mog] = p.mog; c[o + F.forest] = p.forest; c[o + F.glade] = p.glade; c[o + F.powder] = p.powder; c[o + F.ridge] = p.ridge;
         if (LV) { const sd = sideAt(s), nr = 1 - p.ridge; c[o + F.tilt] = sd[0] * nr; c[o + F.bank] = sd[1] * nr; }
         if (i < CH) { const p2 = paramsAt(s + 0.5, _pp); if (LV) y -= p2.slope * pitchAt(s + 0.5); else y -= p2.slope; rph += TAU / p2.rollL; gph += TAU / 78; }
@@ -582,7 +620,7 @@ const Course = ((vn1, vn2, h2U) => {
     // lone groups standing out on the run itself; a clear lane always winds between them, and the first turns are free of them
     if (au < c.hw && s > 150) {
       const lane = 0.42 * c.hw * vnoise1(s / 150 + 2.3, C.seed + 9), isl = vnoise2(x / 30 + 7.1, z / 46, 26);
-      const g = c.forest * smooth(0.50, 0.66, isl) * smooth(6, 11, Math.abs(u - lane)) * smooth(150, 230, s) * (1 - c.ridge);
+      const g = c.forest * smooth(0.50, 0.66, isl) * smooth(6, 11, Math.abs(u - lane)) * smooth(150, 230, s) * (1 - c.ridge) * (LOOK ? 1 - lookAt(s)[2] : 1);
       d = Math.max(d, g * 0.7 * C.isl);
     }
     // the ridge: wind-stunted spruce, plastered white, in loose groups along both edges of the crest (they are what goes by at speed up there)
