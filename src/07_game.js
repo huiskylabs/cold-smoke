@@ -822,7 +822,13 @@ const Game = (() => {
     // the legs turn under it. fl.mogU eases in and out over half a second)
     fl.mogU = damp(fl.mogU || 0, Variants.val.mog === 'b' && pc.mog > 0.01 ? 1 : 0, 2, kd);
     const wr = a => Math.atan2(Math.sin(a), Math.cos(a)), fall = Course.yawAt(-P[2]), skY = Math.atan2(root.fwd[0], -root.fwd[2]), skR = wr(skY - fall), trR = vh > 1 ? wr(Math.atan2(v[0], -v[2]) - fall) : skR;
-    const sepM = spring(fl, 'sepM', clamp(-lerp(lerp(0.3, 0.8, smooth(-0.04, 0.04, skR * fl.lean * cy)), 1, fl.mogU) * skR, -0.85, 0.85) * gnd, 6, kd), hdM = spring(fl, 'hdM', clamp((0.35 * trR - 0.34 * skR) * gnd - 0.15 * skR * gnd, -0.7, 0.7), 9, kd);
+    // (the trunk follows the skis, never leads them: its own heading is the skis' heading taken through the heavy spring, and only the part of
+    // the turn it does not share (kS) is held back. Before, the spring sat on the separation itself, so the trunk's heading was the skis' less
+    // a late copy of them, which runs AHEAD of the skis (by some 80 ms in a mogul line): the shoulders seemed to turn the legs, owner 2026-11-14.
+    // The quick spring on the result only keeps a change of gnd from stepping)
+    const kS = lerp(lerp(0.3, 0.8, smooth(-0.04, 0.04, skR * fl.lean * cy)), 1, fl.mogU), skL = spring(fl, 'skL', skR, 6, kd);
+    const sepM = spring(fl, 'sepM', clamp((1 - kS) * skL - skR, -0.85, 0.85) * gnd, 25, kd), hdM = spring(fl, 'hdM', clamp((0.35 * trR - 0.34 * skR) * gnd - 0.15 * skR * gnd, -0.7, 0.7) * (1 - fl.mogU), 9, kd);
+    pose.quiet = fl.mogU;
     pose.sep = lerp(fl.sepB * cy, sepM, mo) + q.sep - spring(fl, 'wu', fl.plan && fl.plan.spin ? fl.plan.dir * 0.3 * fl.prep : 0, 20, kd); pose.headYaw = clamp(spring(fl, 'hd', lerp(fl.hy * cy, hdM, mo) + q.head, 16, kd), -1.3, 1.3);
     // (the inside ski draws ahead as the edges come up: hardly at all in a shallow turn)
     pose.lead = 0.19 * sL * Math.abs(sL) + q.lead; pose.stance = 0.31 + 0.16 * Math.abs(sL) + 0.04 * w + q.st;
