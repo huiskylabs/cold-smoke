@@ -251,9 +251,34 @@
   function sample(sk, clip, t) {
     const u = ((t / clip.dur) % 1 + 1) % 1, r = clip.at(u, sk);
     // on skis the boots hold the feet flat to the skis and the skis lie level: the whole body is pitched by what the pose leaves over
-    if (clip.gear === 'ski' && clip.name !== 'carve') for (let it = 0; it < 2; it++) { const c = contacts(sk, Human.Skeleton.pose(sk, r.pose));
-      r.pose.root.rot[0] -= Math.atan2((c[0][1] - c[1][1] + c[3][1] - c[4][1]) / 2, Math.hypot(c[1][0] - c[0][0], c[1][2] - c[0][2])) / D; }
+    const level = () => { for (let it = 0; it < 2; it++) { const c = contacts(sk, Human.Skeleton.pose(sk, r.pose));
+      r.pose.root.rot[0] -= Math.atan2((c[0][1] - c[1][1] + c[3][1] - c[4][1]) / 2, Math.hypot(c[1][0] - c[0][0], c[1][2] - c[0][2])) / D; } };
+    if (clip.gear === 'ski' && clip.name !== 'carve') level();
+    if (clip.gear === 'ski') parallel(sk, r.pose);
     return ground(sk, r.pose, r.lift, clip.gear);
+  }
+  // two skis run side by side: same heading (+z), flat fore and aft, the same edge angle, the same height, half a stance each side of the middle.
+  // Each leg's six joint angles are solved (damped least squares, inside the joint limits) to bring its ski there.
+  function parallel(sk, pose) {
+    const read = () => gear(sk, Human.Skeleton.pose(sk, pose), 'ski');
+    const KS = ['flex', 'abd', 'rot', 'knee', 'ankle', 'inv'], R = Human.ROM.leg, cl = (k, v) => Math.max(R[k][0], Math.min(R[k][1], v));
+    // the pelvis first turns to face between the two skis, so neither hip has to do it all
+    const yaw = g => (Math.atan2(g[0].ax[0], g[0].ax[2]) + Math.atan2(g[1].ax[0], g[1].ax[2])) / 2 / D;
+    for (let it = 0; it < 3; it++) { const m = yaw(read()); if (Math.abs(m) < 0.05) break;
+      pose.root.rot[1] += 1; const d = yaw(read()) - m; pose.root.rot[1] -= 1; if (Math.abs(d) > 0.2) pose.root.rot[1] -= m / d; }
+    const g0 = read(), mid = (g0[0].c[0] + g0[1].c[0]) / 2, half = Math.max(g0[0].c[0] - g0[1].c[0], 0.24) / 2, y = (g0[0].c[1] + g0[1].c[1]) / 2;
+    const e = (Math.atan2(g0[0].n[0], g0[0].n[1]) + Math.atan2(g0[1].n[0], g0[1].n[1])) / 2, PW = 5;
+    for (const [i, s] of [[0, 'L'], [1, 'R']]) { const L = pose['leg_' + s], tx = mid + (i ? -half : half), tz = g0[i].c[2];
+      for (const k of KS) L[k] = cl(k, L[k]);
+      const res = () => { const b = read()[i]; return [b.ax[0], b.ax[1], Math.atan2(b.n[0], b.n[1]) - e, (b.c[0] - tx) * PW, (b.c[1] - y) * PW, (b.c[2] - tz) * PW]; };
+      for (let it = 0; it < 12; it++) { const f = res(); if (Math.hypot(...f) < 2e-3) break;
+        const J = KS.map(k => { const h = L[k] + 1 > R[k][1] ? -1 : 1; L[k] += h; const d = res(); L[k] -= h; return d.map((v, j) => (v - f[j]) / h); });
+        // (JtJ + lambda) d = -Jt f
+        const A = KS.map((_, r) => KS.map((_, c) => J[r].reduce((a, v, j) => a + v * J[c][j], 0) + (r === c ? 2e-6 : 0))), g = KS.map((_, r) => -J[r].reduce((a, v, j) => a + v * f[j], 0));
+        for (let c = 0; c < 6; c++) { let pv = c; for (let r = c + 1; r < 6; r++) if (Math.abs(A[r][c]) > Math.abs(A[pv][c])) pv = r; [A[c], A[pv]] = [A[pv], A[c]]; [g[c], g[pv]] = [g[pv], g[c]];
+          for (let r = c + 1; r < 6; r++) { const m = A[r][c] / A[c][c]; for (let q = c; q < 6; q++) A[r][q] -= m * A[c][q]; g[r] -= m * g[c]; } }
+        const d = new Array(6); for (let r = 5; r >= 0; r--) { let v = g[r]; for (let q = r + 1; q < 6; q++) v -= A[r][q] * d[q]; d[r] = v / A[r][r]; }
+        KS.forEach((k, j) => { L[k] = cl(k, L[k] + Math.max(-12, Math.min(12, d[j]))); }); } }
   }
   for (const c of CLIPS) c.gear = c.group === 'ski' ? 'ski' : c.group === 'board' ? 'board' : null;
   Human.Motion = { CLIPS, sample, ground, contacts, gear, fitCarve, cyc, keys };
