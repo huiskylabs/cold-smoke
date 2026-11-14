@@ -17,6 +17,12 @@ const check = (name, ok, info) => { console.log((ok ? 'ok   ' : 'FAIL ') + name 
   const page = await browser.newPage({ viewport: { width: +W, height: +H }, deviceScaleFactor: 1 });
   const logs = []; page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') logs.push(m.type() + ': ' + m.text()); }); page.on('pageerror', e => logs.push('pageerror: ' + e.message));
   await page.addInitScript(IWER + ';\nwindow.__xrdev = new IWER.XRDevice(IWER.metaQuest3); window.__xrdev.installRuntime({ forceInstall: true });');
+  // turn the emulated head as a person does, about the top of the neck (~8 cm below and 10 cm behind the eyes), not about the eyes
+  const turnHead = (qx, qy, qz, qw) => page.evaluate(([x, y, z, w]) => {
+    const d = __xrdev, p = d.position; if (!d.__n) d.__n = [p.x, p.y - 0.08, p.z + 0.10];
+    const up = [2 * (x * y - w * z), 1 - 2 * (x * x + z * z), 2 * (y * z + w * x)], back = [2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y)], n = d.__n;
+    d.quaternion.set(x, y, z, w); p.set(n[0] + 0.08 * up[0] - 0.10 * back[0], n[1] + 0.08 * up[1] - 0.10 * back[1], n[2] + 0.08 * up[2] - 0.10 * back[2]);
+  }, [qx, qy, qz, qw]);
   const shot = async n => page.screenshot({ path: path.join(outDir, n + '.png') });
   // (the build wraps everything in one function: the page's modules are reached through window.__ski.m, bound here by name)
   const ev = f => page.evaluate('(() => { const { App, XR, UI, Game, Input, Render, Quality } = __ski.m; return (' + f.toString() + ')(); })()'), wait = ms => page.waitForTimeout(ms);
@@ -39,14 +45,14 @@ const check = (name, ok, info) => { console.log((ok ? 'ok   ' : 'FAIL ') + name 
   const lean = await ev(() => ({ u: +Input.u.toFixed(2), mode: Input.mode }));
   check('head moved 12 cm right steers right', lean.u > 0.4 && lean.mode === 'xr', lean);
   await ev(() => { __xrdev.position.x -= 0.12; }); await wait(800);
-  await ev(() => { const a = 0.44 / 2; __xrdev.quaternion.set(0, 0, Math.sin(a), Math.cos(a)); }); await wait(1000);
+  await turnHead(0, 0, Math.sin(0.22), Math.cos(0.22)); await wait(1000);
   const tip = await ev(() => ({ u: +Input.u.toFixed(2) }));
   check('head tipped 25 degrees left steers left', tip.u < -0.4, tip);
-  await ev(() => { const a = 1.05 / 2; __xrdev.quaternion.set(0, Math.sin(a), 0, Math.cos(a)); }); await wait(1000);
+  await turnHead(0, Math.sin(0.525), 0, Math.cos(0.525)); await wait(1000);
   const look = await ev(() => ({ u: +Input.u.toFixed(2) }));
   check('looking 60 degrees to the side does not steer', Math.abs(look.u) < 0.2, look);
   await shot('3_xr_look_left');
-  await ev(() => { __xrdev.quaternion.set(0, 0, 0, 1); }); await wait(800);
+  await turnHead(0, 0, 0, 1); await wait(800);
   await trig('left', 1); await wait(300);
   const lj = await ev(() => ({ jump: Input.jump, tuck: Input.tuck })); check('left pinch held loads a jump', lj.jump && !lj.tuck, lj);
   await trig('left', 0); await trig('right', 1); await wait(300);

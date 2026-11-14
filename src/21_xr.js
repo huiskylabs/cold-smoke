@@ -32,7 +32,7 @@ const XR = (() => {
     refPos: [0, 0, 0], refYaw: 0, rig: [0, 0, 0], stats: { frames: 0, avg: 0 },
   };
   let pPanel = null, pVig = null, pPresent = null, eyeTex = null, eyeT = null, panelTex = null, panelCv = null, panelKey = '', panelT = 0, saved = null;
-  const gov = { acc: 0, n: 0, fast: 0 };
+  const gov = { acc: 0, n: 0, fast: 0, min: 1 };
 
   // can this browser open a headset? (asked once at start-up; ?xr=0 says no whatever the browser says)
   X.probe = async function () {
@@ -220,13 +220,16 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
     try { tick(X.hidden ? 1e-4 : dt * App.resumeK, true); UI.frame(dt); govern(raw); X.stats.frames++; }
     catch (e) { console.error(e); X.error = String(e && e.stack || e); X.exit(); }
   }
-  // the sharpness steps down while the frames come late (the headset shows 90 a second), and back up a little after a long while with room
+  // the sharpness steps down while the frames come late, and back up a little after a long while with room. 'Late' is against the
+  // headset's own rate (Vision Pro shows 90 a second; others 72, 60...): the session's frameRate where it says, else the quickest frames seen
   function govern(raw) {
     if (raw > 0.5) return;
+    gov.min = Math.min(gov.min || 1, Math.max(raw, 1 / 240));
     gov.acc += raw; gov.n++; if (gov.acc < 1) return;
     const avg = gov.acc / gov.n; gov.acc = 0; gov.n = 0; X.stats.avg = avg;
-    if (avg > 1 / 80 && X.scale > X.minScale) { X.scale = Math.max(X.minScale, X.scale * 0.88); X.sized = false; gov.fast = 0; }
-    else if (avg < 1 / 87) { if (++gov.fast >= 15 && X.scale < X.maxScale) { X.scale = Math.min(X.maxScale, X.scale * 1.06); X.sized = false; gov.fast = 0; } }
+    const fr = X.session && X.session.frameRate, frame = fr > 20 ? 1 / fr : Math.max(gov.min, 1 / 120); X.stats.target = frame;
+    if (avg > frame * 1.12 && X.scale > X.minScale) { X.scale = Math.max(X.minScale, X.scale * 0.88); X.sized = false; gov.fast = 0; }
+    else if (avg < frame * 1.04) { if (++gov.fast >= 15 && X.scale < X.maxScale) { X.scale = Math.min(X.maxScale, X.scale * 1.06); X.sized = false; gov.fast = 0; } }
     else gov.fast = 0;
   }
 
@@ -267,7 +270,7 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
     const key = c.kind + '|' + c.lines.join('|'), now = performance.now();
     if (key === panelKey || (c.kind === 'run' && now - panelT < 100)) return;
     panelKey = key; panelT = now;
-    const g = panelCv.getContext('2d'), W = panelCv.width, H = panelCv.height;
+    const g = panelCv.getContext('2d', { willReadFrequently: true }), W = panelCv.width, H = panelCv.height;
     g.clearRect(0, 0, W, H);
     const round = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
     g.fillStyle = 'rgba(12,16,24,0.58)'; round(8, 8, W - 16, H - 16, 48); g.fill();
