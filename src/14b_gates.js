@@ -281,8 +281,9 @@ const Gates = (() => {
   // ---- the mark on a shoulder, kept low so nothing stands in the view down the valley (Variants 'lgate' b): a line of dye across the
   // snow, as at the finish of a race, and a feather flag at each end of it with its lantern. It takes a slot like a jump and is drawn
   // and lit by the same passes
-  function planFinish(s) {
-    const pc = {}, c = Course.at(s, pc), xc = c.cx, half = clamp(c.hw - 4, 7, 13), hgt = (x, z) => Course.height(x, z, 0.5);
+  function planFinish(s, start) {
+    // (the one a mountain begins with is narrower: both its flags stand in the picture from where the skier waits)
+    const pc = {}, c = Course.at(s, pc), xc = c.cx, half = start ? 6.5 : clamp(c.hw - 4, 7, 13), hgt = (x, z) => Course.height(x, z, 0.5);
     const g = { key: '', slot: -1, seen: 0, s, x: xc, mo: half, flags: [], an: [Math.round(xc), Math.round(hgt(xc, -s)), Math.round(-s)], dyeN: 0, poolN: 0, land: 0, work: [], fade: 0, lit: 0 };
     for (const sx of [-1, 1]) {
       const x = xc + sx * (half + 1.2), z = -s, y = hgt(x, z), n = Course.normal(x, z, 0.3), sd = hash2(Math.round(x * 16), Math.round(z * 16)), lx = x + LOX, lz = z + LOZ;
@@ -300,9 +301,9 @@ const Gates = (() => {
     });
     return g;
   }
-  function touchFinish(s) {
+  function touchFinish(s, sg) {
     const key = 'f' + s.toFixed(1); let g = gates.get(key);
-    if (!g) { let slot = -1; for (let i = 0; i < MAXG; i++) if (!slots[i]) { slot = i; break; } if (slot < 0) return; g = planFinish(s); g.key = key; g.slot = slot; slots[slot] = g; gates.set(key, g); }
+    if (!g) { let slot = -1; for (let i = 0; i < MAXG; i++) if (!slots[i]) { slot = i; break; } if (slot < 0) return; g = planFinish(s, !!sg && sg.idx === 0); g.key = key; g.slot = slot; slots[slot] = g; gates.set(key, g); }
     g.seen = seen;
   }
   function touch(M) {

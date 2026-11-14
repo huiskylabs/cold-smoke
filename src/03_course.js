@@ -264,9 +264,10 @@ const Course = ((vn1, vn2, h2U) => {
   }
   // the gate on each shoulder (for the flags and for the results): fn(s) for every one between s0 and s1. It stands LK_GATE metres above the
   // join, where the snow has already eased; C.gate = that many metres with 山肩 on, 0 with it off
-  const LK_GATE = 45;
+  const LK_GATE = 45, LK_START = 26;
   C.finishes = function (s0, s1, fn) {
     if (!LOOK) return; if (s1 >= planned) planTo(s1 + 3000);
+    if (s0 <= LK_START && s1 >= LK_START) fn(LK_START, C.segs[0]);      // (and the same mark where a mountain begins: the line to push off across)
     for (let i = Math.max(1, segAt(Math.max(0, s0)).idx); i < C.segs.length; i++) { const s = C.segs[i].s0 - LK_GATE; if (s > s1) break; if (s >= s0) fn(s, C.segs[i]); }
   };
   // the lanes beside the run at s (null if none), and for one of them where its middle is, as an offset from the run's centre line
