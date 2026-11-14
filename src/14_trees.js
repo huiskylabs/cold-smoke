@@ -255,6 +255,13 @@ const Trees = (() => {
   // snow for as long as the skier is in them (07_game.js 'rustle', 18_sound.js). A trunk met head on is still a knock, as it was)
   if (typeof Variants !== 'undefined') Variants.def('tpass', '穿林', [['a', '树会淡出'], ['b', '树留着']], 'b');
   const stay = () => typeof Variants !== 'undefined' && Variants.val.tpass === 'b';
+  // (the owner's choice 'tgrain', 树林闪烁. The hand-overs between a tree's levels of detail, the soft outline of a far tree's card and the
+  // see-through window round the skier are all cut with a grain of pixels. a: as it was, a new grain every frame: meant to read as a blend at
+  // 60 fps, but with nothing to average it over time the treeline sizzled, a fast flicker along every far crown (worst in grey heavy-snow light,
+  // and the slower the frame rate the worse). b: the grain is held still, and a far card's outline is cut clean: the woods stand still;
+  // and so is the pattern the light shafts' march is offset by (15_shafts.js), whose beams between the trees shimmered the same way.
+  // Read by the shaders as U.lampDir.w, set in 90_render.js)
+  if (typeof Variants !== 'undefined') Variants.def('tgrain', '树林闪烁', [['a', '原来（逐帧颗粒）'], ['b', '稳定']], 'b');
   const V0 = -0.9, V1 = 10.45, DR = 3.6, NSEG = 4;        // a card: model metres from its foot to its top, the depth it stores (+-DR toward the viewer), how many pieces it bends in
   const HWV = [];                                         // half-width of each kind's card (model metres)
   let gfx, pipe, pipeShadow, pipeBake, pipeDown, pipeDil, pipeCard, pipeCardShadow, pipeGhostZ, pipeGhost, pipeDust, atlasA, atlasB, baked = false;
@@ -1003,7 +1010,8 @@ struct TreeS { snow: f32, bark: f32, ao: f32, open: f32, thin: f32, tone: f32, N
 // how deep the snow must lie on a bough to show as snow (m): a tree that carries less shows more of its needles
 // the pattern the hand-overs between levels of detail are made with: a fine grain that changes every frame (at 60 fps it reads as a true
 // blend, and in a still as grain, not as hatching)
-fn treeGrain(p: vec2f) -> f32 { return hash21(p + vec2f(37.0, 17.0) * (U.origin.w - 64.0 * floor(U.origin.w / 64.0))); }
+// (version b of 'tgrain', U.lampDir.w = 1: the grain is held still, frame after frame)
+fn treeGrain(p: vec2f) -> f32 { return hash21(p + vec2f(37.0, 17.0) * ((U.origin.w - 64.0 * floor(U.origin.w / 64.0)) * (1.0 - U.lampDir.w) + 1.0)); }
 fn snowLine(load: f32) -> f32 { return max(0.010, 0.022 + (1.0 - load) * 0.14); }
 fn treeLight(s: TreeS, V: vec3f, sh: f32) -> vec3f {
   let L: vec3f = U.sunDir.xyz; let N: vec3f = s.N;
@@ -1188,7 +1196,8 @@ fn frag(v: VOut) -> FOut {
   // the outline: the alpha falls away from each photograph's edge like a distance, so between two photographs the outline moves over;
   // and it is taken a little soft (a band of the moving pattern), not as a hard cut
   let al: f32 = mix(a0.a, a1.a, w);
-  if (al < 0.63 + 0.08 * g || (v.ex.z < 0.999 && g < 1.0 - v.ex.z) || g > kd || kd < 0.34) { discard; }
+  // (version b of 'tgrain': the outline cut clean, at the middle of that band: a still grain along every far crown would crawl as the view moves)
+  if (al < 0.63 + 0.08 * mix(g, 0.5, U.lampDir.w) || (v.ex.z < 0.999 && g < 1.0 - v.ex.z) || g > kd || kd < 0.34) { discard; }
   let b: vec4f = mix(texLod(tB, uv0, v.ex.w), texLod(tB, uv1, v.ex.w), w);
   let nl: vec3f = normalize(mix(cardN(a0.xy, v.vw.x * KSTEP), cardN(a1.xy, v.vw.y * KSTEP), w));
   let N: vec3f = vec3f(nl.x * v.ex.x + nl.z * v.ex.y, nl.y, nl.z * v.ex.x - nl.x * v.ex.y);
