@@ -1183,13 +1183,18 @@ const Game = (() => {
       let da = az - cam.tLook; da = Math.atan2(Math.sin(da), Math.cos(da));
       pT = lerp(pitchT, el - Math.atan(0.47 * th * Math.cos(da)), cam.idle * smooth(-0.03, 0.03, el) * smooth(hh + 0.15, hh - 0.1, Math.abs(da)));
     }
-    cam.pitch = damp(cam.pitch, pT, 4.5, dt * q);
     // (looking down a steep pitch the far edge of the world must not leave by the top: the level line, and the city on it, stays at
     // least a fifth of the frame below the top edge. Not on the title page, which is pitched by the sun; the skis still win, below)
-    if (!portrait) { const ph = -Math.atan(0.62 * th) - slX * (1 - (cam.idle || 0)); cam.pitch = lerp(cam.pitch, smax(cam.pitch, ph, 0.03), 1 - idl); }
+    if (!portrait) { const ph = -Math.atan(0.62 * th) - slX * (1 - (cam.idle || 0)); pT = lerp(pT, smax(pT, ph, 0.03), 1 - idl); }
     // ...and whatever the snow does (a drop off a crest, a landing) the skis never leave by the lower edge, nor the head by the upper
     // (the limits are rounded where they take hold: the lens is turned by them, not struck)
-    { const pMax = eFeet + Math.atan((0.90 - 0.2 * cam.idle) * th), pMin = eHead - Math.atan(0.74 * th); cam.pitch = smin(smax(cam.pitch, Math.min(pMin, pMax), 0.03), pMax, 0.03); }
+    // (the owner, 2026-11-14: the title page shook. The lens was eased toward the sun and then pushed back by the skis' limit, and the
+    // eased value was kept: each frame the ease pulled by an amount that grows with the frame's length and the limit took it back, so
+    // with frames of uneven length the picture nodded a third of a degree up and down, frame by frame. Now the limits shape the aim
+    // before the ease, and the eased value, cam.pitchS, is never written back by them: the limits only shape what is shown)
+    const pMax = eFeet + Math.atan((0.90 - 0.2 * cam.idle) * th), pMin = eHead - Math.atan(0.74 * th), lim = x => smin(smax(x, Math.min(pMin, pMax), 0.03), pMax, 0.03);
+    cam.pitchS = first || cam.pitchS == null ? lim(pT) : damp(cam.pitchS, lim(pT), 4.5, dt * q);
+    cam.pitch = lim(cam.pitchS);
     G.fovKick = damp(G.fovKick, 0, 3, dt); G.shake = damp(G.shake, 0, 5, dt); cam.shk = damp(cam.shk, G.shake, 30, dt);
     const sh = cam.shk, t = G.t;       // (only the one-off jolts: a landing, a fall, a bough. The constant fine tremor at speed is gone: it read as a stutter, and sickened)
     const ox = vnoise1(t * 17, 1) * sh, oy = vnoise1(t * 19, 2) * sh;
