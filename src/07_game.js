@@ -6,7 +6,11 @@ const Input = (() => {
   // when a held key breaks from the carve into a skid is a matter of taste, so the owner picks: as it was (after 0.6 s, in every long turn,
   // and let go again as the line comes across the hill), once the turn is finished (the line across the hill) or the key has been held
   // about two seconds, or only once the turn is finished. In the last two the skid stays for as long as the key does: a brake
-  Variants.def('keys', '键盘转弯', [['a', '按半秒就搓'], ['b', '按两秒才搓'], ['c', '横过来才搓']], 'b');
+  // d (owner, 2026-11-14: a held turn suddenly swinging into a skid after two seconds is wrong; I want to skid only when I ask for it): a
+  // steering key or finger only ever carves, however long it is held or however far round the line has come; the skid is asked for with
+  // the weight forward (↑ / W, or the steering finger pushed up) while turning, which is what throws the tails out on real skis (see
+  // 'fore/aft' in step). Only steering by tilt, which has no forward, keeps the old rule (tipped all the way over skids)
+  Variants.def('keys', '键盘转弯', [['a', '按半秒就搓'], ['b', '按两秒才搓'], ['c', '横过来才搓'], ['d', '前压才搓']], 'd');
   // the feel of the skiing (a player's notes, 2026-11-13: the drag of the snow, the body's weight going over in a turn, speed and momentum).
   // a: as it was. b: the edges hold only so much (past it the skis wash out sideways, scrubbing speed: a hard turn at speed is a wide one);
   // the faster the heavier the body is to throw from edge to edge; a key comes on over a third of a second; the snow is stickier crawling,
@@ -82,7 +86,7 @@ const Input = (() => {
     // has to go: with the key still down as the line comes across the hill (or held for longer than a linked turn lasts) it goes on
     // toward full, the farther across the more, and the skis are thrown sideways and brake
     I.kHeld = k && k === I.kWas ? I.kHeld + dt : 0; I.kWas = k;
-    const kv = Variants.val.keys, hd = k * (Game.s.hdOff || 0), far = kv === 'a' ? (I.kHeld > 0.6 ? smooth(1.04, 0.80, hd) : 0) : Math.max(smooth(K_A0, K_A1, hd), kv === 'c' ? 0 : smooth(K_T0, K_T1, I.kHeld));
+    const kv = Variants.val.keys, hd = k * (Game.s.hdOff || 0), far = kv === 'd' ? 0 : kv === 'a' ? (I.kHeld > 0.6 ? smooth(1.04, 0.80, hd) : 0) : Math.max(smooth(K_A0, K_A1, hd), kv === 'c' ? 0 : smooth(K_T0, K_T1, I.kHeld));
     const fb = Variants.val.feel === 'b';
     if (!fb) I.kb = damp(I.kb, k * (0.66 + 0.34 * far), k ? (kv === 'a' && far ? 2.5 : 6) : 10, dt);
     else {
@@ -320,7 +324,9 @@ const Game = (() => {
     // it and stand there, where before, slow, the lean was too small to hold against the hill and the line sagged back down at ~11 km/h)
     const cu = clamp(uE / 0.72, -1, 1), gHold = FB && TB && contact ? Math.max(0, sign(cu) * GRAV * ry) : 0;
     const phiMax = Math.min(0.96, Math.atan(Math.max(sp, 2.5) ** 2 / (10.5 * gn) + gHold / gn)) * (1 - 0.3 * S.tuckIn);
-    const phiT = sign(cu) * Math.pow(Math.abs(cu), 1.2) * phiMax * (S.air && S.airT > 0.14 ? 0.3 : 1) * (1 - 0.28 * smooth(0.72, 1.0, Math.abs(u)) * (TB ? smooth(2.5, 6, sp) : 1));      // (b: the lean given up to a skid only where there is one: under 9 km/h a full key skids nothing, see su)
+    // how much skid the player asks for, 0..1: by steering past 0.72 (a, b, c), or (keys d) by the weight forward while steering at all
+    const skQ = Variants.val.keys === 'd' && Input.mode !== 'tilt' ? smooth(0.15, 0.8, Math.max(0, Input.faT || 0)) * smooth(0.2, 0.5, Math.abs(u)) : smooth(0.72, 1.0, Math.abs(u));
+    const phiT = sign(cu) * Math.pow(Math.abs(cu), 1.2) * phiMax * (S.air && S.airT > 0.14 ? 0.3 : 1) * (1 - 0.28 * skQ * (TB ? smooth(2.5, 6, sp) : 1));      // (b: the lean given up to a skid only where there is one: under 9 km/h a full key skids nothing, see su)
     // (feel b: the faster, the a little heavier the body is to throw over: the same spring up to 50 km/h, four fifths as quick from 108. Only a
     // hint of the momentum: heavier than that read as true but tiring to ski, turn after turn (owner, 2026-11-13: real vs fun, keep it light))
     // ---- fore/aft (Variants 'fa' b, on feel b). fa: where the weight is along the skis, +1 on the shovels, -1 on the tails, 0 centred (and then
@@ -349,7 +355,7 @@ const Game = (() => {
     // (their rate of turn never jumps); and never on round past straight across the hill: there the skid is a brake and nothing else
     // (and only with speed to scrub: crawling, a key held hard is a skier trying to turn, not to stop, and swinging the skis across then
     // only stalled the skier where it stood, in a skid at walking pace, the key still held. Under 9 km/h it does not skid at all, full from 22)
-    const su = sign(u) * smooth(0.72, 1.0, Math.abs(u)) * (1 - 0.8 * S.tuckIn) * smooth(2.5, 6, sp);
+    const su = sign(u) * skQ * (1 - 0.8 * S.tuckIn) * smooth(2.5, 6, sp);
     // (feel b: what the edges can hold. A carve asks for bite * tan(lean) across the line; the snow gives at most GRIP_B of the load (less in
     // powder). Asked for more, the skis wash out: the line turns only as fast as the grip allows and what is left over swings the tails out
     // into a skid, 0.6 rad of skid for each whole grip asked for beyond it, which brakes and throws snow. So the same full turn is a tight
