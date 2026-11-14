@@ -11,9 +11,10 @@
 //   Director.info(i)          what shot i is, how many frames it has at a given fps
 // SHOT: { id, name, dur (s of screen time), seed, tod (name or clock s), hold (true: the clock stands still), wx ('light' | 'heavy'),
 //   at: { s } | { seg: 'kickers', off: m, n: which one } | { kicker: n, before: m }, lead (m of run skied, unseen, before the shot so speed is up; 0 = from rest),
-//   steer: { amp, period, lane } | number, tuck: true | [t0, t1], jump: [t0, t1], trick: '360grab', trickSeed, speed (time factor: 0.25 = 4x slow),
+//   steer: { amp, period, lane } | { rhythm: true, amp, wide, lane } (edge change on every mogul crest) | number, tuck: true | [t0, t1], jump: [t0, t1], trick: '360grab', trickSeed, speed (time factor: 0.25 = 4x slow),
 //   cam: 'chase' | 'fp' | 'tips' | 'low' | 'high' | 'left' | 'right' | 'front' | 'far' | { kind: 'orbit' | 'drone' | 'fixed' | 'sky', ... },
-//   skip: s of the shot played unseen first, flash: [t ...] lightning at these shot times, variants: { id: val }, label: text drawn into the corner (the nine-view montage) }
+//   skip: s of the shot played unseen first, flash: [t ...] lightning at these shot times, variants: { id: val }, label: text drawn into the corner (the nine-view montage),
+//   cuts: [[t, view, label?], ...] switch the game's view at these shot times (one run, many views) }
 const Director = (() => {
   const on = /[?&]director=1\b/.test(location.search);
   const D = { on, shots: [], cur: null, playing: false, fps: 60, label: '' };
@@ -60,7 +61,19 @@ const Director = (() => {
     for (let b = Math.floor(s0 / 32); b <= Math.floor((s0 + range) / 32); b++) { const a = Course.feats.get(b); if (!a) continue; for (const f of a) if (f.kind === 'kicker' && f.mark && f.s > s0 && f.s < s0 + range) return f; }
     return null;
   }
+  // (rhythm: a good mogul skier. The steering changes side on every crest of a bump the skis pass (S.mogG, mogul b), amp hard, and is
+  // turned back toward the run's middle (or lane) before it strays more than `wide` m from it)
+  function rhythmPilot(o) {
+    const amp = o.amp != null ? o.amp : 0.3, wide = o.wide || 5, lane = o.lane || 0; let side = 1, arm = 0;
+    return () => {
+      const S = G.s, g = S.mogG || 0, c = Course.at(-S.p[2] + 6), off = S.p[0] - (c.cx + lane * c.hw);
+      if (g > 0.04) arm = 1; else if (arm && g <= 0) { arm = 0; side = -side; }
+      if (Math.abs(off) > wide && side * off > 0) side = -side;
+      return side * amp;
+    };
+  }
   function pilot(o) {
+    if (o.rhythm) return rhythmPilot(o);
     const amp = o.amp != null ? o.amp : 0.45, per = o.period || 5.2, lane = o.lane || 0, pc = {}, tn = {};
     return t => {
       const S = G.s, p = S.p, s = -p[2], look = 10 + Math.max(S.speed, 4) * 0.9, c = Course.at(s + look, pc);
@@ -98,7 +111,7 @@ const Director = (() => {
     if (sh.start !== false) G.start(); else G.mode = 'title';      // (a swap restarts a run that was on: a shot of the skier standing still takes it back)
     // ski the lead unseen (the tracks are pressed and the spray settles as in play), then a second more so the camera has caught up
     if (lead > 0) { let n = 0; while (-G.s.p[2] < s && n++ < 60 * 120) { Input.script = steer(G.runT); Input.btn.tuck = !!sh.leadTuck; tick(1 / 60, false); if (n % 6 === 5 && App.gfx.caps.backend === 'webgl2') Tracks.pre(); } }
-    const st = { sh, steer, t: 0, n: 0, flashes: (sh.flash || []).slice() };
+    const st = { sh, steer, t: 0, n: 0, flashes: (sh.flash || []).slice(), cuts: (sh.cuts || []).slice() };
     if (typeof sh.cam === 'object' && sh.cam) { free = Object.assign({ t: 0, dur: sh.dur, base: G.root.pos.slice(), F: frameAt(-G.s.p[2]) }, sh.cam); }
     for (let i = 0; i < 30; i++) tickShot(st, 1 / 60, false, true);     // half a second of settling (lens springs, spray), not shown
     for (let i = 0, n = Math.round((sh.skip || 0) * 60); i < n; i++) tickShot(st, 1 / 60, false);     // skip: seconds of the shot played unseen (the montage shows one run in pieces)
@@ -110,6 +123,8 @@ const Director = (() => {
     const sh = st.sh, k = sh.speed || 1, t = st.t;
     Input.script = st.steer(G.runT); Input.btn.tuck = within(sh.tuck, t); Input.btn.jump = within(sh.jump, t);
     if (!warm) while (st.flashes.length && st.flashes[0] <= t) { st.flashes.shift(); Weather.flash({}); }
+    // (cuts: one continuous run seen through the game's own views in turn, [[t, view], ...]: at shot time t the view is switched at a stroke)
+    if (!warm) while (st.cuts.length && st.cuts[0][0] <= t) { const c = st.cuts.shift(); G.setView(c[1], true); if (c[2] != null) D.label = c[2]; }
     if (free) free.t += dt;
     if (sh.start === false && G.mode === 'run') { G.mode = 'title'; G.reset(-G.s.p[2]); }      // a still shot stays still, whoever starts a run
     tick(dt * k, draw);

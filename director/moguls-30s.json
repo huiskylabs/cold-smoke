@@ -1,0 +1,8 @@
+[
+ {"id":"moguls_rhythm","name":"蘑菇道·节奏","dur":30,"seed":271828,"tod":"golden","wx":"light",
+  "at":{"seg":"moguls","off":70},"lead":140,
+  "steer":{"rhythm":true,"amp":0.3,"wide":5},
+  "variants":{"mog":"b"},
+  "cam":"chase",
+  "cuts":[[0,"chase"],[3.5,"low"],[7,"right"],[10,"tips"],[13,"front"],[16,"chase"],[19,"left"],[22,"fp"],[25,"far"],[27.5,"chase"]]}
+]
