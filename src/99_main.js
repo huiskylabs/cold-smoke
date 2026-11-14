@@ -11,9 +11,12 @@ async function boot(stage) {
   if (typeof XHS !== 'undefined') await XHS.restore();               // (inside 小红书: the player's settings from the container's own storage)
   Quality.decide(); App.applyQuality(true);                             // how much this device is asked to draw (00c_quality.js)
   if (DEV) console.log('quality', Quality.tier, Quality.why, Quality.gpu);
-  let gfx = null; const want = QS.get('backend') || (gpuFellBack() ? 'webgl2' : null);
+  // a browser that can open a headset's immersive mode (Safari on Apple Vision Pro) is drawn with WebGL2 from the start: WebXR hands its
+  // framebuffer to WebGL only, so that is the context that can later be taken into the headset without starting over (21_xr.js)
+  const xrOK = await XR.probe();
+  let gfx = null; const want = QS.get('backend') || (gpuFellBack() || xrOK ? 'webgl2' : null);
   if (want !== 'webgl2') { try { gfx = await createGPU(canvas, { offscreen: QS.has('offscreen') }); } catch (e) { console.warn('WebGPU init failed', e); gfx = null; } }
-  if (!gfx) gfx = createGL(canvas);
+  if (!gfx) gfx = createGL(canvas, { xr: xrOK });
   if (!gfx) throw new Error('这台设备的浏览器不支持 WebGL2，画面无法启动。');
   App.gfx = gfx;
   Course.forceType = QS.get('seg') || null; Course.classic = QS.has('classic');      // dev: a mountain made of one kind of run; the runs in the order the first mountain had them
@@ -76,6 +79,7 @@ function tick(dt, draw) {
   App.t += dt;
   Input.update(real);
   Game.update(dt);
+  if (App.camHook) App.camHook(dt);                                     // (in the headset the lens is the player's own head, set on the game's camera: 21_xr.js)
   const cp = Render.cam.pos, S = Game.s, st = App.state;
   Tracks.step(Game.root, Game.pose, S);
   Render.updateOrigin(cp);
@@ -117,7 +121,7 @@ function tick(dt, draw) {
   Feel.pass(dt);                                                        // a tree gone by close, untouched: said as an event (`near`) for the next step, where the trees hear it too
   Sound.frame();
   for (const f of App.onTick) f(dt, draw !== false);
-  if (draw !== false) Render.render();
+  if (draw !== false) (App.renderHook || Render.render)();
 }
 App.onTick = [];
 // (interface) App.paused: the run is set down, nothing steps or draws. App.resumeK: the world's speed as it is taken up again (0.3 up to 1,
@@ -127,11 +131,12 @@ let lastT = 0;
 function loop(now) {
   requestAnimationFrame(loop);
   if (App.gfx && App.gfx.lost) { UI.lost(); return; }                    // the graphics device was taken away: the interface says so, and offers to start over
-  if (!App.ready || App.paused) { lastT = now; return; }
+  if (!App.ready || App.paused || XR.active) { lastT = now; return; }       // (in the headset its own frames drive the game: 21_xr.js)
   const raw = (now - lastT) / 1000, dt = clamp(raw, 1 / 240, 1 / 20); lastT = now;
   try { tick(dt * App.resumeK, true); UI.frame(dt); govern(now, raw); } catch (e) { App.ready = false; reportError(e); }
 }
 function fit() {
+  if (XR.active) return;                                                // (the headset sets the size of what is drawn while it is on)
   const PL = self.COLD_SMOKE || {}, L = Quality.L; View.measure(); let k = Math.min(devicePixelRatio || 1, PL.maxDpr || 2, L.maxDpr) * Render.scale;
   // a very large display is drawn at no more than about 2400 x 1400 and stretched: past that the extra pixels cost far more than they show
   // (and a lower Quality level asks for fewer still)
@@ -188,8 +193,15 @@ function reportError(e) {
 // ---- which mountain. A seed in the address names it: #seed-<n>, or ?seed=<n> (inside the frame the game is published in only a plain hash
 // survives). Otherwise every visit gets another one. The test harness (?dev) always gets the first mountain, the one seed 261111 makes:
 // its scripts aim at jumps they know.
-const seedInHash = () => { const m = /(?:^|[#&])seed[-=](\d{1,12})/.exec(location.hash || ''); return m ? +m[1] : 0; };
-App.randomSeed = () => { let n; do n = 100000 + Math.floor(Math.random() * 900000); while (n === Course.seed); return n; };      // six figures: easy to read out
+const seedInHash = () => { const h = location.hash || ''; if (/(?:^|[#&])(?:today|daily)(?:$|&)/.test(h)) return App.dailySeed(); const m = /(?:^|[#&])seed[-=](\d{1,12})/.exec(h); return m ? +m[1] : 0; };
+// ---- 今日之山: one mountain a day, the same for everyone who asks for it. The day is Beijing's (it turns at Beijing midnight, as the 小红书
+// boards count days: 16:00 UTC), and the mountain's number is that day hashed into six figures, so it needs no server and every phone agrees.
+// #today (or #daily) in the address is today's mountain, whatever day the link is opened; once there the address names it as #seed-<n>.
+App.today = () => Math.floor((Date.now() + 8 * 3600e3) / 86400e3);
+App.dailySeed = (d = App.today()) => { let h = Math.imul(d ^ 0x2c1b3c6d, 0x297a2d39); h ^= h >>> 15; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16; return 100000 + (h >>> 0) % 900000; };
+App.isDaily = () => Course.seed === App.dailySeed();
+App.dayLabel = (d = App.today(), en = false) => { const t = new Date(d * 86400e3), m = t.getUTCMonth() + 1, n = t.getUTCDate(); return en ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1] + ' ' + n : m + '月' + n + '日'; };
+App.randomSeed = () => { let n; do n = 100000 + Math.floor(Math.random() * 900000); while (n === Course.seed || n === App.dailySeed()); return n; };      // six figures: easy to read out
 // Setting the skier down where no terrain has been made yet (another mountain, or far off on this one) is about a second of work for the
 // terrain. It is done a slice a frame behind the dark veil the game opened from: the picture on screen is held while the veil closes,
 // `place` puts the skier where it should stand (Game.reset and the like), the terrain is made again round the lens, and the veil lifts on
@@ -292,13 +304,14 @@ window.__ski = {
   // set the time of day: seconds into the 10-minute day, or a name (day, golden, sunset, dusk, night, dawn, sunrise)
   tod(t) { Sky.setClock(typeof t === 'string' ? Sky.times[t] : t); Sky.update(); Clouds.baked = false; Vista.shadowElev = -9; Vista.updateShadow(true); return +Sky.sunElev.toFixed(4); },
   game: () => Game, input: () => Input, app: () => App, ui: () => UI, i18n: () => I18N,
-  get m() { return { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Skier, Tex, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Atmo, Deer, View, Variants, Weather, Grains, Quality }; },
+  get m() { return { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Skier, Tex, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Atmo, Deer, View, Variants, Weather, Grains, Quality, SnowLook, XR, UI }; },
 };
 App.fit = fit;
 window.__ski.gates = Gates;
 addEventListener('resize', () => { if (typeof UI !== 'undefined' && UI.layout) UI.layout(); if (App.ready && !QS.get('w')) fit(); });
 // (interface) a run set down keeps its last picture on the canvas; when the frame changes shape meanwhile that picture is drawn once more to fit
 App.redraw = () => {
+  if (XR.active) return;
   if (!App.ready || !App.paused || (App.gfx && App.gfx.lost)) return;
   try { Render.computeGlobals(App.t, 1 / 60, App.state); for (const f of App.onTick) f(0, true); Render.render(); } catch (e) { }
 };

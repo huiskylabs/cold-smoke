@@ -38,20 +38,23 @@ What makes it unusual is what the repository **doesn't** contain:
 - Synthesised sound and music that follow your speed, turns and time in the air.
 - Several camera views, a photo-friendly menu, and English or Chinese UI picked from your browser.
 - Every mountain grows from a seed: share the `#seed-…` in the address bar and a friend gets the same mountain.
+- **Today's mountain** (今日之山): one mountain a day, the same for everyone, changing at midnight Beijing time. One tap on the title page or in the menu, or open the game with `#today`. Ski its first three stretches in one go from the top and your time is kept.
 - A quality setting (auto, high, balanced, smooth) in Settings, so mid-range phones stay smooth.
 - Keyboard and mouse on a computer; drag or tilt on a phone held in landscape.
 
 ### Controls
 
-| Action | Keyboard | Phone |
-|---|---|---|
-| Turn | ← → or A D | drag left / right (or tilt) |
-| Weight on the tips / tails | ↑ ↓ or W S | drag the steering finger up / down |
-| Jump (hold to load up) | Space | hold the Jump button, let go |
-| Tuck for speed | Shift | hold the Tuck button |
-| Change camera | V (Shift+V back) | camera button above Jump |
-| Menu / pause | Esc | corner button |
-| All controls | H | menu |
+| Action | Keyboard | Phone | Apple Vision Pro (Immersive, untested on a headset) |
+|---|---|---|---|
+| Turn | ← → or A D | drag left / right (or tilt) | lean or tip your head left / right |
+| Weight on the tips / tails | ↑ ↓ or W S | drag the steering finger up / down | head forward / back |
+| Jump (hold to load up) | Space | hold the Jump button, let go | hold a left-hand pinch, let go |
+| Tuck for speed | Shift | hold the Tuck button | hold a right-hand pinch |
+| Change camera | V (Shift+V back) | camera button above Jump | (chase camera only) |
+| Menu / pause | Esc | corner button | Digital Crown leaves Immersive, the menu is waiting |
+| All controls | H | menu | |
+
+The **Immersive** button on the title page only appears in a browser that can open a headset (Safari on Apple Vision Pro). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#immersive-mode-apple-vision-pro).
 
 ### Run it locally
 
@@ -125,20 +128,23 @@ If you like it, a ⭐ helps other people find it.
 - 合成的音效和配乐，跟着速度、转弯和滞空变化。
 - 多个机位，菜单里能换时间和天气拍照，界面中英文按浏览器自动切换。
 - 每座山由一个编号生成：把地址栏里的 `#seed-编号` 发给朋友，就是同一座山。
+- **今日之山**：每天一座，所有人同一座，北京时间零点换。标题页或菜单里点一下就到，也可以在网址后面加 `#today`。从山顶一口气滑完前三段，会记下你的用时。
 - 设置里可以选画质（自动、高、均衡、流畅），中端手机也能流畅地玩。
 - 电脑用键盘鼠标；手机横屏用拖动或者倾斜。
 
 ### 操作
 
-| 动作 | 键盘 | 手机 |
-|---|---|---|
-| 转弯 | ← → 或 A D | 左右拖动（或倾斜手机） |
-| 压板头 / 板尾 | ↑ ↓ 或 W S | 转弯的手指上下拖动 |
-| 跳（按住蓄力） | 空格 | 按住「跳」，松开起跳 |
-| 压低加速 | Shift | 按住「加速」 |
-| 换机位 | V（Shift+V 往回） | 「跳」上方的机位按钮 |
-| 菜单 / 暂停 | Esc | 角上的按钮 |
-| 全部操作 | H | 菜单 |
+| 动作 | 键盘 | 手机 | Apple Vision Pro（沉浸模式，还没在真机上试过） |
+|---|---|---|---|
+| 转弯 | ← → 或 A D | 左右拖动（或倾斜手机） | 头往左右歪或身体往左右挪 |
+| 压板头 / 板尾 | ↑ ↓ 或 W S | 转弯的手指上下拖动 | 头往前 / 往后 |
+| 跳（按住蓄力） | 空格 | 按住「跳」，松开起跳 | 左手捏住，松开起跳 |
+| 压低加速 | Shift | 按住「加速」 | 右手捏住 |
+| 换机位 | V（Shift+V 往回） | 「跳」上方的机位按钮 | （只有追身机位） |
+| 菜单 / 暂停 | Esc | 角上的按钮 | 按数码表冠退出沉浸模式，菜单在外面等着 |
+| 全部操作 | H | 菜单 | |
+
+标题页的「沉浸模式」按钮只在能打开头显的浏览器里出现（Apple Vision Pro 的 Safari）。
 
 ### 在本地运行
 

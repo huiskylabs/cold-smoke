@@ -145,8 +145,10 @@ const XHS = self.XHS = (() => {
       if (run.air > 1) f.push(en ? 'longest flight ' + run.air.toFixed(1) + ' m' : '最远飞行 ' + run.air.toFixed(1) + ' 米');
       if (f.length) out.push(f.join(' · '));
     }
-    if (seed) out.push(en ? 'Mountain no. ' + seed : '第 ' + seed + ' 号山');
-    out.push('#雪迹 #滑雪');
+    const daily = seed && typeof App !== 'undefined' && App.isDaily && App.isDaily();
+    if (daily) out.push(en ? 'Today\'s mountain, ' + App.dayLabel(App.today(), true) + ' (no. ' + seed + '): the same one for everyone today' : '今日之山 · ' + App.dayLabel() + '（第 ' + seed + ' 号山），今天大家滑的都是这一座');
+    else if (seed) out.push(en ? 'Mountain no. ' + seed : '第 ' + seed + ' 号山');
+    out.push(daily ? '#雪迹 #滑雪 #今日之山' : '#雪迹 #滑雪');
     return { title: en ? '雪迹 · Cold Smoke' : '雪迹 · 一个人，一座山', content: out.join('\n') };
   }
   let busy = false;
