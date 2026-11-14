@@ -53,6 +53,13 @@ const Skier = (() => {
   const fr = (b, x, y, z) => [b.X[0] * x + b.Y[0] * y + b.Z[0] * z, b.X[1] * x + b.Y[1] * y + b.Z[1] * z, b.X[2] * x + b.Y[2] * y + b.Z[2] * z];   // a vector given in a basis
   const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
   const nlerp = (a, b, t) => v3.norm(v3.lerp(a, b, t));
+  // (turning one direction into another along the arc between them, at an even pace. Between two that point nearly opposite ways, a pole trailing
+  // behind and the same pole reaching forward for its plant, a straight blend passes close to nothing and the direction that comes out of it swung
+  // round in a frame or two: a twitch of the pole at every turn. So the swing goes by way of `via`, down and out beside the leg, as a pole swung
+  // forward from the wrist does)
+  const slerp = (a, b, t) => { const c = clamp(v3.dot(a, b), -1, 1), th = Math.acos(c), sn = Math.sin(th); if (sn < 1e-4) return v3.norm(v3.lerp(a, b, t));
+    return v3.norm(v3.add(v3.mul(a, Math.sin((1 - t) * th) / sn), v3.mul(b, Math.sin(t * th) / sn))); };
+  const swingTo = (a, b, t, via) => { const m = v3.norm(v3.add(v3.add(a, b), v3.mul(via, 1.2))); return t < 0.5 ? slerp(a, m, t * 2) : slerp(m, b, t * 2 - 1); };
   // a curve through keys [t, value] (value: number or vector); it passes each key without stopping there. `loop`: first and last key are the same moment of a cycle
   function spl(ks, t, loop) {
     const n = ks.length - 1; let i = 0; while (i < n - 1 && t > ks[i + 1][0]) i++;
@@ -153,7 +160,15 @@ const Skier = (() => {
       let e1 = v3.sub(fw, v3.mul(dn, v3.dot(fw, dn))); if (v3.len(e1) < 1e-4) e1 = v3.sub(b.Y, v3.mul(dn, v3.dot(b.Y, dn))); e1 = v3.norm(e1); const e2 = v3.cross(dn, e1);
       const A = x * v3.dot(dn, b.X) - Ls * Math.sin(clamp(lean * 0.10, -0.09, 0.09)), Bc = v3.dot(e1, b.X), Cc = v3.dot(e2, b.X), R = Math.hypot(Bc, Cc);
       let th = 0, th0 = 0;
-      if (hc > 1e-5 && R > 1e-5) { const t0 = Math.atan2(Cc, Bc), w = Math.acos(clamp(-A / (hc * R), -1, 1)), wrap = q => Math.atan2(Math.sin(q), Math.cos(q)), ta = wrap(t0 + w), tb = wrap(t0 - w); th = Math.abs(ta) < Math.abs(tb) ? ta : tb;
+      if (hc > 1e-5 && R > 1e-5) { const t0 = Math.atan2(Cc, Bc), w = Math.acos(clamp(-A / (hc * R), -1, 1)), wrap = q => Math.atan2(Math.sin(q), Math.cos(q)), ta = wrap(t0 + w), tb = wrap(t0 - w);
+        // (of the two places, the one nearer straight ahead; but where the two are nearly as near, as the edges change over, that choice could
+        // flip back and forth and the knee jumped a few centimetres in a frame: the one it took last frame keeps it until the other is the nearer by a good margin (sec.pf, kept by update))
+        const kq = sec.pf ? sec.pf[side < 0 ? 0 : 1] : null; if (kq && kq.kn !== sec.pfN) { kq.kp = kq.ko; kq.kn = sec.pfN; }
+        let ca = Math.abs(ta), cb = Math.abs(tb); if (kq && kq.kp != null) { if (Math.abs(wrap(ta - kq.kp)) < Math.abs(wrap(tb - kq.kp))) ca -= 0.3; else cb -= 0.3; }
+        th = ca < cb ? ta : tb;
+        // (and the knee's swing about the line from hip to ankle (it keeps both bones their length) follows over a thirtieth of a second: where the
+        // ski's edge and the leg's lean cross through flat together the answer moved unevenly from one frame to the next)
+        if (kq) { if (kq.kp != null && sec.pfDt > 0) th = kq.kp + wrap(th - kq.kp) * (1 - Math.exp(-sec.pfDt / 0.03)); kq.ko = th; }
         // (but a leg flung out to the side (the spread eagle, the X) cannot keep its shin square in the boot: the nearest it can come put the knee out
         // sideways or right round behind, the thigh screwed round on itself by up to half a turn, and the cloth at the hip, hung between the pelvis and that
         // thigh, was wrung thin. Past what the boot can hold the knee goes back to bending over the ski's tip, the way a straight leg is carried in the air)
@@ -249,7 +264,7 @@ const Skier = (() => {
         const x1 = side * Math.max(side * t[0] + 0.08, side * ft[0] + 0.17), dx = x1 - t[0], ty = lerp(0.02, DP.TIPY, pin);
         t[1] -= smooth(0.62, 1, ps) * clamp(t[1] - ty - Math.sqrt(Math.max(PL * PL - dx * dx - 0.09, 0.25)), 0, 0.10);
         const dy = Math.max(t[1] - ty, 0.2), dz = Math.sqrt(Math.max(PL * PL - dy * dy - dx * dx, 0.04));
-        const dq = v3.norm(v3.add(nlerp(d, v3.norm([dx, -dy, -dz]), ps), [side * 0.85 * rb / PL * sw, 0, 0]));      // (the swing)
+        const dq = v3.norm(v3.add(swingTo(d, v3.norm([dx, -dy, -dz]), ps, v3.norm([side * 0.45, -0.89, 0])), [side * 0.85 * rb / PL * sw, 0, 0]));      // (the swing)
         if (pp && !pp.d) { tipT = [pp.T[0], DP.TIPY, pp.T[1]]; const dv = v3.sub(t, tipT), l = v3.len(dv); hp = v3.mul(dv, Math.max(PL - 0.04 - l, 0) / l); t = v3.add(t, hp); d = v3.norm(v3.sub(tipT, t)); planted = 1; low = 1; deep = 1; }
         else if (pp) { if (pp.h) t = v3.mad(t, pp.h, 1 - pp.w); d = nlerp(pp.d, nlerp(d, dq, pp.g), pp.w); low = lerp(1 - pp.w, pin, pp.g); deep = 1 - pp.w; }
         else { d = dq; low = pin; }
@@ -297,6 +312,11 @@ const Skier = (() => {
       t = inReach(t); if (g < 1) { const q = pushOut(pushOut(t, 0.062, side), 0.062, side); t = inReach(g > 0 ? v3.lerp(q, t, g) : q); }
       // (kept off its path like that, a hand on a planted pole would drag the tip through the snow. A little of it the wrist takes up, the hand keeping
       // to the pole; more, and the pole has already been let go: see below)
+      // (the fist the same, where it sits against its shoulder: a rule handing over to another moved it a few centimetres in a frame. Not on a
+      // planted pole, nor in a stroke, where the hand is the pole's)
+      { const hq = sec.pf ? sec.pf[side < 0 ? 0 : 1] : null;
+        if (hq) { if (hq.hn !== sec.pfN) { hq.hp = hq.ho; hq.hn = sec.pfN; } const r = v3.sub(t, sh), wv = (1 - planted) * (1 - dpw);
+          if (hq.hp && sec.pfDt > 0 && wv > 0) t = v3.add(sh, v3.lerp(r, v3.lerp(hq.hp, r, 1 - Math.exp(-sec.pfDt / 0.04)), wv)); hq.ho = v3.sub(t, sh); } }
       let slip = 0;
       if (planted >= 1 && tipT) { const dv = v3.sub(t, tipT), l = v3.len(dv), k = 1 - smooth(0.02, 0.03, Math.abs(l - PL)); t = v3.lerp(t, v3.mad(tipT, dv, PL / l), k);
         const ds = v3.sub(t, sh), ls = v3.len(ds); if (ls > reach) t = v3.mad(sh, ds, reach / ls); slip = Math.abs(v3.len(v3.sub(t, tipT)) - PL); }
@@ -324,6 +344,12 @@ const Skier = (() => {
         for (let i = 0; i < 7 && b1 > b0; i++) { const m = (b0 + b1) / 2; if (shaftGap(t, nlerp(d, safe, m)) >= 0) b1 = m; else b0 = m; }
         d = nlerp(d, safe, b1 * (1 - planted));
       }
+      // (what the pole does is worked out afresh each frame from many rules (the swing to the plant, clear of the legs, clear of the body, trailing),
+      // and where one of them takes over from another the shaft could swing round in a single frame: a twitch of the pole the eye catches at once.
+      // So, while the snow does not have it, the pole's direction follows what is worked out over a twentieth of a second (sec.pf, kept by update; a
+      // second solve of the same frame starts from the same place). Never past it: there is nothing here to swing back)
+      const pf = sec.pf ? sec.pf[side < 0 ? 0 : 1] : null;
+      if (pf) { if (pf.n !== sec.pfN) { pf.p = pf.o; pf.n = sec.pfN; } if (pf.p && sec.pfDt > 0 && planted < 1) d = slerp(pf.p, d, lerp(1 - Math.exp(-sec.pfDt / 0.05), 1, planted)); pf.o = d; }
       // (and the tip never goes under the snow, except to be planted)
       { const sy = clamp((lerp(0.035, DP.TIPY, low) - 0.045 * deep - t[1]) / PL, -1, 1); if (d[1] < sy) { const hz = Math.hypot(d[0], d[2]), k = Math.sqrt(1 - sy * sy) / (hz || 1); d = hz > 1e-6 ? [d[0] * k, sy, d[2] * k] : [0, sy, Math.sqrt(1 - sy * sy)]; } }
       return { w: t, e, d, planted, T: Tm, u: uo, ur, slip, hp };
@@ -784,7 +810,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   // ---- between the poses it is asked for the body has a little life of its own: the trunk trails the legs into a turn and folds after them when they
   // are driven up under it, hands and pack ride on, and all of it settles again within a few tenths of a second (game time: App.t)
   const spr = (s, to, w, z, dt) => { s[1] = (s[1] + w * w * (to - s[0]) * dt) / (1 + 2 * z * w * dt + w * w * dt * dt); s[0] += s[1] * dt; return s[0]; };
-  const st = { t: 0, pose: null, root: null, pos: [0, 0, 0], lean: [0, 0], cf: [0, 0], crouch: [0, 0], f0: 0, dp: null, pp: [null, null], pq: [0, 0], hm: { p: [0, 0], r: [0, 0], v: null, o: [0, 0] }, sec: { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: [null, null], idle: null } };
+  const st = { t: 0, pose: null, root: null, pos: [0, 0, 0], lean: [0, 0], cf: [0, 0], crouch: [0, 0], f0: 0, dp: null, pp: [null, null], pq: [0, 0], hm: { p: [0, 0], r: [0, 0], v: null, o: [0, 0] }, sec: { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: [null, null], idle: null, pf: [{ o: null, p: null, n: 0 }, { o: null, p: null, n: 0 }], pfN: 0, pfDt: 0 } };
   // root: {pos (world, on the snow), fwd (unit, along the skis), nrm (snow normal)}; pose: see P0 (anything left out is as in P0)
   const cur = Object.assign({}, P0);
   K.pose = cur; K.world = { J: null, root: null };
@@ -871,6 +897,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     const toW = q => [root.pos[0] + X[0] * q[0] + Y[0] * q[1] + Z[0] * q[2], root.pos[1] + X[1] * q[0] + Y[1] * q[1] + Z[1] * q[2], root.pos[2] + X[2] * q[0] + Y[2] * q[1] + Z[2] * q[2]];
     // (standing at ease changes what the pose asks for: before anything is made of it)
     sec.idle = ease(root, pose, cut, cut ? 0 : dt, X, Z, toW);
+    sec.pfN++; sec.pfDt = cut ? 0 : Math.max(dt, 0); if (cut) for (const q of sec.pf) { q.o = q.p = q.ho = q.hp = q.ko = q.kp = null; }
     if (cut) { st.lean = [cur.lean, 0]; st.cf = [cur.crouch, 0]; st.crouch = [cur.crouch, 0]; st.dp = null; st.pp[0] = st.pp[1] = null; st.f0 = f; dt = 0; }
     // the hem of the jacket is cloth on a moving body: it lags behind what the body does (speeding up, turning) and the wind of the run lifts it off the
     // seat and shakes it, on the game's time (slow motion slows it too). p: how far the back hem stands out (radians about the small of the back, never
@@ -898,7 +925,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     // along; g: the pose taking it over again)
     const pq = [sat(cur.plantL || 0), sat(cur.plantR || 0)];
     for (let k = 0; k < 2; k++) { const P = st.pp[k]; sec.pl[k] = P; if (!P) continue;
-      if (P.d) { P.w = smooth(0, 0.18, now - P.rel); P.g = smooth(0.18, 0.45, now - P.rel); } else { const w = P.W, d = [w[0] - root.pos[0], w[1] - root.pos[1], w[2] - root.pos[2]]; P.T = [v3.dot(d, X), v3.dot(d, Z)]; } }
+      if (P.d) { P.w = smooth(0, 0.3, now - P.rel); P.g = smooth(0.3, 0.6, now - P.rel); } else { const w = P.W, d = [w[0] - root.pos[0], w[1] - root.pos[1], w[2] - root.pos[2]]; P.T = [v3.dot(d, X), v3.dot(d, Z)]; } }
     const s = solve(cur, sec);
     for (let k = 0; k < 2; k++) { const P = st.pp[k], sd = k ? 'R' : 'L', tp = s.J['tip' + sd], gp = s.J['grip' + sd];
       if (!P) { if (!cut && dt > 0 && !(f > 0) && pq[k] > st.pq[k] && pq[k] > 0.5 && tp[1] <= 0) st.pp[k] = { W: toW(tp), T: [tp[0], tp[2]], d: null, h: null, w: 0, g: 0, rel: 0 }; }
