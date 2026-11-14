@@ -3,8 +3,9 @@
 // (-z in the figure's own space, the nose ahead), the body faces +x, the toes. So a turn to the right is a toeside turn and a turn to the left a
 // heelside one: the game's lean and edge go straight onto the board's edge, and the body leans with them toward the toes or back over the heels.
 // The pose is made from four key poses, blended by what the game asks for and never sprung (the owner's rule: no springs layered on a pose):
-//   toeside: knees driven forward and in over the toe edge, hips a little behind that line, chest following the lean, hands low and ahead;
-//   heelside: seat down and back behind the heels, legs long, chest folded forward over the knees, hands reaching ahead toward the toes;
+//   toeside: the whole body leaned out over the toe edge, knees bent up off that line, chest following the lean, hands low and ahead;
+// The pelvis is placed so the body's centre of mass sits on the line from the board's edge leaned over by the lean (see below).
+//   heelside: seat down and back behind the heels, chest leaning back with it (less than the legs), hands reaching ahead toward the toes;
 //   crouch: both knees folded, the seat sinks between the boots, the chest comes down over the front knee;
 //   air: knees drawn up, board level under the body, arms out for balance; a grab takes the toe edge (back hand between the boots, front
 //   hand by the front binding).
@@ -15,7 +16,7 @@
 const Board = (() => {
   const VS = typeof Variants !== 'undefined' ? Variants : null;
   if (VS) VS.def('ride', '滑具', [['a', '双板'], ['b', '单板']], 'a');
-  const BD = { len: 1.56, hw: 0.125, waist: 0.122, half: 0.27, kick: 0.055, th: 0.013, yawF: -0.26, yawB: 0.15 };   // board (m), half the stance, binding angles (rad, + toward the tail)
+  const BD = { len: 1.56, hw: 0.13, waist: 0.128, half: 0.25, kick: 0.055, th: 0.013, yawF: -0.26, yawB: 0.15 };   // board (m), half the stance, binding angles (rad, + toward the tail)
   const K = Skier, L = K.LEN, basis = K.basis, ik2 = K.ik2, frameXY = K.frameXY, fr = K.fr, B = K.B;
   // the quarter turn: rider space (x, y, z) -> figure space (-z, y, x)
   const Qp = q => [-q[2], q[1], q[0]], QM = m4.fromBasis([0, 0, 1], [0, 1, 0], [-1, 0, 0], [0, 0, 0]);
@@ -37,30 +38,34 @@ const Board = (() => {
     // ---- legs folded: the game's crouch, deeper for a tuck, drawn up in the air, all the way for a grab
     let c = sat(p.crouch == null ? 0.21 : p.crouch);
     c = Math.max(c, 0.42 * tuck); c = lerp(c, Math.max(c, 0.5), air * 0.7); c = lerp(c, 0.9, gM);
-    // ---- pelvis: on the line from the board's edge leaned over by the lean (toward the toes is -z), the seat a little behind it in a toeside
-    // turn (knees forward, hips back), well behind the heels in a heelside one, over the nose or the tail by fore/aft
-    const pz = 0.07 * ts + 0.09 * hs + 0.07 * c + 0.03, px = -0.085 * fa;
-    const yawP = -0.30 + 0.25 * sep, pitchP = 0.18 + 0.40 * c + 0.45 * Math.max(lean, 0) + 0.30 * hs + 0.35 * tuck, rollP = -0.08 * fa;
-    const pb = basis(yawP, pitchP * 0.6, rollP);
-    let H = 0.99 - 0.34 * c - 0.06 * hs - 0.03 * ts - 0.05 * tuck, pel, hipL, hipR;
-    for (let it = 0; it < 8; it++) {
-      pel = [px, H * Math.cos(lean), -H * Math.sin(lean) + pz];
+    // ---- trunk first (its tilt does not hang on where the hips are): an athletic stance, chest a little forward over the knees; on the toes it
+    // goes over with the lean, on the heels it leans back with it but less than the legs (the chest stays over the seat, it does not fold down)
+    const hinge = 0.16 + 0.24 * c + (lean > 0 ? 0.50 * lean : 0.42 * lean) + 0.55 * tuck + 0.25 * gM + (id ? id.up : 0);
+    const up2 = Math.min(hinge * 1.08 + 0.05 - 0.035 * (id ? id.br : 0), 1.6), rollT = -0.10 * fa + (id ? id.sx : 0);
+    const yawP = -0.28 + 0.25 * sep, yawC = -0.40 + 0.35 * sep + (id ? id.ty : 0);
+    const pb = basis(yawP, clamp(hinge * 0.55, -0.3, 0.9), -0.08 * fa);
+    const t1 = basis((yawP + yawC) * 0.5, hinge, rollT), t2 = basis(yawC, up2, rollT * 0.8);
+    const oC = v3.mul(t1.Y, L.spine), oN = v3.add(oC, v3.mul(t2.Y, L.chest));      // chest and neck from the pelvis
+    // ---- pelvis: placed so that the body's centre of mass sits on the line from the board's edge leaned over by the lean (toward the toes is
+    // -z), and over the nose or the tail by fore/aft. Masses, roughly: legs 0.30 (half of it at the hips), pelvis 0.15, trunk 0.35 at the chest,
+    // head and arms 0.20 at the neck. Height: legs well bent, knees soft (a board is ridden lower than skis)
+    const aM = v3.lerp(J.ankleL, J.ankleR, 0.5), up = v3.add(v3.mul(oC, 0.35), v3.mul(oN, 0.20));
+    let H = 0.875 - 0.30 * c - 0.04 * Math.abs(lean) - 0.05 * tuck, pel, hipL, hipR;
+    for (let it = 0; it < 10; it++) {
+      const cy = 0.85 * H + up[1] + 0.15 * aM[1];                         // height of the centre of mass
+      const tz = -Math.tan(clamp(lean, -1.25, 1.25)) * (cy - O[1]), tx = -0.07 * fa;
+      pel = [(tx - up[0] - 0.15 * aM[0]) / 0.85, H, (tz - up[2] - 0.15 * aM[2]) / 0.85];
       hipL = v3.add(v3.mad(pel, pb.X, -L.hipW), v3.mul(pb.Y, -L.hipD)); hipR = v3.add(v3.mad(pel, pb.X, L.hipW), v3.mul(pb.Y, -L.hipD));
-      const over = Math.max(v3.len(v3.sub(hipL, J.ankleL)), v3.len(v3.sub(hipR, J.ankleR))) - (L.thigh + L.shin) * 0.972;
-      if (over <= -0.025) break; H -= (over >= 0.025 ? over : (over + 0.025) * (over + 0.025) / 0.1) * 1.1;
+      const over = Math.max(v3.len(v3.sub(hipL, J.ankleL)), v3.len(v3.sub(hipR, J.ankleR))) - (L.thigh + L.shin) * 0.96;
+      if (over <= -0.02) break; H -= (over >= 0.02 ? over : (over + 0.02) * (over + 0.02) / 0.08) * 1.1;
     }
     J.pelvis = pel; J.hipL = hipL; J.hipR = hipR;
-    // knees: over the toes of their own boot (the bindings are turned out, so the knees part a little), never back behind the shin
-    const kneeDir = (fb, sx) => v3.norm(v3.add(v3.mul(fb.Z, -1), [sx, 0.15, 0]));
-    J.kneeL = ik2(hipL, J.ankleL, L.thigh, L.shin, kneeDir(fbL, -0.12)); J.kneeR = ik2(hipR, J.ankleR, L.thigh, L.shin, kneeDir(fbR, 0.12));
+    // knees: over the toes of their own boot (the bindings are turned out, so the knees part a little)
+    // (on the toes the whole leg leans out over the toe edge: the knee bends up off that line, not down toward the snow, or it reads as kneeling)
+    const kA = 0.9 * Math.max(lean, 0), kneeDir = (fb, sx) => v3.norm(v3.add(v3.mul(fb.Z, -Math.cos(kA)), [sx, 0.1 + Math.sin(kA), 0]));
+    J.kneeL = ik2(hipL, J.ankleL, L.thigh, L.shin, kneeDir(fbL, -0.10)); J.kneeR = ik2(hipR, J.ankleR, L.thigh, L.shin, kneeDir(fbR, 0.10));
     J.kneeRawL = J.kneeL; J.kneeRawR = J.kneeR;
-    // ---- trunk: hinged forward with the toeside lean, folded over the knees in a heelside turn (the seat is behind the heels: the chest comes
-    // forward to keep the weight over the edge), shoulders turned a little more toward the nose than the hips
-    const hinge = 0.20 + 0.34 * c + 0.62 * Math.max(lean, 0) + 0.12 * Math.min(lean, 0) + 0.55 * hs + 0.55 * tuck + 0.25 * gM + (id ? id.up : 0);
-    const up2 = Math.min(hinge * 1.1 + 0.06 - 0.035 * (id ? id.br : 0), 1.6), rollT = -0.10 * fa + (id ? id.sx : 0);
-    const yawC = -0.42 + 0.35 * sep + (id ? id.ty : 0);
-    const t1 = basis((yawP + yawC) * 0.5, hinge, rollT), t2 = basis(yawC, up2, rollT * 0.8);
-    J.chest = v3.mad(pel, t1.Y, L.spine); J.neck = v3.mad(J.chest, t2.Y, L.chest);
+    J.chest = v3.add(pel, oC); J.neck = v3.add(pel, oN);
     J.shL = v3.add(v3.mad(J.neck, t2.X, -L.shW), v3.mul(t2.Y, -L.shD)); J.shR = v3.add(v3.mad(J.neck, t2.X, L.shW), v3.mul(t2.Y, -L.shD));
     // head: eyes level, looking down the run over the front shoulder (more round toward the nose on the heels, more toward the toes on the toes)
     const yawH = -1.12 + 0.18 * ts - 0.15 * hs + (p.headYaw || 0) * 0.5 + (id ? id.hy : 0), hp = Math.max(0.10 + 0.08 * c + (id ? id.hp : 0), up2 - 1.0);
