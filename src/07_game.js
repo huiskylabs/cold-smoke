@@ -326,7 +326,7 @@ const Game = (() => {
     // (turning brake b: slow, the steering held right over asks for a turn far tighter than a ski bends to, from a 10.5 m arc at 40 km/h
     // down to 4 m at a crawl, the way a slow skier pivots round a tree. The sidecut below cannot carve that, so the skis are swung and
     // scraped round: a short skidded turn that also scrubs speed)
-    const rMin = TB ? lerp(4, 10.5, Math.max(smooth(4, 11, sp), 1 - smooth(0.6, 0.9, Math.abs(u)))) : 10.5;
+    const rMin = TB ? lerp(4, 10.5, Math.max(smooth(4, 11, sp), 1 - smooth(0.45, 0.65, Math.abs(u)))) : 10.5;      // (a steering key, which asks for 0.66 (keys d), counts as held right over)
     const phiMax = Math.min(0.96, Math.atan(Math.max(sp, 2.5) ** 2 / (rMin * gn) + gHold / gn)) * (1 - 0.3 * S.tuckIn);
     // how much skid the player asks for, 0..1: by steering past 0.72 (a, b, c), or (keys d) by the weight forward while steering at all
     const skQ = Variants.val.keys === 'd' && Input.mode !== 'tilt' ? smooth(0.15, 0.8, Math.max(0, Input.faT || 0)) * smooth(0.2, 0.5, Math.abs(u)) : smooth(0.72, 1.0, Math.abs(u));
