@@ -51,6 +51,19 @@ The game also ships as a 小红书 小工具 (创作服务平台 → Builder Hub
 - A computer starts at 高. A phone's first level is guessed from the GPU's name (Adreno, Mali, PowerVR…; `Quality.classify`). When the frame rate cannot be held, the governor in `99_main.js` first draws smaller (to 75 %), then steps down a level and remembers it (`cs.q.auto`; inside 小红书 also in the container's storage), so next time the phone starts there. After a full minute with room to spare it may step back up once.
 - Settings has a 画质 / Quality chip: 自动 / 高 / 均衡 / 流畅 (`cs.q.pick`). `?quality=0|1|2` forces a level for tests.
 
+## Immersive mode (Apple Vision Pro)
+
+`src/21_xr.js`. WebXR `immersive-vr`, first target Safari on Apple Vision Pro. **Never yet run on a real headset**: it was tested in headless Chromium with the Immersive Web Emulation Runtime (`iwer`, Meta's WebXR emulator, a Quest 3 profile), which checks the session, the stereo drawing, the head and the pinches, not the frame rate, the feel or comfort.
+
+- At start-up the page asks `navigator.xr.isSessionSupported('immersive-vr')` (at most 1.5 s). Only if it says yes does the title page show 沉浸模式 / Immersive, and the page is drawn with WebGL2 (made `xrCompatible`) instead of WebGPU, because WebXR hands its framebuffer to WebGL alone. Computers and phones get no button and draw exactly as before. `?xr=0` turns the question off; `?backend=` still wins.
+- The flat game keeps running underneath. Two hooks in `tick` (`App.camHook` after the game's step, `App.renderHook` instead of `Render.render`) are all the headset needs; `Render.render` is split into `renderShared` (bakes, the shadow map, the snow's own maps: once a frame) and `renderView` (scene to lens effects: once for each eye), and `Render.eyeGlobals` sets what hangs on the lens for one eye.
+- The rig: the chase camera (07_game.js) still decides where the lens stands. The headset takes only its position (without its shake or nudges) and turns the world about the vertical alone, slowly (`XR.yawRate`), to keep the skier ahead. No pitch, no roll, no kicks: the player's own head does all the looking. The other views are not offered in there.
+- The eyes' frusta are lopsided, and every shader builds its rays from a centred lens, so each eye is drawn through a centred lens just wide enough to hold its own and only its part of that picture is copied to the headset (`xrPresent`).
+- Comfort: no lens effects (ghosts, starburst, snow on the glass, speed fringes, shutter smear); a soft darkening at the edges while the rig turns fast or the skier is in the air (`?xrvig=0` turns it off).
+- Controls: the head leaned (the top of the neck moved ~14 cm) or tipped (~22°) steers, so looking round does not; head forward / back is the weight on the tips / tails. Whatever way the player stands when the run starts is straight ahead. A pinch starts; held, the right hand tucks and the left loads a jump. The Digital Crown leaves, and the run waits on the menu.
+- Drawn at a level of its own (`流畅`'s numbers) and at `XR.scale` of the headset's resolution (0.62 to start, `?xrscale=`), stepping down to 0.32 while frames come more than 12 % later than the headset's own rate (the session's `frameRate`, else the quickest second seen), back up after 15 s with room. `?xrfb=` sets the layer's framebuffer scale.
+- Words in the air (`xrPanel`): on the title page what to do, in a run the speed, standing in the rig ahead and below like a dashboard. The flat menu is not reachable in there.
+
 ## Look and feel choices (read before changing the look)
 
 - The day sun stands low and ahead of the skier (elevation 0.20 rad): the spray is backlit and is the brightest thing after the sun. Day exposure is 0.145 and backlit snow is micro-shadowed, so the foreground sits near L*65 to 70, not white.

@@ -2,6 +2,7 @@
 //   node tools/director-render.js <outDir> <w> <h> <fps> [shots: "0,3,5" | "all"] [script.json]
 // Each shot goes to <outDir>/<nn>_<id>/f_00000.png ... With MUSIC=<file> every frame is also numbered into <outDir>/seq/ and, at the end,
 // <outDir>/cut.mp4 is encoded from them with that music under it (ffmpeg from PATH, or the npm package ffmpeg-static).
+// AUDIO=1: the game's own sound and score for each shot, recorded with its frames, as <shot dir>/sound.wav.
 // REALGPU=1: the machine's GPU instead of SwiftShader. CHROME=<path>: which browser. HEADED=1: a visible window (if headless gets no GPU).
 const { chromium } = require('playwright'), fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 const [outDir, W = '1280', H = '720', FPS = '30', which = 'all', scriptFile] = process.argv.slice(2);
@@ -20,7 +21,7 @@ const [outDir, W = '1280', H = '720', FPS = '30', which = 'all', scriptFile] = p
   const seq = path.join(outDir, 'seq'); if (process.env.MUSIC) fs.mkdirSync(seq, { recursive: true });
   let g = 0; const T0 = Date.now();
   for (const i of list) {
-    const t0 = Date.now(), info = await page.evaluate(([i, f]) => Director.begin(i, f), [i, +FPS]);
+    const t0 = Date.now(), info = await page.evaluate(([i, f, au]) => Director.begin(i, f, { audio: au }), [i, +FPS, !!process.env.AUDIO]);
     const dir = path.join(outDir, String(i).padStart(2, '0') + '_' + (info.id || 'shot')); fs.mkdirSync(dir, { recursive: true });
     let k = 0;
     while (await page.evaluate(() => Director.step())) {
@@ -28,6 +29,7 @@ const [outDir, W = '1280', H = '720', FPS = '30', which = 'all', scriptFile] = p
       fs.writeFileSync(path.join(dir, 'f_' + String(k++).padStart(5, '0') + '.png'), png);
       if (process.env.MUSIC) fs.writeFileSync(path.join(seq, 'f_' + String(g++).padStart(6, '0') + '.png'), png);
     }
+    if (process.env.AUDIO) { const w = await page.evaluate(() => Director.audio()); if (w) fs.writeFileSync(path.join(dir, 'sound.wav'), Buffer.from(w, 'base64')); }
     console.log(`shot ${i} ${info.id}: ${k} frames in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   }
   await browser.close();

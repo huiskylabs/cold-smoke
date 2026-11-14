@@ -11,9 +11,10 @@
 //   Director.info(i)          what shot i is, how many frames it has at a given fps
 // SHOT: { id, name, dur (s of screen time), seed, tod (name or clock s), hold (true: the clock stands still), wx ('light' | 'heavy'),
 //   at: { s } | { seg: 'kickers', off: m, n: which one } | { kicker: n, before: m }, lead (m of run skied, unseen, before the shot so speed is up; 0 = from rest),
-//   steer: { amp, period, lane } | number, tuck: true | [t0, t1], jump: [t0, t1], trick: '360grab', trickSeed, speed (time factor: 0.25 = 4x slow),
+//   steer: { amp, period, lane } | { rhythm: true, amp, wide, lane } (edge change on every mogul crest) | number, tuck: true | [t0, t1], jump: [t0, t1], trick: '360grab', trickSeed, speed (time factor: 0.25 = 4x slow),
 //   cam: 'chase' | 'fp' | 'tips' | 'low' | 'high' | 'left' | 'right' | 'front' | 'far' | { kind: 'orbit' | 'drone' | 'fixed' | 'sky', ... },
-//   skip: s of the shot played unseen first, flash: [t ...] lightning at these shot times, variants: { id: val }, label: text drawn into the corner (the nine-view montage) }
+//   skip: s of the shot played unseen first, flash: [t ...] lightning at these shot times, variants: { id: val }, label: text drawn into the corner (the nine-view montage),
+//   cuts: [[t, view, label?], ...] switch the game's view at these shot times (one run, many views) }
 const Director = (() => {
   const on = /[?&]director=1\b/.test(location.search);
   const D = { on, shots: [], cur: null, playing: false, fps: 60, label: '' };
@@ -60,7 +61,53 @@ const Director = (() => {
     for (let b = Math.floor(s0 / 32); b <= Math.floor((s0 + range) / 32); b++) { const a = Course.feats.get(b); if (!a) continue; for (const f of a) if (f.kind === 'kicker' && f.mark && f.s > s0 && f.s < s0 + range) return f; }
     return null;
   }
+  // (rhythm: a good mogul skier. The steering changes side on every crest of a bump the skis pass (S.mogG, mogul b), amp hard, and is
+  // turned back toward the run's middle (or lane) before it strays more than `wide` m from it)
+  function rhythmPilot(o) {
+    const amp = o.amp != null ? o.amp : 0.3, wide = o.wide || 5, lane = o.lane || 0; let side = 1, arm = 0;
+    return () => {
+      const S = G.s, g = S.mogG || 0, c = Course.at(-S.p[2] + 6), off = S.p[0] - (c.cx + lane * c.hw);
+      if (g > 0.04) arm = 1; else if (arm && g <= 0) { arm = 0; side = -side; }
+      if (Math.abs(off) > wide && side * off > 0) side = -side;
+      return side * amp;
+    };
+  }
+  // (zipper: an expert's line through the bumps. One edge change on each crest, as the rhythm pilot, but the skis are steered to a heading
+  // only `th` rad either side of the fall line (not held at a fixed steer), so the line stays in a narrow corridor straight down the field
+  // and the speed stays up and even; a crest that does not come within `tmax` s is not waited for any longer)
+  function zipperPilot(o) {
+    const th = o.th != null ? o.th : 0.2, K = o.K || 2, base = o.base != null ? o.base : 0.3, kl = o.kl || 0.06, lane = o.lane || 0, tmax = o.tmax || 2, tmin = o.tmin || 0.25;
+    let side = 1, arm = 0, tSide = 0, last = null, laneM = null, lsd = 0, ofs = 10;
+    // (the corridor is kept in the bumps. Every field has a smooth line winding through it (mogField is 0 near it, 03_course.js), so the
+    // lane is held on one side of that line, `gap` m from it (8-13 m: the bumps are full beyond 6.5), and follows it as it winds instead of
+    // crossing it. The side is chosen once, where the field starts, for the whole way down (more room and fewer trees over the next 600 m);
+    // the gap is then chosen frame by frame to keep the lane clear of trunks and inside the field, and the corridor slides at most 2.5 m/s)
+    const fieldAt = (u, s) => { const c = Course.at(s); return c.mog > 0.01 ? Course.bumps(c.cx + u, -s) / c.mog : 0; };
+    const chan = (s, hw) => { let a = 0, n = 0; for (let u = -0.7 * hw; u <= 0.7 * hw; u += 0.5) if (fieldAt(u, s) < 0.3) { a += u; n++; } return n ? a / n : 0; };
+    const tn = {}, clearM = o.clear || 5;
+    const trees = (u, s) => { let dm = 1e9; for (const d of [4, 8, 12, 16]) { const c = Course.at(s + d); for (const e of [-2, 0, 2]) { Course.nearTree(c.cx + u + e, -(s + d), tn); if (tn.ok) dm = Math.min(dm, tn.d); } } return clamp((clearM - dm) / 3, 0, 1); };
+    const fill = (u, s) => { let m = 1; for (const d of [4, 8, 12, 16]) for (const e of [-2, 0, 2]) m = Math.min(m, fieldAt(u + e, s + d)); return m; };
+    const score = (u, s) => fill(u, s) - trees(u, s);
+    const gaps = [8, 9, 10, 11, 12, 13];
+    const bestGap = (sd, s, hw, near) => { const g0 = chan(s + 10, hw); let best = near, bs = -1e9; for (const gp of gaps) { const u = g0 + sd * gp; if (Math.abs(u) > 0.78 * hw) continue; const q = score(u, s) - 0.02 * Math.abs(gp - near); if (q > bs) { bs = q; best = gp; } } return { gap: best, q: bs, u: g0 + sd * best }; };
+    const plan = (s, hw) => { let best = 1, bs = -1e9; for (const sd of [-1, 1]) { let m = 0; for (let d = 0; d < 600; d += 15) { const b = bestGap(sd, s + d, Course.at(s + d).hw, 10); m += b.q > -1e8 ? b.q : -2; } if (m > bs) { bs = m; best = sd; } } return best; };
+    return t => {
+      const S = G.s, s = -S.p[2], c = Course.at(s), g = S.mogG || 0;
+      if (last == null) last = t; const dt = Math.max(0, t - last); tSide += dt; last = t;
+      if (g > 0.04) arm = 1; else if (arm && g <= 0) { arm = 0; if (tSide > tmin) { side = -side; tSide = 0; } }
+      if (tSide > tmax) { side = -side; tSide = 0; }
+      if (o.stay !== false && c.mog > 0.01) {
+        if (!lsd) lsd = plan(s, c.hw);
+        const b = bestGap(lsd, s, c.hw, ofs); ofs = b.gap;
+        if (laneM == null) laneM = b.u; else laneM += clamp(b.u - laneM, -2.5 * dt, 2.5 * dt);
+      }
+      const off = S.p[0] - (c.cx + (laneM != null ? laneM : lane * c.hw)), a = Math.atan2(S.v[0], -S.v[2]) - Course.yawAt(s);
+      return clamp(side * base + K * (side * th - clamp(kl * off, -0.35, 0.35) - a), -0.9, 0.9);
+    };
+  }
   function pilot(o) {
+    if (o.rhythm) return rhythmPilot(o);
+    if (o.zipper) return zipperPilot(o);
     const amp = o.amp != null ? o.amp : 0.45, per = o.period || 5.2, lane = o.lane || 0, pc = {}, tn = {};
     return t => {
       const S = G.s, p = S.p, s = -p[2], look = 10 + Math.max(S.speed, 4) * 0.9, c = Course.at(s + look, pc);
@@ -98,7 +145,7 @@ const Director = (() => {
     if (sh.start !== false) G.start(); else G.mode = 'title';      // (a swap restarts a run that was on: a shot of the skier standing still takes it back)
     // ski the lead unseen (the tracks are pressed and the spray settles as in play), then a second more so the camera has caught up
     if (lead > 0) { let n = 0; while (-G.s.p[2] < s && n++ < 60 * 120) { Input.script = steer(G.runT); Input.btn.tuck = !!sh.leadTuck; tick(1 / 60, false); if (n % 6 === 5 && App.gfx.caps.backend === 'webgl2') Tracks.pre(); } }
-    const st = { sh, steer, t: 0, n: 0, flashes: (sh.flash || []).slice() };
+    const st = { sh, steer, t: 0, n: 0, flashes: (sh.flash || []).slice(), cuts: (sh.cuts || []).slice() };
     if (typeof sh.cam === 'object' && sh.cam) { free = Object.assign({ t: 0, dur: sh.dur, base: G.root.pos.slice(), F: frameAt(-G.s.p[2]) }, sh.cam); }
     for (let i = 0; i < 30; i++) tickShot(st, 1 / 60, false, true);     // half a second of settling (lens springs, spray), not shown
     for (let i = 0, n = Math.round((sh.skip || 0) * 60); i < n; i++) tickShot(st, 1 / 60, false);     // skip: seconds of the shot played unseen (the montage shows one run in pieces)
@@ -110,6 +157,8 @@ const Director = (() => {
     const sh = st.sh, k = sh.speed || 1, t = st.t;
     Input.script = st.steer(G.runT); Input.btn.tuck = within(sh.tuck, t); Input.btn.jump = within(sh.jump, t);
     if (!warm) while (st.flashes.length && st.flashes[0] <= t) { st.flashes.shift(); Weather.flash({}); }
+    // (cuts: one continuous run seen through the game's own views in turn, [[t, view], ...]: at shot time t the view is switched at a stroke)
+    if (!warm) while (st.cuts.length && st.cuts[0][0] <= t) { const c = st.cuts.shift(); G.setView(c[1], true); if (c[2] != null) D.label = c[2]; }
     if (free) free.t += dt;
     if (sh.start === false && G.mode === 'run') { G.mode = 'title'; G.reset(-G.s.p[2]); }      // a still shot stays still, whoever starts a run
     tick(dt * k, draw);
@@ -135,7 +184,28 @@ const Director = (() => {
   D.release = function () { D.stop(); App.paused = false; };
 
   // ---- recording: fixed steps, every frame drawn
-  D.begin = function (i, fps = 60) { D.stop(); App.paused = true; D.fps = fps; D.index = i; D.cur = setup(D.shots[i]); return D.info(i, fps); };
+  // (audio: the game's own sound and score for exactly the frames recorded. With { audio: true } the instrument is built again on an offline
+  // context as long as the shot and fed the same states on the shot's own clock while the frames are made; D.audio() then renders it and
+  // returns a 16-bit WAV as base64, the same as __ski.audioTest)
+  let aud = null;
+  D.begin = function (i, fps = 60, opt = {}) {
+    D.stop(); App.paused = true; D.fps = fps; D.index = i; aud = null; D.cur = setup(D.shots[i]);
+    if (opt.audio && typeof Sound !== 'undefined' && Sound.build) {
+      const sr = opt.sr || 48000, off = new OfflineAudioContext(2, Math.ceil(D.shots[i].dur * sr) + sr, sr), rig = Sound.build(off, {});
+      aud = { off, rig, keep: { rig: Sound.rig, now: Sound.now }, sr };
+      Sound.rig = rig; Sound.now = () => (D.cur ? D.cur.t : 0) + 0.012; rig.fade(opt.level || Sound.level || 0.8, 0, 0.01);
+    }
+    return D.info(i, fps);
+  };
+  D.audio = async function () {
+    if (!aud) return null; const a = aud; aud = null; Sound.rig = a.keep.rig; Sound.now = a.keep.now;
+    const buf = await a.off.startRendering(), dur = D.cur ? D.cur.sh.dur : buf.duration, N = Math.min(buf.length, Math.round(dur * a.sr)), L = buf.getChannelData(0), Rr = buf.getChannelData(1);
+    const u8 = new Uint8Array(44 + N * 4), dv = new DataView(u8.buffer), wr = (o, str) => { for (let k = 0; k < str.length; k++) u8[o + k] = str.charCodeAt(k); };
+    wr(0, 'RIFF'); dv.setUint32(4, 36 + N * 4, true); wr(8, 'WAVEfmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 2, true); dv.setUint32(24, a.sr, true); dv.setUint32(28, a.sr * 4, true); dv.setUint16(32, 4, true); dv.setUint16(34, 16, true); wr(36, 'data'); dv.setUint32(40, N * 4, true);
+    for (let k = 0; k < N; k++) { dv.setInt16(44 + k * 4, clamp(L[k], -1, 1) * 32767, true); dv.setInt16(46 + k * 4, clamp(Rr[k], -1, 1) * 32767, true); }
+    let b64 = ''; for (let k = 0; k < u8.length; k += 0x6000) b64 += btoa(String.fromCharCode.apply(null, u8.subarray(k, k + 0x6000)));
+    return b64;
+  };
   D.step = function () {
     const st = D.cur; if (!st || st.t >= st.sh.dur - 1e-6) return false;
     const sub = Math.max(1, Math.round(60 / D.fps / Math.max(st.sh.speed || 1, 0.05) / 1)), dt = 1 / D.fps;
