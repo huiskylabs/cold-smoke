@@ -86,7 +86,7 @@ const Course = ((vn1, vn2, h2U) => {
     const tv = typeof Variants !== 'undefined' ? Variants.val : {};
     C.lv = TERR_LV[tv.tdiff] ? tv.tdiff : 'b'; LV = tv.terr === 'b' ? TERR_LV[C.lv] : null; C.rich = !!LV; C.isl = LV ? LV.isl : 1;
     trng = RNG((KEY ^ 0x7e4a11) + 131 * C.lv.charCodeAt(0));
-    LOOK = !!LV && tv.look === 'b'; C.look = LOOK; lrng = RNG((KEY ^ 0x51a9d3) + 131 * C.lv.charCodeAt(0));
+    LOOK = !!LV && tv.look === 'b'; C.look = LOOK; C.gate = LOOK ? LK_GATE : 0; lrng = RNG((KEY ^ 0x51a9d3) + 131 * C.lv.charCodeAt(0));
     planTo(4000);
     return C.seed;
   };
@@ -262,6 +262,13 @@ const Course = ((vn1, vn2, h2U) => {
     }
     _lk[0] = b; _lk[1] = f; _lk[2] = c; return _lk;      // ([2]: where no tree stands on the run, the shoulder and the roll: nothing in the way of the look down)
   }
+  // the gate on each shoulder (for the flags and for the results): fn(s) for every one between s0 and s1. It stands LK_GATE metres above the
+  // join, where the snow has already eased; C.gate = that many metres with 山肩 on, 0 with it off
+  const LK_GATE = 45;
+  C.finishes = function (s0, s1, fn) {
+    if (!LOOK) return; if (s1 >= planned) planTo(s1 + 3000);
+    for (let i = Math.max(1, segAt(Math.max(0, s0)).idx); i < C.segs.length; i++) { const s = C.segs[i].s0 - LK_GATE; if (s > s1) break; if (s >= s0) fn(s, C.segs[i]); }
+  };
   // the lanes beside the run at s (null if none), and for one of them where its middle is, as an offset from the run's centre line
   // (a lane may run on past the end of its own run, into the next: a run's lanes are those it laid out and those of the run before)
   function lanesAt(s) { const sg = segAt(s); if (sg.lnAll === undefined) { const pv = sg.idx ? C.segs[sg.idx - 1].ln || [] : []; const a = (sg.ln || []).concat(pv); sg.lnAll = a.length ? a : null; } return sg.lnAll; }
