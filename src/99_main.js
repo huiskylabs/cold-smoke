@@ -263,6 +263,7 @@ window.__ski = {
   },
   async shot() { const cap = await App.gfx.capture(); const c2 = document.createElement('canvas'); c2.width = cap.w; c2.height = cap.h; c2.getContext('2d').putImageData(new ImageData(cap.data, cap.w, cap.h), 0, 0); return c2.toDataURL('image/png'); },
   height: (x, z) => Course.height(x, z, 0.5),
+  mod: n => ({ Trees, TreeModel, Game, Course })[n],        // test hook: a module by name (tree checks)
   set(path, v) { const parts = path.split('.'); let o = { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Deer }; for (let i = 0; i < parts.length - 1; i++) o = o[parts[i]]; o[parts[parts.length - 1]] = v; },
   err: () => App.gfx && App.gfx.lastError,
   // fast-forward the game: fn(t) returns the steering input (-1..1) for that moment; the last step is drawn
