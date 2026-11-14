@@ -18,15 +18,16 @@ const check = (name, ok, info) => { console.log((ok ? 'ok   ' : 'FAIL ') + name 
   const logs = []; page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') logs.push(m.type() + ': ' + m.text()); }); page.on('pageerror', e => logs.push('pageerror: ' + e.message));
   await page.addInitScript(IWER + ';\nwindow.__xrdev = new IWER.XRDevice(IWER.metaQuest3); window.__xrdev.installRuntime({ forceInstall: true });');
   const shot = async n => page.screenshot({ path: path.join(outDir, n + '.png') });
-  const ev = f => page.evaluate(f), wait = ms => page.waitForTimeout(ms);
-  const trig = async (hand, v) => ev(`__xrdev.controllers.${hand}.updateButtonValue('trigger', ${v})`);
+  // (the build wraps everything in one function: the page's modules are reached through window.__ski.m, bound here by name)
+  const ev = f => page.evaluate('(() => { const { App, XR, UI, Game, Input, Render, Quality } = __ski.m; return (' + f.toString() + ')(); })()'), wait = ms => page.waitForTimeout(ms);
+  const trig = async (hand, v) => page.evaluate(`__xrdev.controllers.${hand}.updateButtonValue('trigger', ${v})`);
   await page.goto('file://' + path.resolve(__dirname, '../dist/dev.html') + '?lang=zh&seed=7&gov=0');
-  await page.waitForFunction(() => typeof App !== 'undefined' && App.ready, null, { timeout: 1800000, polling: 1000 });
+  await page.waitForFunction(() => window.__ski && __ski.m.App.ready, null, { timeout: 1800000, polling: 1000 });
   const b = await ev(() => ({ ok: XR.ok, backend: App.gfx.caps.backend, button: !document.getElementById('xr').hidden }));
   check('the emulated headset is found, the page draws with WebGL2 and shows the button', b.ok && b.backend === 'webgl2' && b.button, b);
   await shot('0_title_flat');
   await page.click('#xr');
-  await page.waitForFunction(() => XR.active && XR.stats.frames > 3, null, { timeout: 600000, polling: 500 });
+  await page.waitForFunction(() => __ski.m.XR.active && __ski.m.XR.stats.frames > 3, null, { timeout: 600000, polling: 500 });
   const s = await ev(() => ({ W: Render.W, H: Render.H, tx: +XR.tx.toFixed(3), ty: +XR.ty.toFixed(3), scale: XR.scale, err: XR.error || null }));
   check('immersive session running, eyes sized', s.W > 0 && !s.err, s);
   await wait(2500); await shot('1_xr_title');

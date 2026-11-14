@@ -23,7 +23,7 @@ const UI = (() => {
     U.layout();
     el.go.addEventListener('click', e => { e.stopPropagation(); U.go(); });
     // immersive mode, only where the browser can open a headset (Safari on Apple Vision Pro): 21_xr.js
-    el.xr = $('xr'); if (XR.ok) el.xr.hidden = false;
+    el.xr = $('xr');          // (shown by U.ready once start-up has asked the browser: XR.probe runs in boot, after this)
     el.xr.addEventListener('click', e => { e.stopPropagation(); XR.enter(); });
     // the whole picture is the button (the corner's glyphs, the title's other buttons and the menu keep their presses to themselves)
     el.app.addEventListener('click', e => { if (U.state !== 'title' || U.open || el.bar.contains(e.target) || el.menu.contains(e.target) || el.more.contains(e.target)) return; U.go(); });
@@ -93,6 +93,7 @@ const UI = (() => {
   U.stage = function (f, name) { if (!el) return; el.fill.style.transform = 'scaleX(' + f.toFixed(3) + ')'; if (name) el.stage.textContent = T(name); };
   // first frame is on the canvas: let it come up out of the dark, then set the title over it
   U.ready = function () {
+    if (el && el.xr) el.xr.hidden = !XR.ok;
     if (!el) return; U.state = 'title';
     el.load.classList.remove('on'); el.veil.classList.add('lift'); el.shade.classList.add('on'); el.title.classList.add('on'); el.snd.classList.add('on');
     if (!U.hh && fsAvail()) el.fs.classList.add('on');
