@@ -360,6 +360,9 @@ const Skier = (() => {
     return o;
   };
   K.solve = solve; K.P0 = P0; K.B = B; K.LEN = LEN; K.fixMesh = m => fixMesh(m);
+  // (for the snowboard, 08a_board.js: the same bones, posed by a solver of its own)
+  K.basis = basis; K.ik2 = ik2; K.frameXY = frameXY; K.fr = fr; K.SEC0 = SEC0; K.meshBuilder = () => meshBuilder();
+  K.boardOn = () => !!(K.solveBoard && Variants.val.ride === 'b');
 
   // ---- skin: the bind -> pose matrix of every bone (model space)
   function quat(m) {
@@ -399,7 +402,7 @@ const Skier = (() => {
     if (s.br) M[B.chest] = m4.mul(m4.mul(F[B.chest], [1 + 0.018 * s.br, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 + 0.035 * s.br, 0, 0, 0, 0, 1]), invBind[B.chest]);
     return M;
   }
-  K.skin = function (pose, sec) { const s = solve(Object.assign({}, P0, pose), sec); return { M: skinMats(s), J: s.J, s }; };
+  K.skin = function (pose, sec) { const q = Object.assign({}, P0, pose), s = K.boardOn() ? K.solveBoard(q, sec) : solve(q, sec); return { M: skinMats(s), J: s.J, s }; };
 
   // ---- body: a distance field built on the bind-pose joints, in the bones' own frames (+z of trunk, head, leg and foot frames is the back of the body).
   // What makes it read as a skier from behind: shoulders a quarter wider than the hips; a jacket that hangs from chest and seat and ends in a hem that
@@ -428,7 +431,7 @@ const Skier = (() => {
     return Math.hypot(Math.max(dx, 0), Math.max(dy, 0), Math.max(dz, 0)) + Math.min(Math.max(dx, dy, dz), 0) - 0.004;
   }      // (the middle of the seat, in the pelvis's frame: where the two masses of rPelvis are centred)
   const PACK = K.PACK = { box: [0, -0.055, 0.180, 0.122, 0.195, 0.062, 0.055], lid: [0, 0.125, 0.170, 0.112, 0.07, 0.068], pocket: [0, -0.12, 0.250, 0.08, 0.085, 0.018, 0.018], k: [0.035, 0.02] };
-  function buildBody(bd, nb) {
+  function buildBody(bd, nb, sb) {
     const J = bd.J, F = bd.F, sq = Math.sqrt, smin = sd.smin, smax = sd.smax;
     // (the same shapes as in sd, written out with plain square roots: this field is asked for half a million times while the page loads)
     const seg = (a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2]; return [a[0], a[1], a[2], dx, dy, dz, 1 / (dx * dx + dy * dy + dz * dz)]; };
@@ -524,6 +527,13 @@ const Skier = (() => {
       loc(leg[k].mF, x, y, z); const a = q[0], b = q[1], d = q[2];
       let s = rbx(a, b, d, 0, 0.088, -0.02, 0.052, 0.040, 0.152, 0.032); s = smax(s, (b - 0.150 - 0.33 * (d + 0.02)) * 0.95, 0.02);    // shell, lower over the toes
       s = smin(s, E(a, b, d, 0, 0.135, 0.02, 0.05, 0.06, 0.085), 0.025);                                                               // instep
+      // (on a snowboard, sb: no ski binding. A snowboard binding instead: a short baseplate under the sole and two straps, over the toes and
+      // across the instep. No highback: modelled apart from the boot it stood up behind the heel as a black slab, the owner's "two boards standing up". The boot keeps its shell: its 30 cm sit on a 26 cm board as a real boot does)
+      if (sb) {
+        let n = rbx(a, b, d, 0, 0.012, -0.01, 0.062, 0.012, 0.165, 0.006);                                                             // baseplate
+        n = Math.min(n, rbx(a, b, d, 0, 0.148, 0.0, 0.060, 0.016, 0.034, 0.008), rbx(a, b, d, 0, 0.088, -0.13, 0.058, 0.014, 0.024, 0.008));   // straps
+        ftB = s; ftN = n; return smin(s, n, 0.004);
+      }
       let n = rbx(a, b, d, 0, 0.034, -0.03, 0.034, 0.014, 0.25, 0.006);                                                                // binding: plate,
       n = smin(n, rbx(a, b, d, 0, 0.066, -0.218, 0.036, 0.030, 0.042, 0.014), 0.008);                                                  // toe piece,
       n = smin(n, rbx(a, b, d, 0, 0.075, 0.185, 0.037, 0.040, 0.052, 0.014), 0.008); n = smin(n, E(a, b, d, 0, 0.105, 0.235, 0.026, 0.022, 0.04), 0.008);    // heel piece and its lever
@@ -693,25 +703,29 @@ const Skier = (() => {
   // (two bodies for the owner to pick from (Variants 'body'): a = the one before, b = the new one, smoother at the joints and shaped like a person in
   // loose ski clothes. Each is built when first asked for and kept: K.meshes[id]; K.mesh is the one drawn now)
   K.meshes = {};
+  // (and a snowboard instead of skis and poles, Variants 'ride' b: 08a_board.js hands over the board, K.boardPart, built in the left foot's frame)
+  const rideV = () => K.boardPart && Variants.val.ride === 'b' ? 'S' : '';
   K.build = function (v) {
     v = v === 'a' || v === 'b' ? v : (Variants.val.body === 'a' ? 'a' : 'b');
-    if (K.meshes[v]) return (K.mesh = K.meshes[v]);
+    const rd = rideV(), key = v + rd;
+    if (K.meshes[key]) return (K.mesh = K.meshes[key]);
     if (!bind) { bind = solve(P0); invBind = bind.F.map(m => m ? m4.invert(m) : null); K.bind = bind; bind.seatC = m4.tp(bind.F[B.pelvis], SEATC); }
-    const nb = v === 'b', body = buildBody(bind, nb);
+    const nb = v === 'b', body = buildBody(bind, nb, !!rd);
     const t0 = performance.now();
     const m = meshSDF(body.f, [-0.44, 0.0, -0.66], [0.44, 1.80, 0.38], 0.0135, { stride: 4, attr: body.attr });
     K.meshMs = performance.now() - t0;
     const bw0 = boneWeights(m, bind, body, nb);
     const sp = splitMaterials(m, bw0), bw = sp.bw; m.verts = sp.verts; m.nv = sp.nv;
     // skis and poles, rigid on their bones (built in bone-local space, then moved to the bind pose)
-    const parts = [[skiMesh(0), B.footL], [skiMesh(0), B.footR], [poleMesh(), B.poleL], [poleMesh(), B.poleR]];
+    const parts = rd ? [[K.boardPart(), B.footL]] : [[skiMesh(0), B.footL], [skiMesh(0), B.footR], [poleMesh(), B.poleL], [poleMesh(), B.poleR]];
     let nv = m.nv, ni = m.ni; for (const [pm] of parts) { nv += pm.nv; ni += pm.ni; }
     const V = new Float32Array(nv * 10), W = new Float32Array(nv * 4), I = new Uint32Array(ni); V.set(m.verts); W.set(bw); I.set(m.idx);
     let vo = m.nv, io = m.ni;
     for (const [pm, bone] of parts) {
       const Fm = bind.F[bone];
       for (let i = 0; i < pm.nv; i++) {
-        const p = m4.tp(Fm, [pm.verts[i * 10], pm.verts[i * 10 + 1], pm.verts[i * 10 + 2]]), n = m4.td(Fm, [pm.verts[i * 10 + 3], pm.verts[i * 10 + 4], pm.verts[i * 10 + 5]]), o = (vo + i) * 10;
+        // (pm.at: a part made in a space of its own (the board's), placed in the bone's by that matrix; its own coordinates still go to the shader)
+        const Fq = pm.at ? m4.mul(Fm, pm.at) : Fm, p = m4.tp(Fq, [pm.verts[i * 10], pm.verts[i * 10 + 1], pm.verts[i * 10 + 2]]), n = m4.td(Fq, [pm.verts[i * 10 + 3], pm.verts[i * 10 + 4], pm.verts[i * 10 + 5]]), o = (vo + i) * 10;
         V[o] = p[0]; V[o + 1] = p[1]; V[o + 2] = p[2]; V[o + 3] = n[0]; V[o + 4] = n[1]; V[o + 5] = n[2]; V[o + 6] = pm.verts[i * 10 + 6]; V[o + 7] = 1;
         // local coordinates of hard parts ride along for the shader's graphics
         V[o + 8] = bone >= B.poleL ? pm.verts[i * 10 + 1] : pm.verts[i * 10 + 2]; V[o + 9] = pm.verts[i * 10 + 4];
@@ -720,13 +734,13 @@ const Skier = (() => {
       for (let i = 0; i < pm.ni; i++) I[io + i] = pm.idx[i] + vo;
       vo += pm.nv; io += pm.ni;
     }
-    K.mesh = K.meshes[v] = { V, W, I, nv, ni, v };
+    K.mesh = K.meshes[key] = { V, W, I, nv, ni, v, ride: rd };
     return K.mesh;
   };
 
   K.init = function (g) {
     gfx = g;
-    useBody(K.mesh && K.mesh.v === Variants.val.body ? K.mesh : K.build());
+    useBody(K.mesh && K.mesh.v === Variants.val.body && K.mesh.ride === rideV() ? K.mesh : K.build());
     boneTex = gfx.texture({ w: 4, h: 32, format: 'rgba32f', filter: 'nearest' });
     const buffers = [{ attrs: [['pos', 'vec3f'], ['nrm', 'vec3f'], ['mat', 'vec4f']] }, { attrs: [['bw', 'vec4f']] }];
     // places on the bind-pose body the fragment shader paints by: the chest's own frame (straps, pack), the pelvis's (the height above the jacket's hem:
@@ -900,7 +914,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     const pq = [sat(cur.plantL || 0), sat(cur.plantR || 0)];
     for (let k = 0; k < 2; k++) { const P = st.pp[k]; sec.pl[k] = P; if (!P) continue;
       if (P.d) { P.w = smooth(0, 0.18, now - P.rel); P.g = smooth(0.18, 0.45, now - P.rel); } else { const w = P.W, d = [w[0] - root.pos[0], w[1] - root.pos[1], w[2] - root.pos[2]]; P.T = [v3.dot(d, X), v3.dot(d, Z)]; } }
-    const s = solve(cur, sec);
+    const s = K.boardOn() ? K.solveBoard(cur, sec) : solve(cur, sec);
     for (let k = 0; k < 2; k++) { const P = st.pp[k], sd = k ? 'R' : 'L', tp = s.J['tip' + sd], gp = s.J['grip' + sd];
       if (!P) { if (!cut && dt > 0 && !(f > 0) && pq[k] > st.pq[k] && pq[k] > 0.5 && tp[1] <= 0) st.pp[k] = { W: toW(tp), T: [tp[0], tp[2]], d: null, h: null, w: 0, g: 0, rel: 0 }; }
       // (h: how far the pole has pushed the hand up, riding over it: more than a hand's breadth and it is pulled out)
@@ -941,7 +955,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     if (!m.gpu) m.gpu = { vb: gfx.buffer(m.V, 'vertex'), vb2: gfx.buffer(m.W, 'vertex'), ib: gfx.buffer(m.I, 'index') };
     K.mesh = m; vb = m.gpu.vb; vb2 = m.gpu.vb2; ib = m.gpu.ib; count = m.ni; nite[1] = m.v === 'b' ? 1 : 0;
   }
-  const wantBody = () => { if (K.mesh.v !== bodyV()) useBody(K.build(bodyV())); }; K.want = wantBody;
+  const wantBody = () => { if (K.mesh.v !== bodyV() || K.mesh.ride !== rideV()) useBody(K.build(bodyV())); }; K.want = wantBody;
   K.draw = function (shadowTex, skyTex) {
     wantBody();
     const want = CLOTH[Variants.val.cloth] || CLOTH.b, now = performance.now() / 1000, de = now - clo.t, e = clo.t < 0 || de > 0.1 ? 1 : 1 - Math.exp(-Math.max(de, 0) * 6); clo.t = now;

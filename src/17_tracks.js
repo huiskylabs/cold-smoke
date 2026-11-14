@@ -8,7 +8,13 @@
 // skier, as real relief (04_terrain.js). Whatever lies more than 'keep' metres from the skier is wiped, so the tracks of one tile back never
 // come round.
 const Tracks = (() => {
-  const T = { N: 1024, enabled: true, pipes: [], D: 0.045, ski: { hw: 0.057, tail: 0.80, tip: 0.92 } };   // D: how deep the skis are riding now (m)
+  const T = { N: 1024, enabled: true, pipes: [], D: 0.045, ski: { hw: 0.057, tail: 0.80, tip: 0.92 } };
+  // (a snowboard, Variants 'ride' b (08a_board.js): one track as wide as the board, pressed from the middle of the board, only along the
+  // running length between the contact points (nose and tail are kicked up off the snow); the shaders take the
+  // sizes as constants, so a change of ride builds them again)
+  const SKI = T.ski, BOARD = { hw: 0.13, tail: 0.58, tip: 0.60 }, board = () => typeof Board !== 'undefined' && Board.on();
+  let rideNow = null;
+  const ssl = () => { const k = T.ski; return TRACK_SSL.replace('const SKI_HW: f32 = 0.057; const SKI_TAIL: f32 = 0.80; const SKI_TIP: f32 = 0.92;', `const SKI_HW: f32 = ${k.hw.toFixed(3)}; const SKI_TAIL: f32 = ${k.tail.toFixed(3)}; const SKI_TIP: f32 = ${k.tip.toFixed(3)};`); };   // D: how deep the skis are riding now (m)
   const MAXI = 1024, FL = 20, REACH = 2.4;           // steps of ski kept to press in again; floats in one; how far from the boot a stamp can reach (m)
   // (far.every: the far map is looked at from a distance only, and is brought up to date every fourth frame)
   // (the far map holds 0.6 + 1.25 x metres in eight bits: from 48 cm under the untouched snow, the floor of the deepest powder trench, to
@@ -38,12 +44,22 @@ const Tracks = (() => {
   T.init = function (g) {
     gfx = g; cpu = new Float32Array(MAXI * FL); wpos = new Float32Array(MAXI * 2); dcpu = new Float32Array(MAXD * FL);
     const map = format => gfx.texture({ w: T.N, h: T.N, format, filter: 'linear', wrap: 'repeat', mips: true });
-    const inst = [{ instanced: true, attrs: [['a0', 'vec4f'], ['a1', 'vec4f'], ['a2', 'vec4f'], ['a3', 'vec4f'], ['a4', 'vec4f']] }], uniforms = { p: 'vec4f', e: 'vec4f', w: 'vec4f', s: 'vec4f' };
+    T.ski = board() ? BOARD : SKI; rideNow = T.ski;
     for (const L of [LN, LF]) {
       const colorFormat = L.k ? 'rgba8' : 'rgba16f';
       L.tex = map(colorFormat); L.tgt = gfx.target({ color: L.tex }); L.buf = gfx.buffer(cpu, 'vertex', true); L.sent = 0; L.fresh = true; L.wx = L.wz = 0;
+      L.dbuf = gfx.buffer(dcpu, 'vertex', true); L.dsent = 0;
+    }
+    LN.lit = map('rgba16f'); LN.litT = gfx.target({ color: LN.lit });
+    T.near = LN.tex; T.light = LN.lit; T.far = LF.tex;
+    pipes();
+  };
+  function pipes() {
+    const inst = [{ instanced: true, attrs: [['a0', 'vec4f'], ['a1', 'vec4f'], ['a2', 'vec4f'], ['a3', 'vec4f'], ['a4', 'vec4f']] }], uniforms = { p: 'vec4f', e: 'vec4f', w: 'vec4f', s: 'vec4f' };
+    for (const L of [LN, LF]) {
+      const colorFormat = L.k ? 'rgba8' : 'rgba16f';
       L.pipe = gfx.pipeline({
-        name: L.k ? 'trackStampFar' : 'trackStamp', lib: [SL.common, TRACK_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'alpha', colorFormat, buffers: inst,
+        name: L.k ? 'trackStampFar' : 'trackStamp', lib: [SL.common, ssl()], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'alpha', colorFormat, buffers: inst,
         varyings: { q: 'vec4f', w: 'vec4f', c: 'vec4f', d: 'vec4f', e: 'vec4f' }, uniforms, textures: { tDetail: '2d' }, vs: TRACK_STAMP_VS, fs: TRACK_STAMP_FS,
       });
       L.wipe = gfx.pipeline({
@@ -53,28 +69,28 @@ const Tracks = (() => {
     }
     // what thrown snow leaves where it comes down (T.deposit): added onto the map, not laid over it, so it sits on whatever is there
     for (const L of [LN, LF]) {
-      L.dbuf = gfx.buffer(dcpu, 'vertex', true); L.dsent = 0;
       L.dep = gfx.pipeline({
-        name: L.k ? 'trackDepositFar' : 'trackDeposit', lib: [SL.common, TRACK_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'add', colorFormat: L.k ? 'rgba8' : 'rgba16f', buffers: inst,
+        name: L.k ? 'trackDepositFar' : 'trackDeposit', lib: [SL.common, ssl()], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'add', colorFormat: L.k ? 'rgba8' : 'rgba16f', buffers: inst,
         varyings: { q: 'vec4f', w: 'vec4f', c: 'vec4f' }, uniforms, textures: { tDetail: '2d' }, vs: TRACK_DEP_VS, fs: TRACK_DEP_FS,
       });
     }
-    LN.lit = map('rgba16f'); LN.litT = gfx.target({ color: LN.lit });
     pBake = gfx.pipeline({
-      name: 'trackBake', lib: [SL.common, TRACK_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'none', colorFormat: 'rgba16f', buffers: inst,
+      name: 'trackBake', lib: [SL.common, ssl()], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'none', colorFormat: 'rgba16f', buffers: inst,
       varyings: { w: 'vec4f' }, uniforms, textures: { tT: '2d' }, vs: TRACK_BAKE_VS, fs: TRACK_BAKE_FS,
     });
-    T.near = LN.tex; T.light = LN.lit; T.far = LF.tex;
     pBakeD = gfx.pipeline({
-      name: 'trackBakeDeposit', lib: [SL.common, TRACK_SSL], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'none', colorFormat: 'rgba16f', buffers: inst,
+      name: 'trackBakeDeposit', lib: [SL.common, ssl()], topology: 'strip', cull: 'none', depth: false, depthTest: false, blend: 'none', colorFormat: 'rgba16f', buffers: inst,
       varyings: { w: 'vec4f' }, uniforms, textures: { tT: '2d' }, vs: TRACK_BAKE_DEP_VS, fs: TRACK_BAKE_FS,
     });
     T.pipes = [LN.pipe, LF.pipe, LN.wipe, LF.wipe, pBake, LN.dep, LF.dep, pBakeD];
-  };
+  }
+  // (the ride changed: board or skis. The tracks laid so far are wiped, and the stamps built again for the new width)
+  function ride() { const want = board() ? BOARD : SKI; if (want === rideNow || !gfx) return; T.ski = rideNow = want; pipes(); T.reset(); }
   T.reset = function () { LN.fresh = LF.fresh = true; LN.sent = LF.sent = 0; count = 0; base = 0; prev[0] = prev[1] = null; fPrev = null; trail.length = 0; Dset = false; skidK = 0; T.deep = 0; dep.length = 0; depN = 0; };
 
   // called every simulation step with the skier's frame, pose and physical state
   T.step = function (root, pose, S) {
+    ride();
     const px = root.pos[0], pz = root.pos[2], mv = Math.hypot(px - cx, pz - cz);
     if (mv > 6) T.reset();       // the skier was put somewhere else
     cx = px; cz = pz;
@@ -93,13 +109,16 @@ const Tracks = (() => {
     // wider than the ski: the owner's "block" round the skis. Real skis on firm snow: the snow comes right up to the ski, a thin line of
     // shadow along one edge and of light along the other, and behind the tail a shallow clean groove of the ski's own width)
     // (the pack gives the same under any load; it is the soft snow on it that gives more under more)
-    const pdv = (VS && PDEPTH[VS.val.pdepth]) || PDEPTH.b, soft = pdv * pw * pw, deepT = smooth(0.11, 0.16, soft);
+    // (a board floats: its base is four or five times a ski's, so it sinks about a third as far into soft snow and less into the pack, and it
+    // planes up on top of powder instead of running under it)
+    const flo = T.ski === BOARD ? 0.35 : 1;
+    const pdv = (VS && PDEPTH[VS.val.pdepth]) || PDEPTH.b, soft = pdv * pw * pw * flo, deepT = smooth(0.11, 0.16, soft);
     // (skis that run fast in powder plane up in it, as a board does on water: at speed they ride at under half the depth they sink to slowly)
     // (Variants 'snowr' b, part snr4, 04b_snow.js: the edges squeeze up a berm along each side of the track. bermK goes to the stamp in its
     // kind field, under 0.45: a ski stamp still)
     const sk4 = typeof SnowLook !== 'undefined' ? SnowLook.trackK(px, pz) : null, bermK = sk4 ? 0.4 * clamp(sk4.berm, 0, 1) : 0;
     const sb = tl > 0.5 ? Math.abs(S.v[0] * rx + S.v[2] * rz) / tl : 0, vs = (VS ? VS.val.sink : 'b') + pdv + (sk4 ? 'k' : ''), firm = SINK[VS ? VS.val.sink : 'b'] || SINK.b;
-    const Dt = (firm + soft * clamp(0.55 + 0.45 * (S.load || 9.8) / 9.8, 0.7, 1.4) * lerp(1, 0.45, smooth(6, 18, S.speed || 0))) * (1 + 0.15 * Math.abs(se)) * (1 - 0.4 * Math.min(1, sb / 0.5));
+    const Dt = (firm * (flo < 1 ? 0.6 : 1) + soft * clamp(0.55 + 0.45 * (S.load || 9.8) / 9.8, 0.7, 1.4) * lerp(1, 0.45, smooth(6, 18, S.speed || 0))) * (1 + 0.15 * Math.abs(se)) * (1 - 0.4 * Math.min(1, sb / 0.5));
     // (another version chosen: the depth goes over to it in half a second even if the skier is standing, and skis that stand are pressed in afresh)
     if (vs !== vNow) { if (vNow !== null) vT = 40; vNow = vs; }
     const kD = Dset ? Math.max(1 - Math.exp(-mv / 0.6), vT > 0 ? 0.12 : 0) : 1;
@@ -112,6 +131,8 @@ const Tracks = (() => {
       q[0] = f ? f[0] : sg * pose.stance * 0.5; q[1] = f ? f[1] : 0.05 * Math.abs(se) + ((k ? pose.liftR : pose.liftL) || 0); q[2] = f ? f[2] : -sg * pose.lead;
       q[3] = q[1] - hw * Math.abs(se) > T.D - 0.003 ? 0 : 1;
     }
+    // (a board: one stamp, from its middle; the second is left in the air)
+    if (T.ski === BOARD && J && J.boardC) { const q = ft[0], b = J.boardC; q[0] = b[0]; q[1] = b[1]; q[2] = b[2]; q[3] = q[1] - hw * Math.abs(se) > T.D - 0.003 ? 0 : 1; ft[1][3] = 0; ft[1][0] = q[0]; ft[1][1] = q[1]; ft[1][2] = q[2]; }
     let skd = 0;
     for (let k = 0; k < 2; k++) {
       const fx = ft[k][0], lift = ft[k][1], fz = ft[k][2], ot = ft[1 - k];
@@ -313,11 +334,13 @@ const Tracks = (() => {
     // skis and legs as they are drawn this frame (the skier's own joints and frame; without them, no contact shadows)
     const Sk = typeof Skier !== 'undefined' ? Skier : null, W = Sk && Sk.world, R = W && W.root, J = W && W.J, P = (Sk && Sk.pose) || {};
     for (let k = 0; k < 2; k++) {
-      const C = k ? U.sb0 : U.sa0, A = k ? U.sb1 : U.sa1, B = k ? U.sb2 : U.sa2, K0 = k ? U.lb0 : U.la0, K1 = k ? U.lb1 : U.la1, f = J && (k ? J.footR : J.footL);
+      const bd = T.ski === BOARD && J && J.boardC, C = k ? U.sb0 : U.sa0, A = k ? U.sb1 : U.sa1, B = k ? U.sb2 : U.sa2, K0 = k ? U.lb0 : U.la0, K1 = k ? U.lb1 : U.la1, f = J && (bd ? (k ? null : J.boardC) : (k ? J.footR : J.footL));
       B[3] = 0; K0[3] = 0;
-      if (!R || !f) continue;
+      if (!R || !J) continue;
+      if (bd && k) { const kn = J.kneeR, hp = J.hipR, q = m4.tp(R, kn), h = m4.tp(R, hp); K0[0] = q[0]; K0[1] = q[1]; K0[2] = q[2]; K0[3] = 0.058; K1[0] = h[0]; K1[1] = h[1]; K1[2] = h[2]; K1[3] = 0.075; continue; }
+      if (!f) continue;
       // (the ski's frame in model space: rolled onto its edge, pitched if a foot is lifted; -z is where it points)
-      const e = P.edge || 0, pt = -(((k ? P.pitchR : P.pitchL) || 0) + ((k ? P.tipR : P.tipL) || 0)), cr = Math.cos(e), sr = Math.sin(e), cp = Math.cos(pt), sp = Math.sin(pt);
+      const e = P.edge || 0, pt = bd ? -0.5 * ((P.tipL || 0) + (P.tipR || 0)) : -(((k ? P.pitchR : P.pitchL) || 0) + ((k ? P.tipR : P.tipL) || 0)), cr = Math.cos(e), sr = Math.sin(e), cp = Math.cos(pt), sp = Math.sin(pt);
       const c = m4.tp(R, f), a = m4.td(R, [-sp * sr, -sp * cr, -cp]), b = m4.td(R, [cr, -sr, 0]);
       C[0] = c[0]; C[1] = c[1]; C[2] = c[2]; C[3] = T.ski.hw; A[0] = a[0]; A[1] = a[1]; A[2] = a[2]; A[3] = T.ski.tail; B[0] = b[0]; B[1] = b[1]; B[2] = b[2]; B[3] = T.ski.tip + 0.03;
       const kn = k ? J.kneeR : J.kneeL, hp = k ? J.hipR : J.hipL;

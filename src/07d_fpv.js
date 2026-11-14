@@ -412,7 +412,10 @@ const Fpv = (() => {
   const RID = [[0, 0, 0, 0], [0, 0, 0, 0]], boneData = new Float32Array(4 * 16 * 4), hideData = new Float32Array(4 * 32 * 4), UNI = { tw: [0, 0, 0, 0], bend: [0, 0, 0, 0], ski: [0, 0, 0, 0], fx: [0, 0, 0, 0] };
   const fail = e => { if (!F.dead) { F.dead = true; F.vis = false; F.err = e; try { console.error('fpv: first person falls back to the figure\'s own arms', e); } catch (_) { } } };
   // (the figure's triangles without skis, poles and gloves: the list it is drawn from while these stand in for them)
-  F.figIdx = function () { const m = Skier.mesh, keep = []; for (let i = 0; i < m.ni; i += 3) { const id = m.V[m.I[i] * 10 + 6]; if (id !== 9 && id !== 10 && id !== 2) keep.push(m.I[i], m.I[i + 1], m.I[i + 2]); } return new Uint32Array(keep); };
+  // (on a snowboard, Variants 'ride' b: none of these is drawn. The figure's own board is; its head and arms are left out (GONE_B): looking down
+  // the run the board is under the lens, and the front arm hung right across it)
+  const board = () => typeof Board !== 'undefined' && Board.on();
+  F.figIdx = function () { const m = Skier.mesh, keep = []; if (m.ride) { for (let i = 0; i < m.ni; i++) keep.push(m.I[i]); return new Uint32Array(keep); } for (let i = 0; i < m.ni; i += 3) { const id = m.V[m.I[i] * 10 + 6]; if (id !== 9 && id !== 10 && id !== 2) keep.push(m.I[i], m.I[i + 1], m.I[i + 2]); } return new Uint32Array(keep); };
   function shaders() {
     const LK = (typeof Skier !== 'undefined' && Skier.LOOK) || {}, c = (k, d) => { const a = LK[k] && LK[k].alb || d; return 'vec3f(' + a.map(x => (+x).toFixed(4)).join(', ') + ')'; }, n = x => (+x).toFixed(5);
     const lib = `
@@ -755,6 +758,8 @@ fn frag(v: VOut) -> FOut {
   };
   // the bones of these arms, and the figure's own with its arms gathered in, as textures
   const GONE = ['uarmL', 'farmL', 'handL', 'uarmR', 'farmR', 'handR', 'poleL', 'poleR', 'elbowL', 'elbowR', 'head'];      // (the head too: the lens is inside it, and the goggles' frame crossed the view)
+  // (on a board the arms go too: the front one hung right across the lens, the board under it)
+  const GONE_B = GONE.filter(n => n.indexOf('pole') < 0).concat(['chest', 'shL', 'shR', 'neck']);      // (and the chest: standing sideways, the front shoulder is right before the lens)
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   // the snow off the shovels in the view of the ski tips: crumbs thrown up and aside from where each ski meets the snow, and a thin mist of the
   // finest of it. rate: lumps a second flat out in deep snow (a third of them mist); dens: how thick a crumb is; life, brake: how soon it
@@ -767,7 +772,7 @@ fn frag(v: VOut) -> FOut {
     gfx.updateTexture(boneTex, 0, 0, 4, 16, boneData);
     if (figData) {
       hideData.set(figData);
-      for (const nm of GONE) { const b = Skier.B[nm]; if (b == null) continue; const p = m4.tp(R, Skier.world.J[nm === 'head' ? 'skull' : nm.slice(-1) === 'L' ? 'shL' : 'shR']), o = b * 16, e = 0.002; hideData.fill(0, o, o + 16); hideData[o] = e; hideData[o + 5] = e; hideData[o + 10] = e; hideData[o + 12] = p[0]; hideData[o + 13] = p[1]; hideData[o + 14] = p[2]; hideData[o + 15] = 1; }
+      for (const nm of (board() ? GONE_B : GONE)) { const b = Skier.B[nm]; if (b == null) continue; const p = m4.tp(R, Skier.world.J[nm === 'head' ? 'skull' : nm.slice(-1) === 'L' ? 'shL' : nm.slice(-1) === 'R' ? 'shR' : 'neck']), o = b * 16, e = 0.002; hideData.fill(0, o, o + 16); hideData[o] = e; hideData[o + 5] = e; hideData[o + 10] = e; hideData[o + 12] = p[0]; hideData[o + 13] = p[1]; hideData[o + 14] = p[2]; hideData[o + 15] = 1; }
       gfx.updateTexture(hideTex, 0, 0, 4, 32, hideData);
     }
     const S = Game.s, ps = Game.pose || {}, t = (typeof App !== 'undefined' ? App.t : 0) % 512, ch = Game.feel && Game.feel.chatter || 0, sp = S.speed || 0, on = S.air ? 0 : 1;
@@ -817,7 +822,7 @@ fn frag(v: VOut) -> FOut {
     if (fpc <= 0) { if (F.posed) { SD[0].init = SD[1].init = SD[0].init0 = true; PH.v = null; F.posed = false; } PH.dt = 0; }
     F.vis = F.ready && !F.dead && fpc >= F.swap; PH.own = smooth(F.swap, 1, fpc);
     // the view of the ski tips: the arms are drawn until they are down behind the lens, the figure is left out once the lens has left the helmet
-    F.arms = F.tk < 0.7 && !Game.fpIn; F.hideFig = F.vis && (F.tk > 0.25 || !!Game.fpIn);      // (or the figure turned away under the lens: Game.fpIn, 07b_views.js; then only the skis: these arms hang from its shoulders, which are then in front of the lens)
+    F.arms = F.tk < 0.7 && !Game.fpIn; F.hideFig = F.vis && !board() && (F.tk > 0.25 || !!Game.fpIn);      // (or the figure turned away under the lens: Game.fpIn, 07b_views.js; then only the skis: these arms hang from its shoulders, which are then in front of the lens)
     // (the thrown snow is made to thin out before it reaches a lens: 10_spray.js, Spray.lens. Down among the skis the snow they push up is the
     // picture, so there it is let much nearer; the number is given back as it was found on the way out)
     // (and what does come near is spread into a wide faint veil, Spray.nearBlur: there it is left the lumps it is)
@@ -833,7 +838,7 @@ fn frag(v: VOut) -> FOut {
     return F.vis;
   };
   F.draw = function (R) {
-    if (!(F.vis && F.posed)) return;
+    if (!(F.vis && F.posed) || board()) return;
     if (typeof Post !== 'undefined' && Post.riders) for (const r of RID) { if (!(r[3] > 0)) continue; for (const q of Post.riders) if (q[3] === 0) { q[0] = r[0]; q[1] = r[1]; q[2] = r[2]; q[3] = r[3]; break; } }
     gfx.draw(pipe, { u: UNI, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, vb: [vb], ib: F.arms ? ib : skiIb, count: F.arms ? F.mesh.ni : skiCount });
   };
