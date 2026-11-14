@@ -825,9 +825,9 @@ const Game = (() => {
     // (the trunk follows the skis, never leads them: its own heading is the skis' heading taken through the heavy spring, and only the part of
     // the turn it does not share (kS) is held back. Before, the spring sat on the separation itself, so the trunk's heading was the skis' less
     // a late copy of them, which runs AHEAD of the skis (by some 80 ms in a mogul line): the shoulders seemed to turn the legs, owner 2026-11-14.
-    // The quick spring on the result only keeps a change of gnd from stepping)
+    // No spring on the result (even a quick one put the trunk ahead again): only gnd, how far all this holds, is eased (fl.gS))
     const kS = lerp(lerp(0.3, 0.8, smooth(-0.04, 0.04, skR * fl.lean * cy)), 1, fl.mogU), skL = spring(fl, 'skL', skR, 6, kd);
-    const sepM = spring(fl, 'sepM', clamp((1 - kS) * skL - skR, -0.85, 0.85) * gnd, 25, kd), hdM = spring(fl, 'hdM', clamp((0.35 * trR - 0.34 * skR) * gnd - 0.15 * skR * gnd, -0.7, 0.7) * (1 - fl.mogU), 9, kd);
+    const sepM = clamp((1 - kS) * skL - skR, -0.85, 0.85) * (fl.gS = damp(fl.gS == null ? gnd : fl.gS, gnd, 12, kd)), hdM = spring(fl, 'hdM', clamp((0.35 * trR - 0.34 * skR) * gnd - 0.15 * skR * gnd, -0.7, 0.7) * (1 - fl.mogU), 9, kd);
     pose.quiet = fl.mogU;
     pose.sep = lerp(fl.sepB * cy, sepM, mo) + q.sep - spring(fl, 'wu', fl.plan && fl.plan.spin ? fl.plan.dir * 0.3 * fl.prep : 0, 20, kd); pose.headYaw = clamp(spring(fl, 'hd', lerp(fl.hy * cy, hdM, mo) + q.head, 16, kd), -1.3, 1.3);
     // (the inside ski draws ahead as the edges come up: hardly at all in a shallow turn)
