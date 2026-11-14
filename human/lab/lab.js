@@ -173,7 +173,7 @@
     // camera: orbit around the body's centre (followed smoothly)
     // framing: the camera keeps the whole posed skeleton in view (followed smoothly)
     if (g && g.xf) { let lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9]; for (const p of g.xf.P) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], p[a]); hi[a] = Math.max(hi[a], p[a]); }
-      hi[1] += 0.12; lo[1] = Math.min(lo[1], 0); const c = V.lerp(lo, hi, 0.5), ext = Math.max(hi[1] - lo[1], 0.75 * Math.hypot(hi[0] - lo[0], hi[2] - lo[2]));
+      hi[1] += 0.12; lo[1] = Math.min(lo[1], 0); const c = V.lerp(lo, hi, 0.5), ext = Math.max(hi[1] - lo[1], 1.15 * Math.hypot(hi[0] - lo[0], hi[2] - lo[2]), 1.45);
       const k = st.capture ? 1 : 0.08; st.target = V.lerp(st.target, c, k); st.fit = (st.fit || ext) + (ext - (st.fit || ext)) * k; }
     const dist = st.dist * (st.fit || 1.85) / 1.85;
     const e = V.add(st.target, [Math.sin(st.yaw) * Math.cos(st.pitch) * dist, Math.sin(st.pitch) * dist, Math.cos(st.yaw) * Math.cos(st.pitch) * dist]);
