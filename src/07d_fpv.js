@@ -308,6 +308,9 @@ const Fpv = (() => {
       // (a hand on a planted pole stays the pole's length from where the tip went in)
       if (hold > 0) { const dv = v3.sub(G1, T), l = v3.len(dv) || 1, l0 = v3.len(v3.sub(G0, T)); G1 = v3.lerp(G1, v3.mad(T, dv, l0 / l), hold); }
       if (rch > 0 || dr > 0) { G1[0] += (0.15 * rch + 0.16 * dr) * own; G1[1] += 0.21 * rch * own; G1[2] -= (0.16 * rch + 0.22 * dr) * own; }
+      // (and a fist never comes in past a hand's breadth of the body's middle: from the helmet two fists that meet there are seen to cross, the
+      // forearms in an X. A soft floor, nothing kept from frame to frame: well out to its own side a hand is not touched at all)
+      { const mid = sg * (J.shR[0] + J.shL[0]) * 0.5, h = Math.max(0.08 - Math.abs(G1[0] - mid - 0.15), 0) / 0.08; G1[0] = Math.max(G1[0], mid + 0.15) + h * h * 0.02; }
       solveArm(A, Sh, G1, d, Eh, hold, T, dt);
       A.init = false; A.hold = hold;
       A.M = A.M || []; for (let i = 0; i < 4; i++) A.M[i] = sg > 0 ? A.m[i] : flipM(A.m[i]);
