@@ -21,6 +21,9 @@ const Gates = (() => {
   };
   const NA = 16, NB = 56;
   if (typeof Variants !== 'undefined') Variants.def('flag', '跳台旗', [['a', '宽旗'], ['b', '羽毛旗']], 'b');
+  // what marks the shoulder (only with 山肩看线 on): a banner between two poles stood across the view down the valley, the best there is,
+  // so the default is the low mark: a line on the snow and a flag at each end. Or nothing at all
+  if (typeof Variants !== 'undefined') Variants.def('lgate', '山肩记号', [['a', '横旗门'], ['b', '雪上的线和旗'], ['c', '不立东西']], 'b');
   const cutId = () => (typeof Variants !== 'undefined' && CUTS[Variants.val.flag]) ? Variants.val.flag : 'b';
   const LOX = 0.11, LOZ = 0.62, LSINK = 0.085, LFY = GATE_K.LFY;   // where the lantern stands from the foot of the pole (in front of the cloth, up the hill), how deep it is pressed into the snow, how high its flame is
   const MAXG = 12, DV = 2000, DI = 10800, PV = 1800, PIX = 6400, DS = 11, PS = 10;       // jumps kept at once; room per jump in the sheets' buffers; floats per vertex
@@ -275,6 +278,33 @@ const Gates = (() => {
     });
     return g;
   }
+  // ---- the mark on a shoulder, kept low so nothing stands in the view down the valley (Variants 'lgate' b): a line of dye across the
+  // snow, as at the finish of a race, and a feather flag at each end of it with its lantern. It takes a slot like a jump and is drawn
+  // and lit by the same passes
+  function planFinish(s) {
+    const pc = {}, c = Course.at(s, pc), xc = c.cx, half = clamp(c.hw - 4, 7, 13), hgt = (x, z) => Course.height(x, z, 0.5);
+    const g = { key: '', slot: -1, seen: 0, s, x: xc, mo: half, flags: [], an: [Math.round(xc), Math.round(hgt(xc, -s)), Math.round(-s)], dyeN: 0, poolN: 0, land: 0, work: [], fade: 0, lit: 0 };
+    for (const sx of [-1, 1]) {
+      const x = xc + sx * (half + 1.2), z = -s, y = hgt(x, z), n = Course.normal(x, z, 0.3), sd = hash2(Math.round(x * 16), Math.round(z * 16)), lx = x + LOX, lz = z + LOZ;
+      g.flags.push({ x, y, z, row: 3, sd, gx: -n[0] / n[1], gz: -n[2] / n[1], b: [0, 0], bv: [0, 0], wash: 0, wy: 0, lx, ly: hgt(lx, lz) - LSINK, lz });
+    }
+    const an = g.an, DVt = [], DIt = [], PVt = [], PIt = [], R = 3.4, L = 2 * half, sdG = hash2(Math.round(xc * 8), Math.round(s * 8));
+    g.work.push(() => sheet(xc - half - 0.6, xc + half + 0.6, -s - 2.4, -s + 2.4, an, DVt, DIt, DS, DV, (x, y, z) => DVt.push(x - an[0], y - an[1], z - an[2], x - xc, -z - s, L, 3.2, sdG, 0, 1, 0)));
+    g.work.push(() => { for (const f of g.flags) sheet(f.lx - R, f.lx + R, f.lz - R, f.lz + R, an, PVt, PIt, PS, PV, (x, y, z, nx, ny, nz) => PVt.push(x - an[0], y - an[1], z - an[2], nx, ny, nz, f.lx - an[0], f.ly + LFY - an[1], f.lz - an[2], f.sd), (x, z) => Math.hypot(x - f.lx, z - f.lz) < R); });
+    g.work.push(() => {
+      const o = g.slot, dI = new Uint32Array(DIt.length > DI ? DIt.slice(0, DI) : DIt), pI = new Uint32Array(PIt.length > PIX ? PIt.slice(0, PIX) : PIt);
+      for (let i = 0; i < dI.length; i++) dI[i] += o * DV; for (let i = 0; i < pI.length; i++) pI[i] += o * PV;
+      if (dI.length) { gfx.updateBuffer(dyeVB, o * DV * DS * 4, new Float32Array(DVt)); gfx.updateBuffer(dyeIB, o * DI * 4, dI); }
+      if (pI.length) { gfx.updateBuffer(poolVB, o * PV * PS * 4, new Float32Array(PVt)); gfx.updateBuffer(poolIB, o * PIX * 4, pI); }
+      g.dyeN = dI.length; g.poolN = pI.length;
+    });
+    return g;
+  }
+  function touchFinish(s) {
+    const key = 'f' + s.toFixed(1); let g = gates.get(key);
+    if (!g) { let slot = -1; for (let i = 0; i < MAXG; i++) if (!slots[i]) { slot = i; break; } if (slot < 0) return; g = planFinish(s); g.key = key; g.slot = slot; slots[slot] = g; gates.set(key, g); }
+    g.seen = seen;
+  }
   function touch(M) {
     const key = M[0][0].toFixed(2) + ',' + M[0][1].toFixed(2); let g = gates.get(key);
     if (!g) {
@@ -296,6 +326,8 @@ const Gates = (() => {
     // (asked far enough ahead that a jump is known while even its nearest flag, the pair up the hill, is still beyond `far`: every flag
     // then grows in over `band`, none arrives part grown)
     (G.markers || Course.markers)(cs - G.back, cs + G.far + G.pre + 40, (x, z) => { cur.push([x, z]); if (cur.length === 4) { touch(cur); cur = []; } });
+    const lg = Course.look ? (typeof Variants !== 'undefined' && Variants.val.lgate) || 'b' : '';
+    if (lg === 'b') Course.finishes(cs - G.back, cs + G.far + 40, touchFinish);
     for (const [k, g] of gates) if (g.seen !== seen) { slots[g.slot] = null; gates.delete(k); }
     const W = typeof App !== 'undefined' && App.state.wind ? [App.state.wind[0], App.state.wind[2]] : G.wind;       // (the same wind the snow smoke rides)
     const wl = Math.hypot(W[0], W[1]) || 1, wx = W[0] / wl, wz = W[1] / wl, wyaw = Math.atan2(wz, wx);
@@ -344,7 +376,7 @@ const Gates = (() => {
       }
     }
     // the gates on the shoulders: across the run, square to it, each foot on the snow (the poles go on down into it)
-    if (Course.look) Course.finishes(cs - 200, cs + 420, s => {
+    if (lg === 'a') Course.finishes(cs - 200, cs + 420, s => {
       if (nB >= 4) return;
       const c = Course.at(s, _bc), yw = Course.yawAt(s), ax = Math.cos(yw), az = Math.sin(yw), x = c.cx - ax * BW / 2, z = -s - az * BW / 2;
       const y = Math.min(Course.height(x, z, 0.5), Course.height(x + ax * BW, z + az * BW, 0.5)), d = Math.hypot(c.cx - px, -s - pz);
