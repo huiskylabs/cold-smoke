@@ -150,7 +150,28 @@ const Director = (() => {
   D.release = function () { D.stop(); App.paused = false; };
 
   // ---- recording: fixed steps, every frame drawn
-  D.begin = function (i, fps = 60) { D.stop(); App.paused = true; D.fps = fps; D.index = i; D.cur = setup(D.shots[i]); return D.info(i, fps); };
+  // (audio: the game's own sound and score for exactly the frames recorded. With { audio: true } the instrument is built again on an offline
+  // context as long as the shot and fed the same states on the shot's own clock while the frames are made; D.audio() then renders it and
+  // returns a 16-bit WAV as base64, the same as __ski.audioTest)
+  let aud = null;
+  D.begin = function (i, fps = 60, opt = {}) {
+    D.stop(); App.paused = true; D.fps = fps; D.index = i; aud = null; D.cur = setup(D.shots[i]);
+    if (opt.audio && typeof Sound !== 'undefined' && Sound.build) {
+      const sr = opt.sr || 48000, off = new OfflineAudioContext(2, Math.ceil(D.shots[i].dur * sr) + sr, sr), rig = Sound.build(off, {});
+      aud = { off, rig, keep: { rig: Sound.rig, now: Sound.now }, sr };
+      Sound.rig = rig; Sound.now = () => (D.cur ? D.cur.t : 0) + 0.012; rig.fade(opt.level || Sound.level || 0.8, 0, 0.01);
+    }
+    return D.info(i, fps);
+  };
+  D.audio = async function () {
+    if (!aud) return null; const a = aud; aud = null; Sound.rig = a.keep.rig; Sound.now = a.keep.now;
+    const buf = await a.off.startRendering(), dur = D.cur ? D.cur.sh.dur : buf.duration, N = Math.min(buf.length, Math.round(dur * a.sr)), L = buf.getChannelData(0), Rr = buf.getChannelData(1);
+    const u8 = new Uint8Array(44 + N * 4), dv = new DataView(u8.buffer), wr = (o, str) => { for (let k = 0; k < str.length; k++) u8[o + k] = str.charCodeAt(k); };
+    wr(0, 'RIFF'); dv.setUint32(4, 36 + N * 4, true); wr(8, 'WAVEfmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 2, true); dv.setUint32(24, a.sr, true); dv.setUint32(28, a.sr * 4, true); dv.setUint16(32, 4, true); dv.setUint16(34, 16, true); wr(36, 'data'); dv.setUint32(40, N * 4, true);
+    for (let k = 0; k < N; k++) { dv.setInt16(44 + k * 4, clamp(L[k], -1, 1) * 32767, true); dv.setInt16(46 + k * 4, clamp(Rr[k], -1, 1) * 32767, true); }
+    let b64 = ''; for (let k = 0; k < u8.length; k += 0x6000) b64 += btoa(String.fromCharCode.apply(null, u8.subarray(k, k + 0x6000)));
+    return b64;
+  };
   D.step = function () {
     const st = D.cur; if (!st || st.t >= st.sh.dur - 1e-6) return false;
     const sub = Math.max(1, Math.round(60 / D.fps / Math.max(st.sh.speed || 1, 0.05) / 1)), dt = 1 / D.fps;
