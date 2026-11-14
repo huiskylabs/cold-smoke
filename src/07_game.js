@@ -795,7 +795,10 @@ const Game = (() => {
     if (dt > 0) { const lv = fl.lnV = damp(fl.lnV || 0, (fl.lean - (fl.lnP == null ? fl.lean : fl.lnP)) / dt, 25, dt); fl.lnP = fl.lean; fl.plT = (fl.plT || 0) + dt;
       const sn = Math.sign(fl.lean); if (!fl.plSg) fl.plSg = sn; if (sn === fl.plSg) fl.plPk = Math.max(fl.plPk || 0, Math.abs(fl.lean));
       const sg = fl.plSg, tc = sn === sg ? (fl.lean * lv < 0 ? Math.abs(fl.lean / lv) : 9) : Math.abs(fl.lean) < 0.25 ? 0 : 9;   // (crossed already, between two steps: at once)
-      if (sg && tc < PL_LEAD) { const pk = fl.plPk || 0; fl.plSg = -sg; fl.plPk = 0; if (pk > 0.14) { fl.plS = -sg; fl.plT = 0; fl.plDur = tc + PL_HOLD; fl.plK = lerp(0.62, 1, smooth(0.14, 0.32, pk)); } } }
+      // (fast, the pole is only swung forward and flicked toward the snow, not planted: at 50 km/h and more a tip held in the snow is left
+      // behind by a third of a metre a frame, and the pole whipped back and was pulled out again within three or four frames, a twitch of the
+      // hand and the pole at every turn, owner 2026-11-13 '手还有杆莫名其妙抽搐'. A plant asked for at half its reach never touches: no pin)
+      if (sg && tc < PL_LEAD) { const pk = fl.plPk || 0; fl.plSg = -sg; fl.plPk = 0; if (pk > 0.14) { fl.plS = -sg; fl.plT = 0; fl.plDur = tc + PL_HOLD; fl.plK = lerp(0.62, 1, smooth(0.14, 0.32, pk)) * lerp(1, 0.5, smooth(8, 13, sp)); } } }
     const plWant = side => Variants.val.poles === 'a' ? quiet * sat(side * S.leanV * 0.75 - 0.15) * smooth(0.62, 0.20, -side * S.lean) * smooth(0.20, 0.03, side * S.lean)
       : fl.plS === side && fl.plT < (fl.plDur || 0) ? quiet * fl.plK : 0;
     // hands ahead: a skier carries the hands in front and a little wide, at the height of the belt, the outside hand reaching on round the turn;
@@ -811,7 +814,7 @@ const Game = (() => {
       // (wanted from the last third of the old turn until the new edges have just begun to bite: a touch, not a prop to lean on)
       const key = side < 0 ? 'plantL' : 'plantR', want = plWant(side);
       // (it is asked for at a stroke; the hand sets off after it through a spring, without a jerk)
-      pose[key] = sat(spring(fl, side < 0 ? 'plL' : 'plR', want, want > (pose[key] || 0) ? 26 : 18, dt * k));
+      pose[key] = sat(spring(fl, side < 0 ? 'plL' : 'plR', want, want > (pose[key] || 0) ? 16 : 11, dt * k));      // (16 / 11: the swing set going and given back without a flick, owner 2026-11-13)
       const a = side < 0 ? pose.armL : pose.armR, pl = pose[key], g = grabs ? 0 : side < 0 ? q.gL : q.gR;
       const out = sat(-side * sLn * 1.6), inn = sat(side * sLn * 1.6), ac = act * (1 - g), HA = fl.ha;
       a[0] = side * (0.03 * pl + hx - 0.13 * g + HA[0] * ac) + (side < 0 ? q.ax : q.bx) * hk; a[1] = 0.03 * pl + hy - 0.6 * g + (HA[1] + HA[3] * out + HA[5] * inn) * ac + (side < 0 ? q.ay : q.by) * hk; a[2] = -0.10 * pl + hz + 0.32 * g - (HA[2] + HA[4] * out + HA[6] * inn) * ac + (side < 0 ? q.az : q.bz) * hk;
