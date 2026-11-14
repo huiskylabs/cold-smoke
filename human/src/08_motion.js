@@ -77,16 +77,16 @@
   const STAND = make(p => { both(p, 'arm', { elev: 8, plane: 20, elbow: 12, pron: 10 }); });
   const deep = (f, k, a) => make(p => { p.root.rot = [f * 0.2, 0, 0]; both(p, 'leg', { flex: f, knee: k, ankle: a, abd: 6, rot: -6 }); p.spine.flex = f * 0.18; p.neck.flex = -f * 0.2; both(p, 'arm', { elev: 8, plane: 20, elbow: 12, pron: 10 }); });
   const squatK = keys([[0, STAND], [0.4, STAND],
-    [1.5, make(p => { p.root.rot = [20, 0, 0]; both(p, 'leg', { flex: 104, abd: 14, rot: -12, knee: 132, ankle: -24 }); p.spine.flex = 18; p.neck.flex = -25; both(p, 'arm', { elev: 85, plane: 90, elbow: 15 }); })],
-    [2.0, make(p => { p.root.rot = [20, 0, 0]; both(p, 'leg', { flex: 104, abd: 14, rot: -12, knee: 132, ankle: -24 }); p.spine.flex = 18; p.neck.flex = -25; both(p, 'arm', { elev: 85, plane: 90, elbow: 15 }); })],
+    [1.5, make(p => { p.root.rot = [32, 0, 0]; both(p, 'leg', { flex: 127, abd: 14, rot: -12, knee: 120, ankle: -25 }); p.spine.flex = 24; p.neck.flex = -25; both(p, 'arm', { elev: 85, plane: 90, elbow: 15 }); })],
+    [2.0, make(p => { p.root.rot = [32, 0, 0]; both(p, 'leg', { flex: 127, abd: 14, rot: -12, knee: 120, ankle: -25 }); p.spine.flex = 24; p.neck.flex = -25; both(p, 'arm', { elev: 85, plane: 90, elbow: 15 }); })],
     [3.1, STAND], [3.6, STAND]]);
   // countermovement jump: dip, drive (arms swing up), flight, land and absorb
   const jumpK = keys([[0, STAND], [0.3, STAND],
-    [0.8, make(p => { p.root.rot = [24, 0, 0]; both(p, 'leg', { flex: 70, knee: 92, ankle: -24, abd: 5 }); p.spine.flex = 22; p.neck.flex = -18; both(p, 'arm', { ...swing(-45, 10), elbow: 15 }); })],
+    [0.8, make(p => { p.root.rot = [24, 0, 0]; both(p, 'leg', { flex: 70, knee: 70, ankle: -24, abd: 5 }); p.spine.flex = 22; p.neck.flex = -18; both(p, 'arm', { ...swing(-45, 10), elbow: 15 }); })],
     [1.05, make(p => { p.root.rot = [4, 0, 0]; both(p, 'leg', { flex: -4, knee: 2, ankle: 38, toe: 40 }); p.spine.flex = -4; both(p, 'arm', { elev: 150, plane: 80, elbow: 15 }); })],
     [1.3, make(p => { p.root.rot = [2, 0, 0]; both(p, 'leg', { flex: 8, knee: 14, ankle: 28, toe: 5 }); both(p, 'arm', { elev: 120, plane: 70, elbow: 20 }); })],
     [1.58, make(p => { p.root.rot = [6, 0, 0]; both(p, 'leg', { flex: 22, knee: 24, ankle: 18, toe: 0 }); p.spine.flex = 4; both(p, 'arm', { elev: 60, plane: 70, elbow: 25 }); })],
-    [1.85, make(p => { p.root.rot = [22, 0, 0]; both(p, 'leg', { flex: 66, knee: 86, ankle: -24, abd: 5 }); p.spine.flex = 20; p.neck.flex = -15; both(p, 'arm', { elev: 50, plane: 80, elbow: 30 }); })],
+    [1.85, make(p => { p.root.rot = [22, 0, 0]; both(p, 'leg', { flex: 66, knee: 68, ankle: -24, abd: 5 }); p.spine.flex = 20; p.neck.flex = -15; both(p, 'arm', { elev: 50, plane: 80, elbow: 30 }); })],
     [2.6, STAND], [3.2, STAND]]);
   const flight = (t, t1, t2, h) => t > t1 && t < t2 ? 4 * h * ((t - t1) / (t2 - t1)) * (1 - (t - t1) / (t2 - t1)) : 0;
 
@@ -94,7 +94,7 @@
   // ski stance: ankles closed in the boots, knees and hips flexed, hands forward holding the poles
   const skiArms = (p, o) => both(p, 'arm', Object.assign({ elev: 38, plane: 72, elbow: 62, pron: 30, grip: 1, thumb: 0.7, wdev: 10 }, o));
   const SKI = make(p => { p.root.rot = [22, 0, 0]; both(p, 'leg', { flex: 42, knee: 52, ankle: -18, abd: 1 }); p.spine.flex = 16; p.neck.flex = -18; skiArms(p, {}); });
-  const TUCK = make(p => { p.root.rot = [40, 0, 0]; both(p, 'leg', { flex: 112, knee: 112, ankle: -24 }); p.spine.flex = 26; p.neck.flex = -45; skiArms(p, { elev: 70, plane: 88, elbow: 115 }); });
+  const TUCK = make(p => { p.root.rot = [40, 0, 0]; both(p, 'leg', { flex: 112, knee: 96, ankle: -24 }); p.spine.flex = 26; p.neck.flex = -45; skiArms(p, { elev: 70, plane: 88, elbow: 115 }); });
   const skiJumpK = keys([[0, SKI], [0.3, SKI],
     [0.6, make(p => { p.root.rot = [28, 0, 0]; both(p, 'leg', { flex: 72, knee: 88, ankle: -24 }); p.spine.flex = 22; p.neck.flex = -22; skiArms(p, { elev: 30, plane: 60 }); })],
     [0.82, make(p => { p.root.rot = [12, 0, 0]; both(p, 'leg', { flex: 18, knee: 16, ankle: -10 }); p.spine.flex = 10; p.neck.flex = -10; skiArms(p, { elev: 60, plane: 80, elbow: 40 }); })],
@@ -171,7 +171,7 @@
     return { pose: mix([P(-1), P(0), P(1), P(2)], [(-t + 2 * t2 - t3) / 2, (2 - 5 * t2 + 3 * t3) / 2, (t + 4 * t2 - 3 * t3) / 2, (-t2 + t3) / 2]) };
   };
   // tuck: held, with the small weight shifts of a racer over the skis (no springs: a slow periodic sway)
-  const tuck = u => ({ pose: Human.lerpPose(TUCK, make(p => { p.root.rot = [42, 0, 0]; both(p, 'leg', { flex: 114, knee: 116, ankle: -25 }); p.spine.flex = 27; p.neck.flex = -44; skiArms(p, { elev: 72, plane: 88, elbow: 117 }); }), 0.5 - 0.5 * Math.cos(2 * Math.PI * u)) });
+  const tuck = u => ({ pose: Human.lerpPose(TUCK, make(p => { p.root.rot = [42, 0, 0]; both(p, 'leg', { flex: 114, knee: 97, ankle: -25 }); p.spine.flex = 27; p.neck.flex = -44; skiArms(p, { elev: 72, plane: 88, elbow: 117 }); }), 0.5 - 0.5 * Math.cos(2 * Math.PI * u)) });
 
   // moguls: the legs fold over each bump and reach into each trough while the trunk stays quiet
   const ABSORB = make(p => { p.root.rot = [26, 0, 0]; both(p, 'leg', { flex: 96, knee: 112, ankle: -25 }); p.spine.flex = 18; p.neck.flex = -22; skiArms(p, { elev: 42, plane: 78, elbow: 70 }); });
@@ -250,6 +250,9 @@
   // the clip's pose at time t (s), on the floor
   function sample(sk, clip, t) {
     const u = ((t / clip.dur) % 1 + 1) % 1, r = clip.at(u, sk);
+    // on skis the boots hold the feet flat to the skis and the skis lie level: the whole body is pitched by what the pose leaves over
+    if (clip.gear === 'ski' && clip.name !== 'carve') for (let it = 0; it < 2; it++) { const c = contacts(sk, Human.Skeleton.pose(sk, r.pose));
+      r.pose.root.rot[0] -= Math.atan2((c[0][1] - c[1][1] + c[3][1] - c[4][1]) / 2, Math.hypot(c[1][0] - c[0][0], c[1][2] - c[0][2])) / D; }
     return ground(sk, r.pose, r.lift, clip.gear);
   }
   for (const c of CLIPS) c.gear = c.group === 'ski' ? 'ski' : c.group === 'board' ? 'board' : null;

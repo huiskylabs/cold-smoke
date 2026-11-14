@@ -44,9 +44,11 @@
     slabs: [['neck_lo', -1, (1560 - 1462) / 163], ['neck_hi', (1560 - 1462) / 163, 2]] };
   // left arm (T-pose, along +x), one loft from the shoulder joint to the wrist, cut into slabs on the upper arm, its twist bones, the forearm and
   // its twist bones (so the elbow is one continuous surface). u = +y (top: the outside of the arm), v = +z (front). Stations at x (mm).
-  const ARMS = [[150, 40, 38, 44, 44, 'arm'], [176, 46, 44, 50, 52, 'arm'], [230, 50, 42, 47, 50, 'arm'], [290, 45, 41, 44, 48, 'arm'], [350, 42, 40, 43, 47, 'arm'],
-    [400, 41, 40, 44, 46, 'arm'], [450, 38, 40, 40, 42, 'arm'], [490, 36, 41, 35, 38, 'forearm'], [506, 35, 40, 34, 38, 'forearm'], [530, 39, 41, 38, 40, 'forearm'],
-    [560, 41, 42, 41, 39, 'forearm'], [610, 37, 38, 36, 34, 'forearm'], [660, 30, 30, 31, 29, 'wrist'], [720, 20, 21, 29, 28, 'wrist'], [770, 18, 19, 30, 29, 'wrist']];
+  // (the loft starts as a dome inside the shoulder, not a flat cut: with the arm down, that end is the round top of the shoulder)
+  // (the stations up to 230 are the deltoid: they keep their size, the arm's girth is fitted on the stations below)
+  const ARMS = [[112, 10, 10, 12, 12, 'shoulder'], [124, 30, 28, 34, 34, 'shoulder'], [138, 42, 38, 46, 46, 'shoulder'], [154, 46, 43, 52, 52, 'shoulder'], [176, 51, 46, 56, 56, 'shoulder'], [230, 55, 46, 55, 56, 'shoulder'], [290, 50, 42, 50, 51, 'arm'], [350, 40, 40, 51, 48, 'arm'],
+    [400, 38, 38, 47, 44, 'arm'], [450, 36, 38, 40, 40, 'arm'], [490, 36, 41, 35, 38, 'forearm'], [506, 36, 41, 34, 38, 'forearm'], [530, 42, 43, 38, 40, 'forearm'],
+    [560, 45, 44, 41, 39, 'forearm'], [610, 39, 40, 36, 33, 'forearm'], [660, 30, 30, 31, 29, 'wrist'], [720, 20, 21, 29, 28, 'wrist'], [770, 18, 19, 30, 29, 'wrist']];
   const ARM = { name: 'arm', group: 'arm', A: ['upperarm', null], B: ['hand', null], u: [0, 1, 0], v: [0, 0, 1],
     st: ARMS.map(([x, a, b, c, d, g]) => [(x - 176) / 586, a, b, c, d, x < 480 ? 2.2 : x < 650 ? 2.3 : 2.6, 0, -2, g]),
     slabs: [['upperarm_twist_01', -1, 0.19], ['upperarm_twist_02', 0.19, 0.38], ['upperarm', 0.38, 0.563], ['forearm', 0.563, 0.71], ['forearm_twist_01', 0.71, 0.85], ['forearm_twist_02', 0.85, 2]] };
@@ -69,7 +71,7 @@
     [120, 26, 26, 28, 36, -5, 'ankle'], [80, 33, 33, 31, 33, -4, 'ankle'], [55, 28, 28, 28, 30, -6, 'ankle']];
   const LEG = { name: 'leg', group: 'leg', A: ['thigh', null], B: ['talus', null], u: [1, 0, 0], v: [0, 0, 1],
     st: LEGS.map(([y, a, b, c, d, cv, g]) => [(895 - y) / 819, a, b, c, d, 2.3, 0, cv, g]),
-    slabs: [['thigh_twist', -1, 0.25], ['thigh', 0.25, 0.52], ['shin', 0.52, 0.76], ['shin_twist', 0.76, 2]] };
+    slabs: [['thigh_twist', -1, 0.25], ['thigh', 0.25, 0.495], ['shin', 0.495, 0.76], ['shin_twist', 0.76, 2]] };
   // foot: along z from the heel, u = +x, v = +y (up); cv = height of the section's centre above the sole
   const FOOTS = [[-70, 10, 10, 12, 12, 2.0, 0, 30], [-58, 27, 27, 30, 30, 2.1, 0, 32], [-30, 31, 31, 44, 40, 2.2, 0, 42], [0, 35, 33, 46, 38, 2.4, -2, 40],
     [40, 39, 35, 34, 32, 2.6, -4, 34], [90, 45, 39, 24, 24, 2.8, -6, 26], [130, 49, 43, 17, 18, 3.0, -7, 19], [165, 45, 41, 12, 14, 3.0, -9, 15], [190, 36, 36, 10, 11, 2.8, -10, 12], [202, 16, 16, 6, 7, 2.2, -10, 9]];
@@ -96,29 +98,29 @@
   // muscles (left side): name, group, origin bone, origin, insertion bone, insertion, belly radius, flatness (thickness / width), thickness
   // direction (reference frame), where along the line the belly peaks, blend (mm), how much of its thickness stands out of the base
   const MUSCLES = [
-    ['deltoid_ant', 'arm', 'scapula', [150, 1452, 40], 'upperarm', [302, 1398, 18], 24, 0.6, [0, 0.6, 1], 0.4, 12, 0.45],
-    ['deltoid_mid', 'arm', 'scapula', [190, 1446, -8], 'upperarm', [306, 1404, 0], 26, 0.6, [0, 1, 0], 0.35, 12, 0.45],
-    ['deltoid_post', 'arm', 'scapula', [150, 1448, -64], 'upperarm', [302, 1400, -16], 23, 0.6, [0, 0.6, -1], 0.4, 12, 0.45],
-    ['biceps', 'arm', 'scapula', [215, 1400, 24], 'forearm', [535, 1400, 10], 22, 0.85, [0, 0, 1], 0.6, 10, 0.4],
-    ['triceps_long', 'arm', 'scapula', [168, 1386, -30], 'forearm', [500, 1408, -36], 23, 0.7, [0, 0, -1], 0.4, 10, 0.35],
-    ['triceps_lat', 'arm', 'upperarm', [230, 1416, -24], 'forearm', [500, 1412, -34], 19, 0.7, [0, 0.7, -1], 0.45, 10, 0.35],
-    ['brachioradialis', 'arm', 'upperarm', [440, 1420, 8], 'forearm_twist_02', [735, 1404, 20], 16, 0.8, [0, 1, 0.5], 0.25, 8, 0.22],
-    ['flexors', 'arm', 'upperarm', [500, 1382, -8], 'forearm_twist_02', [720, 1394, 0], 20, 0.75, [0, -1, 0], 0.25, 8, 0.2],
-    ['extensors', 'arm', 'upperarm', [505, 1428, -4], 'forearm_twist_02', [725, 1414, -4], 17, 0.75, [0, 1, -0.3], 0.3, 8, 0.2],
-    ['pec_clav', 'trunk', 'thorax_hi', [70, 1430, 72], 'upperarm', [232, 1402, 24], 24, 0.45, [0, 0.3, 1], 0.35, 14, 0.35],
-    ['pec_sternal', 'trunk', 'thorax_mid', [22, 1310, 116], 'upperarm', [236, 1398, 22], 40, 0.34, [0, 0, 1], 0.35, 16, 0.35],
-    ['pec_abd', 'trunk', 'thorax_mid', [42, 1245, 112], 'upperarm', [236, 1396, 20], 28, 0.34, [0, -0.2, 1], 0.4, 16, 0.3],
-    ['lat', 'trunk', 'lumbar_hi', [45, 1120, -116], 'upperarm', [215, 1392, -8], 34, 0.35, [1, 0, -1], 0.45, 16, 0.25],
-    ['teres', 'trunk', 'scapula', [110, 1330, -108], 'upperarm', [212, 1395, -6], 19, 0.6, [0.3, -0.5, -1], 0.4, 12, 0.3],
-    ['infraspinatus', 'trunk', 'scapula', [86, 1420, -104], 'scapula', [100, 1305, -108], 30, 0.33, [0.2, 0, -1], 0.5, 14, 0.15],
-    ['trap_upper', 'trunk', 'neck_lo', [8, 1562, -60], 'scapula', [176, 1458, -24], 24, 0.5, [0, 1, -0.3], 0.35, 16, 0.2],
-    ['trap_mid', 'trunk', 'thorax_hi', [5, 1420, -108], 'scapula', [150, 1446, -55], 22, 0.35, [0, 0, -1], 0.4, 14, 0.25],
-    ['trap_low', 'trunk', 'thorax_mid', [5, 1270, -112], 'scapula', [95, 1410, -100], 22, 0.35, [0, 0, -1], 0.45, 14, 0.25],
+    ['deltoid_ant', 'arm', 'scapula', [150, 1452, 40], 'upperarm', [302, 1398, 18], 26, 0.6, [0, 0.6, 1], 0.4, 12, 0.38],
+    ['deltoid_mid', 'arm', 'scapula', [190, 1446, -8], 'upperarm', [306, 1404, 0], 28, 0.6, [0, 1, 0], 0.35, 12, 0.34],
+    ['deltoid_post', 'arm', 'scapula', [150, 1448, -64], 'upperarm', [302, 1400, -16], 25, 0.6, [0, 0.6, -1], 0.4, 12, 0.38],
+    ['biceps', 'arm', 'scapula', [215, 1400, 24], 'forearm', [535, 1400, 10], 25, 0.85, [0, 0, 1], 0.6, 10, 0.45],
+    ['triceps_long', 'arm', 'scapula', [168, 1386, -30], 'forearm', [500, 1408, -36], 26, 0.7, [0, 0, -1], 0.4, 10, 0.42],
+    ['triceps_lat', 'arm', 'upperarm', [230, 1416, -24], 'forearm', [500, 1412, -34], 22, 0.7, [0, 0.7, -1], 0.45, 10, 0.4],
+    ['brachioradialis', 'arm', 'upperarm', [440, 1420, 8], 'forearm_twist_02', [735, 1404, 20], 17, 0.8, [0, 1, 0.5], 0.25, 8, 0.22],
+    ['flexors', 'arm', 'upperarm', [500, 1382, -8], 'forearm_twist_02', [720, 1394, 0], 21, 0.75, [0, -1, 0], 0.25, 8, 0.2],
+    ['extensors', 'arm', 'upperarm', [505, 1428, -4], 'forearm_twist_02', [725, 1414, -4], 18, 0.75, [0, 1, -0.3], 0.3, 8, 0.2],
+    ['pec_clav', 'trunk', 'thorax_hi', [70, 1430, 72], 'upperarm', [232, 1402, 24], 25, 0.45, [0, 0.3, 1], 0.35, 14, 0.2],
+    // the pectoral as one broad slab from the sternum to the arm (its lower edge is the fold in front of the armpit)
+    ['pec_sternal', 'trunk', 'thorax_mid', [26, 1338, 112], 'upperarm', [205, 1392, 44], 60, 0.3, [0, 0, 1], 0.4, 16, 0.24, 1],
+    ['lat', 'trunk', 'lumbar_hi', [45, 1120, -116], 'upperarm', [215, 1392, -8], 36, 0.35, [1, 0, -1], 0.45, 16, 0.28],
+    ['teres', 'trunk', 'scapula', [110, 1330, -108], 'upperarm', [212, 1395, -6], 19, 0.6, [0.3, -0.5, -1], 0.4, 12, 0.12],
+    ['infraspinatus', 'trunk', 'scapula', [86, 1420, -104], 'scapula', [100, 1305, -108], 30, 0.33, [0.2, 0, -1], 0.5, 14, 0.1],
+    ['trap_upper', 'trunk', 'neck_lo', [8, 1562, -60], 'scapula', [176, 1458, -24], 24, 0.5, [0, 1, -0.3], 0.35, 16, 0.3],
+    ['trap_mid', 'trunk', 'thorax_hi', [5, 1420, -108], 'scapula', [150, 1446, -55], 22, 0.35, [0, 0, -1], 0.4, 14, 0.2],
+    ['trap_low', 'trunk', 'thorax_mid', [5, 1270, -112], 'scapula', [95, 1410, -100], 22, 0.35, [0, 0, -1], 0.45, 14, 0.2],
     // rectus abdominis in four bellies between its tendinous bands (the bands and the linea alba are the gaps between them)
-    ['rectus_abd1', 'trunk', 'pelvis', [36, 948, 96], 'pelvis', [38, 1042, 101], 31, 0.4, [0, 0, 1], 0.55, 10, 0.22, 1],
-    ['rectus_abd2', 'trunk', 'lumbar_lo', [38, 1050, 102], 'lumbar_hi', [40, 1124, 106], 31, 0.4, [0, 0, 1], 0.5, 10, 0.26, 1],
-    ['rectus_abd3', 'trunk', 'lumbar_hi', [40, 1132, 107], 'thorax_lo', [42, 1198, 110], 31, 0.4, [0, 0, 1], 0.5, 10, 0.26, 1],
-    ['rectus_abd4', 'trunk', 'thorax_lo', [42, 1206, 111], 'thorax_mid', [52, 1264, 113], 30, 0.4, [0, 0, 1], 0.5, 10, 0.22, 1],
+    ['rectus_abd1', 'trunk', 'pelvis', [36, 948, 96], 'pelvis', [38, 1042, 101], 31, 0.4, [0, 0, 1], 0.55, 10, 0.14, 1],
+    ['rectus_abd2', 'trunk', 'lumbar_lo', [38, 1050, 102], 'lumbar_hi', [40, 1124, 106], 31, 0.4, [0, 0, 1], 0.5, 10, 0.17, 1],
+    ['rectus_abd3', 'trunk', 'lumbar_hi', [40, 1132, 107], 'thorax_lo', [42, 1198, 110], 31, 0.4, [0, 0, 1], 0.5, 10, 0.17, 1],
+    ['rectus_abd4', 'trunk', 'thorax_lo', [42, 1206, 111], 'thorax_mid', [52, 1264, 113], 30, 0.4, [0, 0, 1], 0.5, 10, 0.14, 1],
     ['serratus1', 'trunk', 'thorax_mid', [108, 1292, 86], 'thorax_mid', [134, 1262, 42], 16, 0.5, [1, 0, 1], 0.45, 8, 0.16, 1],
     ['serratus2', 'trunk', 'thorax_mid', [112, 1258, 88], 'thorax_lo', [138, 1228, 44], 16, 0.5, [1, 0, 1], 0.45, 8, 0.16, 1],
     ['serratus3', 'trunk', 'thorax_lo', [116, 1224, 86], 'thorax_lo', [140, 1194, 46], 15, 0.5, [1, 0, 1], 0.45, 8, 0.14, 1],
@@ -183,6 +185,14 @@
     };
     addLoft(trunkLoft, ''); addLoft(neckLoft, '');
     for (const s of ['L', 'R']) for (const L of LOFTS_SIDE) addLoft(L, s);
+    // the shoulder's masses, which a tube for the arm and a barrel for the chest leave out: the deltoid capping the joint, and the two folds
+    // of the armpit (the pectoral in front, the latissimus / teres behind) that carry the chest's surface out onto the arm
+    for (const s of ['L', 'R']) { const sx = s === 'L' ? 1 : -1, E = (bone, c, r, group, blend) => { const cc = map(bone, [c[0] * sx, c[1], c[2]]);
+        parts.push({ kind: 'ell', bone: I[bone], c: cc, r: V.mul(r, k), group, blend, cen: cc, rad: Math.max(...r) * k + 0.04 }); };
+      E('upperarm_twist_01_' + s, [198, 1408, -2], [60, 50, 57], 'arm_' + s, 0.03);
+      E('thorax_hi', [122, 1368, 50], [50, 50, 36], 'trunk', 0.04);
+      E('scapula_' + s, [126, 1352, -66], [48, 64, 34], 'trunk', 0.04);
+    }
     for (const [b, c, r] of HEAD) parts.push({ kind: 'ell', bone: I[b], c: map(b, c), r: V.mul(r, k), group: 'neck', cen: map(b, c), rad: Math.max(...r) * k + 0.03 });
     // the buttocks' two cheeks (the trunk's loft cannot make the cleft between them)
     for (const sx of [1, -1]) { const c = map('pelvis', [sx * 64, 878, -88]); parts.push({ kind: 'ell', bone: I.pelvis, c, r: V.mul([70 * (F.buttock || 1), 80, 60 * (F.buttock || 1)], k), group: 'trunk', blend: 0.035, cen: c, rad: 0.11 }); }
@@ -292,7 +302,7 @@
 
   // the body's distance at a point. opt.groups: a mask of group indices to include (for measuring). Returns the distance; with out, also fills
   // out.g (the nearest group) and out.part (the nearest base piece)
-  const GK = [0, 0.02, 0.04, 0.04, 0.045, 0.045];          // how softly each group is joined to the trunk (m)
+  const GK = [0, 0.02, 0.055, 0.055, 0.045, 0.045];          // how softly each group is joined to the trunk (m)
   function dist(c, x, y, z, mask, out) {
     const parts = c.body.parts, pc = c.pc, np = parts.length, gd = c.gd, gb = c.gb, cd = c.cd, CB = c.cb, kind = c.kind, gi = c.gi, li = c.li, ld = c.ld, lb = c.lb, nl = ld.length;
     for (let g = 0; g < 6; g++) { gd[g] = 1e9; gb[g] = -1; }

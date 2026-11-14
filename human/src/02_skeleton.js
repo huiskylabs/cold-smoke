@@ -42,7 +42,7 @@
     ['fingers_ip', 'fingers_mcp', [902, 1401, -2]],
     ['thigh', 'pelvis', [88, 895, 4]],
     ['thigh_twist', 'thigh', [89, 683, 4]],
-    ['shin', 'thigh', [91, 470, 4]],
+    ['shin', 'thigh', [91, 490, 2]],          // the knee turns about the femur's condyles, ~2 cm above the joint line (tibiale, 0.266 H)
     ['shin_twist', 'shin', [91, 272, 0]],
     ['talus', 'shin', [91, 76, -6]],
     ['foot', 'talus', [91, 50, -20]],

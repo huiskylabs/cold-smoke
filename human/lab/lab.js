@@ -209,6 +209,7 @@
     if (g && g.xf) { let lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9]; for (const p of g.xf.P) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], p[a]); hi[a] = Math.max(hi[a], p[a]); }
       hi[1] += 0.12; lo[1] = Math.min(lo[1], 0); const c = V.lerp(lo, hi, 0.5), ext = Math.max(hi[1] - lo[1], 1.15 * Math.hypot(hi[0] - lo[0], hi[2] - lo[2]), 1.45);
       const k = st.capture ? 1 : 0.08; st.target = V.lerp(st.target, c, k); st.fit = (st.fit || ext) + (ext - (st.fit || ext)) * k; }
+    if (st.lockT) { st.target = st.lockT; st.fit = 1.85; }                   // ?ty=1.3: a close-up at a fixed height
     const dist = st.dist * (st.fit || 1.85) / 1.85;
     const e = V.add(st.target, [Math.sin(st.yaw) * Math.cos(st.pitch) * dist, Math.sin(st.pitch) * dist, Math.cos(st.yaw) * Math.cos(st.pitch) * dist]);
     const PR = persp(st.fov || 0.62, cv.width / cv.height, 0.05, 200);
@@ -285,7 +286,7 @@
   const q = new URLSearchParams(location.search);
   if (q.get('pose')) st.pose = q.get('pose'); if (q.get('clip')) st.startClip = q.get('clip'); if (q.get('slow') === '1') st.slow = true; if (q.get('mode')) st.mode = q.get('mode'); if (q.get('look')) st.look = q.get('look');
   if (q.get('yaw')) st.yaw = +q.get('yaw'); if (q.get('pitch')) st.pitch = +q.get('pitch'); if (q.get('dist')) st.dist = +q.get('dist'); if (q.get('spin') === '0') st.spin = false;
-  if (q.get('auto') === '1') st.auto = true; if (q.get('fov')) st.fov = +q.get('fov'); if (q.get('white') === '1') st.white = true; if (q.get('ui') === '0') document.body.classList.add('hide');
+  if (q.get('auto') === '1') st.auto = true; if (q.get('fov')) st.fov = +q.get('fov'); if (q.get('white') === '1') st.white = true; if (q.get('ty')) st.lockT = [0, +q.get('ty'), 0]; if (q.get('ui') === '0') document.body.classList.add('hide');
   for (const k of ['sex', 'stature', 'mass', 'bodyFat', 'frame', 'def', 'cell']) if (q.get(k)) st.params[k] = +q.get(k);
   // capture mode (for video renders): no animation loop; a script calls __lab.renderFrame(ms) for each frame
   st.capture = q.get('capture') === '1'; st.renderFrame = t => frame(t);
