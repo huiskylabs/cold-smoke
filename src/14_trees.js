@@ -570,7 +570,7 @@ const Trees = (() => {
     if (chunks.size > 2400) { let k = 0; for (const q of chunks.keys()) { chunks.delete(q); if (++k >= 600) break; } }
     return c;
   }
-  T.reset = () => { chunks.clear(); veil.clear(); shake.clear(); shed.clear(); nDust = 0; shedT = 2.5; rnd = RNG(7717); r0c = r1c = 0; grKey = NaN; };
+  T.reset = () => { chunks.clear(); veil.clear(); shake.clear(); shed.clear(); dumped.clear(); nDust = 0; shedT = 2.5; rnd = RNG(7717); r0c = r1c = 0; grKey = NaN; };
   T.extra = [];        // test hook: [x, z, h, rot, kind] trees drawn in addition to the course's own
   T.lod = n => { cardsOnly = !n; };        // test hook: 0 = every tree a card, 1 = as it should be
   T.shedSoon = (x, z) => { shedT = 0; shedAt = x === undefined ? null : [x, z]; };       // test hook: a bough somewhere in view (or of the tree at x, z) lets go at the next step
@@ -618,6 +618,19 @@ const Trees = (() => {
       dust[q + 9] = rnd(); dust[q + 10] = k;
       dust[q + 11] = c[o + 1] + G[0] * (p[0] + dust[q + 3] * 0.5 - c[o]) + G[1] * (p[2] + dust[q + 5] * 0.5 - c[o + 2]);      // the snow it will come down on
     }
+  }
+  // a bough of this tree on the skier's side, between heights u0 and u1 of the crown, that still carries a pillow worth the name
+  const dumped = new Map();
+  function facing(c, o, B, u0, u1) {
+    const P = typeof Game !== 'undefined' && Game.s ? Game.s.p : null; if (!P) return null;
+    let ux = P[0] - c[o], uz = P[2] - c[o + 2]; const l = Math.hypot(ux, uz) || 1; ux /= l; uz /= l;
+    const cs = c[o + 4], sn = c[o + 5];
+    let best = null, bs = -1e9;
+    for (let k = 0; k < 24; k++) {
+      const b = B[Math.floor(rnd() * B.length)]; if (b.cls > 1 || b.pw > 2 || b.u < u0 || b.u > u1) continue;
+      const sc = (b.ca * cs + b.sa * sn) * ux + (b.sa * cs - b.ca * sn) * uz + 0.3 * rnd(); if (sc > bs) { bs = sc; best = b; }
+    }
+    return bs > 0.2 ? best : null;
   }
   function letGo(c, o, key, low) {
     const B = TM.kinds[c[o + 6]].B; let b = null;
@@ -744,6 +757,7 @@ const Trees = (() => {
     // of their finest snow, which the wind of the pass takes along; and one of them, above head height, lets its load go at once, so that
     // it is coming down as the lens goes by. All of it is on the skier's side and early: a lens riding four metres behind is past the
     // tree a quarter of a second after the skier, and a speck takes a tenth of its life to show.
+    if (dumped.size > 400) dumped.clear();
     if (typeof Game !== 'undefined' && Game.events) for (const ev of Game.events) {
       if (ev.type !== 'brush' && ev.type !== 'crash' && ev.type !== 'near' && ev.type !== 'rustle') continue;
       for (let i = 0; i < candN; i++) {
@@ -752,7 +766,12 @@ const Trees = (() => {
         // (still in among its boughs: it goes on shaking, and what the body pushes past loses a little more of its snow)
         if (ev.type === 'rustle') {
           shake.set(key, Math.max(shake.get(key) || 0, 0.7));
-          for (let k = 0, n = 0; k < 30 && n < 4; k++) { const b = B[Math.floor(rnd() * B.length)]; if (b.u > 0.55) continue; puff(c, o, b, 8, BRUSH, 0.15); n++; }
+          for (let k = 0, n = 0; k < 30 && n < 4; k++) { const b = B[Math.floor(rnd() * B.length)]; if (b.u > 0.55) continue; puff(c, o, b, 14, BRUSH, 0.15); n++; }
+          // (and the bough the body is pushing through, or the one just above it, drops what it carries: a lump that bursts on the tiers
+          // below and on the skier, the most of it from a tree the snow has plastered. A few to a tree, so a long push through one crown
+          // keeps shaking snow down without emptying the whole tree into the air)
+          const nb = dumped.get(key) || 0;
+          if (nb < 5) { const b = facing(c, o, B, 0.08, 0.5); if (b) { dumped.set(key, nb + 1); puff(c, o, b, b.cls ? 40 : 60, SHED, 0.25); bomb(c, o, b, 0.55 + 0.25 * rnd()); } }
           break;
         }
         if (ev.type === 'near') {
@@ -765,8 +784,11 @@ const Trees = (() => {
           break;
         }
         shake.set(key, hard ? 1.6 : 1.0);
-        for (let k = 0, n = 0; k < 40 && n < (hard ? 16 : 10); k++) { const b = B[Math.floor(rnd() * B.length)]; if (b.u > (hard ? 0.9 : 0.6)) continue; puff(c, o, b, 12, BRUSH, 0.2); n++; }
+        for (let k = 0, n = 0; k < 40 && n < (hard ? 16 : 10); k++) { const b = B[Math.floor(rnd() * B.length)]; if (b.u > (hard ? 0.9 : 0.6)) continue; puff(c, o, b, 18, BRUSH, 0.2); n++; }
         if (!shed.has(key)) letGo(c, o, key, true);       // (one bare bough to a tree: a second would hand the first its snow back)
+        // (a knock shakes the boughs above too: two or three more loads come down from over the skier's side, one after another)
+        { const nb = dumped.get(key) || 0, m = hard ? 3 : 2;
+          for (let j = 0; j < m && nb + j < 5; j++) { const b = facing(c, o, B, 0.15 + 0.12 * j, 0.75); if (!b) break; dumped.set(key, nb + j + 1); puff(c, o, b, b.cls ? 50 : 80, SHED, 0.35 + 0.3 * j); bomb(c, o, b, (hard ? 0.9 : 0.7) - 0.1 * j); } }
         break;
       }
     }
