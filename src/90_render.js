@@ -20,7 +20,7 @@ const Render = (() => {
   R.resize = function (w, h) {
     if (w === R.W && h === R.H) return;
     if (scene) { gfx.destroyTarget(scene); gfx.destroyTarget(R.hdrOnly); gfx.destroyTarget(R.hdrOnlyB); gfx.destroyTexture(hdr); gfx.destroyTexture(hdrB); gfx.destroyTexture(depth); }
-    R.W = w; R.H = h; canvas.width = w; canvas.height = h;
+    R.W = w; R.H = h; if (!R.xr) { canvas.width = w; canvas.height = h; }      // (in the headset the canvas is not what is shown: its size is left alone)
     hdr = gfx.texture({ w, h, format: 'rgba16f', filter: 'linear' }); depth = gfx.texture({ w, h, format: 'depth', filter: 'nearest' });
     scene = gfx.target({ color: hdr, depth }); R.hdr = hdr; R.depth = depth; R.scene = scene;
     R.hdrOnly = gfx.target({ color: hdr });       // same colour, no depth attached: passes that read scene depth as a texture draw here
@@ -108,8 +108,24 @@ const Render = (() => {
   R.sprayRange = 40; R.sprayRes = 512;
   R.cloudWind = [-5.5, -2.5]; R.cloudShade = 0.86; R.cloudCover = 0.60; R.exposureBias = 1; R.lampPower = 37;   // (the shadows are read at the point plus cloudWind * time, so it points upwind: they drift with the wind and the cumulus, toward +x)
   R.onResize = [];
-  R.render = function () {
-    gfx.beginFrame();
+  // one eye of a headset (21_xr.js): everything in the globals that hangs on where the lens is and which way it looks, for camera c, drawn
+  // at the size the targets have. The rest of the frame (sun, shadows, weather) was set once for the head by computeGlobals and stays.
+  // There is no previous frame for an eye: the streaks of the snow in the air come from its own motion only, never from the head's
+  R.eyeGlobals = function (c) {
+    const o = R.origin, aspect = R.W / R.H;
+    const proj = m4.perspective(c.fovY, aspect, c.near, c.far), view = viewMatrix(c, o), vp = m4.mul(proj, view);
+    R.vp = vp; R.view = view; R.proj = proj;
+    G.set(vp, GOFF.viewProj); G.set(m4.invert(vp), GOFF.invViewProj); G.set(vp, GOFF.prevViewProj);
+    const e = v3.sub(c.pos, o), th = Math.tan(c.fovY / 2);
+    G.set([e[0], e[1], e[2], R.time], GOFF.camPos); G.set([...c.right, th], GOFF.camRight); G.set([...c.up, aspect], GOFF.camUp); G.set([...c.fwd, c.near], GOFF.camFwd);
+    const sun = Sky.sunDir(), sp = [sun[0] * 1e5, sun[1] * 1e5, sun[2] * 1e5], cw = vp[3] * sp[0] + vp[7] * sp[1] + vp[11] * sp[2];
+    const sx = (vp[0] * sp[0] + vp[4] * sp[1] + vp[8] * sp[2]) / cw, sy = (vp[1] * sp[0] + vp[5] * sp[1] + vp[9] * sp[2]) / cw;
+    G.set([sx * 0.5 + 0.5, 0.5 - sy * 0.5, cw > 0 ? 1 : 0, Sky.elev], GOFF.sunScr);
+    gfx.setGlobals(G);
+  };
+  // the frame in two halves, so that a headset can draw the second once for each eye: what is the same for both (bakes, the shadow map,
+  // the snow's own maps), then the picture from one lens, from the scene through the lens effects to the screen
+  R.renderShared = function () {
     Sky.bakeLut();
     if (!Nebula.baked) Nebula.bake();
     Clouds.update();
@@ -119,6 +135,8 @@ const Render = (() => {
     for (const f of R.passes.shadow) f(R);
     gfx.endPass();
     for (const f of R.passes.pre) f(R);
+  };
+  R.renderView = function () {
     gfx.beginPass(scene, { color: [0, 0, 0, 0], depth: 1 });
     for (const f of R.passes.opaque) f(R);
     Terrain.draw(R.origin, smap, Sky.lut, Spray.sunTex);
@@ -130,6 +148,11 @@ const Render = (() => {
     if (R.motionBlur && R.dt > 0) { gfx.beginPass(R.hdrOnlyB, { color: [0, 0, 0, 0] }); Post.motionBlur(hdr, depth, R.dt); gfx.endPass(); out = hdrB; outT = R.hdrOnlyB; }
     if (R.passes.fx.length) { gfx.beginPass(outT, {}); for (const f of R.passes.fx) f(R); gfx.endPass(); }
     Post.run(out, depth);
+  };
+  R.render = function () {
+    gfx.beginFrame();
+    R.renderShared();
+    R.renderView();
     gfx.endFrame();
     R.frame++;
   };

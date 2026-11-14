@@ -18,10 +18,13 @@ const UI = (() => {
       time: $('sw-time'), kinds: $('sw-seg'), ev: $('sw-ev'), view: $('sw-view'), seed: $('sw-seed'), more: $('more'), drop2: $('drop2'), vw: $('vw'),
       say: $('say'), sayK: $('say-k'), sayV: $('say-v'), cut: $('cut'), jump: $('jump'), tuck: $('tuck'),
       pause: $('pause'), pauseS: $('pause-s'), pauseT: $('pause-t'), steer: $('steer'), steerV: $('steer-v') };
-    el.moreView = el.more.querySelector('[data-sec="view"]');
+    el.moreView = el.more.querySelector('[data-sec="view"]'); el.moreDaily = el.more.querySelector('[data-daily]'); el.daily = $('sw-daily'); el.mtDaily = el.menu.querySelector('section[data-sec="mt"] [data-daily]');
     I18N.capture(el.app); I18N.on(relang);
     U.layout();
     el.go.addEventListener('click', e => { e.stopPropagation(); U.go(); });
+    // immersive mode, only where the browser can open a headset (Safari on Apple Vision Pro): 21_xr.js
+    el.xr = $('xr');          // (shown by U.ready once start-up has asked the browser: XR.probe runs in boot, after this)
+    el.xr.addEventListener('click', e => { e.stopPropagation(); XR.enter(); });
     // the whole picture is the button (the corner's glyphs, the title's other buttons and the menu keep their presses to themselves)
     el.app.addEventListener('click', e => { if (U.state !== 'title' || U.open || el.bar.contains(e.target) || el.menu.contains(e.target) || el.more.contains(e.target)) return; U.go(); });
     addEventListener('keydown', e => {
@@ -90,6 +93,7 @@ const UI = (() => {
   U.stage = function (f, name) { if (!el) return; el.fill.style.transform = 'scaleX(' + f.toFixed(3) + ')'; if (name) el.stage.textContent = T(name); };
   // first frame is on the canvas: let it come up out of the dark, then set the title over it
   U.ready = function () {
+    if (el && el.xr) el.xr.hidden = !XR.ok;
     if (!el) return; U.state = 'title';
     el.load.classList.remove('on'); el.veil.classList.add('lift'); el.shade.classList.add('on'); el.title.classList.add('on'); el.snd.classList.add('on');
     if (!U.hh && fsAvail()) el.fs.classList.add('on');
@@ -114,10 +118,10 @@ const UI = (() => {
   U.go = async function () {
     if (U.state !== 'title') return; U.state = 'starting';
     Sound.unlock();
-    if (U.hh) U.fullscreen(true);                    // a phone: take the whole screen if it will let us (asked for inside this tap)
+    if (U.hh && !XR.active) U.fullscreen(true);      // a phone: take the whole screen if it will let us (asked for inside this tap)
     if (U.open) U.menu(false); el.title.classList.remove('on');
     // tilt has to be asked for from this tap (iOS shows its own prompt); where it is refused the finger takes over
-    let asked = false; try { asked = await Promise.race([Input.requestTilt(), new Promise(r => setTimeout(() => r(false), 8000))]); } catch (e) { }
+    let asked = false; if (!XR.active) try { asked = await Promise.race([Input.requestTilt(), new Promise(r => setTimeout(() => r(false), 8000))]); } catch (e) { }
     Input.zeroPending = true; U.keepAwake();
     launch();
     U.state = 'run'; U.t0 = performance.now(); U.segIdx = -1; U.hintT = 0; U.hintKind = null; U.tiltAsked = asked;
@@ -182,7 +186,8 @@ const UI = (() => {
   const dayUp = () => !!SP.day && SP.day.t < 5;
   function initSplits() {
     el.split = $('split'); el.day = $('day'); el.dayK = $('day-k'); el.dayT = $('day-t'); el.dayF = $('day-f'); el.dayR = $('day-r');
-    SP.run = freshRun(); App.onTick.push(spTick);
+    SP.run = freshRun(); App.onTick.push(spTick); App.onTick.push(dbTick);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) dbSave(true); });
   }
   // 出发: a new run (the bests of each kind stay)
   function newRun() {
@@ -225,14 +230,28 @@ const UI = (() => {
   function spBegin() {
     const S = Game.s, s = -S.p[2], sg = Course.segAt(s);
     SP.cur = { idx: sg.idx, type: sg.type, whole: s - sg.s0 < 80, t: 0, v: 0, air: 0 };
-    SP.p = S.p.slice(); SP.seed = Course.seed; SP.air = !!S.air; SP.to = null;
+    SP.p = S.p.slice(); SP.seed = Course.seed; SP.air = !!S.air; SP.to = null; SP.chain = null;
   }
   // a best is a figure shown higher than the best shown before for that kind of run (time is not compared: no two runs of a kind are the same length)
   function spFinish(c) {
     const b = SP.best[c.type] || (SP.best[c.type] = { v: 0, air: 0 }), kv = Math.round(c.v * 3.6), ka = Math.round(c.air);
     SP.res = { type: c.type, t: c.t, kv, ka, upV: b.v > 0 && kv > Math.round(b.v * 3.6), upA: ka > 0 && b.air > 0 && ka > Math.round(b.air) };
     if (c.v > b.v) b.v = c.v; if (c.air > b.air) b.air = c.air;
+    // 今日之山's race: the first three stretches of today's mountain skied in one go from the gate (each from its top, none skipped, no
+    // switch between). Its figure is the average speed over them (the same length for everyone today, so faster = shorter time; the
+    // boards keep the highest). SP.d3 holds the best of today for the boards to send.
+    if (!isDaily()) { SP.chain = null; return; }
+    if (c.idx === 0) SP.chain = { n: 1, t: c.t };
+    else if (SP.chain && c.idx === SP.chain.n) { SP.chain.n++; SP.chain.t += c.t; }
+    else SP.chain = null;
+    if (SP.chain && SP.chain.n === D3) {
+      const sg = Course.segs, len = sg[D3].s0 - sg[0].s0 - GATE_S, t = SP.chain.t, v = len / t, b3 = dbLoad();
+      SP.res.d3 = { t, kv: v * 3.6, up: b3.v3 > 0 && v > b3.v3 }; SP.chain = null;
+      if (v > b3.v3) { b3.v3 = v; b3.t3 = t; dbSave(true); }
+      SP.d3 = { d: b3.d, v: b3.v3 };
+    }
   }
+  const D3 = 3, GATE_S = 14;
 
   // ---- per displayed frame of a run (real time)
   function spFrame(dt) {
@@ -262,12 +281,17 @@ const UI = (() => {
     fig('', String(r.kv), 'km/h'); if (r.upV) add('i', 'up');
     if (r.ka > 0) { fig(T('飞行 '), String(r.ka), 'm'); if (r.upA) add('i', 'up'); }
     el.split.textContent = ''; el.split.appendChild(line);
+    if (r.d3) { const l2 = document.createElement('span'); l2.className = 'd3'; const k = document.createElement('em'); k.className = 'k'; k.textContent = T('今日之山 · 前三段'); l2.appendChild(k);
+      l2.appendChild(document.createTextNode(' ' + clock(r.d3.t) + ' · ' + r.d3.kv.toFixed(1) + ' km/h')); if (r.d3.up) { const u = document.createElement('i'); u.className = 'up'; l2.appendChild(u); }
+      el.split.appendChild(document.createElement('br')); el.split.appendChild(l2); }
   }
+  const clock = t => Math.floor(t / 60) + ':' + (t % 60).toFixed(1).padStart(4, '0');
   // DAY 1 · SUNSET / 日落 / the run so far: 落差, 距离, 极速, and the longest flight if there was one
   function dayShow(q) {
     const R = SP.run, F = [[Math.max(0, R.drop), 0, '落差 M'], R.dist < 1000 ? [Math.max(0, R.dist), 0, '距离 M'] : [R.dist / 1000, 1, '距离 KM'], [R.v * 3.6, 0, '极速 KM/H']];
     if (R.air > 0) F.push([R.air, 0, '飞行 M']);
-    el.dayK.textContent = 'DAY ' + q.day + (EN() ? '' : ' · ' + (q.rise ? 'SUNRISE' : 'SUNSET')); el.dayT.textContent = T(q.rise ? '日出' : '日落');
+    el.dayK.textContent = (isDaily() ? (EN() ? 'TODAY\'S MOUNTAIN · ' : '今日之山 · ') : '') + 'DAY ' + q.day + (EN() ? '' : ' · ' + (q.rise ? 'SUNRISE' : 'SUNSET'));
+    if (isDaily()) dbSave(true); el.dayT.textContent = T(q.rise ? '日出' : '日落');
     el.dayF.textContent = ''; const d = SP.day = { t: 0, f: [] };
     for (const [v, dp, lab] of F) { const w = document.createElement('div'), b = document.createElement('b'), s = document.createElement('span'); b.textContent = fmt(v, dp); s.textContent = T(lab); w.appendChild(b); w.appendChild(s); el.dayF.appendChild(w); d.f.push({ el: b, v, dp, k: -1 }); }
     // (each figure keeps the width of its whole value while it runs up to it, so nothing beside it moves)
@@ -324,14 +348,14 @@ const UI = (() => {
     el.time.appendChild(iconBtn('time', 'auto', TIME_ICON.auto, T('自动'))); for (const [id, name] of TIMES) el.time.appendChild(iconBtn('time', id, TIME_ICON[id] || TIME_ICON.day, T(name)));
     for (const k of Object.keys(SEG_TYPES)) el.kinds.appendChild(mkBtn(T(SEG_NAMES[k] || k), 'seg', k));
     el.mn.addEventListener('click', e => { e.stopPropagation(); U.menu(); if (e.detail) el.mn.blur(); });
-    el.more.addEventListener('click', e => { e.stopPropagation(); const b = e.target.closest('button'); if (b) U.menu(b.dataset.sec); });
+    el.more.addEventListener('click', e => { e.stopPropagation(); const b = e.target.closest('button'); if (!b) return; if (b.dataset.daily) { U.daily(); if (e.detail) b.blur(); } else U.menu(b.dataset.sec); });
     // the column on the left: a part to open, or one of the ways out
     el.menu.addEventListener('click', e => {
       e.stopPropagation(); const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
       if (b === el.mGo) { if (U.state === 'title') U.go(); else U.menu(false); return; }
       if (b === el.mTop) { U.toTop(); return; }
       if (d.sec && b.parentNode === el.nav) { show(d.sec); return; }
-      if (d.time) U.setTime(d.time); else if (d.seg) U.gotoKind(d.seg); else if (d.view) U.setView(d.view); else if (d.new) U.newMountain();
+      if (d.time) U.setTime(d.time); else if (d.seg) U.gotoKind(d.seg); else if (d.view) U.setView(d.view); else if (d.new) U.newMountain(); else if (d.daily) U.daily();
       else if ('animal' in d) { U.animal(d.animal); U.menu(false); } else if (d.plane) { U.plane(); U.menu(false); }
       else if (b === el.oSnd) U.sound(!Sound.on); else if (b === el.oFs) U.fullscreen(); else if (b === el.oLang) I18N.set(EN() ? 'zh' : 'en'); else if (b === el.oQ) { Quality.cycle(); paint(); }
       else if (d.vn) { const V = varMod(); if (V) try { V.set(d.vn, d.vid); } catch (err) { console.warn(err); } paint(); }
@@ -426,6 +450,7 @@ const UI = (() => {
     for (const b of el.view.children) b.classList.toggle('on', b.dataset.view === Game.view);
     const mt = typeof App.newMountain === 'function'; el.nav.querySelector('[data-sec="mt"]').hidden = !mt;
     if (mt) { const n = '#' + Course.seed; if (el.seed.textContent !== n) el.seed.textContent = n; }
+    paintDaily();
     el.oSnd.textContent = T(Sound.on ? '声音 开' : '声音 关'); el.oSnd.classList.toggle('on', !!Sound.on); el.oSnd.setAttribute('aria-pressed', Sound.on ? 'true' : 'false');
     const fsOK = !U.hh && fsAvail(), full = !!document.fullscreenElement;
     el.oFs.hidden = !fsOK; el.oFs.classList.toggle('on', full); el.oFs.textContent = T(full ? '退出全屏' : '全屏');
@@ -473,7 +498,7 @@ const UI = (() => {
   // groups (a choice this list does not know yet goes under 新加的), the current version filled, the recommended one marked with a grain of
   // amber. A press switches at once (each module eases its own change); 恢复推荐 puts every choice back to the recommended version
   const VGROUP = [['镜头', ['cam', 'wood', 'shots', 'tips', 'fptuck', 'edge', 'chatter', 'buffet']], ['人物与动作', ['body', 'cloth', 'poles', 'motion']],
-    ['画面', ['ghost', 'hi', 'nspray', 'nsky', 'cu']], ['雪', ['spray', 'curtain', 'sparkle', 'clumps', 'lens', 'pdepth', 'drift']], ['场景与天气', ['rock', 'moon', 'aurora', 'snow', 'rtree', 'flag', 'sink', 'wind']], ['手感', ['keys']]];
+    ['画面', ['ghost', 'hi', 'nspray', 'nsky', 'cu']], ['雪', ['spray', 'curtain', 'sparkle', 'clumps', 'lens', 'pdepth', 'drift']], ['场景与天气', ['tpass', 'rock', 'moon', 'aurora', 'snow', 'rtree', 'flag', 'sink', 'wind']], ['手感', ['keys']]];
   let vSig = null, wxSig = null;
   const varMod = () => { try { return typeof Variants !== 'undefined' && Variants && Array.isArray(Variants.defs) ? Variants : null; } catch (e) { return null; } };
   function initVariants() {
@@ -563,7 +588,39 @@ const UI = (() => {
     try { App.newMountain(seed); } catch (e) { console.warn(e); return false; }
     return true;
   };
-  function onMountain(n) { settle(); reflect(n); say('山', '#' + n); if (U.open) paint(); }
+  function onMountain(n) { settle(); reflect(n); if (isDaily()) say('今日之山', dayLabel()); else say('山', '#' + n); paintDaily(); if (U.open) paint(); }
+
+  // ---- 今日之山: today's mountain (App.dailySeed: the Beijing day hashed), one tap from the title page or the menu's 山. Everything else is
+  // the mountain's as always (the splits, the day card, the seed in the address). What it adds: the date beside the number, and this
+  // player's best on it today (the longest distance skied in one go from 出发, the top speed, the longest flight), kept in this browser
+  // until the day turns, so coming back to the same mountain later in the day has something to beat
+  const isDaily = () => typeof App.isDaily === 'function' && App.isDaily();
+  const dayLabel = () => App.dayLabel(App.today(), EN());
+  U.daily = function () {
+    if (typeof App.dailySeed !== 'function') return false;
+    if (isDaily()) { say('今日之山', dayLabel()); return true; }
+    return U.newMountain(App.dailySeed());
+  };
+  const DKEY = 'coldsmoke.daily';
+  let DB = null, dbSaved = 0;
+  function dbLoad() { const d = App.today(); if (DB && DB.d === d) return DB; DB = { d, seed: App.dailySeed(d), dist: 0, v: 0, air: 0, v3: 0, t3: 0 }; try { const o = JSON.parse(localStorage.getItem(DKEY) || 'null'); if (o && o.d === d && o.seed === DB.seed) Object.assign(DB, { dist: +o.dist || 0, v: +o.v || 0, air: +o.air || 0, v3: +o.v3 || 0, t3: +o.t3 || 0 }); } catch (e) { } if (DB.v3 > 0) SP.d3 = { d, v: DB.v3 }; return DB; }
+  function dbSave(force) { if (!DB) return; const t = performance.now(); if (!force && t - dbSaved < 10000) return; dbSaved = t; try { localStorage.setItem(DKEY, JSON.stringify(DB)); } catch (e) { } }
+  // (from the run so far: while it is on today's mountain. A run is one go from 出发; a change of mountain starts measuring afresh)
+  function dbTick() { if (!isDaily() || Game.mode !== 'run') return; const b = dbLoad(), R = SP.run; let up = false; if (R.dist > b.dist) { b.dist = R.dist; up = true; } if (R.v > b.v) { b.v = R.v; up = true; } if (R.air > b.air) { b.air = R.air; up = true; } if (up) dbSave(false); }
+  function paintDaily() {
+    const on = isDaily();
+    if (el.moreDaily) el.moreDaily.classList.toggle('on', on);
+    if (el.mtDaily) el.mtDaily.classList.toggle('on', on);
+    if (!el.daily) return;
+    el.daily.hidden = !on; if (!on) return;
+    const b = dbLoad(), f = [];
+    if (b.dist > 1) f.push(T('最远') + ' ' + (b.dist < 1000 ? Math.round(b.dist) + ' m' : (b.dist / 1000).toFixed(1) + ' km'));
+    if (b.v > 1) f.push(T('极速') + ' ' + Math.round(b.v * 3.6) + ' km/h');
+    if (b.air > 0) f.push(T('飞行') + ' ' + Math.round(b.air) + ' m');
+    if (b.v3 > 0) f.push(T('前三段') + ' ' + clock(b.t3));
+    const txt = '<em>' + T('今日之山') + ' · ' + dayLabel() + '</em>' + (f.length ? T('你今天在这座山上：') + f.join(' · ') : T('今天还没在这座山上滑过'));
+    if (el.daily.innerHTML !== txt) el.daily.innerHTML = txt;
+  }
 
   // ---- the things otherwise met by chance, sent for
   U.animal = function (id) {
@@ -615,7 +672,8 @@ const UI = (() => {
     el.day.classList.remove('held');
     hush(Sound.on ? Sound.level : 0, 0.12); U.keepAwake();
   }
-  U.pause = function () { if (!el || U.state !== 'run' || U.gone) return false; if (!U.open) U.menu(true); return true; };
+  // (not in the headset: the menu is a page on the canvas's side of the glass, out of sight in there. Going in can blur the window)
+  U.pause = function () { if (!el || U.state !== 'run' || U.gone || XR.active) return false; if (!U.open) U.menu(true); return true; };
   U.resume = function () { if (!el || !U.open || U.gone) return false; U.menu(false); return true; };
   // back to the gate and the title page (the picture goes to black first; the menu's own clock times that)
   U.toTop = function () {
