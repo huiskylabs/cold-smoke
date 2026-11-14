@@ -289,7 +289,11 @@
     for (let i = 0; i < 2; i++) {
       const a = i ? ps.armR : ps.armL, m = AR[i]; if (!a || !(a.length >= 3)) continue;
       if (a[0] === m[4] && a[1] === m[2] && a[2] === m[3]) { a[0] = m[5]; a[1] = m[0]; a[2] = m[1]; }
-      const g = ai * (1 - sat((i ? ps.grabR : ps.grabL) || 0)), sd = i ? 1 : -1;
+      const gk = 1 - sat((i ? ps.grabR : ps.grabL) || 0), g = ai * gk, sd = i ? 1 : -1;
+      // (in: only by as much as the figure has flung the hand out. It flings it out by its own air (ps.air, which on most kickers is a third of
+      // the way or less), not by how far into the flight it is (ai): taking the whole width off for the whole flight brought both fists in past
+      // the middle of the picture, and from the helmet the arms were seen to cross in an X)
+      const gx = sat(ps.air || 0) * gk * w;
       // (laid over in a hard turn, the body leans far more than the lens rolls with it, and the outside hand, carried round the turn, comes up and
       // across into the middle of the picture with the whole sleeve behind it. From the helmet it is kept down at its own corner: out, lower, and
       // not so far forward; the turn shows in the hands rising and dropping a little, not in one of them reaching across. oc: how far outside)
@@ -304,7 +308,7 @@
         c.v = clamp(c.v + ((e > 0 ? e * 5 : on && (sd * gp[0] > 0.86 || gp[1] < -0.92) ? -1.4 - Math.max(0, sd * gp[0] - 0.86) * 12 : -0.3) - (on ? 0 : 1.5)) * dt, 0, 1);
         c.n = clamp(c.n + (en > 0 ? en * 5 : -0.6) * dt, 0, 1); }
       const fc = smooth(0, 1, c.v) * (1 - ai) * w, fn = smooth(0, 1, c.n) * (1 - ai) * w;
-      m[5] = a[0]; m[0] = a[1]; m[1] = a[2]; a[0] += sd * (0.40 * oc + 0.20 * fc - 0.34 * g); a[1] += ay + 0.02 * g - 0.15 * oc - 0.26 * fc; a[2] += az - 0.14 * g + 0.12 * oc + 0.10 * fc - 0.22 * fn; m[4] = a[0]; m[2] = a[1]; m[3] = a[2];
+      m[5] = a[0]; m[0] = a[1]; m[1] = a[2]; a[0] += sd * (0.40 * oc + 0.20 * fc - 0.30 * gx); a[1] += ay + 0.02 * g - 0.15 * oc - 0.26 * fc; a[2] += az - 0.14 * g + 0.12 * oc + 0.10 * fc - 0.22 * fn; m[4] = a[0]; m[2] = a[1]; m[3] = a[2];
     }
     armsOn = w > 0;
   }
