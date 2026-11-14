@@ -248,7 +248,16 @@
     return p;
   }
   // the clip's pose at time t (s), on the floor
+  // ski clips solve both legs onto the skis, which is too slow per frame: the clip is solved once at 96 phases and read back by interpolation
+  const baked = new WeakMap();
   function sample(sk, clip, t) {
+    if (clip.gear !== 'ski') return solve(sk, clip, t);
+    if (!baked.has(sk)) baked.set(sk, {}); const B = baked.get(sk), N = 96;
+    if (!B[clip.name]) B[clip.name] = Array.from({ length: N }, (_, i) => solve(sk, clip, clip.dur * i / N));
+    const x = (((t / clip.dur) % 1 + 1) % 1) * N, i = Math.floor(x) % N;
+    return Human.lerpPose(B[clip.name][i], B[clip.name][(i + 1) % N], x - Math.floor(x));
+  }
+  function solve(sk, clip, t) {
     const u = ((t / clip.dur) % 1 + 1) % 1, r = clip.at(u, sk);
     // on skis the boots hold the feet flat to the skis and the skis lie level: the whole body is pitched by what the pose leaves over
     const level = () => { for (let it = 0; it < 2; it++) { const c = contacts(sk, Human.Skeleton.pose(sk, r.pose));
