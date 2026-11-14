@@ -133,6 +133,11 @@ const Game = (() => {
   // (feel b) the most the edges hold across the line, in parts of the load, on packed snow and in deep powder; the snow's friction there at speed;
   // the drag of powder ploughed, per metre of depth the skis ride at (m/s^2 per m)
   const GRIP_B = [1.0, 0.95], MU_B = [0.035, 0.04], PLOW_K = 3.5;
+  // how much the edges hold (review 2026-11-14: a grip of 1 g means at 80 km/h no turn tighter than 51 m, wider than the steeps, so at speed
+  // the only line is straight down. Good recreational skiers carve at 1-1.5 g). a: 1 g, as it was. b: 1.4 g, turns can be finished at speed
+  Variants.def('pcue', '坡感', [['a', '原来'], ['b', '陡处低头'], ['c', '低头 + 镜头高']], 'c');
+  Variants.def('grip', '抓地', [['a', '原来 1g'], ['b', '更稳 1.4g']], 'a');
+  const GRIP_K = { a: 1, b: 1.4 };
   // (turning brake b) a ski's sidecut radius (m); where the lean fades as the line comes round, from and to (rad off the fall line; a: 0.80..1.30);
   // how far a held key swings the skis across (rad, a: 0.62; never past straight across the fall line either way)
   const TB_RSC = 14, TB_H0 = 1.65, TB_H1 = 2.2, TB_SK = 1.35;
@@ -364,7 +369,7 @@ const Game = (() => {
     // powder). Asked for more, the skis wash out: the line turns only as fast as the grip allows and what is left over swings the tails out
     // into a skid, 0.6 rad of skid for each whole grip asked for beyond it, which brakes and throws snow. So the same full turn is a tight
     // carve at 30 km/h and, at 80, a wide arc that scrubs speed: nothing is on rails)
-    const gripB = (FB ? lerp(GRIP_B[0], GRIP_B[1], S.powder) : 1) * gripFA;
+    const gripB = (FB ? lerp(GRIP_B[0], GRIP_B[1], S.powder) * (GRIP_K[Variants.val.grip] || 1) : 1) * gripFA;
     // (turning brake b: and no tighter than the ski's own arc. Edged over at the lean, a ski bent into the snow carves a circle of its sidecut
     // radius times the cosine of the edge angle; to turn tighter than that, slow and short, it has to be pivoted and scraped round. So what
     // the edges can hold across the line is the smaller of the grip and v^2 / that radius, and a turn asked beyond it is a skid)
@@ -1034,7 +1039,14 @@ const Game = (() => {
     const CL = G.camL;
     // (the point the lens follows trails the skier by a sixteenth of a second: most of that is taken back out of the distance, or the figure would shrink as the speed went up)
     // on a steep pitch the lens rides higher and nearer, and so looks down the fall line: the slope is seen to drop away under the skier
-    { const s0 = -p[2], sl = (Course.at(s0 - 14, _ca).baseY - Course.at(s0 + 14, _cb).baseY) / 28; cam.steep = damp(cam.steep || 0, smooth(0.44, 0.58, sl), 1.2, dt * q); }
+    { const s0 = -p[2], sl = (Course.at(s0 - 14, _ca).baseY - Course.at(s0 + 14, _cb).baseY) / 28; cam.steep = damp(cam.steep || 0, smooth(0.44, 0.58, sl), 1.2, dt * q);
+      cam.slA = damp(cam.slA == null || first ? Math.atan(Math.max(0, sl)) : cam.slA, Math.atan(Math.max(0, sl)), 1.0, dt * q); }
+    // (坡感, the owner 2026-11-14: the runs felt flat although they are 20-31 degrees. The level line was held a fifth below the top of the
+    // picture on every pitch, so a steep and a gentle run made the same picture. b: on a pitch the lens may look down past that, by about
+    // 0.85 of the pitch over 7 degrees, so the far edge of the world climbs out of the top and the snow falls away below. c: b, and the lens
+    // also stands up to 1.6 m higher and 0.8 m further back there, to see the run drop below the skier. Only the height and the
+    // pitch move, slowly with the slope; never the angle round the skier)
+    const pcue = typeof Variants !== 'undefined' ? Variants.val.pcue : 'a', slX = pcue === 'a' ? 0 : smooth(0.2, 0.55, cam.slA || 0) * 0.85 * Math.max(0, (cam.slA || 0) - 0.12), slH = pcue === 'c' ? smooth(0.2, 0.55, cam.slA || 0) : 0;
     // among trees (a glade; the woods off the edge of a run) the lens closes up on the skier, sits lower and opens a touch: cam.wood, 0..1.
     // Four metres back its line cuts the corners of the skier's own, through the boughs the skier has just gone round; close behind, it goes
     // where the skier went. It comes on a second ahead of the trees and goes off more slowly behind them. On an open run nothing changes
@@ -1081,14 +1093,14 @@ const Game = (() => {
     // (the distance to the skier as the picture sees it: the lens's own and the sixteenth of a second it trails by, sp / 16. As the lens
     // widens with speed the figure shrank to a seventh of the frame on the steeps at 115 km/h: from 80 km/h up the distance gives back
     // what the widening takes, so the figure holds about a fifth even tucked. A narrower lens for the section stands back by as much)
-    let dist = (portrait ? lerp(5.6, 5.0, k) : lerp(CL.d0, CL.d1, k)) - 0.75 * Math.min(sp, 46) / 16 - 0.45 * cam.steep + 0.3 * kc + smin(0.3 * cam.hA, 1.4, 0.7) + 0.12 * drive - CL.wd * cam.wood + 0.7 * lost;
+    let dist = (portrait ? lerp(5.6, 5.0, k) : lerp(CL.d0, CL.d1, k)) - 0.75 * Math.min(sp, 46) / 16 - 0.45 * cam.steep + 0.3 * kc + smin(0.3 * cam.hA, 1.4, 0.7) + 0.12 * drive - CL.wd * cam.wood + 0.7 * lost + 0.8 * slH;
     // (the title page stands a metre further back: the skier, the sun a fifth of the way down and the valley all have room)
     // (and through a long flight it comes in closer than it would on the snow, so the figure is large against the sky as it goes over)
     if (!portrait) dist += 1.0 * (cam.idle == null ? 1 : cam.idle) - 0.8 * (cam.ja || 0);
     if (!portrait) { const lag = sp / 16, zc = (1 - Math.tan(CL.f0 / 2) / Math.tan(fovS / 2)) * smooth(22, 32, sp); dist = (dist + lag) * (1 - zc - 0.08 * smooth(25, 33, sp)) * Math.tan(fovS / 2) / Math.tan(fovT / 2) - lag; }
     // (on the title page the lens stands lower, so that pitched up to bring the sun a fifth of the way down the frame it still has the
     // skis in the picture; lining up for a marked jump it stands higher, and looks onto the face of the takeoff instead of along it)
-    const hC = (portrait ? lerp(1.6, 1.3, k) : lerp(CL.h0, CL.h1, k)) - 0.3 * cam.low + 0.6 * cam.steep - CL.wh * cam.wood + cam.shH - 0.95 * (cam.idle == null ? 1 : cam.idle) + 0.6 * cam.jw * (1 - (cam.ja || 0)) + 0.55 * lost;
+    const hC = (portrait ? lerp(1.6, 1.3, k) : lerp(CL.h0, CL.h1, k)) - 0.3 * cam.low + 0.6 * cam.steep - CL.wh * cam.wood + cam.shH - 0.95 * (cam.idle == null ? 1 : cam.idle) + 0.6 * cam.jw * (1 - (cam.ja || 0)) + 0.55 * lost + 1.6 * slH;
     const yo = cam.yaw + orb, dx = Math.sin(yo), dz = -Math.cos(yo), rx = Math.cos(yo), rz = Math.sin(yo);
     const a = cam.anchor;
     a[0] = damp(a[0], p[0], 16, dt * q); a[2] = damp(a[2], p[2], 16, dt * q); a[1] = damp(a[1], fl.fr, 9, dt * q);
@@ -1174,7 +1186,7 @@ const Game = (() => {
     cam.pitch = damp(cam.pitch, pT, 4.5, dt * q);
     // (looking down a steep pitch the far edge of the world must not leave by the top: the level line, and the city on it, stays at
     // least a fifth of the frame below the top edge. Not on the title page, which is pitched by the sun; the skis still win, below)
-    if (!portrait) { const ph = -Math.atan(0.62 * th); cam.pitch = lerp(cam.pitch, smax(cam.pitch, ph, 0.03), 1 - idl); }
+    if (!portrait) { const ph = -Math.atan(0.62 * th) - slX * (1 - (cam.idle || 0)); cam.pitch = lerp(cam.pitch, smax(cam.pitch, ph, 0.03), 1 - idl); }
     // ...and whatever the snow does (a drop off a crest, a landing) the skis never leave by the lower edge, nor the head by the upper
     // (the limits are rounded where they take hold: the lens is turned by them, not struck)
     { const pMax = eFeet + Math.atan((0.90 - 0.2 * cam.idle) * th), pMin = eHead - Math.atan(0.74 * th); cam.pitch = smin(smax(cam.pitch, Math.min(pMin, pMax), 0.03), pMax, 0.03); }

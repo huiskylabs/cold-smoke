@@ -45,9 +45,17 @@ const TERR_K = {
 if (typeof Variants !== 'undefined') {
   Variants.def('terr', '地形', [['a', '原来'], ['b', '丰富']], 'b');
   Variants.def('tdiff', '地形难度', [['a', '轻松'], ['b', '标准'], ['c', '野雪']], 'b');
+  // how steep the mountain is (owner, 2026-11-14: make the slope a choice. The review found the runs steeper than real ones: a bowl about
+  // 20 degrees, a red run, and the steeps about 31, a steep black, so a skier just weaving runs at 80-120 km/h, where a real one averages
+  // 40-45). a: as it was. b: real piste pitches (x0.75: a bowl about 15 degrees, a blue-red; the steeps about 24, a black). c: gentle
+  // (x0.6: the steeps about 20 degrees). Every run's fall is scaled, nothing else: the deck, the features and their places stay the
+  // same random draws, and speed falls by physics alone (no brakes anywhere). On top of 地形难度 (whose levels scale slope as well)
+  Variants.def('slope', '坡度', [['a', '原来'], ['b', '真实雪道'], ['c', '平缓']], 'a');
   // (a change lays the same mountain out again)
-  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
+  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
 }
+// slope scale and how much further a run of ~30 s then reaches (pace: the test pilot's distance over 30 s against a, 2026-11-14)
+const SLOPE_K = { a: { k: 1, pace: 1 }, b: { k: 0.75, pace: 0.89 }, c: { k: 0.6, pace: 0.69 } };
 const HREF_SLOPE = 0.36;        // reference plane removed from heights before they go into float textures
 const TREE_CELL = 4.5;
 
@@ -150,8 +158,11 @@ const Course = ((vn1, vn2, h2U) => {
       for (const k of SEG_KEYS) p[k] = base[k];
       p.slope *= 0.93 + rng() * 0.14; p.hw *= v(); p.rollL *= v(); p.rollA *= v(); p.gAmp *= v(); p.gul *= v(); p.mean *= v();
       if (LV) { p.slope = Math.min(0.68, p.slope * LV.slope); p.hw *= LV.hw; p.mog *= LV.mog; p.rollA *= Math.min(1, LV.slope); }
+      const SK = SLOPE_K[(typeof Variants !== 'undefined' && Variants.val.slope) || 'a'] || SLOPE_K.a;
+      if (SK.k !== 1) p.slope *= SK.k;
       let len = C.segs.length === 0 ? 590 : SEG_PACE[type] * (27 + rng() * 6);       // about half a minute each
       if (LV && C.segs.length) len *= LV.pace;
+      if (SK.pace !== 1 && C.segs.length) len *= SK.pace;
       const seg = { type, s0: planned, len, p, idx: C.segs.length, seed: (rng() * 1e9) | 0 };
       C.segs.push(seg);
       if (p.kick > 0) {   // a line of jumps down the middle, alternating sides slightly; a pair of young spruce marks each lip (mark)
