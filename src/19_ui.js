@@ -22,6 +22,9 @@ const UI = (() => {
     I18N.capture(el.app); I18N.on(relang);
     U.layout();
     el.go.addEventListener('click', e => { e.stopPropagation(); U.go(); });
+    // immersive mode, only where the browser can open a headset (Safari on Apple Vision Pro): 21_xr.js
+    el.xr = $('xr');          // (shown by U.ready once start-up has asked the browser: XR.probe runs in boot, after this)
+    el.xr.addEventListener('click', e => { e.stopPropagation(); XR.enter(); });
     // the whole picture is the button (the corner's glyphs, the title's other buttons and the menu keep their presses to themselves)
     el.app.addEventListener('click', e => { if (U.state !== 'title' || U.open || el.bar.contains(e.target) || el.menu.contains(e.target) || el.more.contains(e.target)) return; U.go(); });
     addEventListener('keydown', e => {
@@ -90,6 +93,7 @@ const UI = (() => {
   U.stage = function (f, name) { if (!el) return; el.fill.style.transform = 'scaleX(' + f.toFixed(3) + ')'; if (name) el.stage.textContent = T(name); };
   // first frame is on the canvas: let it come up out of the dark, then set the title over it
   U.ready = function () {
+    if (el && el.xr) el.xr.hidden = !XR.ok;
     if (!el) return; U.state = 'title';
     el.load.classList.remove('on'); el.veil.classList.add('lift'); el.shade.classList.add('on'); el.title.classList.add('on'); el.snd.classList.add('on');
     if (!U.hh && fsAvail()) el.fs.classList.add('on');
@@ -114,10 +118,10 @@ const UI = (() => {
   U.go = async function () {
     if (U.state !== 'title') return; U.state = 'starting';
     Sound.unlock();
-    if (U.hh) U.fullscreen(true);                    // a phone: take the whole screen if it will let us (asked for inside this tap)
+    if (U.hh && !XR.active) U.fullscreen(true);      // a phone: take the whole screen if it will let us (asked for inside this tap)
     if (U.open) U.menu(false); el.title.classList.remove('on');
     // tilt has to be asked for from this tap (iOS shows its own prompt); where it is refused the finger takes over
-    let asked = false; try { asked = await Promise.race([Input.requestTilt(), new Promise(r => setTimeout(() => r(false), 8000))]); } catch (e) { }
+    let asked = false; if (!XR.active) try { asked = await Promise.race([Input.requestTilt(), new Promise(r => setTimeout(() => r(false), 8000))]); } catch (e) { }
     Input.zeroPending = true; U.keepAwake();
     launch();
     U.state = 'run'; U.t0 = performance.now(); U.segIdx = -1; U.hintT = 0; U.hintKind = null; U.tiltAsked = asked;
@@ -668,7 +672,8 @@ const UI = (() => {
     el.day.classList.remove('held');
     hush(Sound.on ? Sound.level : 0, 0.12); U.keepAwake();
   }
-  U.pause = function () { if (!el || U.state !== 'run' || U.gone) return false; if (!U.open) U.menu(true); return true; };
+  // (not in the headset: the menu is a page on the canvas's side of the glass, out of sight in there. Going in can blur the window)
+  U.pause = function () { if (!el || U.state !== 'run' || U.gone || XR.active) return false; if (!U.open) U.menu(true); return true; };
   U.resume = function () { if (!el || !U.open || U.gone) return false; U.menu(false); return true; };
   // back to the gate and the title page (the picture goes to black first; the menu's own clock times that)
   U.toTop = function () {
