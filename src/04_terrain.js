@@ -207,7 +207,10 @@ const Terrain = (() => {
         }
         tmpN[k * 4] = toHalf(sx); tmpN[k * 4 + 1] = toHalf(sz); tmpN[k * 4 + 2] = toHalf(ao); tmpN[k * 4 + 3] = toHalf(den);
         horizon(L, x, z, hc + HREF_SLOPE * z);
-        tmpS[k * 4] = toHalf(clamp(hzOut[0], -1, 6)); tmpS[k * 4 + 1] = toHalf(hzOut[1]); tmpS[k * 4 + 2] = toHalf(hc); tmpS[k * 4 + 3] = toHalf(mw); k++;
+        tmpS[k * 4] = toHalf(clamp(hzOut[0], -1, 6)); tmpS[k * 4 + 1] = toHalf(hzOut[1]); tmpS[k * 4 + 2] = toHalf(hc);
+        // (the richer mountain: a boulder or the face of a drop on the run rides in the same channel, below zero, where the walls never are)
+        const rk = L.l <= 3 && mw < 0.002 && Course.rockAt ? Course.rockAt(x, z) : 0;
+        tmpS[k * 4 + 3] = toHalf(rk > 0 ? -rk : mw); k++;
       }
       gfx.updateTexture(L.hTex, xa & 255, za & 255, w, h, tmpH.subarray(0, w * h));
       gfx.updateTexture(L.nTex, xa & 255, za & 255, w, h, tmpN.subarray(0, w * h * 4));
@@ -576,6 +579,11 @@ fn frag(v: VOut) -> FOut {
     rk = vec3f(top, max(top - bot, 0.05), rb);
     rock = mix(rock, rb, M.pt.x);
   }
+  // (the richer mountain, 03_course.js: boulders and drops out on the run, marked below zero in the same channel) bare where steep, the snow
+  // lying on their tops and against their uphill sides
+  let frock: f32 = saturate(-hz4.w * 1.4);
+  // (its edge is broken at the size of a stone and of a slab, and only the steep part of it is bare: the snow lies on every ledge)
+  if (frock > 0.001) { tau = strataAt(wxz, wp.y + U.origin.y); rock = max(rock, smoothstep(0.42, 0.62, frock * 0.8 + (d2.z - 0.5) * 0.55 + (d1.z - 0.5) * 0.35) * smoothstep(0.76, 0.56, Nc.y + (d2.z - 0.5) * 0.18 + (d1.z - 0.5) * 0.1)); }
   let sdir0: vec2f = normalize(L.xz + vec2f(1e-4, 0.0)); let tanE0: f32 = L.y / max(length(L.xz), 1e-3);
   let g1: vec2f = snowSlope(d1) * (0.81 * f1); let g2: vec2f = snowSlope(d2) * (0.81 * f2); let g3: vec2f = snowSlope(d3) * (0.5 * f3);
   var slope: vec2f = sm.xy + cs + g1 + g2 + g3;
@@ -827,7 +835,7 @@ fn frag(v: VOut) -> FOut {
     // (seven thin beds to a bed, uneven: one thrice the next, and their lie wanders along the face)
     let fr: f32 = fract(tau); let fs: f32 = fract(tau * 7.0 + 0.75 * sin(tau * 6.2831853 + sa.x * 3.0) + (sa.x - 0.5) * 0.9);
     let saw: f32 = (smoothstep(0.0, 0.85, fs) - smoothstep(0.85, 1.0, fs)) * 2.0 - 1.0;
-    let ov: f32 = smoothstep(rk.x - 0.10 * rk.y - 0.045, rk.x - 0.015, fr) * (1.0 - smoothstep(rk.x - 0.012, rk.x + 0.01, fr)) * M.pt.x;
+    let ov: f32 = smoothstep(rk.x - 0.10 * rk.y - 0.045, rk.x - 0.015, fr) * (1.0 - smoothstep(rk.x - 0.012, rk.x + 0.01, fr)) * M.pt.x * (1.0 - frock);
     let Nr: vec3f = normalize(N - tdir * mix((sa.y - 0.5) * 1.6 + (sb.y - 0.5) * 1.2, -0.9 * saw + (sa.y - 0.5) * 0.6 - 1.4 * ov, M.pt.x));
     // a face is not one dark stain: snow lies along the lip of every thin bed (white lines across it, broken where the bed is poor), the
     // rock under each lip is in its shadow, and cracks run down through the beds
@@ -838,6 +846,8 @@ fn frag(v: VOut) -> FOut {
     let ck: f32 = tex(tDetail, vec2f((wxz.x + wxz.y) / 43.0, tau * 0.55 + 0.19)).z;
     ra *= (1.0 - 0.42 * under) * (1.0 - 0.45 * smoothstep(0.36, 0.27, ck) * near);
     ra *= (1.0 + 0.25 * M.pt.x) * (1.0 - 0.6 * ov);
+    // (a boulder or a drop out on the run: weathered granite, lighter than the beds of the walls, with no bench above to shade it)
+    ra = mix(ra, vec3f(0.17, 0.16, 0.15) * (0.6 + 0.8 * e1.z) * (0.7 + 0.6 * lay), frock * 0.8);
     let rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
     col = mix(col, rc, rock * (1.0 - 0.9 * lip));
   }

@@ -286,7 +286,7 @@ const Game = (() => {
     // the flank, read as an invisible hand dragging the skier back up against gravity.) What keeps a skier near the run is what can be
     // seen: the land (03_course.js: banks rise either side; off a ridge the flank runs down into hollows whose floors climb back to a
     // shoulder level with the run) and the snow, deep and unpacked off the run, which drags (below)
-    const eo = Math.abs(p[0] - c.cx) - c.hw; S.off = eo;
+    const eo = Course.rich ? Course.offRun(p[0], p[2]) : Math.abs(p[0] - c.cx) - c.hw; S.off = eo;      // (on the richer mountain a lane beside the run is not off it)
     // (no steering turns the skier on round until it faces up the hill: as the line swings across the slope the lean asked for fades to
     // nothing, so a turn held too long ends as a traverse, still going down; height is only ever won on speed already in hand. The slope is
     // the land's own under the skier, its fall line taken over some fifteen metres so that a bump or a roller does not swing it, the same on
@@ -408,7 +408,7 @@ const Game = (() => {
       if (S.crash > 0) { aTan -= 2.5 * lowV; }
       // (it slows, never stops: down any slope worth the name the skier still gathers speed off the run, only less of it. Tried at 1 + 0.008 v^2
       // it held a skier 25 m out to 30-40 km/h on a 20-degree pitch, and the owner felt it as gravity gone wrong (2026-11-12))
-      if (eo > 0) aTan -= (0.3 + 0.0022 * sp * sp) * sat(eo / 16) * (1 - 0.5 * Math.max(c.ridge, sat((c.rtail - 0.74) / 0.26))) * sat(sp / 6);       // deep, unpacked snow off the run (wind-packed and firmer about a ridge)
+      if (eo > 0) aTan -= (Course.rich ? 0.5 : 1) * (0.3 + 0.0022 * sp * sp) * sat(eo / 16) * (1 - 0.5 * Math.max(c.ridge, sat((c.rtail - 0.74) / 0.26))) * sat(sp / 6);       // deep, unpacked snow off the run (wind-packed and firmer about a ridge)
       if (S.owe > 0) { const d = Math.min(S.owe, 16 * dt, sp); aTan -= d / dt; S.owe -= d; }
     }
     // the air drags on the whole of the speed, wherever it points (in flight too); a tuck halves it, and the player's own tuck counts for more than the one the body falls into at speed
@@ -970,7 +970,7 @@ const Game = (() => {
     // toward the run: to a point on its middle some thirty metres down, so the open lane between the trees is in the picture and it is
     // plain which way to go; and it stands a little higher and further back to see over the snow. cam.lost 0..1, eased over a second or
     // two either way. (Nothing moves the skier: only the picture turns)
-    { const s0 = -p[2], c = Course.at(s0, _ca), eo = Math.abs(p[0] - c.cx) - c.hw, to = G.mode === 'run' ? smooth(3, 16, eo) * lerp(0.2, 1, smooth(8, 3.5, sp)) : 0;
+    { const s0 = -p[2], c = Course.at(s0, _ca), eo = Course.rich ? Course.offRun(p[0], p[2]) : Math.abs(p[0] - c.cx) - c.hw, to = G.mode === 'run' ? smooth(3, 16, eo) * lerp(0.2, 1, smooth(8, 3.5, sp)) : 0;
       spring(cam, 'lost', first ? 0 : to, to > (cam.lost || 0) ? 1.6 : 1.0, dt * q);
       if (cam.lost > 1e-3) { const cR = Course.at(s0 + 30, _cb), ry = Math.atan2(cR.cx - p[0], 30); cam.ryaw = 0 * clamp(ry - cyw, -0.3, 0.3); } }
     const lost = cam.lost || 0, cyl = cyw + lost * (cam.ryaw || 0);
