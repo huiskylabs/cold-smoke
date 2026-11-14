@@ -38,6 +38,7 @@ What makes it unusual is what the repository **doesn't** contain:
 - Synthesised sound and music that follow your speed, turns and time in the air.
 - Several camera views, a photo-friendly menu, and English or Chinese UI picked from your browser.
 - Every mountain grows from a seed: share the `#seed-…` in the address bar and a friend gets the same mountain.
+- **Today's mountain** (今日之山): one mountain a day, the same for everyone, changing at midnight Beijing time. One tap on the title page or in the menu, or open the game with `#today`. Ski its first three stretches in one go from the top and your time is kept.
 - A quality setting (auto, high, balanced, smooth) in Settings, so mid-range phones stay smooth.
 - Keyboard and mouse on a computer; drag or tilt on a phone held in landscape.
 
@@ -125,6 +126,7 @@ If you like it, a ⭐ helps other people find it.
 - 合成的音效和配乐，跟着速度、转弯和滞空变化。
 - 多个机位，菜单里能换时间和天气拍照，界面中英文按浏览器自动切换。
 - 每座山由一个编号生成：把地址栏里的 `#seed-编号` 发给朋友，就是同一座山。
+- **今日之山**：每天一座，所有人同一座，北京时间零点换。标题页或菜单里点一下就到，也可以在网址后面加 `#today`。从山顶一口气滑完前三段，会记下你的用时。
 - 设置里可以选画质（自动、高、均衡、流畅），中端手机也能流畅地玩。
 - 电脑用键盘鼠标；手机横屏用拖动或者倾斜。
 
