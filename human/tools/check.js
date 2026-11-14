@@ -4,7 +4,7 @@
 //   rom      the worst joint angle the clip asks for beyond the joint limits (deg) - the pose is clamped, so the body does not do what was written
 //   sink     how far the lowest foot or gear point goes under the floor while on the ground (cm)
 //   slide    feet on the floor: how unevenly a planted foot moves (cm/s). In walk and run the floor is a treadmill, so a planted foot should move
-//            back at one steady speed (spread around that speed is reported); in the other clips a planted foot should not move at all
+//            back at one steady speed (spread around that speed is reported); in the other clips a planted foot should not move at all (typ = the median, p90 = nine steps in ten are below this)
 //   balance  how far the centre of mass is outside the area of support, seen from above (cm), in frames on the ground. A carve leans on purpose:
 //            there the sideways pull the lean needs is given (g) instead
 //   speed    the fastest joint angle change (deg/s) and where; `seam` = the jump from the last step back to the first, as a multiple of a usual step
@@ -35,11 +35,13 @@ for (const clip of M.CLIPS) { if (only.length && !only.includes(clip.name)) cont
   const r = { clip: clip.name, zh: clip.zh, rom: rom[0] > 0.05 ? f1(rom[0]) + ' ' + rom[1] : '0' };
   r.sink = f1(Math.max(0, -Math.min(...F.map(f => f.low))) * 100);
   // planted feet (no gear): the lower of heel and ball within 1.2 cm of the floor in both this step and the next
-  if (!clip.gear) { const v = []; for (let k = 0; k < N; k++) { const a = F[k], b = F[(k + 1) % N]; for (const o of [0, 3]) for (const j of [0, 1]) { const p = a.c[o + j], q = b.c[o + j];
-      if (p[1] - floor < 0.012 && q[1] - floor < 0.012) v.push([(q[0] - p[0]) / dt, (q[2] - p[2]) / dt]); } }
+  if (!clip.gear) { const gait0 = clip.name === 'walk' || clip.name === 'run', low = (k, o, j) => F[k].c[o + j][1] - floor < 0.012 && F[(k + 1) % N].c[o + j][1] - floor < 0.012, vel = (k, o, j) => [(F[(k + 1) % N].c[o + j][0] - F[k].c[o + j][0]) / dt, (F[(k + 1) % N].c[o + j][2] - F[k].c[o + j][2]) / dt];
+    // the floor's speed from heel and ball; a toe that only skims the floor while the foot swings forward is not a planted foot
+    let belt = 0, nb = 0; if (gait0) for (let k = 0; k < N; k++) for (const o of [0, 3]) for (const j of [0, 1]) if (low(k, o, j)) { belt -= vel(k, o, j)[1]; nb++; } belt /= Math.max(1, nb);
+    const v = []; for (let k = 0; k < N; k++) for (const o of [0, 3]) for (const j of [0, 1, 2]) if (low(k, o, j)) { const w = vel(k, o, j); if (!gait0 || w[1] < -0.4 * belt) v.push(w); }
     if (v.length) { const gait = clip.name === 'walk' || clip.name === 'run', mz = gait ? v.reduce((a, x) => a + x[1], 0) / v.length : 0;
       const dev = v.map(x => Math.hypot(x[0], x[1] - mz) * 100).sort((a, b) => a - b);
-      r.slide = (gait ? 'belt ' + (-mz).toFixed(2) + ' m/s, ' : '') + 'typ ' + f1(dev[dev.length >> 1]) + ' worst ' + f1(dev[dev.length - 1]); } else r.slide = '-'; }
+      r.slide = (gait ? 'belt ' + (-mz).toFixed(2) + ' m/s, ' : '') + 'typ ' + f1(dev[dev.length >> 1]) + ' p90 ' + f1(dev[Math.floor(dev.length * 0.9)]); } else r.slide = '-'; }
   else r.slide = 'gear';
   // balance: distance of the centre of mass outside the bounding box of the points on the floor
   { let worst = 0, lean = 0; for (const f of F) { const s = f.sup.filter(p => p[1] - floor < 0.03); if (!s.length) continue;

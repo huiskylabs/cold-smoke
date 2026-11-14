@@ -24,11 +24,17 @@
     if (typeof t0 === 'number') return trees.reduce((s, x, i) => s + x * w[i], 0);
     if (Array.isArray(t0)) return t0.map((_, j) => mix(trees.map(t => t[j]), w));
     const o = {}; for (const k in t0) o[k] = mix(trees.map(t => t[k] != null ? t[k] : t0[k]), w); return o; };
+  // (monotone cubic, Fritsch-Carlson: a value never swings past its keys, so a key at a joint's limit stays inside the limit; ends at rest)
+  const herm = (a, b, c, d, ta, tb, tc, td, s) => {
+    if (typeof b === 'number') { const h = tc - tb, d1 = (c - b) / h, d0 = tb > ta ? (b - a) / (tb - ta) : 0, d2 = td > tc ? (d - c) / (td - tc) : 0;
+      const mb = d0 * d1 <= 0 ? 0 : 2 / (1 / d0 + 1 / d1), mc = d1 * d2 <= 0 ? 0 : 2 / (1 / d1 + 1 / d2), s2 = s * s, s3 = s2 * s;
+      return b * (2 * s3 - 3 * s2 + 1) + h * mb * (s3 - 2 * s2 + s) + c * (-2 * s3 + 3 * s2) + h * mc * (s3 - s2); }
+    if (Array.isArray(b)) return b.map((_, j) => herm(a[j], b[j], c[j], d[j], ta, tb, tc, td, s));
+    const o = {}, g = (t, k) => t[k] != null ? t[k] : b[k]; for (const k in b) o[k] = herm(g(a, k), b[k], g(c, k), g(d, k), ta, tb, tc, td, s); return o; };
   const keys = K => t => {
     let i = 0; while (i < K.length - 2 && K[i + 1][0] <= t) i++;
     const b = K[i], c = K[i + 1], a = K[Math.max(0, i - 1)], d = K[Math.min(K.length - 1, i + 2)];
-    const s = clamp((t - b[0]) / (c[0] - b[0]), 0, 1), s2 = s * s, s3 = s2 * s;
-    return mix([a[1], b[1], c[1], d[1]], [(-s + 2 * s2 - s3) / 2, (2 - 5 * s2 + 3 * s3) / 2, (s + 4 * s2 - 3 * s3) / 2, (-s2 + s3) / 2]);
+    return herm(a[1], b[1], c[1], d[1], a[0], b[0], c[0], d[0], clamp((t - b[0]) / (c[0] - b[0]), 0, 1));
   };
   // a pose from a few fields on top of the rest pose
   const make = f => { const p = Human.restPose(); f(p); return p; };
@@ -251,9 +257,9 @@
   // ski clips solve both legs onto the skis, which is too slow per frame: the clip is solved once at 96 phases and read back by interpolation
   const baked = new WeakMap();
   function sample(sk, clip, t) {
-    if (clip.gear !== 'ski') return solve(sk, clip, t);
+    if (clip.gear === 'board') return solve(sk, clip, t);
     if (!baked.has(sk)) baked.set(sk, {}); const B = baked.get(sk), N = 96;
-    if (!B[clip.name]) B[clip.name] = Array.from({ length: N }, (_, i) => solve(sk, clip, clip.dur * i / N));
+    if (!B[clip.name]) { const F = Array.from({ length: N }, (_, i) => solve(sk, clip, clip.dur * i / N)); B[clip.name] = clip.gear ? F : plant(sk, clip, F); }
     const x = (((t / clip.dur) % 1 + 1) % 1) * N, i = Math.floor(x) % N;
     return Human.lerpPose(B[clip.name][i], B[clip.name][(i + 1) % N], x - Math.floor(x));
   }
@@ -289,6 +295,73 @@
         const d = new Array(6); for (let r = 5; r >= 0; r--) { let v = g[r]; for (let q = r + 1; q < 6; q++) v -= A[r][q] * d[q]; d[r] = v / A[r][r]; }
         KS.forEach((k, j) => { L[k] = cl(k, L[k] + Math.max(-12, Math.min(12, d[j]))); }); } }
   }
+  // joint angles `KS` of one limb `L` (inside the limits `R`) moved until the residuals res() vanish: damped least squares on a numeric Jacobian
+  function dls(L, KS, R, res, iters, damp) {
+    const n = KS.length, cl = (k, v) => Math.max(R[k][0], Math.min(R[k][1], v));
+    for (let it = 0; it < iters; it++) { const f = res(); if (Math.hypot(...f) < 1e-3) break;
+      const J = KS.map(k => { const h = L[k] + 1 > R[k][1] ? -1 : 1; L[k] += h; const d = res(); L[k] -= h; return d.map((v, j) => (v - f[j]) / h); });
+      const A = KS.map((_, r) => KS.map((_, c) => J[r].reduce((a, v, j) => a + v * J[c][j], 0) + (r === c ? (damp || 2e-6) : 0))), g = KS.map((_, r) => -J[r].reduce((a, v, j) => a + v * f[j], 0));
+      for (let c = 0; c < n; c++) { let pv = c; for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[pv][c])) pv = r; [A[c], A[pv]] = [A[pv], A[c]]; [g[c], g[pv]] = [g[pv], g[c]];
+        for (let r = c + 1; r < n; r++) { const m = A[r][c] / A[c][c]; for (let q = c; q < n; q++) A[r][q] -= m * A[c][q]; g[r] -= m * g[c]; } }
+      const d = new Array(n); for (let r = n - 1; r >= 0; r--) { let v = g[r]; for (let q = r + 1; q < n; q++) v -= A[r][q] * d[q]; d[r] = v / A[r][r]; }
+      KS.forEach((k, j) => { L[k] = cl(k, L[k] + Math.max(-10, Math.min(10, d[j]))); }); }
+  }
+  // centre of mass of the posed skeleton, from Dempster's segment masses and centre positions
+  function com(sk, xf) {
+    const I = sk.idx, J = n => Human.Skeleton.apply(xf, sk, I[n], sk.bones[I[n]].J), parts = [[0.497, V.lerp(J('pelvis'), J('thorax_hi'), 0.45)], [0.081, V.lerp(J('neck_hi'), J('head'), 1.6)]];
+    for (const s of ['L', 'R']) parts.push([0.028, V.lerp(J('upperarm_' + s), J('forearm_' + s), 0.436)], [0.016, V.lerp(J('forearm_' + s), J('hand_' + s), 0.43)], [0.006, J('hand_' + s)],
+      [0.1, V.lerp(J('thigh_' + s), J('shin_' + s), 0.433)], [0.0465, V.lerp(J('shin_' + s), J('talus_' + s), 0.433)], [0.0145, V.lerp(J('talus_' + s), J('midfoot_' + s), 0.5)]);
+    const c = [0, 0, 0]; let m = 0; for (const [w, p] of parts) { m += w; for (let i = 0; i < 3; i++) c[i] += w * p[i]; } return c.map(v => v / m);
+  }
+  // feet on the floor stay where they landed. F = the clip's poses at even phases, each already set on the floor. A foot is planted while its heel
+  // or ball is on the floor; from the step it lands, that point is held still (or, in walk and run, carried back by the floor at the belt speed).
+  // The whole body is first shifted to meet the planted feet, then each planted leg's angles are solved for what is left. In clips that stand in
+  // place the body is also shifted until the centre of mass is over the feet. After lift-off the leg eases back to the written pose (no spring).
+  function plant(sk, clip, F) {
+    const N = F.length, dt = clip.dur / N, fl = floor0.get(sk), R = Human.ROM.leg, KS = ['flex', 'abd', 'rot', 'knee', 'ankle'], PW = 8, P = Human.Skeleton.pose;
+    const pts = F.map(p => contacts(sk, P(sk, p))), isGait = clip.name === 'walk' || clip.name === 'run';
+    const feet = [['L', 0], ['R', 3]].map(([s, o]) => ({ s, o, st: pts.map(c => Math.min(c[o][1], c[o + 1][1], c[o + 2][1]) - fl < 0.012), j: pts.map(c => [0, 1, 2].reduce((m, q) => c[o + q][1] < c[o + m][1] ? q : m, 0)), tg: new Array(N).fill(null) }));
+    // walk and run: the floor's speed is what the heel and ball do while they are down; a foot that only skims the floor on its way forward is not planted
+    let v = 0; if (isGait) { let n = 0; for (const f of feet) for (let k = 0; k < N; k++) { const k1 = (k + 1) % N, j = pts[k][f.o][1] <= pts[k][f.o + 1][1] ? 0 : 1;
+        if (pts[k][f.o + j][1] - fl < 0.012 && pts[k1][f.o + j][1] - fl < 0.012) { v -= (pts[k1][f.o + j][2] - pts[k][f.o + j][2]) / dt; n++; } } v /= Math.max(1, n);
+      for (const f of feet) f.st = f.st.map((x, k) => x && (pts[k][f.o + f.j[k]][2] - pts[(k + N - 1) % N][f.o + f.j[k]][2]) / dt < -0.4 * v); }
+    for (const f of feet) { const all = f.st.every(x => x), starts = all ? [F.reduce((m, p, k) => p.root.pos[1] < F[m].root.pos[1] ? k : m, 0)] : f.st.map((x, k) => x && !f.st[(k + N - 1) % N] ? k : -1).filter(k => k >= 0);
+      for (const a of starts) for (let m = 0; m < N && f.st[(a + m) % N]; m++) { const k = (a + m) % N, j = f.j[k], A = pts[a][f.o + j]; f.tg[k] = [A[0], pts[k][f.o + j][1], A[2] - v * m * dt]; } }
+    const out = F.map(p => JSON.parse(JSON.stringify(p))), off = new Array(N).fill(null), delta = feet.map(() => new Array(N).fill(null));
+    for (let k = 0; k < N; k++) { const pin = feet.filter(f => f.tg[k]); if (!pin.length) continue; const pose = out[k];
+      const cur = f => contacts(sk, P(sk, pose))[f.o + f.j[k]], fwd0 = feet.map(f => V.norm(V.sub(pts[k][f.o + 1], pts[k][f.o])));
+      const sh = [0, 0]; for (const f of pin) { const c = pts[k][f.o + f.j[k]]; sh[0] += (f.tg[k][0] - c[0]) / pin.length; sh[1] += (f.tg[k][2] - c[2]) / pin.length; }
+      pose.root.pos[0] += sh[0]; pose.root.pos[2] += sh[1];
+      const legs = () => { for (const f of pin) { const L = pose['leg_' + f.s], i = feet.indexOf(f); for (const q of KS) L[q] = Math.max(R[q][0], Math.min(R[q][1], L[q]));
+        dls(L, KS, R, () => { const c = contacts(sk, P(sk, pose)), p = c[f.o + f.j[k]], w = V.norm(V.sub(c[f.o + 1], c[f.o])), t = f.tg[k];
+          return [(p[0] - t[0]) * PW, (p[1] - t[1]) * PW, (p[2] - t[2]) * PW, w[1] - fwd0[i][1], w[0] - fwd0[i][0]]; }, 8, 1e-4); } };
+      // what the legs cannot reach in height, the whole body takes up; `miss` = the worst distance left between a planted point and its place
+      const miss = () => { const c = contacts(sk, P(sk, pose)); return Math.max(...pin.map(f => V.len(V.sub(c[f.o + f.j[k]], f.tg[k])))); };
+      const settle = () => { legs(); for (let it = 0; it < 2; it++) { const c = contacts(sk, P(sk, pose)); pose.root.pos[1] += pin.reduce((a, f) => a + f.tg[k][1] - c[f.o + f.j[k]][1], 0) / pin.length; legs(); } };
+      settle();
+      // standing in place on both feet: the centre of mass comes back over the feet
+      // (by leaning the trunk from the hips, as a person does: shifting the hips instead would ask the ankles for more bend than they have)
+      if (!isGait && pin.length === 2) { const err = () => { const c = contacts(sk, P(sk, pose)), g = com(sk, P(sk, pose));
+          const z0 = Math.max(c[0][2], c[3][2]) + 0.05, z1 = Math.min(c[1][2], c[4][2]) - 0.01; return g[2] - Math.max(z0, Math.min(z1, g[2])); };
+        // first the hips move over the feet (the shins lean, as far as the ankles bend with the foot still flat on its place) ...
+        for (let it = 0; it < 4; it++) { const e = err(); if (Math.abs(e) < 0.004) break; const keep = JSON.stringify(pose), back = () => Object.assign(pose, JSON.parse(keep));
+          let step = -e, ok = false; for (let tr = 0; tr < 3 && !ok; tr++, step /= 2) { pose.root.pos[2] += step; settle(); ok = miss() < 0.004 && Math.abs(err()) < Math.abs(e); if (!ok) back(); }
+          if (!ok) break; }
+        // ... then the trunk leans for what is left
+        for (let it = 0; it < 5; it++) { const e = err(); if (Math.abs(e) < 0.004) break; const keep = JSON.stringify(pose), back = () => Object.assign(pose, JSON.parse(keep));
+          pose.root.rot[0] += 2; settle(); const d = (err() - e) / 2; back(); if (Math.abs(d) < 1e-4) break;
+          // a lean the planted legs cannot follow is halved, then given up
+          let step = Math.max(-8, Math.min(8, -e / d)), ok = false; for (let tr = 0; tr < 3 && !ok; tr++, step /= 2) { pose.root.rot[0] += step; settle(); ok = miss() < 0.006 && Math.abs(err()) < Math.abs(e); if (!ok) back(); }
+          if (!ok) break; } }
+      off[k] = [pose.root.pos[0] - F[k].root.pos[0], pose.root.pos[2] - F[k].root.pos[2]];
+      for (const f of pin) delta[feet.indexOf(f)][k] = KS.map(q => pose['leg_' + f.s][q] - F[k]['leg_' + f.s][q]); }
+    // in the air: the body's shift runs straight from the last planted step to the next; a leg that has lifted off eases back over 10 steps
+    if (off.some(x => x)) for (let k = 0; k < N; k++) if (!off[k]) { let a = 1, b = 1; while (!off[(k + N - a) % N]) a++; while (!off[(k + b) % N]) b++;
+      const A = off[(k + N - a) % N], B = off[(k + b) % N], t = a / (a + b); out[k].root.pos[0] += A[0] + (B[0] - A[0]) * t; out[k].root.pos[2] += A[1] + (B[1] - A[1]) * t; }
+    feet.forEach((f, i) => { for (let k = 0; k < N; k++) if (!delta[i][k]) { let a = 1; while (a <= 10 && !delta[i][(k + N - a) % N]) a++; if (a > 10) continue;
+      const d = delta[i][(k + N - a) % N], w = 1 - Human.smooth(0, 1, a / 10); KS.forEach((q, n) => { out[k]['leg_' + f.s][q] += d[n] * w; }); } });
+    return out;
+  }
   for (const c of CLIPS) c.gear = c.group === 'ski' ? 'ski' : c.group === 'board' ? 'board' : null;
-  Human.Motion = { CLIPS, sample, ground, contacts, gear, fitCarve, cyc, keys };
+  Human.Motion = { CLIPS, sample, ground, contacts, gear, fitCarve, cyc, keys, com, plant, parallel };
 })();
