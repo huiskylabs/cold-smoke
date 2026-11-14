@@ -112,10 +112,11 @@ const Game = (() => {
   // (feel b) the most the edges hold across the line, in parts of the load, on packed snow and in deep powder; the snow's friction there at speed;
   // the drag of powder ploughed, per metre of depth the skis ride at (m/s^2 per m)
   const GRIP_B = [1.0, 0.95], MU_B = [0.035, 0.04], PLOW_K = 3.5;
-  // (mogul b) the blow of each face met: speed lost per unit of rise, as a share of the speed squared. Over a field (a bump rises some half
-  // a metre more than the body rides, every 5.2 m) it comes to about a sixth of the run's energy per bump at speed, the sin^2 of the 25
-  // degrees a face turns the skis through; with the legs' own work it holds a skier going straight down the bumps near 35-40 km/h, weaving through them nearer 30
-  const MOG_I = 0.3;
+  // (mogul b) the blow of each face met, per (speed x angle)^2 per metre, charged square on with no rhythm; how much of it rhythm takes away
+  // at best; how fast rhythm runs out (/s); how near a crest an edge change has to come (s); how much of a face's height the legs pump
+  // back down its back at full rhythm. Measured on mountain 271828, two fields, steady speed after 4 s: test pilot charging straight 37
+  // km/h, changing edges at random 41, changing edges on the crests 44.5 (a: 83 straight, 58 turning; FIS men need 42 km/h on 26 deg)
+  const MOG_I = 10, MOG_RK = 0.95, MOG_RD = 0.08, MOG_WIN = 0.18, MOG_P = 0.6;
   // the jump: time to wind up, how far the legs fold for it, the speed a tap and a full wind-up give, how long the drive lasts; how far a tuck sits down
   const CHG_T = 0.65, CHG_E = 0.27, POP_V0 = 1.5, POP_V1 = 3.3, POP_T = 0.14, TUCK_E = 0.07;
   // the wind-up: the body starts down at once and slows into the bottom of the crouch, where it stays while the key is held (owner 2026-11-12)
@@ -132,7 +133,7 @@ const Game = (() => {
     charge: 0, tuckIn: 0, airK: 0, dp: 0, leg: 0,
   };
   // (the physics' own book-keeping for the moves; set whenever the skier is put somewhere)
-  const still = () => { S.charge = S.tuckIn = S.airK = S.dp = S.leg = 0; S.betaV = 0; S.bite = GRAV; S.jOn = false; S.jT = 0; S.jLock = true; S.popT = -1; S.popV = 0; S.lift = false; S.dpGo = 0; S.owe = 0; S.load = GRAV; S.airT = 0; S.landV = 0; S.off = 0; S.hdOff = 0; S.pdep = 0; S.aDrag = 0; S.wash = 0; };
+  const still = () => { S.charge = S.tuckIn = S.airK = S.dp = S.leg = 0; S.betaV = 0; S.bite = GRAV; S.jOn = false; S.jT = 0; S.jLock = true; S.popT = -1; S.popV = 0; S.lift = false; S.dpGo = 0; S.owe = 0; S.load = GRAV; S.airT = 0; S.landV = 0; S.off = 0; S.hdOff = 0; S.pdep = 0; S.aDrag = 0; S.wash = 0; S.mogR = 0; S.mogT = 9; S.mogF = 9; S.mogG = 0; S.mogA = 0; S.mogS = 0; S.aMog = 0; };
   still();
   // the chase camera when the picture is wide (the way the game is meant to be held): how low the skier sits in the frame, lens, distance, height
   // (wd, wh, wf: among trees it comes that much nearer (m), lower (m) and wider (rad): see cam.wood)
@@ -322,6 +323,39 @@ const Game = (() => {
     const gripB = (FB ? lerp(GRIP_B[0], GRIP_B[1], S.powder) : 1) * gripFA;
     const exB = FB && contact && sp > 3 ? Math.max(0, Math.abs(Math.tan(S.lean)) * lerp(1.0, 0.8, S.powder) / gripB - 1) * smooth(3, 8, sp) : 0; S.wash = exB;
     { const w = contact ? BETA_W : 9, bMax = su * hd > 0 ? Math.max(0, PI / 2 - Math.abs(hd)) : 9, bT = contact ? clamp(su * 0.62 + sign(S.lean) * Math.min(0.75, 0.6 * exB) * (1 - Math.abs(su)) + sign(S.lean) * 0.35 * (S.faKick || 0) * (1 - Math.abs(su)), -bMax, bMax) : 0; S.betaV += (w * w * (bT - S.beta) - 2 * w * S.betaV) * dt; S.beta += S.betaV * dt; }
+    // ---- moguls (Variants 'mog' b). gF: the rise, along the line of travel just ahead of the boots, of the part of each bump the legs take
+    // (the drawn snow less what the body rides): 0 on the smooth line and on a face that falls away. What the legs do costs speed, twice:
+    // they fold that far against the load (load x rise), and the face turns the skis up into it, a blow as big as the speed squared times
+    // the square of the angle it turns them through (MOG_I v^2 gF^2): a face met square on costs most, one met slanting, round the
+    // shoulder of the bump, far less. And the rhythm (S.mogR, 0..1), the skill of skiing bumps (owner, 2026-11-14: find the rhythm and
+    // shift left and right and you go quicker; charge them anyhow and every landing slows you): a turn begun on the crest of a bump, where
+    // the tips and tails are free of the snow and the skis pivot at no cost, sets the next face up to be met on the shoulder, absorbed and
+    // extended back into the trough with the skis on the snow. Each edge change within MOG_WIN s of a crest builds it; an edge change in
+    // the trough wears it down; crests passed without one (charging straight) let it run out. It takes up to MOG_RK of the blow away
+    let mogA = 0;
+    if (c.mog > 0.01 && Variants.val.mog === 'b') {
+      const dH = (x, z) => { Course.mogK = 1; const a = Course.height(x, z, 0.5); Course.mogK = MOG_K; const b = Course.height(x, z, 0.5); Course.mogK = 1; return a - b; };
+      const hl = Math.hypot(v[0], v[2]) || 1, hx = v[0] / hl, hz = v[2] / hl, gF = (dH(p[0] + hx * 0.35, p[2] + hz * 0.35) - dH(p[0] - hx * 0.15, p[2] - hz * 0.15)) / 0.5;
+      S.mogT += dt; S.mogF += dt; S.mogR = Math.max(0, S.mogR - MOG_RD * dt);
+      // (a crest: the rise under the boots turning to a fall (S.mogA: a real rise seen since the last one). An edge change waiting from just before it counts now; else the crest waits for one)
+      if (gF > 0.04) S.mogA = 1;
+      else if (S.mogA && gF <= 0) { S.mogA = 0; if (sp > 2) { if (S.mogF < MOG_WIN) { S.mogR += 0.6 * (1 - S.mogR); S.mogF = 9; S.mogT = 9; } else S.mogT = 0; } }
+      S.mogG = gF;
+      // (an edge change: the player's steering from one side to the other, the moment it is asked for: the body follows a tenth of a second on)
+      const side = u > 0.2 ? 1 : u < -0.2 ? -1 : 0;
+      if (side && side !== S.mogS) {
+        if (S.mogS) { if (S.mogT < MOG_WIN) { S.mogR += 0.6 * (1 - S.mogR); S.mogT = 9; } else S.mogF = 0; }
+        S.mogS = side;
+      }
+      // (out of time: a crest that waited in vain, or an edge change that no crest followed)
+      if (S.mogT >= MOG_WIN && S.mogT < 8) { S.mogR *= 0.8; S.mogT = 9; }
+      if (S.mogF >= MOG_WIN && S.mogF < 8) { S.mogR *= 0.75; S.mogF = 9; }
+      const up = Math.max(0, gF);
+      // (and in rhythm the legs pump: folded into the face, they are pressed out again down its back, pushing the skis down the falling snow,
+      // the way a rider keeps speed over a pump track; charged anyhow they only hang on, or the skis leave the snow)
+      if (contact && sp > 1) { const ld = Math.max(N, 0.6 * GRAV); S.mogL = up * ld; S.mogB = MOG_I * (1 - MOG_RK * S.mogR) * sp * sp * up * up; S.mogP = MOG_P * S.mogR * Math.max(0, -gF) * ld; mogA = S.mogL + S.mogB - S.mogP; }
+    } else { S.mogR = Math.max(0, (S.mogR || 0) - MOG_RD * dt); S.mogG = 0; }
+    S.aMog = mogA;
     let aLat = 0, aTan = aPole; S.aReac = 0; S.aSkid = 0; S.aCarve = 0;
     if (contact) {
       const grip = lerp(1.0, 0.8, S.powder), sb = Math.sin(S.beta), cb = Math.cos(S.beta);
@@ -338,17 +372,7 @@ const Game = (() => {
       // planing up to under half of it from 6 to 18 m/s), deeper and slower as they settle in than as they plane out, and up to twice as
       // much with the skis thrown across it
       const mog = c.mog > 0.01 ? MOG_MU * Course.bumps(p[0], p[2]) : 0, lowV = sat(sp / 0.6);       // (a field of bumps is slow going; the smooth line through it is not)
-      const MB = Variants.val.mog === 'b'; let aMog = 0;
-      if (MB && c.mog > 0.01 && sp > 1) {
-        // (mogul b) the part of each bump the legs take (the drawn snow less what the body rides) and its rise along the line of travel just
-        // ahead of the boots (gF, 0 on the smooth line and nothing on a face that falls away). The legs fold that far against the load
-        // (load x rise), and the face turns the skis up into it, a blow that grows with the speed squared (MOG_I)
-        const dH = (x, z) => { Course.mogK = 1; const a = Course.height(x, z, 0.5); Course.mogK = MOG_K; const b = Course.height(x, z, 0.5); Course.mogK = 1; return a - b; };
-        const hx = tx / (Math.hypot(tx, tz) || 1), hz = tz / (Math.hypot(tx, tz) || 1), gF = (dH(p[0] + hx * 0.35, p[2] + hz * 0.35) - dH(p[0] - hx * 0.15, p[2] - hz * 0.15)) / 0.5;
-        const up = Math.max(0, gF);
-        aMog = up * (Math.max(N, 0.6 * GRAV) + MOG_I * sp * sp);
-      }
-      S.aMog = aMog;
+      const MB = Variants.val.mog === 'b', aMog = MB ? mogA : 0;
       let mu = lerp(0.028, 0.06, S.powder) + (MB ? 0 : mog), plow = 0, Nf = N;
       if (FB) {
         mu = lerp(MU_B[0], MU_B[1], S.powder) * (1 + 1.5 * Math.exp(-sp / 1.5)) + (MB ? 0 : mog); Nf = Math.hypot(N, aReac);
