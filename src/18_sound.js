@@ -298,6 +298,7 @@ const Sound = (() => {
     // coming back: start the clock, then come up again
     document.addEventListener('visibilitychange', () => {
       if (!A.ctx) return; clearTimeout(A.hideT);
+      if (typeof XR !== 'undefined' && XR.active) return;          // (a headset's immersive mode may hide the page behind it: the sound goes on)
       if (document.hidden) { if (A.unlocked) A.rig.fade(0, A.ctx.currentTime, 0.03); A.hideT = setTimeout(() => { if (document.hidden) A.ctx.suspend(); }, 160); }
       else if (A.unlocked) { A.ctx.resume(); A.rig.fade(A.on ? A.level : 0, A.ctx.currentTime, 0.25); }
     });

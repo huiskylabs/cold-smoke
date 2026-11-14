@@ -20,7 +20,7 @@ const Input = (() => {
   // does both: across turns, up presses the shovels, down the tails. Read in step() ('fore/aft') and updatePose; works on top of feel b
   // (default b since the owner skied it, 2026-11-13)
   Variants.def('fa', '前后重心', [['a', '关'], ['b', '开']], 'b');
-  const I = { u: 0, fa: 0, faV: 0, faT: 0, faScript: null, btn: { jump: false, tuck: false }, jump: false, tuck: false, mode: 'touch', tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
+  const I = { u: 0, fa: 0, faV: 0, faT: 0, faScript: null, btn: { jump: false, tuck: false }, jump: false, tuck: false, mode: 'touch', xr: null, tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
   I.init = function (el) {
     addEventListener('keydown', e => { if (e.code !== I.mute) I.keys[e.code] = true; }); addEventListener('keyup', e => { I.keys[e.code] = false; if (e.code === I.mute) I.mute = null; });
     // (I.mute: a key the interface has used, held down still: a space that confirmed a menu or started the run is not also a jump)
@@ -72,6 +72,7 @@ const Input = (() => {
     if (!fb) I.kbV = 0;
     let t = 0;
     if (I.drag) { t = clamp((I.drag.x - I.drag.x0) / (Math.min(View.w || innerWidth, (View.h || innerHeight) * 1.4, 900) * 0.2), -1, 1); if (fb) t = sign(t) * Math.max(0, Math.abs(t) - 0.04) / 0.96; I.mode = 'touch'; }
+    else if (I.xr) { t = I.xr.steer; I.mode = 'xr'; }                     // (in a headset: the head leaned or tipped to the side, 21_xr.js)
     else if (I.tiltLive()) { const d = I.gx - I.zero; t = clamp(sign(d) * Math.max(0, Math.abs(d) - 0.025) / 0.40, -1, 1); I.mode = 'tilt'; }
     t = clamp(t + I.kb, -1, 1);
     if (I.script != null) t = I.script;
@@ -88,6 +89,7 @@ const Input = (() => {
     const kf = (K.ArrowUp || K.KeyW ? 1 : 0) - (K.ArrowDown || K.KeyS ? 1 : 0);
     { const want = kf, w = Math.abs(want) >= Math.abs(I.fa) && want * I.fa >= 0 ? 11 : 15, x = I.fa - want, vv = I.faV, ee = Math.exp(-w * dt), bb = (vv + w * x) * dt; I.fa = want + (x + bb) * ee; I.faV = (vv - w * bb) * ee; }
     let f = I.fa;
+    if (I.xr) f += I.xr.fa;                                              // (in a headset: the head over the tips or back over the tails)
     if (I.drag && I.drag.y0 != null) { const L = Math.min(View.w || innerWidth, (View.h || innerHeight) * 1.4, 900) * 0.2, dy = clamp((I.drag.y0 - I.drag.y) / L, -1, 1); f += sign(dy) * Math.max(0, Math.abs(dy) - 0.08) / 0.92; }
     I.faT = clamp(I.faScript != null ? I.faScript : f, -1, 1);
   };

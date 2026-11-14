@@ -8,6 +8,8 @@ const I18N = (() => {
   const EN = {
     // ---- title and loading
     '一个人，一座山，一直往下': 'One skier, one mountain, all the way down',
+    '沉浸模式': 'Immersive', '捏一下手指 出发': 'Pinch to start', '左右歪头转弯 · 头往前压板头，往后压板尾': 'Lean your head to turn · forward for the tips, back for the tails',
+    '右手捏住 蹲低加速 · 左手捏住 蓄力，松开起跳': 'Right pinch held: tuck · Left pinch held: load a jump, let go to fly', '按数码表冠退出': 'Press the Digital Crown to leave',
     '出发': 'Start', '场景': 'Scene', '视角': 'Views', '操作': 'Controls', '回车': 'Enter', '静音': 'Mute', '全屏': 'Full screen', '退出全屏': 'Exit full screen',
     '画面和声音全部由代码实时生成，没有一张贴图、一段录音。戴上耳机更好。': 'Every picture and every sound is made live by code: not one texture, not one recording. Best with headphones.',
     '画面和声音全部由代码实时生成，戴上耳机更好。': 'Every picture and every sound is made live by code. Best with headphones.',

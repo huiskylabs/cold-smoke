@@ -11,9 +11,12 @@ async function boot(stage) {
   if (typeof XHS !== 'undefined') await XHS.restore();               // (inside 小红书: the player's settings from the container's own storage)
   Quality.decide(); App.applyQuality(true);                             // how much this device is asked to draw (00c_quality.js)
   if (DEV) console.log('quality', Quality.tier, Quality.why, Quality.gpu);
-  let gfx = null; const want = QS.get('backend') || (gpuFellBack() ? 'webgl2' : null);
+  // a browser that can open a headset's immersive mode (Safari on Apple Vision Pro) is drawn with WebGL2 from the start: WebXR hands its
+  // framebuffer to WebGL only, so that is the context that can later be taken into the headset without starting over (21_xr.js)
+  const xrOK = await XR.probe();
+  let gfx = null; const want = QS.get('backend') || (gpuFellBack() || xrOK ? 'webgl2' : null);
   if (want !== 'webgl2') { try { gfx = await createGPU(canvas, { offscreen: QS.has('offscreen') }); } catch (e) { console.warn('WebGPU init failed', e); gfx = null; } }
-  if (!gfx) gfx = createGL(canvas);
+  if (!gfx) gfx = createGL(canvas, { xr: xrOK });
   if (!gfx) throw new Error('这台设备的浏览器不支持 WebGL2，画面无法启动。');
   App.gfx = gfx;
   Course.forceType = QS.get('seg') || null; Course.classic = QS.has('classic');      // dev: a mountain made of one kind of run; the runs in the order the first mountain had them
@@ -76,6 +79,7 @@ function tick(dt, draw) {
   App.t += dt;
   Input.update(real);
   Game.update(dt);
+  if (App.camHook) App.camHook(dt);                                     // (in the headset the lens is the player's own head, set on the game's camera: 21_xr.js)
   const cp = Render.cam.pos, S = Game.s, st = App.state;
   Tracks.step(Game.root, Game.pose, S);
   Render.updateOrigin(cp);
@@ -117,7 +121,7 @@ function tick(dt, draw) {
   Feel.pass(dt);                                                        // a tree gone by close, untouched: said as an event (`near`) for the next step, where the trees hear it too
   Sound.frame();
   for (const f of App.onTick) f(dt, draw !== false);
-  if (draw !== false) Render.render();
+  if (draw !== false) (App.renderHook || Render.render)();
 }
 App.onTick = [];
 // (interface) App.paused: the run is set down, nothing steps or draws. App.resumeK: the world's speed as it is taken up again (0.3 up to 1,
@@ -127,11 +131,12 @@ let lastT = 0;
 function loop(now) {
   requestAnimationFrame(loop);
   if (App.gfx && App.gfx.lost) { UI.lost(); return; }                    // the graphics device was taken away: the interface says so, and offers to start over
-  if (!App.ready || App.paused) { lastT = now; return; }
+  if (!App.ready || App.paused || XR.active) { lastT = now; return; }       // (in the headset its own frames drive the game: 21_xr.js)
   const raw = (now - lastT) / 1000, dt = clamp(raw, 1 / 240, 1 / 20); lastT = now;
   try { tick(dt * App.resumeK, true); UI.frame(dt); govern(now, raw); } catch (e) { App.ready = false; reportError(e); }
 }
 function fit() {
+  if (XR.active) return;                                                // (the headset sets the size of what is drawn while it is on)
   const PL = self.COLD_SMOKE || {}, L = Quality.L; View.measure(); let k = Math.min(devicePixelRatio || 1, PL.maxDpr || 2, L.maxDpr) * Render.scale;
   // a very large display is drawn at no more than about 2400 x 1400 and stretched: past that the extra pixels cost far more than they show
   // (and a lower Quality level asks for fewer still)
@@ -299,6 +304,7 @@ window.__ski.gates = Gates;
 addEventListener('resize', () => { if (typeof UI !== 'undefined' && UI.layout) UI.layout(); if (App.ready && !QS.get('w')) fit(); });
 // (interface) a run set down keeps its last picture on the canvas; when the frame changes shape meanwhile that picture is drawn once more to fit
 App.redraw = () => {
+  if (XR.active) return;
   if (!App.ready || !App.paused || (App.gfx && App.gfx.lost)) return;
   try { Render.computeGlobals(App.t, 1 / 60, App.state); for (const f of App.onTick) f(0, true); Render.render(); } catch (e) { }
 };
