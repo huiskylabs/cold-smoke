@@ -120,6 +120,31 @@ const Sound = (() => {
       }
       norm(d, 1); const f = Math.round(sr * 0.012); for (let i = 0; i < f; i++) d[n - 1 - i] *= i / f; M.poles.push(b);
     }
+    // boughs of spruce dragged across a jacket (version b of 'tpass', 14_trees.js): stereo, about a second. Under it a swish, the shell of
+    // the jacket brushed by the whole bough (a band of noise round 1 kHz, swelling and falling); over it thousands of needle tips flicking
+    // off the fabric one by one, each a tick of bright noise, thick while the bough is dragged and thinning as it lets go; two or three
+    // twigs snapping back; then the snow they held pattering down after them, sparser and later on the far ear. Nothing in it has a pitch.
+    M.rustle = [];
+    for (let v = 0; v < 4; v++) {
+      const n = Math.round(sr * 1.1), b = ctx.createBuffer(2, n, sr), drag = 0.22 + 0.12 * rnd(), peak = 0.05 + 0.04 * rnd();
+      const env = tt => tt < peak ? tt / peak : Math.exp(-(tt - peak) / drag);
+      for (let c = 0; c < 2; c++) {
+        const d = b.getChannelData(c), dec = Math.exp(-1 / (sr * 0.0005)), aH = Math.exp(-TAU * 1800 / sr), kS = 1 - Math.exp(-TAU * 1300 / sr), aS = Math.exp(-TAU * 500 / sr);
+        let e = 0, hp = 0, xp = 0, s1 = 0, s2 = 0, sh = 0, sx = 0, ep = 0;
+        for (let i = 0; i < n; i++) {
+          const tt = i / sr, en = env(tt);
+          if (rnd() < (900 * en * en + 6) / sr) { const a = rnd(); e += a * a * 1.4; } e *= dec;           // a needle tip
+          const w = gauss() * e; hp = aH * (hp + w - xp); xp = w;
+          const z = gauss(); s1 += kS * (z - s1); s2 += kS * (s1 - s2); sh = aS * (sh + s2 - sx); sx = s2;  // the swish
+          if (tt > 0.15 && rnd() < (110 * Math.exp(-(tt - 0.15) / 0.3) * (c ? 0.8 : 1)) / sr) { const a = rnd(); ep += a * a * a * 1.6; } ep *= dec;   // snow coming down after
+          d[i] += hp * 1.1 + sh * 2.4 * Math.pow(en, 1.5) + gauss() * ep * 0.5;
+        }
+        for (let k = 0, m = 1 + Math.floor(rnd() * 3); k < m; k++) click(d, Math.round(sr * (0.03 + 0.4 * rnd())), (0.25 + 0.35 * rnd()) * (c === k % 2 ? 1 : 0.6));     // twigs
+      }
+      { let m = 0; for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); for (let i = 0; i < n; i++) m = Math.max(m, Math.abs(d[i])); }
+        for (let c = 0; c < 2; c++) { const d = b.getChannelData(c), f = Math.round(sr * 0.05); for (let i = 0; i < n; i++) d[i] = Math.tanh(d[i] / m * 1.8) * 0.8 * (i > n - f ? (n - i) / f : 1); } }
+      M.rustle.push(b);
+    }
     return M;
   }
 
@@ -210,6 +235,13 @@ const Sound = (() => {
       if (brPan.pan) { brPan.pan.setTargetAtTime(side * 0.6, t, 0.01); spPan.pan.setTargetAtTime(side * 0.5, t, 0.01); }
       hit(brG, t, hard ? 0.6 : 0.25, 0.012, 0.07, 0.11); hit(spG, t + 0.05, hard ? 0.4 : 0.18, 0.03, 0.22, 0.32);
       if (hard) { th.frequency.cancelScheduledValues(t); th.frequency.setValueAtTime(70, t); th.frequency.exponentialRampToValueAtTime(38, t + 0.2); hit(thG, t, 0.4, 0.004, 0.03, 0.09); hit(crG, t, 1.4, 0.002, 0.04, 0.08); if (mus) mus.crash(t); }
+    };
+    // boughs dragged along the body (version b of 'tpass'): one of the rustles, from the side the tree is on, a little faster at speed
+    let nRus = 0;
+    R.rustle = (t, side, amp, sp) => { R.rustles = (R.rustles || 0) + 1;
+      const s = ctx.createBufferSource(), g = gain(amp), p = pan(); s.buffer = M.rustle[nRus++ % M.rustle.length];
+      s.playbackRate.value = (0.88 + 0.2 * sat((sp || 0) / 20)) * (0.94 + 0.12 * hash1(nRus * 11 + 5)); if (p.pan) p.pan.value = side * 0.55;
+      chain(s, g, p, fT); s.start(t);
     };
     R.pole = (t) => {                      // both baskets go into the snow, never quite together: quiet, dry, the same at any speed
       R.poles = (R.poles || 0) + 1; const lead = hash1(R.poles * 13 + 5) < 0.5 ? -1 : 1, gap = 0.006 + 0.01 * hash1(R.poles * 29 + 1);
@@ -353,7 +385,13 @@ const Sound = (() => {
     if (ev.type === 'land') { A.rig.down(t, ev.v, ev.airT); if (ev.airT > 0.14 || ev.v > 1.6) A.rig.land(ev.v * (ev.airT > 0.14 ? 1 : 0.5), t); }
     else if (ev.type === 'takeoff') { const f = A.flight(); A.rig.takeoff(t, f.T, f.H); }
     else if (ev.type === 'pole') A.rig.pole(t);
-    else if (ev.type === 'brush' || ev.type === 'crash') A.rig.brush(t, sign((ev.x - S.p[0]) * S.r[0] + (ev.z - S.p[2]) * S.r[2]) || 1, ev.type === 'crash');
+    else if (ev.type === 'brush' || ev.type === 'crash' || ev.type === 'rustle') {
+      const side = sign((ev.x - S.p[0]) * S.r[0] + (ev.z - S.p[2]) * S.r[2]) || 1, stay = typeof Variants !== 'undefined' && Variants.val.tpass === 'b';
+      if (ev.type !== 'rustle') A.rig.brush(t, side, ev.type === 'crash');
+      // (the trees staying, the boughs are heard for as long as they are against the body: a full rustle as the skier goes in, then
+      // quieter ones, the deeper in the louder)
+      if (stay) A.rig.rustle(t, side, ev.type === 'rustle' ? 0.22 + 0.25 * sat(1 - (ev.d || 1)) : ev.type === 'crash' ? 0.6 : 0.5, S.speed);
+    }
     else if (ev.type === 'hoof') A.rig.hoof(t, ev.k * Math.pow(sat(1 - ev.d / 34), 1.6), ev.side * sat(ev.d / 6) * 0.75);
   };
   return A;
