@@ -768,10 +768,14 @@ const Game = (() => {
     // springs: the trunk is heavy and comes round late, never at a jerk. (Only on the snow, forwards,
     // with the skis under the body: in the air, a tuck, a stroke or a fall the old reading stands. gnd: how far all that holds)
     const mo = fl.mo = first ? (Variants.val.motion === 'a' ? 0 : 1) : damp(fl.mo, Variants.val.motion === 'a' ? 0 : 1, 4, dt);
+    // (Variants 'mocap' b, mcK easing a switch over: the upper body through a turn as a real skier moves it, 06c_mocap.js; it takes the place of the
+    // separation, the hands' reach round the turn, the flex-and-rise, the swing of the poles and their plant, and the fore and aft of motion b)
+    const mcK = fl.mcK = first ? (Variants.val.mocap === 'b' ? 1 : 0) : damp(fl.mcK, Variants.val.mocap === 'b' ? 1 : 0, 4, dt);
+    if (first) Mocap.reset(); const MC = Mocap.update(Lv, dt);
     const gnd = fl.gnd = (1 - w) * (1 - dpK) * (1 - sat(S.crash * 5)) * smooth(3, 8, sp) * smooth(0.3, 0.8, cy) * (1 - 0.6 * smooth(0.3, 1, pose.tuck)) * (1 - sat(Math.abs(q.yaw) * 3));
     const wr = a => Math.atan2(Math.sin(a), Math.cos(a)), fall = Course.yawAt(-P[2]), skY = Math.atan2(root.fwd[0], -root.fwd[2]), skR = wr(skY - fall), trR = vh > 1 ? wr(Math.atan2(v[0], -v[2]) - fall) : skR;
     const sepM = spring(fl, 'sepM', clamp(-lerp(0.3, 0.8, smooth(-0.04, 0.04, skR * fl.lean * cy)) * skR, -0.85, 0.85) * gnd, 6, kd), hdM = spring(fl, 'hdM', clamp((0.35 * trR - 0.34 * skR) * gnd - 0.15 * skR * gnd, -0.7, 0.7), 9, kd);
-    pose.sep = lerp(fl.sepB * cy, sepM, mo) + q.sep - spring(fl, 'wu', fl.plan && fl.plan.spin ? fl.plan.dir * 0.3 * fl.prep : 0, 20, kd); pose.headYaw = clamp(spring(fl, 'hd', lerp(fl.hy * cy, hdM, mo) + q.head, 16, kd), -1.3, 1.3);
+    pose.sep = lerp(lerp(fl.sepB * cy, sepM, mo), lerp(fl.sepB * cy, MC.sep, gnd), mcK) + q.sep - spring(fl, 'wu', fl.plan && fl.plan.spin ? fl.plan.dir * 0.3 * fl.prep : 0, 20, kd); pose.headYaw = clamp(spring(fl, 'hd', lerp(lerp(fl.hy * cy, hdM, mo), fl.hy * cy * (1 - gnd), mcK) + q.head, 16, kd), -1.3, 1.3);
     // (the inside ski draws ahead as the edges come up: hardly at all in a shallow turn)
     pose.lead = 0.19 * sL * Math.abs(sL) + q.lead; pose.stance = 0.31 + 0.16 * Math.abs(sL) + 0.04 * w + q.st;
     fl.foreS = damp(fl.foreS || 0, clamp(-0.25 * w * (1 - q.own) + q.fore - 0.5 * fl.soak, -1, 1), 8, kd); pose.fore = fl.foreS;
@@ -815,12 +819,14 @@ const Game = (() => {
       const key = side < 0 ? 'plantL' : 'plantR', want = plWant(side);
       // (it is asked for at a stroke; the hand sets off after it through a spring, without a jerk)
       pose[key] = sat(spring(fl, side < 0 ? 'plL' : 'plR', want, want > (pose[key] || 0) ? 16 : 11, dt * k));      // (16 / 11: the swing set going and given back without a flick, owner 2026-11-13)
+      if (mcK > 0) pose[key] = lerp(pose[key], (side < 0 ? MC.plL : MC.plR) * quiet * lerp(1, 0.5, smooth(8, 13, sp)), mcK);      // (mocap: the plant is where the turn is, no spring)
       const a = side < 0 ? pose.armL : pose.armR, pl = pose[key], g = grabs ? 0 : side < 0 ? q.gL : q.gR;
-      const out = sat(-side * sLn * 1.6), inn = sat(side * sLn * 1.6), ac = act * (1 - g), HA = fl.ha;
+      const out = sat(-side * sLn * 1.6) * (1 - mcK), inn = sat(side * sLn * 1.6) * (1 - mcK), ac = act * (1 - g), HA = fl.ha, hm = side < 0 ? MC.hL : MC.hR;
       a[0] = side * (0.03 * pl + hx - 0.13 * g + HA[0] * ac) + (side < 0 ? q.ax : q.bx) * hk; a[1] = 0.03 * pl + hy - 0.6 * g + (HA[1] + HA[3] * out + HA[5] * inn) * ac + (side < 0 ? q.ay : q.by) * hk; a[2] = -0.10 * pl + hz + 0.32 * g - (HA[2] + HA[4] * out + HA[6] * inn) * ac + (side < 0 ? q.az : q.bz) * hk;
+      if (mcK > 0) for (let i = 0; i < 3; i++) a[i] += hm[i] * ac * gnd * mcK;
     }
     // (b: the poles do not swing to a clock: they nod with how the legs are loaded and with the body going over, and with the snow's chatter)
-    pose.swing = lerp(Math.sin(G.t * 2.3) * 0.25 + S.leanV * 0.12, S.leanV * 0.12 + 0.16 * clamp(fl.pump, -1, 1) + 6 * (fl.chat || 0), mo) * hk;
+    pose.swing = lerp(Math.sin(G.t * 2.3) * 0.25 + S.leanV * 0.12, S.leanV * 0.12 + 0.16 * clamp(fl.pump, -1, 1) + 6 * (fl.chat || 0), mo) * hk * (1 - mcK);
     // (angulation: in a turn the knees and hips go inside and the chest stays nearer upright over the outside ski; the more it is laid over the more so.
     // Through a spring: the trunk comes upright a moment after the legs tip in)
     pose.tilt = spring(fl, 'tlt', -0.17 * fl.lean * cy * smooth(0.08, 0.6, Math.abs(fl.lean)) * gnd, 9, kd) * mo;
@@ -835,13 +841,13 @@ const Game = (() => {
         fl.ldV = vv + ac * dt; fl.ld = x + fl.ldV * dt; } fl.wasAir = S.air;
       if (dt > 0) fl.dist = ((fl.dist || 0) + sp * dt) % 4096;
       const ch = fl.chat = 0.011 * smooth(10, 30, sp) * (1 - w) * (1 - 0.6 * (S.powder || 0)) * (vnoise1(fl.dist * 0.42, 31) * 0.7 + vnoise1(fl.dist * 1.1, 37) * 0.3);
-      pose.crouch = clamp(pose.crouch + mo * (fx + (fl.ld || 0) * (1 - w)), 0, 1);
+      pose.crouch = clamp(pose.crouch + lerp(mo * fx, MC.crouch * gnd, mcK) + mo * (fl.ld || 0) * (1 - w), 0, 1);
       // (feel b: fore and aft on the snow. Into a new turn the shins press the boots and the hips go forward over the feet; through the apex they
       // are centred; out of it the weight comes back toward the tails; and whatever the snow is braking with (a skid, the powder) sets the body
       // back on its heels a little. Through a spring of a little under 1 Hz: the weight shifts, it does not jump)
       const foT = FB ? clamp((0.55 * ent - 0.35 * rel - 0.06 * (S.aDrag || 0)) * gnd, -0.6, 0.6) : 0;
-      pose.fore = clamp(pose.fore + spring(fl, 'foB', foT, 5.5, kd), -1, 1);       // (the snow's chatter is not put into the knee bend: with the feet on the snow that moved the hips and everything above them)
-      for (const a of [pose.armL, pose.armR]) { a[1] += mo * (1.6 * ch - 0.25 * (fl.ld || 0)) * hk; a[2] -= mo * 0.4 * (fl.ld || 0) * hk; } }
+      pose.fore = clamp(pose.fore + spring(fl, 'foB', foT, 5.5, kd) * (1 - mcK), -1, 1);       // (the snow's chatter is not put into the knee bend: with the feet on the snow that moved the hips and everything above them)
+      for (const a of [pose.armL, pose.armR]) { a[1] += mo * (1.6 * ch * (1 - mcK) - 0.25 * (fl.ld || 0)) * hk; a[2] -= mo * 0.4 * (fl.ld || 0) * hk; } }
     if (crash > 0.001) { const wb = Math.sin(crash * 22) * crash; pose.armL[1] += 0.18 * crash + 0.05 * wb; pose.armR[1] += 0.18 * crash - 0.05 * wb; pose.sep += wb * 0.25; }
     // ---- root frame
     // the feet (on the snow they stand on the snow that is drawn; over bumps the body rides a smoother line and the legs make up the difference)
