@@ -133,6 +133,10 @@ const Game = (() => {
   // (feel b) the most the edges hold across the line, in parts of the load, on packed snow and in deep powder; the snow's friction there at speed;
   // the drag of powder ploughed, per metre of depth the skis ride at (m/s^2 per m)
   const GRIP_B = [1.0, 0.95], MU_B = [0.035, 0.04], PLOW_K = 3.5;
+  // how much the edges hold (review 2026-11-14: a grip of 1 g means at 80 km/h no turn tighter than 51 m, wider than the steeps, so at speed
+  // the only line is straight down. Good recreational skiers carve at 1-1.5 g). a: 1 g, as it was. b: 1.4 g, turns can be finished at speed
+  Variants.def('grip', '抓地', [['a', '原来 1g'], ['b', '更稳 1.4g']], 'a');
+  const GRIP_K = { a: 1, b: 1.4 };
   // (turning brake b) a ski's sidecut radius (m); where the lean fades as the line comes round, from and to (rad off the fall line; a: 0.80..1.30);
   // how far a held key swings the skis across (rad, a: 0.62; never past straight across the fall line either way)
   const TB_RSC = 14, TB_H0 = 1.65, TB_H1 = 2.2, TB_SK = 1.35;
@@ -364,7 +368,7 @@ const Game = (() => {
     // powder). Asked for more, the skis wash out: the line turns only as fast as the grip allows and what is left over swings the tails out
     // into a skid, 0.6 rad of skid for each whole grip asked for beyond it, which brakes and throws snow. So the same full turn is a tight
     // carve at 30 km/h and, at 80, a wide arc that scrubs speed: nothing is on rails)
-    const gripB = (FB ? lerp(GRIP_B[0], GRIP_B[1], S.powder) : 1) * gripFA;
+    const gripB = (FB ? lerp(GRIP_B[0], GRIP_B[1], S.powder) * (GRIP_K[Variants.val.grip] || 1) : 1) * gripFA;
     // (turning brake b: and no tighter than the ski's own arc. Edged over at the lean, a ski bent into the snow carves a circle of its sidecut
     // radius times the cosine of the edge angle; to turn tighter than that, slow and short, it has to be pivoted and scraped round. So what
     // the edges can hold across the line is the smaller of the grip and v^2 / that radius, and a turn asked beyond it is a skid)
