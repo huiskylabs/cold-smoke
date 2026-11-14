@@ -139,7 +139,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #day .fs span { margin-top: clamp(5px, 1.1vmin, 9px); font-family: var(--f-lat); font-weight: 500; font-size: clamp(9px, 1.45vmin, 12px); letter-spacing: .3em; white-space: nowrap; color: var(--dim); }
 #day.on > *, #day.on .fs > div { opacity: 1; transform: none; }
 #day.on .k { letter-spacing: .5em; } #day.on .t { letter-spacing: .42em; transition-delay: .2s; } #day.on .rule { transition-delay: .55s; } #day.on .fs { transition-delay: .8s; }
-#day.on .fs > div:nth-child(1) { transition-delay: .85s; } #day.on .fs > div:nth-child(2) { transition-delay: .97s; } #day.on .fs > div:nth-child(3) { transition-delay: 1.09s; } #day.on .fs > div:nth-child(4) { transition-delay: 1.21s; }
+#day.on .fs > div:nth-child(1) { transition-delay: .85s; } #day.on .fs > div:nth-child(2) { transition-delay: .97s; } #day.on .fs > div:nth-child(3) { transition-delay: 1.09s; } #day.on .fs > div:nth-child(4) { transition-delay: 1.21s; } #day.on .fs > div:nth-child(n+5) { transition-delay: 1.33s; }
 /* how to steer, until the first real turn */
 #hint { position: absolute; left: 50%; bottom: calc(var(--gb) + clamp(92px, calc(var(--ch) * .17), 150px)); display: flex; align-items: center; gap: 12px; height: 46px; padding: 0 22px 0 16px; border-radius: 999px; background: rgba(5, 8, 13, .46); white-space: nowrap;
   opacity: 0; transform: translate(-50%, 8px); transition: opacity .8s ease, transform .8s cubic-bezier(.2, .6, .2, 1); }
@@ -261,6 +261,9 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #menu .rk-list .rk-none { color: var(--dim); }
 #day .rk { margin-top: clamp(10px, 2vmin, 16px); font-family: var(--f-lat); font-weight: 500; font-size: clamp(9px, 1.45vmin, 12px); letter-spacing: .24em; color: var(--sun); white-space: nowrap; }
 #day .rk:empty { display: none; }
+#day #day-m { display: none; }
+#day.gate.on #day-m { display: inline-block; pointer-events: auto; margin-top: clamp(12px, 2.4vmin, 20px); padding: .55em 1.1em; border: 1px solid rgba(255, 255, 255, .28); border-radius: 999px; background: rgba(5, 8, 13, .28); color: inherit; font: inherit; font-size: clamp(11px, 1.7vmin, 14px); letter-spacing: .18em; cursor: pointer; transition-delay: 1.3s; }
+#day .fs b.up { color: var(--sun); }
 /* held in the hands the menu is the whole of a short screen: smaller words, a narrower column */
 #app:not(.desk) #menu { --mf: 16px; --mg: 4px; } #app:not(.desk) #menu nav { width: 168px; } #app:not(.desk) #menu .mpane { padding-left: 40px; }
 /* what a key just changed, said once: in the column of type on the left, clear of the sun (at the gate where the name of a run would stand, in a run under the hints) */
@@ -402,7 +405,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
     <div id="hint"><i></i><span id="hint-t"></span></div>
     <div class="spd"><b id="spd">0</b><span class="unit">KM/H<em id="drop2"></em></span><span class="tach"><i id="tach"></i></span></div>
     <div class="drop"><b id="drop">0</b><span class="unit">落差 M</span></div>
-    <div id="day"><small class="k" id="day-k"></small><b class="t" id="day-t"></b><i class="rule"></i><div class="fs" id="day-f"></div><small class="rk" id="day-r"></small></div>
+    <div id="day"><small class="k" id="day-k"></small><b class="t" id="day-t"></b><i class="rule"></i><div class="fs" id="day-f"></div><small class="rk" id="day-r"></small><button type="button" id="day-m"></button></div>
     <div id="steer"><i class="l"></i><i class="v" id="steer-v"></i><i class="a"></i><i class="b"></i><i class="o"></i></div>
     <div id="pad"><button id="vw" type="button" aria-label="换视角"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="6" width="11" height="9" rx="2"/><path d="M13.5 9l4-2.2v7.4l-4-2.2"/></svg></button><button id="tuck" type="button" aria-label="加速">加速</button><button id="jump" type="button" aria-label="跳">跳</button></div>
   </section>

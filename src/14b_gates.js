@@ -21,10 +21,15 @@ const Gates = (() => {
   };
   const NA = 16, NB = 56;
   if (typeof Variants !== 'undefined') Variants.def('flag', '跳台旗', [['a', '宽旗'], ['b', '羽毛旗']], 'b');
+  // what marks the shoulder (only with 山肩看线 on): a banner between two poles stood across the view down the valley, the best there is,
+  // so the default is the low mark: a line on the snow and a flag at each end. Or nothing at all
+  if (typeof Variants !== 'undefined') Variants.def('lgate', '山肩记号', [['a', '横旗门'], ['b', '雪上的线和旗'], ['c', '不立东西']], 'b');
   const cutId = () => (typeof Variants !== 'undefined' && CUTS[Variants.val.flag]) ? Variants.val.flag : 'b';
   const LOX = 0.11, LOZ = 0.62, LSINK = 0.085, LFY = GATE_K.LFY;   // where the lantern stands from the foot of the pole (in front of the cloth, up the hill), how deep it is pressed into the snow, how high its flame is
   const MAXG = 12, DV = 2000, DI = 10800, PV = 1800, PIX = 6400, DS = 11, PS = 10;       // jumps kept at once; room per jump in the sheets' buffers; floats per vertex
   let gfx, flags = {}, propVB, propIB, propN = 0, driftN = 0, instF, instP, instS, cpuF, cpuP, cpuS, dyeVB, dyeIB, poolVB, poolIB;
+  const _bc = {};
+  let bnVB, bnIB, bnN = 0, instB, cpuB, nB = 0;      // the gate on a shoulder (Variants 'look'): two poles and a banner between them, drawn by the flags' own shaders
   let pipeFlag, pipeFlagSh, pipeProp, pipeDrift, pipePool, pipeDye, pipeGlare;
   let gates = new Map(), slots = [], live = [], segsRef = null, seen = 0, nF = 0, nP = 0, nS = 0;
   // each lantern is lit at its own moment as the sun goes down (somebody walks the course with a taper, over the minute round sunset),
@@ -62,6 +67,22 @@ const Gates = (() => {
     };
     { const rings = []; for (let j = 0; j <= 30; j++) { const l = -0.35 + (LT + 0.35) * j / 30, c = pole(Math.max(l, 0)); rings.push([c[0], l < 0 ? l : c[1], c[2], c[3], lerp(0.016, 0.0055, sat(l / LT))]); } tube(rings, 6); }
     tube([[0, -0.06, 0, 1, 0.027], [0, 0.07, 0, 1, 0.027], [0, 0.10, 0, 1, 0.017]], 6);
+    return { V: new Float32Array(V), I: new Uint32Array(I) };
+  }
+
+  // ---- the gate on a shoulder: two poles BW apart and a banner hung between their heads. In the flag's own vertex layout, so the same
+  // shaders draw it: the cloth's `a` (how free it is to move) is nought at both poles and greatest in the middle, so it is held at both
+  // ends and bellies between them, and the dark sleeve the shader draws near a pole comes at each end
+  const BW = 15, BH = 5.8, BY0 = 4.2, BY1 = 5.6;
+  function bannerMesh() {
+    const V = [], I = [], put = (...f) => { for (const x of f) V.push(x); }, NX = 72, NY = 8;
+    for (let j = 0; j <= NY; j++) for (let i = 0; i <= NX; i++) { const t = i / NX; put(t * BW, lerp(BY0, BY1, j / NY), 0, 0, 0, 1, 0.20 * Math.sin(PI * t), 0.04 + 0.96 * j / NY, 0, 0, 1, 0, 0, 1); }
+    for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) { const k = j * (NX + 1) + i; I.push(k, k + 1, k + NX + 1, k + 1, k + NX + 2, k + NX + 1); }
+    for (const x of [0, BW]) {
+      const v0 = V.length / 14, NR = 8, ys = [-2.2, 0, 2.5, BH];
+      for (const y of ys) for (let k = 0; k < NR; k++) { const ph = k / NR * TAU; put(x, y, 0, Math.cos(ph), 0, Math.sin(ph), 0, y / BH, 1, lerp(0.10, 0.075, sat(y / BH)), 0, 0, 0, 0); }
+      for (let j = 0; j < ys.length - 1; j++) for (let k = 0; k < NR; k++) { const a = v0 + j * NR + k, b = v0 + j * NR + (k + 1) % NR; I.push(a, b, a + NR, b, b + NR, a + NR); }
+    }
     return { V: new Float32Array(V), I: new Uint32Array(I) };
   }
 
@@ -117,6 +138,7 @@ const Gates = (() => {
     const pm = propMesh();
     for (const id in CUTS) { const fm = flagMesh(CUTS[id]); flags[id] = { vb: gfx.buffer(fm.V, 'vertex'), ib: gfx.buffer(fm.I, 'index'), n: fm.I.length, ch: CUTS[id].ch }; }
     const flagN = flags.b.n;
+    { const bm = bannerMesh(); bnVB = gfx.buffer(bm.V, 'vertex'); bnIB = gfx.buffer(bm.I, 'index'); bnN = bm.I.length; cpuB = new Float32Array(4 * 16); instB = gfx.buffer(cpuB, 'vertex', true); }
     propVB = gfx.buffer(pm.V, 'vertex'); propIB = gfx.buffer(pm.I, 'index'); propN = pm.I.length; driftN = pm.nDrift;
     G.stats.tris = (flagN + propN) / 3;
     const MF = MAXG * 6;
@@ -259,6 +281,34 @@ const Gates = (() => {
     });
     return g;
   }
+  // ---- the mark on a shoulder, kept low so nothing stands in the view down the valley (Variants 'lgate' b): a line of dye across the
+  // snow, as at the finish of a race, and a feather flag at each end of it with its lantern. It takes a slot like a jump and is drawn
+  // and lit by the same passes
+  function planFinish(s, start) {
+    // (the one a mountain begins with is narrower: both its flags stand in the picture from where the skier waits)
+    const pc = {}, c = Course.at(s, pc), xc = c.cx, half = start ? 6.5 : clamp(c.hw - 4, 7, 13), hgt = (x, z) => Course.height(x, z, 0.5);
+    const g = { key: '', slot: -1, seen: 0, s, x: xc, mo: half, flags: [], an: [Math.round(xc), Math.round(hgt(xc, -s)), Math.round(-s)], dyeN: 0, poolN: 0, land: 0, work: [], fade: 0, lit: 0 };
+    for (const sx of [-1, 1]) {
+      const x = xc + sx * (half + 1.2), z = -s, y = hgt(x, z), n = Course.normal(x, z, 0.3), sd = hash2(Math.round(x * 16), Math.round(z * 16)), lx = x + LOX, lz = z + LOZ;
+      g.flags.push({ x, y, z, row: 3, sd, gx: -n[0] / n[1], gz: -n[2] / n[1], b: [0, 0], bv: [0, 0], wash: 0, wy: 0, lx, ly: hgt(lx, lz) - LSINK, lz });
+    }
+    const an = g.an, DVt = [], DIt = [], PVt = [], PIt = [], R = 3.4, L = 2 * half, sdG = hash2(Math.round(xc * 8), Math.round(s * 8));
+    g.work.push(() => sheet(xc - half - 0.6, xc + half + 0.6, -s - 1.8, -s + 1.8, an, DVt, DIt, DS, DV, (x, y, z) => DVt.push(x - an[0], y - an[1], z - an[2], x - xc, -z - s, L, 2.0, sdG, 0, 0.85, 0)));
+    g.work.push(() => { for (const f of g.flags) sheet(f.lx - R, f.lx + R, f.lz - R, f.lz + R, an, PVt, PIt, PS, PV, (x, y, z, nx, ny, nz) => PVt.push(x - an[0], y - an[1], z - an[2], nx, ny, nz, f.lx - an[0], f.ly + LFY - an[1], f.lz - an[2], f.sd), (x, z) => Math.hypot(x - f.lx, z - f.lz) < R); });
+    g.work.push(() => {
+      const o = g.slot, dI = new Uint32Array(DIt.length > DI ? DIt.slice(0, DI) : DIt), pI = new Uint32Array(PIt.length > PIX ? PIt.slice(0, PIX) : PIt);
+      for (let i = 0; i < dI.length; i++) dI[i] += o * DV; for (let i = 0; i < pI.length; i++) pI[i] += o * PV;
+      if (dI.length) { gfx.updateBuffer(dyeVB, o * DV * DS * 4, new Float32Array(DVt)); gfx.updateBuffer(dyeIB, o * DI * 4, dI); }
+      if (pI.length) { gfx.updateBuffer(poolVB, o * PV * PS * 4, new Float32Array(PVt)); gfx.updateBuffer(poolIB, o * PIX * 4, pI); }
+      g.dyeN = dI.length; g.poolN = pI.length;
+    });
+    return g;
+  }
+  function touchFinish(s, sg) {
+    const key = 'f' + s.toFixed(1); let g = gates.get(key);
+    if (!g) { let slot = -1; for (let i = 0; i < MAXG; i++) if (!slots[i]) { slot = i; break; } if (slot < 0) return; g = planFinish(s, !!sg && sg.idx === 0); g.key = key; g.slot = slot; slots[slot] = g; gates.set(key, g); }
+    g.seen = seen;
+  }
   function touch(M) {
     const key = M[0][0].toFixed(2) + ',' + M[0][1].toFixed(2); let g = gates.get(key);
     if (!g) {
@@ -272,7 +322,7 @@ const Gates = (() => {
   // every frame: which jumps are near (asked of the course each time: it is cheap, and it is what makes a new mountain just work), how
   // each flag stands in the wind and against the skier, and the instance data for the frame (render space = world - origin)
   G.update = function (cam, origin, player, dt, t) {
-    nF = nP = nS = 0; live.length = 0;
+    nF = nP = nS = nB = 0; live.length = 0;
     if (!G.enabled || !gfx) return;
     if (Course.segs !== segsRef) G.reset();
     const px = cam.pos[0], py = cam.pos[1], pz = cam.pos[2], cs = -pz, ox = origin[0], oy = origin[1], oz = origin[2], e = Sky.sunElev;
@@ -280,6 +330,8 @@ const Gates = (() => {
     // (asked far enough ahead that a jump is known while even its nearest flag, the pair up the hill, is still beyond `far`: every flag
     // then grows in over `band`, none arrives part grown)
     (G.markers || Course.markers)(cs - G.back, cs + G.far + G.pre + 40, (x, z) => { cur.push([x, z]); if (cur.length === 4) { touch(cur); cur = []; } });
+    const lg = Course.look ? (typeof Variants !== 'undefined' && Variants.val.lgate) || 'b' : '';
+    if (lg === 'b') Course.finishes(cs - G.back, cs + G.far + 40, touchFinish);
     for (const [k, g] of gates) if (g.seen !== seen) { slots[g.slot] = null; gates.delete(k); }
     const W = typeof App !== 'undefined' && App.state.wind ? [App.state.wind[0], App.state.wind[2]] : G.wind;       // (the same wind the snow smoke rides)
     const wl = Math.hypot(W[0], W[1]) || 1, wx = W[0] / wl, wz = W[1] / wl, wyaw = Math.atan2(wz, wx);
@@ -327,6 +379,18 @@ const Gates = (() => {
         if (k > 0.002) { g.lit = 1; o = nS++ * 8; cpuS[o] = f.lx - ox; cpuS[o + 1] = f.ly + LFY - oy; cpuS[o + 2] = f.lz - oz; cpuS[o + 3] = k; cpuS[o + 4] = f.sd; cpuS[o + 5] = sc; cpuS[o + 6] = 0; cpuS[o + 7] = 0; }
       }
     }
+    // the gates on the shoulders: across the run, square to it, each foot on the snow (the poles go on down into it)
+    if (lg === 'a') Course.finishes(cs - 200, cs + 420, s => {
+      if (nB >= 4) return;
+      const c = Course.at(s, _bc), yw = Course.yawAt(s), ax = Math.cos(yw), az = Math.sin(yw), x = c.cx - ax * BW / 2, z = -s - az * BW / 2;
+      const y = Math.min(Course.height(x, z, 0.5), Course.height(x + ax * BW, z + az * BW, 0.5)), d = Math.hypot(c.cx - px, -s - pz);
+      const sc = smooth(420, 340, d) * smooth(200, 150, cs - s), gust = 0.5 + 0.5 * vnoise1(t * 0.31 - (x * wx + z * wz) * 0.06, 7), o = nB++ * 16;
+      cpuB[o] = x - ox; cpuB[o + 1] = y - oy; cpuB[o + 2] = z - oz; cpuB[o + 3] = sc;
+      cpuB[o + 4] = ax; cpuB[o + 5] = az; cpuB[o + 6] = 0; cpuB[o + 7] = 0;
+      cpuB[o + 8] = (s * 0.0137) % 1; cpuB[o + 9] = 0.55 + 0.45 * gust; cpuB[o + 10] = 0; cpuB[o + 11] = 3;
+      cpuB[o + 12] = 0; cpuB[o + 13] = -50; cpuB[o + 14] = 0; cpuB[o + 15] = 0;
+    });
+    if (nB) gfx.updateBuffer(instB, 0, cpuB.subarray(0, nB * 16));
     if (nF) gfx.updateBuffer(instF, 0, cpuF.subarray(0, nF * 16));
     if (nP) gfx.updateBuffer(instP, 0, cpuP.subarray(0, nP * 12));
     if (nS) gfx.updateBuffer(instS, 0, cpuS.subarray(0, nS * 8));
@@ -335,10 +399,11 @@ const Gates = (() => {
   // with the trees: flags and what stands at their feet
   G.draw = function (R) {
     const fc = flags[cutId()];
+    if (nB) gfx.draw(pipeFlag, { u: { p: fc.ch }, tex: { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, vb: [bnVB, instB], ib: bnIB, count: bnN, instances: nB });
     if (nF) gfx.draw(pipeFlag, { u: { p: fc.ch }, tex: { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, vb: [fc.vb, instF], ib: fc.ib, count: fc.n, instances: nF });
     if (nP) gfx.draw(pipeProp, { u: { p: [0, 0, 0, 0] }, tex: { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, vb: [propVB, instP], ib: propIB, first: driftN, count: propN - driftN, instances: nP });
   };
-  G.drawShadow = function () { const fc = flags[cutId()]; if (nF) gfx.draw(pipeFlagSh, { u: { p: fc.ch }, vb: [fc.vb, instF], ib: fc.ib, count: fc.n, instances: nF }); };
+  G.drawShadow = function () { const fc = flags[cutId()]; if (nB) gfx.draw(pipeFlagSh, { u: { p: fc.ch }, vb: [bnVB, instB], ib: bnIB, count: bnN, instances: nB }); if (nF) gfx.draw(pipeFlagSh, { u: { p: fc.ch }, vb: [fc.vb, instF], ib: fc.ib, count: fc.n, instances: nF }); };
   // over the finished snow: lamplight first, then the dye (which takes its share of that light too), the drifts at the poles, and last
   // the glare of the flames
   G.drawOver = function (R) {
