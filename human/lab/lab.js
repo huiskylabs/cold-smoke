@@ -5,7 +5,7 @@
   const $ = s => document.querySelector(s);
   const cv = $('#gl'), gl = cv.getContext('webgl2', { antialias: true, alpha: false });
   const st = {
-    params: Object.assign({}, Human.DEFAULTS), mode: 'c', look: 'skin', pose: 'apose', auto: false, spin: true,
+    params: Object.assign({}, Human.DEFAULTS), kind: 'code', mode: 'c', look: 'skin', pose: 'apose', auto: false, spin: true,
     yaw: -0.5, pitch: 0.1, dist: 3.4, target: [0, 0.92, 0], built: null, anim: null, cache: new Map(), busy: false,
   };
   window.__lab = st;
@@ -98,8 +98,20 @@
   // ---------------------------------------------------------------- building a body
   const tick = () => new Promise(r => setTimeout(r, 16));
   const status = t => { $('#status').textContent = t || ''; $('#status').style.opacity = t ? 1 : 0; };
+  // the reference body (an open modelled mesh on our skeleton): no field, so no projection and no girths
+  async function buildRef() {
+    st.busy = true; status('载入参考人体…'); await tick();
+    const r = Human.RefBody.build(), mesh = r.mesh, W = r.W, nrm0 = Human.Mesh.normals(mesh.pos, mesh.idx);
+    const hue = b => { const h = (b * 0.618034) % 1, f = k => { const x = (k + h * 6) % 6; return 0.35 + 0.55 * Math.max(0, Math.min(1, Math.min(x, 4 - x))); }; return [f(5), f(3), f(1)]; };
+    const wcol = new Float32Array(mesh.nv * 3); for (let v = 0; v < mesh.nv; v++) for (let k = 0; k < 4; k++) { const w = W.bw[v * 4 + k], c = hue(W.bi[v * 4 + k]); wcol[v * 3] += w * c[0]; wcol[v * 3 + 1] += w * c[1]; wcol[v * 3 + 2] += w * c[2]; }
+    const g = { M: r.M, sk: r.sk, body: null, bind: r.bind, mesh, W, T: {}, ao: new Float32Array(mesh.nv).fill(1), vol0: Human.Mesh.volume(mesh.pos, mesh.idx), wcol, pos: new Float32Array(mesh.pos), nrm: new Float32Array(nrm0), col: new Float32Array(wcol), idx: mesh.idx };
+    st.built = g; st.cache.clear(); upload({ pos: g.pos, nrm: g.nrm, ao: g.ao, col: g.col, idx: mesh.idx }); status(''); st.busy = false;
+    const playing = st.clip && st.clip.clip.name; st.clip = null;
+    st.cur = poseOf(st.pose); st.anim = null; await settle(); panel();
+    if (playing || st.startClip) { playClip(playing || st.startClip, st.capture); st.startClip = null; }
+  }
   async function build() {
-    if (st.busy) return; st.busy = true; const T = {}; let t = performance.now();
+    if (st.busy) return; if (st.kind === 'ref') return buildRef(); st.busy = true; const T = {}; let t = performance.now();
     status('测量与校准体型…'); await tick();
     const M = Human.measure(st.params), sk = Human.Skeleton.build(M), body = Human.Measure.calibrate(sk); T.calib = performance.now() - t; t = performance.now();
     status('生成表面…'); await tick();
@@ -158,13 +170,13 @@
   }
   async function settle() {
     const g = st.built; if (!g) return;
-    let P = null; if (st.mode === 'c') { status('体积投影…'); await tick(); P = projectionFor(st.pose, st.cur); status(''); }
+    let P = null; if (st.mode === 'c' && g.body) { status('体积投影…'); await tick(); P = projectionFor(st.pose, st.cur); status(''); }
     st.curP = P; apply(st.cur, null, P, 1); metrics();
   }
   async function goPose(name) {
     if (!st.built || st.busy) return;
     const to = poseOf(name);
-    let P = null; if (st.mode === 'c') { if (!st.cache.has(name + '|c')) { status('体积投影…'); await tick(); } P = projectionFor(name, to); status(''); }
+    let P = null; if (st.mode === 'c' && st.built.body) { if (!st.cache.has(name + '|c')) { status('体积投影…'); await tick(); } P = projectionFor(name, to); status(''); }
     st.anim = { from: st.cur, to, fromP: st.curP, toP: P, t0: st.capture ? st.clock || 0 : performance.now(), dur: st.poseDur || 900, name };
     st.pose = name; panel();
   }
@@ -175,13 +187,13 @@
     const clip = Human.Motion.CLIPS.find(c => c.name === name); if (!clip || !st.built || st.busy) return;
     const K = Math.max(8, Math.min(24, Math.round(clip.dur * 8)));
     st.clip = { clip, K, t0: st.capture ? st.clock || 0 : performance.now() }; st.anim = null; st.auto = false; st.pose = ''; panel();
-    if (sync && st.mode === 'c') for (let k = 0; k < K; k++) clipProj(k);
+    if (sync && st.mode === 'c' && st.built.body) for (let k = 0; k < K; k++) clipProj(k);
   }
   const clipProj = k => { const c = st.clip; return projectionFor(c.clip.name + '#' + k, Human.Motion.sample(st.built.sk, c.clip, c.clip.dur * k / c.K)); };
   function clipFrame(now) {
     const c = st.clip, g = st.built, t = (now - c.t0) / 1000 * (st.slow ? 0.25 : 1), u = ((t / c.clip.dur) % 1 + 1) % 1;
     st.cur = Human.Motion.sample(g.sk, c.clip, t);
-    if (st.mode !== 'c') { st.curP = null; apply(st.cur, null, null, 1); return; }
+    if (st.mode !== 'c' || !g.body) { st.curP = null; apply(st.cur, null, null, 1); return; }
     const x = u * c.K, i = Math.floor(x) % c.K, j = (i + 1) % c.K, has = k => st.cache.has(c.clip.name + '#' + k + '|c');
     if (has(i) && has(j)) { st.curP = clipProj(j); apply(st.cur, clipProj(i), st.curP, x - Math.floor(x)); status(''); }
     else { st.curP = null; apply(st.cur, null, null, 1); let n = 0; for (let k = 0; k < c.K; k++) if (has(k)) n++;
@@ -240,6 +252,7 @@
     $('#clips').innerHTML = [['daily', '日常'], ['ski', '双板滑雪'], ['board', '单板滑雪']].map(([k, l]) => `<span class="grp">${l}</span>` +
       Human.Motion.CLIPS.filter(c => c.group === k).map(c => `<button class="chip${c.name === cn ? ' on' : ''}" data-clip="${c.name}">${c.zh}</button>`).join('')).join('') +
       `<div class="row"><button class="chip${st.slow ? ' on' : ''}" id="slow">慢放 ¼</button></div>`;
+    $('#kinds').innerHTML = [['code', '代码计算'], ['ref', '开源真人网格（参考）']].map(([k, l]) => `<button class="chip${st.kind === k ? ' on' : ''}" data-kind="${k}">${l}</button>`).join('');
     $('#modes').innerHTML = [['a', 'a 线性混合 LBS'], ['b', 'b 对偶四元数 DQS'], ['c', 'c DQS + 体积投影']].map(([k, l]) => `<button class="chip${st.mode === k ? ' on' : ''}" data-mode="${k}">${l}</button>`).join('');
     $('#looks').innerHTML = [['skin', '皮肤'], ['clay', '石膏'], ['weights', '蒙皮权重'], ['disp', '投影位移']].map(([k, l]) => `<button class="chip${st.look === k ? ' on' : ''}" data-look="${k}">${l}</button>`).join('') +
       `<button class="chip${st.spin ? ' on' : ''}" id="spin">转台</button>`;
@@ -249,6 +262,7 @@
   }
   function metrics() {
     const g = st.built; if (!g) return;
+    if (!g.body) { $('#metrics').innerHTML = `<p>参考人体：MakeHuman 开源网格（CC0），男性、肌肉 ${Human.REFDATA.muscle}，套在我们的骨架和动作上。</p><p class="dim">${g.mesh.nv} 顶点 · ${g.mesh.nt} 三角形 · ${g.sk.n} 根骨<br>体型滑块、蒙皮方法 c 和围度只对「代码计算」的身体有效。</p>`; return; }
     const G = g.body.girths, T = g.M.G, names = { chest: '胸围', waist: '腰围', buttock: '臀围', thigh: '大腿围', lowthigh: '膝上围', calf: '小腿围', ankle: '踝围', arm: '上臂围', forearm: '前臂围', wrist: '腕围', neck: '颈围' };
     const rows = Object.keys(names).map(k => `<tr><td>${names[k]}</td><td>${(G[k] / 10).toFixed(1)}</td><td>${(T[k] / 10).toFixed(1)}</td></tr>`).join('');
     const kg = g.vol0 * g.M.density, P = st.curP, volP = P && st.mode === 'c' ? P.vol : g.xf ? Human.Mesh.volume(g.pos, g.idx) : g.vol0;
@@ -263,6 +277,7 @@
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.pose) { st.clip = null; status(''); goPose(b.dataset.pose); }
     else if (b.dataset.clip) playClip(b.dataset.clip);
+    else if (b.dataset.kind) { if (st.kind !== b.dataset.kind && !st.busy) { st.kind = b.dataset.kind; panel(); build(); } }
     else if (b.id === 'slow') { const c = st.clip, now = performance.now(); if (c) { const t = (now - c.t0) * (st.slow ? 0.25 : 1); c.t0 = now - t / (st.slow ? 1 : 0.25); } st.slow = !st.slow; panel(); }
     else if (b.dataset.mode) { st.mode = b.dataset.mode; panel(); if (!st.clip) settle(); }
     else if (b.dataset.look) { st.look = b.dataset.look; panel(); if (st.built && !st.clip) apply(st.cur, null, st.curP, 1); }
@@ -284,7 +299,7 @@
 
   // url options (for renders): ?pose=squat&mode=c&look=skin&yaw=0.3&spin=0&dist=2.6
   const q = new URLSearchParams(location.search);
-  if (q.get('pose')) st.pose = q.get('pose'); if (q.get('clip')) st.startClip = q.get('clip'); if (q.get('slow') === '1') st.slow = true; if (q.get('mode')) st.mode = q.get('mode'); if (q.get('look')) st.look = q.get('look');
+  if (q.get('pose')) st.pose = q.get('pose'); if (q.get('clip')) st.startClip = q.get('clip'); if (q.get('slow') === '1') st.slow = true; if (q.get('body') === 'ref') st.kind = 'ref'; if (q.get('mode')) st.mode = q.get('mode'); if (q.get('look')) st.look = q.get('look');
   if (q.get('yaw')) st.yaw = +q.get('yaw'); if (q.get('pitch')) st.pitch = +q.get('pitch'); if (q.get('dist')) st.dist = +q.get('dist'); if (q.get('spin') === '0') st.spin = false;
   if (q.get('auto') === '1') st.auto = true; if (q.get('fov')) st.fov = +q.get('fov'); if (q.get('white') === '1') st.white = true; if (q.get('ty')) st.lockT = [0, +q.get('ty'), 0]; if (q.get('ui') === '0') document.body.classList.add('hide');
   for (const k of ['sex', 'stature', 'mass', 'bodyFat', 'frame', 'def', 'cell']) if (q.get(k)) st.params[k] = +q.get(k);
