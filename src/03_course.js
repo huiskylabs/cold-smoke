@@ -48,7 +48,7 @@ if (typeof Variants !== 'undefined') {
   // 山肩 (a trial, off unless picked; only on the richer mountain): where one run ends the slope eases onto a shoulder and the run widens, then
   // the snow rolls over into the next face, and just below the roll a way leaves on each side. So from the shoulder the next face and its
   // ways down can be read before dropping in. The camera does nothing new: the view opens because the ground does
-  Variants.def('look', '山肩看线', [['a', '没有'], ['b', '有']], 'a');
+  Variants.def('look', '山肩看线', [['a', '没有'], ['b', '一天一个'], ['c', '每段都有（试看）']], 'a');
   // (a change lays the same mountain out again)
   Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'look') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
 }
@@ -86,7 +86,7 @@ const Course = ((vn1, vn2, h2U) => {
     const tv = typeof Variants !== 'undefined' ? Variants.val : {};
     C.lv = TERR_LV[tv.tdiff] ? tv.tdiff : 'b'; LV = tv.terr === 'b' ? TERR_LV[C.lv] : null; C.rich = !!LV; C.isl = LV ? LV.isl : 1;
     trng = RNG((KEY ^ 0x7e4a11) + 131 * C.lv.charCodeAt(0));
-    LOOK = !!LV && tv.look === 'b'; C.look = LOOK; C.gate = LOOK ? LK_GATE : 0; lrng = RNG((KEY ^ 0x51a9d3) + 131 * C.lv.charCodeAt(0));
+    LOOK = !!LV && (tv.look === 'b' || tv.look === 'c'); C.look = LOOK; LK_N = tv.look === 'c' ? 1 : LK_DAY; lrng = RNG((KEY ^ 0x51a9d3) + 131 * C.lv.charCodeAt(0));
     planTo(4000);
     return C.seed;
   };
@@ -240,8 +240,11 @@ const Course = ((vn1, vn2, h2U) => {
   // ---- 山肩 (Variants 'look' b). The shoulder and the roll are the same at every join of two runs (LK_*, no random draw); the two ways
   // that leave below the roll are drawn from lrng: one among the trees, one a gully, a little wider than the others so they read from above
   const LK_BENCH = 0.6, LK_FACE = 1.3, LK_WIDE = 0.35;
+  // a shoulder is a place arrived at, not passed every half minute: one comes after about a day of skiing (the sky's day is ten minutes,
+  // a run half a minute: every LK_DAY runs). LK_N = 1 is the trial that puts one at every join
+  const LK_DAY = 20; let LK_N = LK_DAY; const isJoin = i => i > 0 && i % LK_N === 0;
   function overlook(seg, type) {
-    if (!(TERR_K[type][1] > 0) || seg.len < 420) return;
+    if (!isJoin(seg.idx) || !(TERR_K[type][1] > 0) || seg.len < 420) return;
     const r = lrng, p = seg.p, ln = [], gside = r() < 0.5 ? -1 : 1;
     for (const side of [-1, 1]) {
       const kind = side === gside ? 'gully' : 'trees', w = kind === 'gully' ? 8 + r() * 2 : 6 + r() * 2;
@@ -256,7 +259,7 @@ const Course = ((vn1, vn2, h2U) => {
   function lookAt(s) {
     const sg = segAt(s); let b = 0, f = 0, c = 0;
     for (let k = 0; k < 2; k++) {
-      const B = k ? sg.s0 + sg.len : sg.s0; if (!k && sg.idx === 0) continue;
+      const B = k ? sg.s0 + sg.len : sg.s0; if (!isJoin(sg.idx + k)) continue;
       const roll = smooth(B - 25, B + 55, s);
       b += smooth(B - 110, B - 70, s) * (1 - roll); f += roll * (1 - smooth(B + 130, B + 170, s)); c += smooth(B - 110, B - 70, s) * (1 - smooth(B + 70, B + 120, s));
     }
@@ -268,7 +271,12 @@ const Course = ((vn1, vn2, h2U) => {
   C.finishes = function (s0, s1, fn) {
     if (!LOOK) return; if (s1 >= planned) planTo(s1 + 3000);
     if (s0 <= LK_START && s1 >= LK_START) fn(LK_START, C.segs[0]);      // (and the same mark where a mountain begins: the line to push off across)
-    for (let i = Math.max(1, segAt(Math.max(0, s0)).idx); i < C.segs.length; i++) { const s = C.segs[i].s0 - LK_GATE; if (s > s1) break; if (s >= s0) fn(s, C.segs[i]); }
+    for (let i = Math.max(LK_N, Math.ceil(segAt(Math.max(0, s0)).idx / LK_N) * LK_N); i < C.segs.length; i += LK_N) { const s = C.segs[i].s0 - LK_GATE; if (s > s1) break; if (s >= s0) fn(s, C.segs[i]); }
+  };
+  // the next gate below s: [where it stands, which shoulder it is (1 = the first)], or null with 山肩 off
+  C.nextGate = function (s) {
+    if (!LOOK) return null;
+    for (let i = Math.max(LK_N, Math.ceil(segAt(Math.max(0, s)).idx / LK_N) * LK_N); ; i += LK_N) { while (C.segs.length <= i) planTo(planned + 3000); const g = C.segs[i].s0 - LK_GATE; if (g > s) return [g, i / LK_N]; }
   };
   // the lanes beside the run at s (null if none), and for one of them where its middle is, as an offset from the run's centre line
   // (a lane may run on past the end of its own run, into the next: a run's lanes are those it laid out and those of the run before)

@@ -221,11 +221,12 @@ const UI = (() => {
     R.t += dt; R.dist += dz; R.drop += dy; if (v > R.v) R.v = v;
     // a flight: from where the skis left the snow to where they came down, in a straight line
     if (S.air && !SP.air) SP.to = p.slice();
-    else if (!S.air && SP.air && SP.to) { const d = Math.hypot(p[0] - SP.to[0], p[1] - SP.to[1], p[2] - SP.to[2]); if ((S.airT || 0) >= JUMP_T) { if (d > c.air) c.air = d; if (d > R.air) R.air = d; } SP.to = null; }
+    else if (!S.air && SP.air && SP.to) { const d = Math.hypot(p[0] - SP.to[0], p[1] - SP.to[1], p[2] - SP.to[2]); if ((S.airT || 0) >= JUMP_T) { if (d > c.air) c.air = d; if (d > R.air) R.air = d; if (SP.st && d > SP.st.air) SP.st.air = d; } SP.to = null; }
     SP.air = !!S.air; SP.p[0] = p[0]; SP.p[1] = p[1]; SP.p[2] = p[2];
     // over the line into the next run: the one left is done (if it was skied from its top, and for more than a moment)
-    // (with 山肩 on, the line is the gate on the shoulder, Course.gate metres above the join: a stretch runs from gate to gate)
-    const sg = Course.segAt(-p[2] + (Course.gate || 0));
+    // (with 山肩 on: the way from one shoulder to the next is measured too, and through the gate on a shoulder it is summed up on a card)
+    { const st = SP.st; if (st) { st.t += dt; st.d += dz; st.drop += dy; if (v > st.v) st.v = v; if (SP.ng && -p[2] >= SP.ng[0]) { SP.gres = Object.assign({ n: SP.ng[1] }, st); stBegin(); } } }
+    const sg = Course.segAt(-p[2]);
     if (sg.idx > c.idx) { if (sg.idx === c.idx + 1 && c.whole && c.t > 3) spFinish(c); SP.cur = { idx: sg.idx, type: sg.type, whole: sg.idx === c.idx + 1, t: 0, v: 0, air: 0, d: 0, drop: 0 }; }
     const k = SP.cur; k.t += dt; if (v > k.v) k.v = v; k.d = (k.d || 0) + dz; k.drop = (k.drop || 0) + dy;
   }
@@ -233,12 +234,13 @@ const UI = (() => {
   function spBegin() {
     const S = Game.s, s = -S.p[2], sg = Course.segAt(s);
     SP.cur = { idx: sg.idx, type: sg.type, whole: s - sg.s0 < 80, t: 0, v: 0, air: 0 };
-    SP.p = S.p.slice(); SP.seed = Course.seed; SP.air = !!S.air; SP.to = null; SP.chain = null;
+    SP.p = S.p.slice(); SP.seed = Course.seed; SP.air = !!S.air; SP.to = null; SP.chain = null; SP.gres = null; stBegin();
   }
+  function stBegin() { SP.ng = Course.nextGate ? Course.nextGate(-Game.s.p[2] + 1) : null; SP.st = SP.ng ? { t: 0, d: 0, drop: 0, v: 0, air: 0 } : null; }
   // a best is a figure shown higher than the best shown before for that kind of run (time is not compared: no two runs of a kind are the same length)
   function spFinish(c) {
     const b = SP.best[c.type] || (SP.best[c.type] = { v: 0, air: 0 }), kv = Math.round(c.v * 3.6), ka = Math.round(c.air);
-    SP.res = { type: c.type, idx: c.idx, d: c.d || 0, drop: c.drop || 0, gate: !!Course.gate, t: c.t, kv, ka, upV: b.v > 0 && kv > Math.round(b.v * 3.6), upA: ka > 0 && b.air > 0 && ka > Math.round(b.air) };
+    SP.res = { type: c.type, idx: c.idx, t: c.t, kv, ka, upV: b.v > 0 && kv > Math.round(b.v * 3.6), upA: ka > 0 && b.air > 0 && ka > Math.round(b.air) };
     if (c.v > b.v) b.v = c.v; if (c.air > b.air) b.air = c.air;
     // 今日之山's race: the first three stretches of today's mountain skied in one go from the gate (each from its top, none skipped, no
     // switch between). Its figure is the average speed over them (the same length for everyone today, so faster = shorter time; the
@@ -261,10 +263,8 @@ const UI = (() => {
     // the result of the run just left, under the name of the one being entered (named now if it has not been yet: a skier who slowed short of the line)
     if (SP.res && !dayUp()) {
       const r = SP.res, sg = Course.segAt(-Game.s.p[2]); SP.res = null;
-      if (r.gate) gateShow(r);         // (through the gate on a shoulder: the stretch's figures on a card of their own, and no line under the next name)
-      else {
       if (sg.idx > U.segIdx) { U.segIdx = sg.idx; segCard(sg); }
-      splitLine(r); segHold(3.2); el.seg.classList.add('res'); el.app.classList.add('res'); }
+      splitLine(r); segHold(3.2); el.seg.classList.add('res'); el.app.classList.add('res');
     }
     if (SP.segT > -1) {
       const was = SP.segT; SP.segT -= dt;
@@ -272,6 +272,7 @@ const UI = (() => {
       if (SP.segT <= -1) { el.seg.classList.remove('res'); el.app.classList.remove('res'); }          // (closed again once the card has gone)
     }
     // the day card when its hour comes: once the name of a run is out of the way (eight seconds at the most), never over it
+    if (SP.gres && !SP.day) { gateShow(SP.gres); SP.gres = null; }
     if (SP.dayQ && !SP.day) { SP.dayQ.w += dt; if (SP.segT <= -1 || SP.dayQ.w > 8) { dayShow(SP.dayQ); SP.dayQ = null; } }
     if (SP.day) dayFrame(dt);
   }
@@ -312,14 +313,14 @@ const UI = (() => {
   // through the gate on a shoulder (山肩): what the stretch just skied came to, on the day card's own plate, off to one side. It asks nothing:
   // skiing on is the answer, and it goes by itself; 停一下 on it opens the menu (the scene, the view, back to the top)
   function gateShow(r) {
-    const n = (r.idx + 1 < 10 ? '0' : '') + (r.idx + 1), F = [[r.t, 1, '用时 S'], [r.kv, 0, '极速 KM/H'], [r.t > 0 ? r.d / r.t * 3.6 : 0, 0, '均速 KM/H'], [Math.max(0, r.drop), 0, '落差 M']];
-    if (r.ka > 0) F.push([r.ka, 0, '飞行 M']);
-    el.dayK.textContent = (EN() ? 'STRETCH ' : '第 ') + n + (EN() ? '' : ' 段') + ' · ' + T('到达'); el.dayT.textContent = T(SEG_NAMES[r.type] || '');
+    const n = (r.n < 10 ? '0' : '') + r.n, F = [[r.t / 60, 1, '用时 MIN'], r.d < 1000 ? [Math.max(0, r.d), 0, '距离 M'] : [r.d / 1000, 1, '距离 KM'], [r.v * 3.6, 0, '极速 KM/H'], [r.t > 0 ? r.d / r.t * 3.6 : 0, 0, '均速 KM/H'], [Math.max(0, r.drop), 0, '落差 M']];
+    if (r.air > 0) F.push([r.air, 0, '飞行 M']);
+    el.dayK.textContent = (EN() ? 'SHOULDER ' : '第 ') + n + (EN() ? '' : ' 程') + ' · ' + T('到达'); el.dayT.textContent = T('山肩');
     el.dayF.textContent = ''; const d = SP.day = { t: 0, f: [], gate: true };
-    for (const [v, dp, lab] of F) { const w = document.createElement('div'), b = document.createElement('b'), s = document.createElement('span'); b.textContent = fmt(v, dp); s.textContent = T(lab); w.appendChild(b); w.appendChild(s); el.dayF.appendChild(w); d.f.push({ el: b, v, dp, k: -1, up: lab[0] === '极' ? r.upV : lab[0] === '飞' ? r.upA : false }); }
-    for (const f of d.f) { f.el.style.minWidth = f.el.offsetWidth + 'px'; if (f.up) f.el.classList.add('up'); }
+    for (const [v, dp, lab] of F) { const w = document.createElement('div'), b = document.createElement('b'), s = document.createElement('span'); b.textContent = fmt(v, dp); s.textContent = T(lab); w.appendChild(b); w.appendChild(s); el.dayF.appendChild(w); d.f.push({ el: b, v, dp, k: -1 }); }
+    for (const f of d.f) f.el.style.minWidth = f.el.offsetWidth + 'px';
     for (const f of d.f) f.el.textContent = fmt(0, f.dp);
-    if (el.dayR) el.dayR.textContent = r.d3 ? T('今日之山 · 前三段') + ' ' + clock(r.d3.t) + ' · ' + r.d3.kv.toFixed(1) + ' km/h' : '';
+    if (el.dayR) el.dayR.textContent = '';
     el.day.classList.remove('on', 'held', 'r'); void el.day.offsetWidth; el.day.classList.add('on', 'gate'); el.app.classList.add('daycard');
   }
   function dayFrame(dt) {

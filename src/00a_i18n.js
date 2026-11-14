@@ -21,7 +21,7 @@ const I18N = (() => {
     '种树': 'planting trees', '点亮星云': 'lighting the nebula', '调音': 'tuning', '调光': 'setting the light', '铺雪': 'laying the snow', '第一缕光': 'first light',
     '这台设备的浏览器不支持 WebGL2，画面无法启动。': 'This browser does not support WebGL2, so the picture cannot start.',
     // ---- in a run
-    '用时 S': 'TIME S', '均速 KM/H': 'AVG KM/H', '到达': 'ARRIVED', '停一下 · 调整': 'PAUSE · ADJUST', '落差 M': 'DROP M', '落差': 'DROP', '距离 M': 'DISTANCE M', '距离 KM': 'DISTANCE KM', '极速 KM/H': 'TOP KM/H', '飞行 M': 'AIR M', '飞行 ': 'AIR ',
+    '用时 MIN': 'TIME MIN', '山肩': 'THE SHOULDER', '均速 KM/H': 'AVG KM/H', '到达': 'ARRIVED', '停一下 · 调整': 'PAUSE · ADJUST', '落差 M': 'DROP M', '落差': 'DROP', '距离 M': 'DISTANCE M', '距离 KM': 'DISTANCE KM', '极速 KM/H': 'TOP KM/H', '飞行 M': 'AIR M', '飞行 ': 'AIR ',
     '日出': 'Sunrise', '日落': 'Sunset', '加速': 'Tuck', '跳': 'Jump', '换视角': 'Change view', '菜单': 'Menu', '声音开关': 'Sound on or off', '暂停': 'Paused',
     '像握方向盘一样倾斜手机': 'Tilt the phone like a steering wheel', '按住屏幕，左右拖动': 'Hold the screen, drag left or right',
     '连着转弯，把雪扬起来': 'Link your turns, throw up the snow', '按住「跳」蓄力，松开起跳': 'Hold Jump to load up, let go to fly',
