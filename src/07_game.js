@@ -135,7 +135,7 @@ const Game = (() => {
   const GRIP_B = [1.0, 0.95], MU_B = [0.035, 0.04], PLOW_K = 3.5;
   // how much the edges hold (review 2026-11-14: a grip of 1 g means at 80 km/h no turn tighter than 51 m, wider than the steeps, so at speed
   // the only line is straight down. Good recreational skiers carve at 1-1.5 g). a: 1 g, as it was. b: 1.4 g, turns can be finished at speed
-  Variants.def('pcue', '坡感', [['a', '原来'], ['b', '陡处低头'], ['c', '低头 + 镜头高']], 'a');
+  Variants.def('pcue', '坡感', [['a', '原来'], ['b', '陡处低头'], ['c', '低头 + 镜头高']], 'c');
   Variants.def('grip', '抓地', [['a', '原来 1g'], ['b', '更稳 1.4g']], 'a');
   const GRIP_K = { a: 1, b: 1.4 };
   // (turning brake b) a ski's sidecut radius (m); where the lean fades as the line comes round, from and to (rad off the fall line; a: 0.80..1.30);
