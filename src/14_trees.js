@@ -1306,6 +1306,39 @@ const TREE_MAT_SSL = `
 fn sprayAt(tx: vec4f, mat: vec4f) -> f32 {
   return (tx.x + 0.030 * sin(tx.y * 21.0 + mat.w * 5.0) + 0.018 * sin(tx.x * 33.0 + mat.w * 3.0) - abs(tx.y) * 0.9) / 0.115 + mat.w * 0.37;
 }
+// (the owner's choice 'biome') a tuft of a broadleaf tree's twigs: they fan out from its root, each its own length, finer ones between,
+// and none quite straight. tx: metres along, metres across, the tuft's length. From afar, where a pixel holds many of them, a fixed scatter
+// of the sheet's texels, thinning toward the tuft's edge, so the crown reads as a haze of twigs
+fn rimeCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
+  // (the more rime, the thicker every twig: the load comes back out of the snow line, see snowLine)
+  let th: f32 = 1.0 + 1.4 * saturate(1.0 - (line - 0.022) / 0.14);
+  let r: f32 = length(tx.xy); let e: f32 = r / max(tx.z, 0.05);
+  if (e > 1.0 || tx.x < -0.02) { return 0.0; }
+  let a: f32 = atan2(tx.y, tx.x + 0.04);
+  let rr: f32 = max(r, 0.03);
+  let s1: f32 = a * 6.0 + 0.45 * sin(r * 8.0 + mat.w * 3.1) + mat.w * 0.37; let k1: f32 = floor(s1); let h1: f32 = hash11(k1 + mat.w * 17.0);
+  let d1: f32 = abs(s1 - k1 - 0.5) * rr / 6.0;
+  var c: f32 = saturate((0.016 * th * (1.0 - 0.55 * e) - d1) / max(fw, 0.0005) + 0.5) * step(e, 0.55 + 0.45 * h1);
+  let s2: f32 = a * 13.0 + 0.9 * sin(r * 14.0 + mat.w * 5.3) + mat.w * 0.71 + 0.5; let k2: f32 = floor(s2); let h2: f32 = hash11(k2 + mat.w * 29.0);
+  let d2: f32 = abs(s2 - k2 - 0.5) * rr / 13.0;
+  c = max(c, saturate((0.010 * th * (1.0 - 0.5 * e) - d2) / max(fw, 0.0005) + 0.5) * step(e, 0.35 + 0.6 * h2) * step(0.12, e));
+  let ap: f32 = fw * 13.0 / rr;
+  let far: f32 = step(hash21(floor(tx.xy * vec2f(36.0, 36.0)) + vec2f(mat.w * 3.1, mat.w * 1.7)), (0.45 + 0.17 * th) * (1.0 - 0.7 * e * e));
+  return mix(c, far, smoothstep(0.5, 1.4, ap / th));
+}
+fn twigCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
+  if (mat.x > 5.5) { return rimeCut(mat, tx, fw, line); }
+  let cur: f32 = step(4.5, mat.x) * step(mat.x, 5.5) + step(6.5, mat.x);
+  // (a broadleaf tree's twigs, 6 and 7: finer and closer, and thicker with the rime they carry; from afar a denser haze)
+  let rim: f32 = step(5.5, mat.x);
+  let pitch: f32 = mix(mix(0.10, 0.07, cur), mix(0.075, 0.055, cur), rim); let ap: f32 = fw / pitch;
+  let s: f32 = select(sprayAt(tx, mat), (tx.x + 0.012 * sin(tx.y * 19.0 + mat.w * 7.0)) / pitch + mat.w * 0.61, cur > 0.5);
+  let k: f32 = floor(s); let f: f32 = abs(s - k - 0.5); let h: f32 = hash11(k + mat.w * 19.0);
+  let e: f32 = tx.z / (mix(0.65, 0.30, cur) + mix(0.35, 0.65, cur) * h);
+  let fine: f32 = saturate((mix(0.20, 0.30, rim) * (1.0 - 0.4 * e) - f) / max(ap, 0.001) + 0.5) * step(e, 1.0);
+  let far: f32 = step(tx.z, mix(0.85, 0.62, cur)) * step(hash21(floor(tx.xy * vec2f(9.0, 11.0)) + vec2f(mat.w * 3.1, mat.w * 1.7)), mix(0.36, 0.55, rim));
+  return mix(fine, far, smoothstep(0.35, 1.0, ap));
+}
 // how much of a pixel a sheet of twigs fills. fw: the width of a pixel on the sheet (m). line: see snowLine.
 // (And where a pillow of the coarse level ends: its outline is not in its triangles.)
 fn treeCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
@@ -1342,39 +1375,6 @@ fn treeCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
 }
 // a larch's bare twigs: thin, wiry and few, so the sky shows through the crown. Close to, each twig is a line; from afar, where a pixel holds
 // many of them, the sheet keeps a fixed scatter of its texels (so that the crown reads as a haze of twigs, not as a solid cone)
-// (the owner's choice 'biome') a tuft of a broadleaf tree's twigs: they fan out from its root, each its own length, finer ones between,
-// and none quite straight. tx: metres along, metres across, the tuft's length. From afar, where a pixel holds many of them, a fixed scatter
-// of the sheet's texels, thinning toward the tuft's edge, so the crown reads as a haze of twigs
-fn rimeCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
-  // (the more rime, the thicker every twig: the load comes back out of the snow line, see snowLine)
-  let th: f32 = 1.0 + 1.4 * saturate(1.0 - (line - 0.022) / 0.14);
-  let r: f32 = length(tx.xy); let e: f32 = r / max(tx.z, 0.05);
-  if (e > 1.0 || tx.x < -0.02) { return 0.0; }
-  let a: f32 = atan2(tx.y, tx.x + 0.04);
-  let rr: f32 = max(r, 0.03);
-  let s1: f32 = a * 6.0 + 0.45 * sin(r * 8.0 + mat.w * 3.1) + mat.w * 0.37; let k1: f32 = floor(s1); let h1: f32 = hash11(k1 + mat.w * 17.0);
-  let d1: f32 = abs(s1 - k1 - 0.5) * rr / 6.0;
-  var c: f32 = saturate((0.016 * th * (1.0 - 0.55 * e) - d1) / max(fw, 0.0005) + 0.5) * step(e, 0.55 + 0.45 * h1);
-  let s2: f32 = a * 13.0 + 0.9 * sin(r * 14.0 + mat.w * 5.3) + mat.w * 0.71 + 0.5; let k2: f32 = floor(s2); let h2: f32 = hash11(k2 + mat.w * 29.0);
-  let d2: f32 = abs(s2 - k2 - 0.5) * rr / 13.0;
-  c = max(c, saturate((0.010 * th * (1.0 - 0.5 * e) - d2) / max(fw, 0.0005) + 0.5) * step(e, 0.35 + 0.6 * h2) * step(0.12, e));
-  let ap: f32 = fw * 13.0 / rr;
-  let far: f32 = step(hash21(floor(tx.xy * vec2f(36.0, 36.0)) + vec2f(mat.w * 3.1, mat.w * 1.7)), (0.45 + 0.17 * th) * (1.0 - 0.7 * e * e));
-  return mix(c, far, smoothstep(0.5, 1.4, ap / th));
-}
-fn twigCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
-  if (mat.x > 5.5) { return rimeCut(mat, tx, fw, line); }
-  let cur: f32 = step(4.5, mat.x) * step(mat.x, 5.5) + step(6.5, mat.x);
-  // (a broadleaf tree's twigs, 6 and 7: finer and closer, and thicker with the rime they carry; from afar a denser haze)
-  let rim: f32 = step(5.5, mat.x);
-  let pitch: f32 = mix(mix(0.10, 0.07, cur), mix(0.075, 0.055, cur), rim); let ap: f32 = fw / pitch;
-  let s: f32 = select(sprayAt(tx, mat), (tx.x + 0.012 * sin(tx.y * 19.0 + mat.w * 7.0)) / pitch + mat.w * 0.61, cur > 0.5);
-  let k: f32 = floor(s); let f: f32 = abs(s - k - 0.5); let h: f32 = hash11(k + mat.w * 19.0);
-  let e: f32 = tx.z / (mix(0.65, 0.30, cur) + mix(0.35, 0.65, cur) * h);
-  let fine: f32 = saturate((mix(0.20, 0.30, rim) * (1.0 - 0.4 * e) - f) / max(ap, 0.001) + 0.5) * step(e, 1.0);
-  let far: f32 = step(tx.z, mix(0.85, 0.62, cur)) * step(hash21(floor(tx.xy * vec2f(9.0, 11.0)) + vec2f(mat.w * 3.1, mat.w * 1.7)), mix(0.36, 0.55, rim));
-  return mix(fine, far, smoothstep(0.35, 1.0, ap));
-}
 // n1: lumps, n2: needles and grain (two reads of the detail texture). plast: how squarely the point faces the wind that plasters the stems.
 // fw: as in treeCut.
 fn treeSurface(mat: vec4f, tx: vec4f, N: vec3f, n1: vec4f, n2: vec4f, line: f32, load: f32, plast: f32, fw: f32) -> TreeS {
