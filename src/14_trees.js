@@ -285,14 +285,18 @@ const TreeModel = (() => {
     // a tube along a curve P(t, out) (t 0..1), radius rad(t): n pieces, `sides` facets round
     function tube(P, rad, n, sides, id, lev0, lev1, tip) {
       const t0 = vo, p = [0, 0, 0], q = [0, 0, 0];
+      // a frame round the tangent, carried along the curve from ring to ring (never rebuilt from scratch: on a near-upright stem that
+      // flips it half round wherever the crook changes side, and the tube twists shut into a waist there)
+      let ax = 0, ay = 0, az = 0;
       for (let i = 0; i <= n; i++) {
         const t = i / n; P(t, p); P(Math.min(1, t + 0.02), q); if (t >= 1) { P(0.98, q); q[0] = 2 * p[0] - q[0]; q[1] = 2 * p[1] - q[1]; q[2] = 2 * p[2] - q[2]; }
         let tx = q[0] - p[0], ty = q[1] - p[1], tz = q[2] - p[2]; const tl = Math.hypot(tx, ty, tz) || 1; tx /= tl; ty /= tl; tz /= tl;
-        // a frame round the tangent: one side level, the other above it
-        let ax = -tz, az = tx, al = Math.hypot(ax, az); if (al < 1e-3) { ax = 1; az = 0; al = 1; } ax /= al; az /= al;
-        const bx = ty * az, by = tz * ax - tx * az, bz = -ty * ax, r = rad(t), y = p[1], qc = inCrown(Math.hypot(p[0], p[2]), y);
+        if (i === 0) { ax = -tz; ay = 0; az = tx; if (Math.hypot(ax, az) < 0.3) { ax = 1; az = 0; } }
+        const d = ax * tx + ay * ty + az * tz; ax -= d * tx; ay -= d * ty; az -= d * tz;
+        { const al = Math.hypot(ax, ay, az) || 1; ax /= al; ay /= al; az /= al; }
+        const bx = ty * az - tz * ay, by = tz * ax - tx * az, bz = tx * ay - ty * ax, r = rad(t), y = p[1], qc = inCrown(Math.hypot(p[0], p[2]), y);
         for (let k = 0; k <= sides; k++) {
-          const an = k * TAU / sides, c = Math.cos(an), s = Math.sin(an), nx = ax * c + bx * s, ny = by * s, nz = az * c + bz * s;
+          const an = k * TAU / sides, c = Math.cos(an), s = Math.sin(an), nx = ax * c + bx * s, ny = ay * c + by * s, nz = az * c + bz * s;
           put(p[0] + nx * r, y + ny * r, p[2] + nz * r, nx, ny, nz, 3, lerp(0.5, 0.9, qc), lerp(0.3, 0.9, qc), id, an * r, t, 0, lerp(lev0, lev1, t));
         }
       }
@@ -688,22 +692,18 @@ const Trees = (() => {
         if (r5 < smooth(-0.15, 0.35, nl) * 0.75) v = 8;
         else if (v !== 3 && hash2(q, 76) < smooth(-0.05, 0.4, np) * 0.7 * (1 - ridge)) v = 9;
       }
-      // (the owner's choice 'biome') what grows on this kind of mountain, at this height on it (hi: toward the tree line)
-      if (bm && v !== 7) {
-        const hi = smooth(bm.line - 0.3, bm.line, Biome.alt(-z)), r8 = hash2(q, 79), stand = vnoise2(x / 90, z / 90, 63);
+      // (the owner's choice 'biome') what grows on this kind of mountain, at this height on it (hi: toward the tree line). A birch mountain
+      // is birch and nothing else (the owner: no conifers mixed in), the ridge's flagged ones and the dead ones too
+      if (bm) {
+        const hi = smooth(bm.line - 0.3, bm.line, Biome.alt(-z)), r8 = hash2(q, 79);
         if (bm.id === 'alps') {
           // the mixed wood, larch and stone pine taking over toward the tree line
-          if (v !== 6 && r8 < hi * 0.55) v = r8 < hi * 0.3 ? 8 : 9;
-        } else if (bm.id === 'japan') {
-          // Erman's birch everywhere; stands of fir among them (rime-plastered into snow monsters), more of them toward the tree line
-          v = r8 < bm.mixC * (0.5 + smooth(-0.3, 0.4, stand)) + 0.3 * hi ? (h < 7.6 ? 4 : 2) : 10;
-        } else if (bm.id === 'china') {
-          // white birch down low, Erman's birch toward the tree line, stands of larch and Korean pine (our stone pine) among them
-          if (r8 < bm.mixC * (0.4 + smooth(-0.3, 0.4, stand))) v = hash2(q, 80) < 0.55 ? 8 : 9;
-          else v = hash2(q, 81) < 0.15 + 0.8 * hi ? 10 : 11;
-        }
+          if (v !== 7 && v !== 6 && r8 < hi * 0.55) v = r8 < hi * 0.3 ? 8 : 9;
+        } else if (bm.id === 'japan') v = 10;
+        // white birch down low, Erman's birch toward the tree line
+        else if (bm.id === 'china') v = hash2(q, 81) < 0.15 + 0.8 * hi ? 10 : 11;
       }
-    }
+    } else if (bm && v === 4 && (bm.id === 'japan' || bm.id === 'china')) v = bm.id === 'japan' ? 10 : 11;   // (the saplings at a jump)
     // (a birch at the edge of the run reaches out over it for the light: turned so its fuller side faces the run, and leaning over it, so
     // that where the run is narrow the crowns of both sides meet overhead)
     // The light is where the trees are not: the birch leans toward where the wood thins (the run, a lane through the trees, a glade), so
@@ -716,7 +716,8 @@ const Trees = (() => {
         const dx = -gx / gl, dz = -gz / gl, amt = (0.07 + 0.12 * r4) * k;
         rot = Math.atan2(-dz, dx) + (r3 - 0.5) * 1.2 * (1 - k); lean = dx * amt; leanZ = dz * amt;
       }
-      if (v === 10) h *= 0.82;
+      // (birches stand tall: no sapling-sized ones on the run's edge)
+      h = Math.max(h, 8.5) * 1.12;
     }
     // none grew quite straight (and all lean a little down the hill, as the creeping snow has pushed them); on the ridge the wind has had its way
     const la = v === 7 ? 0.32 : r3 * TAU, lk = 0.012 + 0.05 * r4 * r4 + 0.03 * ridge;

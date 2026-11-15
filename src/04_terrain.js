@@ -857,8 +857,10 @@ fn frag(v: VOut) -> FOut {
   if (carpet > 0.001) {
     let sp2: f32 = tex(tNoise, wxz / 61.0).z * 0.5 + d1.z * 0.5;
     let k: f32 = smoothstep(0.30, 0.62, sp2 * (0.55 + sm.w));
-    let fc: vec3f = mix(vec3f(0.035, 0.07, 0.06), vec3f(0.25, 0.30, 0.36), 0.35) * (U.sunCol.rgb * 0.35 + amb);
-    col = mix(col, fc, k * carpet * 0.85);
+    // (the owner's choice 'biome': a birch mountain's far forest is a grey-violet haze of twigs, on a rime mountain nearly white)
+    let pale: f32 = M.sf.z;
+    let fc: vec3f = mix(mix(vec3f(0.035, 0.07, 0.06), vec3f(0.25, 0.30, 0.36), 0.35), vec3f(0.55, 0.52, 0.56), pale) * (U.sunCol.rgb * mix(0.35, 0.6, pale) + amb);
+    col = mix(col, fc, k * carpet * mix(0.85, 0.55, pale));
   }
   // the blowing snow itself: the same snow as the slope, in the air, lit by the same sun and sky, a little brighter toward the sun where
   // the light comes through it; and its crystals, carried along with it, each one a flash that travels down the slope

@@ -26,6 +26,7 @@ const SnowLook = (() => {
   S.frame = function (origin, at) {
     U.sf[1] = S.on('snr2') ? 1 : 0; U.sg[0] = S.on('snr6') ? 1 : 0; U.sg[1] = S.on('snr4') ? 1 : 0; U.sg[3] = typeof Quality !== 'undefined' ? Quality.tier : 0;
     U.sn[2] = U.sg[0];
+    U.sf[2] = typeof Biome !== 'undefined' ? Biome.pale() : 0;
     if (!U.sg[0]) return U;
     // the table: from BACK m behind the camera on down the run (the run goes toward -z)
     const z0 = at[2] + S.BACK;

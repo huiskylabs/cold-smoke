@@ -43,8 +43,6 @@ const Biome = (() => {
       rime: id === 'alps' ? 0 : clamp(K.rime * (0.75 + 0.5 * r()), 0, 1.15),
       load: K.load * (0.85 + 0.3 * r()),
       wave: 2600 + 1800 * r(), phase: 0.15 * r(),
-      // (the share of conifers standing among the birches: each seed its own)
-      mixC: id === 'japan' ? 0.10 + 0.22 * r() : id === 'china' ? 0.25 + 0.25 * r() : 0,
     });
     return cur;
   };
@@ -61,11 +59,13 @@ const Biome = (() => {
     const c = B.cur(); if (!c) return 1;
     return c.dens * lerp(1, 0.22, B.above(s, c));
   };
-  // and their height: stunted toward and above the tree line
+  // and their height: stunted only right at and above the tree line (below it they stand full height)
   B.height = function (s) {
     const c = B.cur(); if (!c) return 1;
-    return lerp(1, 0.55, smooth(c.line - 0.18, c.line + 0.05, B.alt(s)));
+    return lerp(1, 0.7, smooth(c.line - 0.04, c.line + 0.1, B.alt(s)));
   };
+  // how pale the forest seen from afar is: 0 dark conifers .. 1 white rime-coated birch
+  B.pale = function () { const c = B.cur(); if (!c) return 0; return c.id === 'japan' ? 0.75 + 0.25 * Math.min(1, c.rime) : c.id === 'china' ? 0.55 : 0; };
   B.name = function (zh) { const c = B.cur(); if (!c) return ''; return zh ? c.zh : c.en; };
   return B;
 })();
