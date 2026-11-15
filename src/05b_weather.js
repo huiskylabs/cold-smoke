@@ -60,7 +60,9 @@ const Weather = (() => {
     if (W.next - t > 400) W.next = t + 150;             // (the clock was started again: a new mountain)
     if (!W.auto || t < W.next) return;
     W.level = W.level === 'heavy' ? 'light' : 'heavy';
-    W.next = t + (W.level === 'heavy' ? 60 + 90 * AR() : 150 + 150 * AR());
+    // (the owner's choice 'biome': a wet kind of mountain, the rime country, spends more of its time under the overcast)
+    const wet = typeof Biome !== 'undefined' && Biome.cur() ? Biome.cur().wet : 0;
+    W.next = t + (W.level === 'heavy' ? (60 + 90 * AR()) * (1 + 1.2 * wet) : (150 + 150 * AR()) * (1 - 0.6 * wet));
   }
   W.set = function (id, now) {
     if (!W.levels.some(l => l[0] === id)) return W.level;

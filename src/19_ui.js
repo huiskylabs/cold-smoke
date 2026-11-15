@@ -449,7 +449,7 @@ const UI = (() => {
     }
     for (const b of el.view.children) b.classList.toggle('on', b.dataset.view === Game.view);
     const mt = typeof App.newMountain === 'function'; el.nav.querySelector('[data-sec="mt"]').hidden = !mt;
-    if (mt) { const n = '#' + Course.seed; if (el.seed.textContent !== n) el.seed.textContent = n; }
+    if (mt) { const bn = typeof Biome !== 'undefined' ? Biome.name(!(typeof I18N !== 'undefined' && I18N.en())) : '', n = '#' + Course.seed + (bn ? ' · ' + bn : ''); if (el.seed.textContent !== n) el.seed.textContent = n; }
     paintDaily();
     el.oSnd.textContent = T(Sound.on ? '声音 开' : '声音 关'); el.oSnd.classList.toggle('on', !!Sound.on); el.oSnd.setAttribute('aria-pressed', Sound.on ? 'true' : 'false');
     const fsOK = !U.hh && fsAvail(), full = !!document.fullscreenElement;

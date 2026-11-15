@@ -52,7 +52,7 @@ if (typeof Variants !== 'undefined') {
   // same random draws, and speed falls by physics alone (no brakes anywhere). On top of 地形难度 (whose levels scale slope as well)
   Variants.def('slope', '坡度', [['a', '原来'], ['b', '真实雪道'], ['c', '平缓']], 'a');
   // (a change lays the same mountain out again)
-  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
+  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'biome') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
 }
 // slope scale and how much further a run of ~30 s then reaches (pace: the test pilot's distance over 30 s against a, 2026-11-14)
 const SLOPE_K = { a: { k: 1, pace: 1 }, b: { k: 0.75, pace: 0.89 }, c: { k: 0.6, pace: 0.69 } };
@@ -661,6 +661,9 @@ const Course = ((vn1, vn2, h2U) => {
     }
     if (LV && d > 0 && e < 14) d *= clearAt(s, u);
     if (s < 60) d *= smooth(8, 60, s + au);       // keep the start gate clear
+    // (the owner's choice 'biome': what kind of mountain this seed grew, and how high up it the run is: above the tree line only a few
+    // stunted trees stand. 03b_biome.js)
+    if (d > 0) d *= Biome.density(s);
     return d;
   };
   C.treeInCell = function (ci, cj, out) {
@@ -671,7 +674,7 @@ const Course = ((vn1, vn2, h2U) => {
     const h1 = hashU(h0 + 0x51ed27);
     if ((h1 & 0xffff) / 65536 > d * 0.9) return out;
     const r2 = ((h1 >>> 16) & 0xff) / 255, r3 = (h1 >>> 24) / 255;
-    out.ok = true; out.x = x; out.z = z; out.h = (6.5 + 9.5 * r2 * r2 + 2.5 * r3) * (1 - 0.6 * _ridge); out.r = out.h * 0.17; out.variant = (h0 >>> 5) % 5; out.rot = r3 * TAU; out.seed = h1;
+    out.ok = true; out.x = x; out.z = z; out.h = (6.5 + 9.5 * r2 * r2 + 2.5 * r3) * (1 - 0.6 * _ridge) * Biome.height(-z); out.r = out.h * 0.17; out.variant = (h0 >>> 5) % 5; out.rot = r3 * TAU; out.seed = h1;
     return out;
   };
   // closest-trunk query for collisions / AO (checks the 3x3 neighbourhood)

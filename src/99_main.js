@@ -263,7 +263,7 @@ window.__ski = {
   },
   async shot() { const cap = await App.gfx.capture(); const c2 = document.createElement('canvas'); c2.width = cap.w; c2.height = cap.h; c2.getContext('2d').putImageData(new ImageData(cap.data, cap.w, cap.h), 0, 0); return c2.toDataURL('image/png'); },
   height: (x, z) => Course.height(x, z, 0.5),
-  mod: n => ({ Trees, TreeModel, Game, Course, Render, Spray })[n],        // test hook: a module by name (tree checks)
+  mod: n => ({ Trees, TreeModel, Game, Course, Render, Spray, Biome })[n],        // test hook: a module by name (tree checks)
   set(path, v) { const parts = path.split('.'); let o = { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Deer }; for (let i = 0; i < parts.length - 1; i++) o = o[parts[i]]; o[parts[parts.length - 1]] = v; },
   err: () => App.gfx && App.gfx.lastError,
   // fast-forward the game: fn(t) returns the steering input (-1..1) for that moment; the last step is drawn
@@ -307,7 +307,7 @@ window.__ski = {
   // set the time of day: seconds into the 10-minute day, or a name (day, golden, sunset, dusk, night, dawn, sunrise)
   tod(t) { Sky.setClock(typeof t === 'string' ? Sky.times[t] : t); Sky.update(); Clouds.baked = false; Vista.shadowElev = -9; Vista.updateShadow(true); return +Sky.sunElev.toFixed(4); },
   game: () => Game, input: () => Input, app: () => App, ui: () => UI, i18n: () => I18N,
-  get m() { return { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Skier, Tex, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Atmo, Deer, View, Variants, Weather, Grains, Quality, SnowLook, XR, UI }; },
+  get m() { return { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Skier, Tex, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Atmo, Deer, View, Variants, Weather, Biome, Grains, Quality, SnowLook, XR, UI }; },
 };
 App.fit = fit;
 window.__ski.gates = Gates;
