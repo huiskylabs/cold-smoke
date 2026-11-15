@@ -64,10 +64,16 @@ const Weather = (() => {
     const wet = typeof Biome !== 'undefined' && Biome.cur() ? Biome.cur().wet : 0;
     W.next = t + (W.level === 'heavy' ? (60 + 90 * AR()) * (1 + 1.2 * wet) : (150 + 150 * AR()) * (1 - 0.6 * wet));
   }
+  // how far toward the heavy snow each level sits. (The owner's choice 'biome': on a wet mountain, the rime country, even the fair spells
+  // stay under a grey sky with a little snow falling and the far wood fading into white, and the heavy ones are a soft snowfall, not a gale)
+  W.target = function (id) {
+    const wet = typeof Biome !== 'undefined' && Biome.cur() ? Biome.cur().wet : 0;
+    return id === 'heavy' ? 1 - 0.3 * wet : 0.6 * wet;
+  };
   W.set = function (id, now) {
     if (!W.levels.some(l => l[0] === id)) return W.level;
     W.level = id; W.auto = false;
-    if (now) { W.k = id === 'heavy' ? 1 : 0; W.ex = null; W.mix(); }
+    if (now) { W.k = W.target(id); W.ex = null; W.mix(); }
     return W.level;
   };
   W.sun = function (v) { W.hold = v == null ? null : +v; W.hole = holeAt(App.t); W.v = sunIn(W.hole); W.ex = null; };
@@ -102,7 +108,7 @@ const Weather = (() => {
     for (const n of NUM) P[n] += (KP[n] - P[n]) * kp;
     // toward the chosen weather, at an even pace: the cloud leads, the snowfall follows (and on the way back the snow eases before the sky clears)
     autoStep(t);
-    const tgt = W.level === 'heavy' ? 1 : 0, rp = W.auto ? W.rampAuto : W.ramp;
+    const tgt = W.target(W.level), rp = W.auto ? W.rampAuto : W.ramp;
     if (W.k !== tgt) W.k = tgt > W.k ? Math.min(tgt, W.k + dt / rp) : Math.max(tgt, W.k - dt / rp);
     W.mix();
     // the break nearest the sun: carried along smoothly (and so also when the kind of snow is changed)

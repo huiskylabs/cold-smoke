@@ -17,8 +17,8 @@ const Biome = (() => {
   // snow the trees carry (1 = as before), and the weather it leans to (how much of the time it snows hard)
   const KINDS = {
     alps:  { zh: '阿尔卑斯 · 云杉落叶松', en: 'Alpine spruce and larch', w: 0.30, dens: 1.0, line: 0.78, rime: 0.0, load: 1.0, wet: 0.0 },
-    japan: { zh: '日本 · 岳桦雾凇', en: 'Japanese birch in rime', w: 0.27, dens: 1.1, line: 0.86, rime: 1.0, load: 1.25, wet: 0.6 },
-    china: { zh: '东北 · 白桦林', en: 'Manchurian birch wood', w: 0.25, dens: 1.0, line: 0.84, rime: 0.55, load: 0.9, wet: 0.15 },
+    japan: { zh: '日本 · 岳桦雾凇', en: 'Japanese birch in rime', w: 0.27, dens: 1.1, line: 0.86, rime: 1.0, load: 1.25, wet: 0.85 },
+    china: { zh: '东北 · 白桦林', en: 'Manchurian birch wood', w: 0.25, dens: 1.0, line: 0.84, rime: 0.55, load: 0.9, wet: 0.45 },
     bare:  { zh: '高山 · 林线之上', en: 'Above the tree line', w: 0.18, dens: 0.16, line: 0.0, rime: 0.3, load: 1.15, wet: 0.2 },
   };
   const ORDER = ['alps', 'japan', 'china', 'bare'];
@@ -66,6 +66,13 @@ const Biome = (() => {
   };
   // how pale the forest seen from afar is: 0 dark conifers .. 1 white rime-coated birch
   B.pale = function () { const c = B.cur(); if (!c) return 0; return c.id === 'japan' ? 0.75 + 0.25 * Math.min(1, c.rime) : c.id === 'china' ? 0.55 : 0; };
+  // a birch wood grows in stands: thickets where seed fell well, gaps between them (an orchard of even rows is what it must not look like)
+  B.wild = () => { const c = B.cur(); return !!c && (c.id === 'japan' || c.id === 'china'); };
+  B.clump = function (x, z) {
+    if (!B.wild()) return 1;
+    const n = vnoise2(x / 17, z / 17, 0x5a1d ^ cur.seed) * 0.75 + vnoise2(x / 6.5, z / 6.5, 0x77e1 ^ cur.seed) * 0.25;
+    return 0.25 + 1.35 * smooth(-0.35, 0.35, n);
+  };
   B.name = function (zh) { const c = B.cur(); if (!c) return ''; return zh ? c.zh : c.en; };
   return B;
 })();

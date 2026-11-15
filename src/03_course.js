@@ -630,7 +630,8 @@ const Course = ((vn1, vn2, h2U) => {
     let d = 0;
     if (e > 3) {
       const patch = 0.55 + 0.45 * vnoise2(x / 70, z / 70, 21);
-      d = c.forest * smooth(3, 26, e) * smooth(-0.25, 0.25, patch - 0.42);
+      // (the owner's choice 'biome': a birch wood comes right down to the run's edge, so the run is a lane between walls of trees)
+      d = c.forest * (Biome.wild() ? smooth(2.5, 9, e) : smooth(3, 26, e)) * smooth(-0.25, 0.25, patch - 0.42);
       // (the richer mountain) the apron is open forest: thinner, with lanes running down the fall line between the trees, so there is always a
       // way through (a lane is where a stretched noise crosses zero: a few metres wide, tens of metres long, joining and parting)
       if (LV && e < APRON + 40) {
@@ -645,7 +646,7 @@ const Course = ((vn1, vn2, h2U) => {
     if (c.glade > 0.01) {
       const lane = vnoise2(x / 19, z / 46, 23), cl = vnoise2(x / 55, z / 55, 24);
       const g = c.glade * smooth(0.02, 0.36, lane) * smooth(-0.5, 0.1, cl) * smooth(c.hw + 6, c.hw - 8, au);
-      d = Math.max(d, g * 0.46);
+      d = Math.max(d, g * (Biome.wild() ? 0.8 : 0.46));        // (a birch glade: thick, with lanes through it the crowns close over)
     }
     // lone groups standing out on the run itself; a clear lane always winds between them, and the first turns are free of them
     if (au < c.hw && s > 150) {
@@ -663,13 +664,15 @@ const Course = ((vn1, vn2, h2U) => {
     if (s < 60) d *= smooth(8, 60, s + au);       // keep the start gate clear
     // (the owner's choice 'biome': what kind of mountain this seed grew, and how high up it the run is: above the tree line only a few
     // stunted trees stand. 03b_biome.js)
-    if (d > 0) d *= Biome.density(s);
+    if (d > 0) d *= Biome.density(s) * Biome.clump(x, z);
     return d;
   };
   C.treeInCell = function (ci, cj, out) {
     out = out || _t; out.ok = false;
     const h0 = hash2U(ci, cj);
-    const x = (ci + 0.15 + 0.7 * (h0 & 0xffff) / 65536) * TREE_CELL, z = (cj + 0.15 + 0.7 * (h0 >>> 16) / 65536) * TREE_CELL;
+    // (a birch wood is not planted in rows: on such a mountain a tree may stand anywhere in its cell, see Biome.clump)
+    const jt = Biome.wild() ? 0.98 : 0.7, j0 = (1 - jt) / 2;
+    const x = (ci + j0 + jt * (h0 & 0xffff) / 65536) * TREE_CELL, z = (cj + j0 + jt * (h0 >>> 16) / 65536) * TREE_CELL;
     const d = C.treeDensity(x, z); if (d <= 0.01) return out;
     const h1 = hashU(h0 + 0x51ed27);
     if ((h1 & 0xffff) / 65536 > d * 0.9) return out;

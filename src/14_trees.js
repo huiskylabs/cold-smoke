@@ -133,10 +133,10 @@ const TreeModel = (() => {
     // Erman's birch (岳桦, Betula ermanii): the tree of the Hakuba birch lanes and of the tree line in Japan and on Changbai Shan: a crooked
     // stem forking low into a few leaders, a wide spreading crown, twigs standing up in fans that the rime turns into white coral. Bark pinkish
     // grey, peeling
-    { broad: true, NL: 16, lead: 3, fork: 2.2, y0: 3.0, y1: 8.6, R0: 3.5, yc: 6.1, hy: 4.4, r0: 0.55, r1: 1.5, t0: -0.30, t1: 0.45, leadRise: 2.3, side: 0.35, crook: 1.0, lean: 0.45, top: 6.2, rl: 0.10, hang: -0.42, tuft: 1.25, load: 1, bare: 0 },
+    { broad: true, NL: 12, lead: 2, fork: 3.4, y0: 3.0, y1: 8.4, R0: 3.2, yc: 6.4, hy: 3.8, r0: 0.6, r1: 2.4, t0: -0.55, t1: 0.55, leadRise: 2.6, side: 0.45, crook: 0.7, lean: 0.35, top: 8.0, rl: 0.065, hang: -0.30, tuft: 1.0, tw: 0.4, load: 1, bare: 0 },
     // a white birch (白桦, Betula platyphylla): taller and straighter, the white stem running to the top with black marks across it, the limbs
     // climbing and then arching over, and the fine twigs hanging from them
-    { broad: true, NL: 22, lead: 0, fork: 0, y0: 3.4, y1: 9.3, R0: 2.6, yc: 6.9, hy: 3.9, r0: 1.0, r1: 2.3, t0: -0.55, t1: 0.35, leadRise: 0, side: 0.3, crook: 0.3, lean: 0.25, top: 9.75, rl: 0.075, hang: 0.62, tuft: 1.05, load: 1, bare: 0, white: true },
+    { broad: true, NL: 14, lead: 0, fork: 0, y0: 3.6, y1: 9.2, R0: 2.6, yc: 7.0, hy: 3.6, r0: 0.7, r1: 2.6, t0: -0.75, t1: 0.35, leadRise: 0, side: 0.4, crook: 0.3, lean: 0.25, top: 9.75, rl: 0.055, hang: 0.62, tuft: 1.0, tw: 0.36, load: 1, bare: 0, white: true },
   ];
   M.KIND = KIND;
   // the boughs of one tree (the same list serves both levels of detail, the cards, and the snow that slides off)
@@ -266,7 +266,7 @@ const TreeModel = (() => {
       const tip = lead ? 0.7 : lerp(Q.t0, Q.t1, u) + (rnd() - 0.5) * 0.3;
       let k2 = (rise - tip) / (2 * L);
       // (the crown keeps to its height: a limb that would climb out of it is laid lower, one that would droop to the snow is held up)
-      let yt = y0 + rise * L - k2 * L * L; const ytop = lead ? 8.4 : Q.top + 0.3;
+      let yt = y0 + rise * L - k2 * L * L; const ytop = lead ? 8.4 : Q.yc + Q.hy * (0.75 + 0.3 * rnd());
       if (yt > ytop) { const f = (ytop - y0) / (yt - y0); rise *= f; k2 *= f; yt = ytop; }
       if (yt < 1.2) k2 = (y0 + rise * L - 1.2) / (L * L);
       B.push({ id: B.length, a, ca: Math.cos(a), sa: Math.sin(a), L, W: Math.max(0.25, L * 0.42), y0, rise, k2, cls: L >= 1.5 ? 0 : L >= 0.82 ? 1 : 2, pw: Math.floor(rnd() * 3), flip: 1, th: 1, u, tier: k, cur: 0.5 + 0.5 * rnd(), lead });
@@ -330,10 +330,20 @@ const TreeModel = (() => {
     }
     const fine = lod === 0;
     // the stem: bark from below the snow to its top, flaring at the foot
-    { const top = S.top, r0 = 0.20 + 0.03 * (Q.white ? 0 : 1);
+    { const top = S.top, r0 = 0.15 + 0.03 * (Q.white ? 0 : 1);
       tube((t, o) => { const y = -1.4 + (top + 1.4) * t, ax = S.axis(y); o[0] = ax[0]; o[1] = y; o[2] = ax[1]; },
         t => { const y = -1.4 + (top + 1.4) * t; return lerp(r0, 0.035, Math.pow(sat(y / top), Q.white ? 1.0 : 0.7)) * (y < 0.6 ? 1 + 0.5 * (0.6 - Math.max(y, -0.4)) : 1); },
         fine ? 14 : 7, fine ? 8 : 5, -1, 0, 0, true); }
+    // how much of the sky a point of the crown sees: the crown is a few lobes (each limb's end its own mass of rime), lit on their tops and
+    // outer faces, in shade underneath and deep inside. That is what gives a far crown its volume: without it every tuft was as bright as
+    // the next and the crown read as one flat cotton ball
+    const lw = [rnd() * TAU, rnd() * TAU, rnd() * TAU];
+    const crownShade = (x, y, z) => {
+      const ax = S.axis(y), r = Math.hypot(x - ax[0], z - ax[1]), cr = Math.max(0.3, S.crown(y));
+      const hgt = clamp((y - (Q.yc - Q.hy)) / (2 * Q.hy), 0, 1), out = clamp(r / cr, 0, 1.2);
+      const lobe = Math.sin(x * 1.25 + lw[0]) * Math.sin(y * 1.05 + lw[1]) * Math.sin(z * 1.35 + lw[2]);
+      return clamp(0.18 + 0.42 * hgt + 0.38 * out + 0.22 * lobe, 0.12, 1);
+    };
     // a tuft of twigs: two sheets crossed along direction D from root P, Lc metres long; the fragment stage draws the twigs (rimeCut),
     // fanning out from the root, carrying rime. tx = metres along, metres across, the tuft's length, lever
     const _D = [0, 0, 0];
@@ -348,7 +358,8 @@ const TreeModel = (() => {
         nx *= 0.5; ny = ny * 0.5 + 0.7; nz *= 0.5; const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
         const v0 = vo;
         for (const [u, w] of [[-0.08, -0.75], [1.05, -0.75], [-0.08, 0.75], [1.05, 0.75]])
-          put(px + (dx * u + wx * w) * Lc, py + (dy * u + wy * w) * Lc, pz + (dz * u + wz * w) * Lc, nx, ny, nz, 6, 0.75, 0.8, id, u * Lc, w * Lc, Lc, lev + u * Lc * 0.7);
+          { const X = px + (dx * u + wx * w) * Lc, Y = py + (dy * u + wy * w) * Lc, Z = pz + (dz * u + wz * w) * Lc, sh = crownShade(X, Y, Z);
+            put(X, Y, Z, nx, ny, nz, 6, sh, lerp(0.35, 0.95, sh), id, u * Lc, w * Lc, Lc, lev + u * Lc * 0.7); }
         I.push(v0, v0 + 1, v0 + 2, v0 + 1, v0 + 3, v0 + 2);
       }
     }
@@ -361,27 +372,45 @@ const TreeModel = (() => {
         let dx = p[0] - q[0], dy = p[1] - q[1], dz = p[2] - q[2]; const dl = Math.hypot(dx, dy, dz) || 1; dx /= dl; dy /= dl; dz /= dl;
         const tw = (r1 - 0.5) * 1.4, c = Math.cos(tw), sn = Math.sin(tw);
         let ex = dx * c - dz * sn, ez = dx * sn + dz * c, ey = dy + up * (0.6 + 0.6 * r2);
-        tuft(p[0], p[1], p[2], ex, ey, ez, Q.tuft * (0.7 + 0.6 * r3) * (0.6 + 0.4 * Math.sqrt(len)), r2 * PI, id, lev0 + t * len);
+        const lob = 0.5 + 0.5 * Math.sin(p[0] * 1.25 + lw[0]) * Math.sin(p[1] * 1.05 + lw[1]) * Math.sin(p[2] * 1.35 + lw[2]);
+        tuft(p[0], p[1], p[2], ex, ey, ez, Q.tuft * (0.7 + 0.6 * r3) * (0.6 + 0.4 * Math.sqrt(len)) * (0.75 + 0.5 * lob) * Q.tw, r2 * PI, id, lev0 + t * len);
       }
     };
     const up = Q.hang < 0 ? 0.9 : -0.8;
+    // The crown is a web of limbs, each forking into finer ones, three orders deep near (two far off), every one of them a real tube: seen
+    // from anywhere a birch in winter is lines, dark beneath and white where the snow lies along their tops (the owner's photograph of the
+    // birch lane at Hakuba). Only the finest twigs at the tips are drawn on tufts. Each limb draws its own random numbers (seeded by where
+    // it is in the tree), so the coarse tree is the fine one with its finest order left out, never a different tree.
+    const UP = [0, 1, 0];
+    const deep = fine ? 3 : 2;
+    function kids(P, L, R, order, id, lev, seed) {
+      const rb = RNG(seed), n = order === 1 ? (L > 2.2 ? 8 : 6) : (L > 1.0 ? 5 : 4), p = [0, 0, 0], q = [0, 0, 0];
+      for (let j = 0; j < n; j++) {
+        const t0 = lerp(0.18, 0.92, (j + 0.2 + 0.6 * rb()) / n), sg = (j % 2 ? 1 : -1), r1 = rb(), r2 = rb(), r3 = rb(), r4 = rb();
+        P(t0, p); P(Math.min(1, t0 + 0.04), q);
+        let tx = q[0] - p[0], ty = q[1] - p[1], tz = q[2] - p[2]; const tl = Math.hypot(tx, ty, tz) || 1; tx /= tl; ty /= tl; tz /= tl;
+        // out to the side, level with the ground more than not, and climbing a little (an Erman's birch reaches up, a white birch's
+        // finer limbs hang)
+        let sx = -tz, sz = tx; const sl = Math.hypot(sx, sz) || 1; sx /= sl; sz /= sl;
+        const ph = (0.45 + 0.35 * r1) * sg, lift = (Q.hang < 0 ? 0.35 : 0.10) + 0.9 * (r2 - 0.5);
+        let dx = tx * Math.cos(ph) + sx * Math.sin(ph), dy = ty * Math.cos(ph) + lift, dz = tz * Math.cos(ph) + sz * Math.sin(ph);
+        const dl = Math.hypot(dx, dy, dz) || 1; dx /= dl; dy /= dl; dz /= dl;
+        const L2 = L * (1 - 0.55 * t0) * (order === 1 ? 0.55 : 0.6) * (0.7 + 0.5 * r3), sag = (Q.hang > 0 ? 0.16 : 0.06) * (0.6 + 0.8 * r4) / Math.max(L2, 0.3);
+        const x0 = p[0], y0 = p[1], z0 = p[2], R2 = Math.max(R * (1 - 0.6 * t0) * 0.62, 0.007), lv = lev + t0 * L;
+        // and a little wander across, so no limb is a ruled line
+        const wx = (rb() - 0.5) * 0.18, wz = (rb() - 0.5) * 0.18;
+        const P2 = (t, o) => { const r = t * L2; o[0] = x0 + r * dx + wx * Math.sin(PI * t) * L2; o[1] = y0 + r * dy - sag * r * r; o[2] = z0 + r * dz + wz * Math.sin(PI * t) * L2; };
+        tube(P2, t => lerp(R2, R2 * 0.35, t), order === 1 ? (fine ? 4 : 2) : 2, order === 1 ? (fine ? 4 : 3) : 3, id, lv, lv + L2, false);
+        if (order + 1 < deep) kids(P2, L2, R2, order + 1, id, lv, seed * 31 + j * 7 + 11);
+        else tuftsAlong(P2, L2, order + 1 < 3 ? [0.3, 0.5, 0.7, 0.85, 1.0] : [0.3, 0.55, 0.8, 1.0], id, lv, up, 1);
+      }
+    }
     for (const b of B) {
       const ax = S.axis(b.y0), L = b.L;
       const P = (t, o) => { const r = t * L; o[0] = ax[0] + r * b.ca; o[1] = b.y0 + b.rise * r - b.k2 * r * r; o[2] = ax[1] + r * b.sa; };
       const R = Q.rl * Math.sqrt(L) * (b.lead ? 1.6 : 1);
-      tube(P, t => lerp(R, 0.010, Math.pow(t, 0.75)), fine ? 6 : 3, fine ? 5 : 3, b.id, 0, L, false);
-      tuftsAlong(P, L, b.lead ? [0.92] : [0.55, 0.8, 1.0], b.id, 0, up, 1);
-      // the limbs it forks into: out to either side and climbing (for a leader, the crown itself)
-      const ns = b.lead ? 7 : L > 1.3 ? 4 : 3, p0 = [0, 0, 0];
-      for (let j = 0; j < ns; j++) {
-        const t0 = b.lead ? 0.3 + 0.65 * (j + rnd() * 0.6) / ns : 0.25 + 0.55 * rnd(), side = (j % 2 ? 1 : -1) * (0.45 + 0.6 * rnd()), a2 = b.a + side;
-        const L2 = (b.lead ? Q.R0 * (0.35 + 0.35 * rnd()) : L * (1 - t0) * (0.6 + 0.4 * rnd())) + 0.3, r2 = (b.lead ? 0.5 : 0.35) + 0.7 * rnd(), tp = lerp(Q.t0, Q.t1, sat(b.u + 0.3)) + (rnd() - 0.5) * 0.4, k22 = (r2 - tp) / (2 * L2);
-        const c2 = Math.cos(a2), s2 = Math.sin(a2);
-        P(t0, p0); const x0 = p0[0], y0 = p0[1], z0 = p0[2], lv = t0 * L;
-        const P2 = (t, o) => { const r = t * L2; o[0] = x0 + r * c2; o[1] = y0 + r2 * r - k22 * r * r; o[2] = z0 + r * s2; };
-        if (fine || L2 > 0.7) tube(P2, t => lerp(R * 0.55 * (1 - 0.5 * t0), 0.008, Math.pow(t, 0.7)), fine ? 4 : 2, 3, b.id, lv, lv + L2, false);
-        tuftsAlong(P2, L2, [0.35, 0.7, 1.0], b.id, lv, up, 1);
-      }
+      tube(P, t => lerp(R, R * 0.3, Math.pow(t, 0.8)), fine ? 7 : 4, fine ? 5 : 4, b.id, 0, L, false);
+      kids(P, L, R, 1, b.id, 0, 5003 + v * 977 + b.id * 131);
     }
     // (the far cards are photographed in a fixed frame, 10.45 m from the foot: a crown that rose above it came out with its top cut flat.
     // The whole tree is shrunk to stand inside it, the same for both levels; the instance's own height scales it back)
@@ -507,7 +536,7 @@ const Trees = (() => {
         // (a birch's twigs are photographed as they will be seen on the card, from afar: as clumps of rime with sky between them)
         if (treeCut(v.mat, v.tx, select(fw, fw * 14.0, v.mat.x > 5.5), ln + (n1.z - 0.5) * 0.03) < 0.5) { discard; }
         var s: TreeS = treeSurface(v.mat, v.tx, N, n1, n2, ln, 1.0, 0.0, fw);
-        if (M.m.z > 9.5 && v.mat.x > 2.5 && v.mat.x < 3.5 && v.mat.w > -0.5) { s.snow = max(s.snow, smoothstep(-0.25, 0.4, s.N.y + (n2.z - 0.5) * 0.5) * 0.92); s.bark = 1.0 - s.snow; }
+        if (M.m.z > 9.5 && v.mat.x > 2.5 && v.mat.x < 3.5 && v.mat.w > -0.5) { s.snow = max(s.snow, smoothstep(-0.6, 0.15, s.N.y + (n2.z - 0.5) * 0.5) * 0.95); s.bark = 1.0 - s.snow; }
         if (M.m.x < 0.5) { o.color = vec4f(dot(s.N, x) * 0.5 + 0.5, dot(s.N, y) * 0.5 + 0.5, saturate(0.5 + v.cl.z / ${(2 * DR).toFixed(2)}), 1.0); }
         else { o.color = vec4f(s.snow, s.ao * (0.3 + 0.7 * s.open), select(1.0, saturate(v.tx.x / 0.16), v.mat.x < 0.5), s.bark); }
         return o; }`,
@@ -723,8 +752,8 @@ const Trees = (() => {
         const dx = -gx / gl, dz = -gz / gl, amt = (0.07 + 0.12 * r4) * k;
         rot = Math.atan2(-dz, dx) + (r3 - 0.5) * 1.2 * (1 - k); lean = dx * amt; leanZ = dz * amt;
       }
-      // (birches stand tall: no sapling-sized ones on the run's edge)
-      h = Math.max(h, 8.5) * 1.12;
+      // (birches stand tall; the short ones are young saplings, slender and few-limbed by their size)
+      h = h < 7.6 ? h * 0.95 : h * 1.15;
     }
     // none grew quite straight (and all lean a little down the hill, as the creeping snow has pushed them); on the ridge the wind has had its way
     const la = v === 7 ? 0.32 : r3 * TAU, lk = 0.012 + 0.05 * r4 * r4 + 0.03 * ridge;
@@ -1340,7 +1369,7 @@ fn rimeCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
   let cs: vec2f = vec2f(mat.w * 3.1, mat.w * 1.7);
   let cn: f32 = rimeNoise(tx.xy * 4.5 + cs) * 0.62 + rimeNoise(tx.xy * 10.0 + cs * 2.3) * 0.38;
   let cw: f32 = clamp(fw * 5.0, 0.03, 0.10);
-  let far: f32 = smoothstep(-cw, cw, cn - (0.50 + 0.40 * e * e) + 0.05 * (th - 1.0));
+  let far: f32 = smoothstep(-cw, cw, cn - (0.44 + 0.42 * e * e) + 0.05 * (th - 1.0));
   return mix(c, far, smoothstep(0.5, 1.4, ap / th));
 }
 fn twigCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
@@ -1467,7 +1496,9 @@ fn frag(v: VOut) -> FOut {
   var N: vec3f = N0; if (fc < 0.0 && v.mat.x < 5.5) { N = -N0; }
   let n1: vec4f = tex(tDetail, v.bp.xz * 0.23 + v.bp.yy * vec2f(0.17, 0.11) + v.ex.z);                   // lumps
   let ln: f32 = snowLine(v.iv.x);
-  if (treeCut(v.mat, v.tx, fw, ln + (n1.z - 0.5) * 0.03) < 0.5) { discard; }
+  // (a sheet of a birch's twigs seen edge-on smears its pattern into streaks: it gives way to its crossed partner)
+  let eo: f32 = select(1.0, smoothstep(0.12, 0.32, abs(dot(Ng, V))), v.mat.x > 5.5);
+  if (treeCut(v.mat, v.tx, fw, ln + (n1.z - 0.5) * 0.03) * eo < 0.5) { discard; }
   let n2: vec4f = tex(tDetail, v.bp.xy * 1.9 + v.bp.zz * vec2f(1.3, 1.7));                               // needles, grain
   var s: TreeS = treeSurface(v.mat, v.tx, N, n1, n2, ln, v.iv.x, dot(N, normalize(vec3f(-U.wind.x, 0.3, -U.wind.z) + vec3f(1e-4, 0.0, 0.0))), fw);
   if (M.p.w > 0.5 || M.p.z > 9.5) { s.tn = needleTint(v.ex.z, M.p.z); s.tb = barkTint(v.ex.z, M.p.z); }
@@ -1481,8 +1512,8 @@ fn frag(v: VOut) -> FOut {
   }
   // (a birch's limbs coated by the rime and the snow on all but their undersides, so each limb is a white line with a dark one under it)
   if (M.p.z > 9.5 && v.mat.x > 2.5 && v.mat.x < 3.5 && v.mat.w > -0.5) {
-    let coat: f32 = smoothstep(-0.25, 0.4, s.N.y + (n2.z - 0.5) * 0.5) * saturate(v.iv.x * 1.2 - 0.15);
-    s.snow = max(s.snow, coat * 0.92); s.bark = 1.0 - s.snow;
+    let coat: f32 = smoothstep(-0.6, 0.15, s.N.y + (n2.z - 0.5) * 0.5) * saturate(v.iv.x * 1.4 - 0.1);
+    s.snow = max(s.snow, coat * 0.95); s.bark = 1.0 - s.snow;
   }
   // a sheet of twigs asks for the light on the side of it that faces the sun, whichever side is looked at: the sun comes through
   var Nq: vec3f = N; if (s.thin > 0.5 && dot(N, U.sunDir.xyz) < 0.0) { Nq = -N; }
