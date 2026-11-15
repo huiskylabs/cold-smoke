@@ -342,7 +342,9 @@ const TreeModel = (() => {
       const ax = S.axis(y), r = Math.hypot(x - ax[0], z - ax[1]), cr = Math.max(0.3, S.crown(y));
       const hgt = clamp((y - (Q.yc - Q.hy)) / (2 * Q.hy), 0, 1), out = clamp(r / cr, 0, 1.2);
       const lobe = Math.sin(x * 1.25 + lw[0]) * Math.sin(y * 1.05 + lw[1]) * Math.sin(z * 1.35 + lw[2]);
-      return clamp(0.18 + 0.42 * hgt + 0.38 * out + 0.22 * lobe, 0.12, 1);
+      // (in the photographs a rime crown is light all through: its shaded side a pale blue grey, the white scattering light into
+      // itself; only the trunk and the main limbs are dark. Deep dark hollows made every tuft a cut-out against them)
+      return clamp(0.5 + 0.25 * hgt + 0.25 * out + 0.12 * lobe, 0.42, 1);
     };
     // a tuft of twigs: two sheets crossed along direction D from root P, Lc metres long; the fragment stage draws the twigs (rimeCut),
     // fanning out from the root, carrying rime. tx = metres along, metres across, the tuft's length, lever
@@ -446,7 +448,7 @@ const Trees = (() => {
   const TM = TreeModel;
   // r0/w0/max0: the fine meshes reach r0 metres (handing over across the last w0), at most max0 of them; r1/w1/max1: the same for the coarse
   // meshes; beyond stand the cards (NK photographs of each kind, one tile each). life: the trees move and shed (0 = still).
-  const T = { NV: TM.NV, NK: 12, r0: 14, w0: 3.5, max0: 8, r1: 48, w1: 8, max1: 72, far: 460, maxFar: 6144, tileW: 128, tileH: 256, ss: 2, pitch: 0.12, enabled: true, life: 1,
+  const T = { NV: TM.NV, NK: 12, r0: 14, w0: 3.5, max0: 8, r1: 48, w1: 8, max1: 72, far: 460, maxFar: 6144, r1B: 100, max1B: 170, tileW: 128, tileH: 256, ss: 2, pitch: 0.12, enabled: true, life: 1,
     stats: { near: 0, far: 0, tris: 0, fading: 0, out: 0, l0: 0, l1: 0, drawn: 0, shadow: 0, parts: 0 } };
   // (going through the woods, the owner's choice 'tpass'. a: as it was: a tree between the lens and the skier, or right against the lens,
   // fades out whole until it is clear. b: every tree stays. Its boughs give way round the body and are swept along with it as the skier
@@ -473,7 +475,7 @@ const Trees = (() => {
   const meshes = [], grp = [];
   let veil = new Map(), veil2 = new Map();      // trees being taken out of the picture: [how solid (0..1), hidden?] by tree
   let farCPU, farBuf, nFar = 0, cardsOnly = false;
-  const CAP0 = () => T.max0 + 6, CAP1 = () => T.max1 + 24, GCAP = 8;
+  const CAP0 = () => T.max0 + 6, CAP1 = () => Math.max(T.max1, T.max1B) + 24, GCAP = 8;
 
   T.init = function (g) {
     gfx = g;
@@ -1087,7 +1089,11 @@ const Trees = (() => {
     // its shadow into the picture from outside does it as a card: meshes are for what the lens can see.)
     const thx = Math.tan(cam.fovY / 2) * Math.max(aspect || 0.5, 0.3) * 1.15 + 0.06, mrg = 13, mrgM = 7;
     // (a long lens brings far trees near: the ranges are those of the lens the game is played through, and grow with any longer one)
-    const zoom = clamp(0.5463 / Math.tan(cam.fovY / 2), 1, 6), zr0 = T.r0 * zoom, zr1 = T.r1 * zoom;
+    // (a birch mountain draws its trees as meshes twice as far: the photographs of rime birch at 50-100 m show a fine white lace with
+    // every limb in it, and a card there, flat and 12 pixels to the metre, was a paper cut-out of a tree. On 流畅 the usual reach)
+    const bch = typeof Biome !== 'undefined' && Biome.wild && Biome.wild() && !(typeof Quality !== 'undefined' && Quality.tier >= 2);
+    const R1 = bch ? T.r1B : T.r1, M1 = bch ? T.max1B : T.max1;
+    const zoom = clamp(0.5463 / Math.tan(cam.fovY / 2), 1, 6), zr0 = T.r0 * zoom, zr1 = R1 * zoom;
     const RM = cardsOnly ? 0 : zr1, RM2 = RM * RM, ox = origin[0], oy = origin[1], oz = origin[2];
     const far = (c, o, fade, d) => {
       if (nFar >= T.maxFar) return; const q = nFar++ * 12, s = c[o + 3] / 10 * smooth(R, R - 60, d), v = c[o + 6];
@@ -1128,7 +1134,7 @@ const Trees = (() => {
         const ord = order.subarray(0, candN); ord.sort((a, b) => candD[a] - candD[b]);
         // The two ranges of the meshes. Where more trees stand inside one than its budget, the range draws in to the first tree over the
         // budget, and moves there smoothly: so a hand-over is always a matter of distance, across a band, and never a snap.
-        const t0 = candN > T.max0 ? Math.min(zr0, candD[ord[T.max0]]) : zr0, t1 = candN > T.max1 ? Math.min(zr1, candD[ord[T.max1]]) : zr1;
+        const t0 = candN > T.max0 ? Math.min(zr0, candD[ord[T.max0]]) : zr0, t1 = candN > M1 ? Math.min(zr1, candD[ord[M1]]) : zr1;
         r0c = dt && r0c ? damp(r0c, t0, 5, dt) : t0; r1c = dt && r1c ? damp(r1c, t1, 5, dt) : t1;
         let ns = 0; const keepAll = stay();
         for (let n = 0; n < candN; n++) {
@@ -1374,9 +1380,12 @@ fn rimeCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
   // from afar (and in the photographs of the far cards) the twigs of a tuft merge into clumps of rime with sky between them, dense at the
   // root, ragged toward the tips: a lace with holes big enough to outlast the far cards' smaller copies, never a solid cotton ball
   let cs: vec2f = vec2f(mat.w * 3.1, mat.w * 1.7);
-  let cn: f32 = rimeNoise(tx.xy * 4.5 + cs) * 0.62 + rimeNoise(tx.xy * 10.0 + cs * 2.3) * 0.38;
+  // (photographs of rime birch at 20-80 m: the crown is a fine-grained white lace, sky in small holes all through it, its outline
+  // feathery; never a few big solid pads. So the clumps are as fine as the pixel allows, and only coarsen where they would shimmer)
+  let kf: f32 = clamp(0.055 / max(fw, 1e-4), 4.5, 13.0);
+  let cn: f32 = rimeNoise(tx.xy * kf + cs) * 0.62 + rimeNoise(tx.xy * kf * 2.2 + cs * 2.3) * 0.38;
   let cw: f32 = clamp(fw * 5.0, 0.03, 0.10);
-  let far: f32 = smoothstep(-cw, cw, cn - (0.44 + 0.42 * e * e) + 0.05 * (th - 1.0));
+  let far: f32 = smoothstep(-cw, cw, cn - (0.36 + 0.42 * e * e) + 0.05 * (th - 1.0));
   return mix(c, far, smoothstep(0.5, 1.4, ap / th));
 }
 fn twigCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
@@ -1449,7 +1458,7 @@ fn treeSurface(mat: vec4f, tx: vec4f, N: vec3f, n1: vec4f, n2: vec4f, line: f32,
   // (a broadleaf tree's twigs carry rime by the tree's load: at 1 and over white coral, a few dark threads left; at 0.3 dark twigs flecked
   // white; on the side facing down a little less)
   if (mat.x > 5.5) { dust = saturate(load * 1.5 - 0.3 + (n2.z - 0.5) * 0.7 + (n1.z - 0.5) * 0.5) * mix(0.75, 1.0, smoothstep(-0.5, 0.5, N.y)) * 1.1; }
-  snow = max(snow, (1.0 - isSnow) * dust * 0.88);
+  snow = max(snow, (1.0 - isSnow) * dust * select(0.88, 0.97, mat.x > 5.5));
   snow = max(snow, isBark * (1.0 - isTwig) * smoothstep(0.35, 0.75, plast + (nd - 0.5) * 0.6) * 0.9);
   s.snow = snow;
   s.bark = isBark * (1.0 - snow);
@@ -1541,6 +1550,8 @@ fn frag(v: VOut) -> FOut {
   col += treeLamp(s, v.wp);
   // (the rim of a clump of rime is thin ice the light comes through: it is drawn pale, close to the sky behind it, so the crown's outline
   // melts into the air instead of standing as a cut edge of paper; there is no blending here, only this)
+  // (rime is ice full of air: what lies in the crown's own shadow still glows with the light it scatters through, pale blue, not dark)
+  if (v.mat.x > 5.5) { col += vec3f(0.80, 0.88, 1.0) * (U.ambSky.rgb * 0.45 + U.sunCol.rgb * 0.08) * s.snow * (1.0 - sh); }
   if (v.mat.x > 5.5) { col = mix(col, U.ambSky.rgb * 1.15 + U.sunCol.rgb * 0.12, 0.65 * (1.0 - smoothstep(0.5, 0.95, cv))); }
   col = applyWoodFog(col, v.wp);
   GHOST_OUT
