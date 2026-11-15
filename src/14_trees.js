@@ -348,18 +348,24 @@ const TreeModel = (() => {
     // fanning out from the root, carrying rime. tx = metres along, metres across, the tuft's length, lever
     const _D = [0, 0, 0];
     function tuft(px, py, pz, dx, dy, dz, Lc, roll, id, lev) {
+      const hs = Math.sin(px * 12.9898 + py * 78.233 + pz * 37.719) * 43758.5453, tb = 0.8 + 0.35 * (hs - Math.floor(hs));      // (each tuft a little brighter or darker than the next; not from rnd(), which would reshape every tree)
       const dl = Math.hypot(dx, dy, dz) || 1; dx /= dl; dy /= dl; dz /= dl;
       let ax = -dz, ay = 0, az = dx, al = Math.hypot(ax, az); if (al < 1e-3) { ax = 1; az = 0; al = 1; } ax /= al; az /= al;
       const bx = dy * az, by = dz * ax - dx * az, bz = -dy * ax;
-      for (let m = 0; m < 2; m++) {
-        const an = roll + m * PI / 2, c = Math.cos(an), sn = Math.sin(an), wx = ax * c + bx * sn, wy = ay * c + by * sn, wz = az * c + bz * sn;
+      // (three sheets round the twig, not two: with two, from most angles one flat fan faced the eye whole and read as a paper cut-out)
+      for (let m = 0; m < 3; m++) {
+        const an = roll + m * PI / 3, c = Math.cos(an), sn = Math.sin(an), wx = ax * c + bx * sn, wy = ay * c + by * sn, wz = az * c + bz * sn;
         // the sheet's normal, bent up toward the sky (a tuft is lit as the haze of twigs it is, not as a plate)
         let nx = dy * wz - dz * wy, ny = dz * wx - dx * wz, nz = dx * wy - dy * wx; if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
         nx *= 0.5; ny = ny * 0.5 + 0.7; nz *= 0.5; const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
         const v0 = vo;
         for (const [u, w] of [[-0.08, -0.75], [1.05, -0.75], [-0.08, 0.75], [1.05, 0.75]])
-          { const X = px + (dx * u + wx * w) * Lc, Y = py + (dy * u + wy * w) * Lc, Z = pz + (dz * u + wz * w) * Lc, sh = crownShade(X, Y, Z);
-            put(X, Y, Z, nx, ny, nz, 6, sh, lerp(0.35, 0.95, sh), id, u * Lc, w * Lc, Lc, lev + u * Lc * 0.7); }
+          { const X = px + (dx * u + wx * w) * Lc, Y = py + (dy * u + wy * w) * Lc, Z = pz + (dz * u + wz * w) * Lc, sh = crownShade(X, Y, Z) * tb;
+            // (lit as part of the whole crown, not as its own flat sheet: the normal leans out from the crown's middle, so one side of
+            // the crown takes the sun and the other the blue of the sky, and the sheets no longer read as paper cut-outs all equally lit)
+            const ax2 = S.axis(Y); let ox = X - ax2[0], oy = (Y - Q.yc) * 0.7, oz = Z - ax2[1]; const ol = Math.hypot(ox, oy, oz) || 1;
+            let mx = nx * 0.3 + ox / ol * 0.7, my = ny * 0.3 + oy / ol * 0.7 + 0.2, mz = nz * 0.3 + oz / ol * 0.7; const ml = Math.hypot(mx, my, mz) || 1;
+            put(X, Y, Z, mx / ml, my / ml, mz / ml, 6, sh, lerp(0.35, 0.95, sh), id, u * Lc, w * Lc, Lc, lev + u * Lc * 0.7); }
         I.push(v0, v0 + 1, v0 + 2, v0 + 1, v0 + 3, v0 + 2);
       }
     }
@@ -1498,7 +1504,8 @@ fn frag(v: VOut) -> FOut {
   let ln: f32 = snowLine(v.iv.x);
   // (a sheet of a birch's twigs seen edge-on smears its pattern into streaks: it gives way to its crossed partner)
   let eo: f32 = select(1.0, smoothstep(0.12, 0.32, abs(dot(Ng, V))), v.mat.x > 5.5);
-  if (treeCut(v.mat, v.tx, fw, ln + (n1.z - 0.5) * 0.03) * eo < 0.5) { discard; }
+  let cv: f32 = treeCut(v.mat, v.tx, fw, ln + (n1.z - 0.5) * 0.03) * eo;
+  if (cv < 0.5) { discard; }
   let n2: vec4f = tex(tDetail, v.bp.xy * 1.9 + v.bp.zz * vec2f(1.3, 1.7));                               // needles, grain
   var s: TreeS = treeSurface(v.mat, v.tx, N, n1, n2, ln, v.iv.x, dot(N, normalize(vec3f(-U.wind.x, 0.3, -U.wind.z) + vec3f(1e-4, 0.0, 0.0))), fw);
   if (M.p.w > 0.5 || M.p.z > 9.5) { s.tn = needleTint(v.ex.z, M.p.z); s.tb = barkTint(v.ex.z, M.p.z); }
@@ -1531,6 +1538,9 @@ fn frag(v: VOut) -> FOut {
   }
   var col: vec3f = treeLight(s, V, sh);
   col += treeLamp(s, v.wp);
+  // (the rim of a clump of rime is thin ice the light comes through: it is drawn pale, close to the sky behind it, so the crown's outline
+  // melts into the air instead of standing as a cut edge of paper; there is no blending here, only this)
+  if (v.mat.x > 5.5) { col = mix(col, U.ambSky.rgb * 1.15 + U.sunCol.rgb * 0.12, 0.65 * (1.0 - smoothstep(0.5, 0.95, cv))); }
   col = applyWoodFog(col, v.wp);
   GHOST_OUT
   return o;
