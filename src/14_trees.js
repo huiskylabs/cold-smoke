@@ -1504,7 +1504,8 @@ fn frag(v: VOut) -> FOut {
   if (M.p.w > 0.5 || M.p.z > 9.5) { s.tn = needleTint(v.ex.z, M.p.z); s.tb = barkTint(v.ex.z, M.p.z); }
   // (a birch: its twigs dark red-brown whatever the stem; a white birch's stem and limbs white with black marks across them, and black
   // and furrowed at the foot)
-  if (M.p.z > 9.5 && v.mat.x > 3.5) { s.tb = vec3f(1.05, 0.80, 0.72); }
+  // (under a thick coat of rime the twigs' own red-brown hardly shows: what is seen is grey shade in the rime, not a warm tint)
+  if (M.p.z > 9.5 && v.mat.x > 3.5) { s.tb = mix(vec3f(1.05, 0.80, 0.72), vec3f(0.92, 0.93, 0.96), saturate(v.iv.x * 0.8)); }
   if (M.p.z > 10.5 && v.mat.x > 2.5 && v.mat.x < 3.5) {
     let nb: vec4f = tex(tDetail, vec2f(v.tx.x * 1.3 + v.ex.z * 7.0, v.bp.y * 7.5));
     let mk: f32 = max(smoothstep(0.60, 0.70, nb.z), smoothstep(1.4, 0.3, v.bp.y + (nb.x - 0.5) * 0.8) * 0.9);
@@ -1576,7 +1577,7 @@ fn frag(v: VOut) -> FOut {
   s.snow = b.x * smoothstep(ln - 0.08, ln + 0.08, b.z + 0.08); s.ao = b.y; s.open = 1.0; s.bark = b.w; s.thin = (1.0 - b.x) * (1.0 - b.w); s.tone = 0.4; s.N = N; s.tn = vec3f(1.0); s.tb = vec3f(1.0);
   if (M.q.x > 0.5 || v.vw.w > 9.5) { s.tn = needleTint(v.gp.w, v.vw.w); s.tb = barkTint(v.gp.w, v.vw.w); }
   // (a birch's photograph was taken white with rime: a tree that carries less shows its dark twigs)
-  if (v.vw.w > 9.5) { s.snow = s.snow * saturate(v.fx.z * 1.25 - 0.1); s.bark = 1.0 - s.snow; }
+  if (v.vw.w > 9.5) { s.snow = s.snow * saturate(v.fx.z * 1.25 - 0.1); s.bark = 1.0 - s.snow; s.tb = mix(s.tb, vec3f(dot(s.tb, vec3f(0.3333))) * vec3f(0.97, 0.98, 1.03), saturate(v.fx.z * 0.8)); }
   // The tree's own shade is worked out, not looked up (in the sun's map the tree is the flat it is drawn as): the far side of the crown
   // lies in shade, less so toward the top where the crown is thin.
   let hq: f32 = saturate(1.0 - v.uv.y);

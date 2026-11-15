@@ -160,11 +160,14 @@ const Weather = (() => {
     const kc = W.kc, ks = W.ks, v = W.v, P = W.P;
     if (kc < 1e-4 && W.F < 1e-4) { W.ex = null; W.sky = { wa: ZERO, wb: ZERO, wc: ZERO, wd: ZERO, we: ZERO, wf: ZERO, wg: ZERO }; W.veilU = null; W.sunK = 1; return; }
     const sc = Sky.sunCol, as = Sky.ambSky, tw = Sky.twi, e = Sky.elev, sf = Sky.sunFar;
-    const sunT = lerp(1, lerp(0.85, 0.07, v), kc); W.sunK = sunT;
+    // (the owner's choice 'biome': in the rime country the overcast is a thick, even white: no warm sun coming through a break, the light
+    // flat and neutral, the eye opened up into a high, white key, as in the owner's photograph of the Hakuba birch lane)
+    const wet = typeof Biome !== 'undefined' && Biome.cur() ? Biome.cur().wet * kc : 0;
+    const sunT = lerp(1, lerp(0.85, 0.07, lerp(v, 1, 0.9 * wet)), kc) * (1 - 0.7 * wet); W.sunK = sunT;
     const sun = sc.map(c => c * sunT);
     // the overcast's own light: what falls on its top (the sun, and the sky above it), let through and spread out, and greyed as cloud greys it
     const se = Math.max(Math.sin(e), 0.03), top = [0, 1, 2].map(i => sf[i] * se * 0.9 + as[i] * 1.1), tl = lum(top);
-    const ov = top.map((c, i) => 0.56 * lerp(c, tl, 0.75) * [0.95, 1.0, 1.07][i]);
+    const ov = top.map((c, i) => 0.56 * lerp(lerp(c, tl, 0.75) * [0.95, 1.0, 1.07][i], tl * [0.97, 1.0, 1.05][i], wet));
     // a night snowstorm is cold blue-grey: the moonlit overcast is pulled toward a cool grey. The far city's sodium glow only warms the cloud
     // low on its own bearing (overcast() and the veil, M.wf / c); over the skier it adds no more than a trace, else the whole storm goes sepia
     { const n = Sky.night || 0, l = lum(ov); for (let i = 0; i < 3; i++) ov[i] = lerp(ov[i], l * [0.80, 0.92, 1.14][i], 0.7 * n); }
@@ -174,7 +177,7 @@ const Weather = (() => {
     const up = Math.max(0, Math.sin(e)), gnd = [0, 1, 2].map(i => 0.5 * (sun[i] * (up * 0.9 + 0.2 * smooth(-0.05, 0.15, Math.sin(e))) + amb[i] * 0.8));
     // the eye opens as the light goes flat (by the law the sky uses for the time of day, a little less of it at night), over a second or so
     const L0 = lum(sc) * 0.33 + lum(as) * 1.9 + lum(tw) * 0.5, L1 = lum(sun) * 0.33 + lum(amb) * 1.9 + lum(twi) * 0.5;
-    const tgt = Math.pow(L0 / Math.max(L1, 1e-6), lerp(0.78, 0.35, Sky.night));       // (by day a snowfall is bright white-grey, not dim)
+    const tgt = Math.pow(L0 / Math.max(L1, 1e-6), lerp(0.78, 0.35, Sky.night)) * (1 + 0.3 * wet * (1 - Sky.night));       // (by day a snowfall is bright white-grey, not dim)
     W.ex = W.ex == null ? tgt : damp(W.ex, tgt, 0.85, Render.dt || 1 / 60);
     const ex = Post.exposure * W.ex; Post.exposure = ex;
     // lightning: the cloud round the flash lights up, and the slope takes blue-white light from it, less than the sky shows (the eye cannot follow it)
