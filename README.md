@@ -52,6 +52,7 @@ What makes it unusual is what the repository **doesn't** contain:
 | Tuck for speed | Shift | hold the Tuck button | hold a right-hand pinch |
 | Change camera | V (Shift+V back) | camera button above Jump | (chase camera only) |
 | Menu / pause | Esc | corner button | Digital Crown leaves Immersive, the menu is waiting |
+| Photo mode (everything frozen, free camera) | menu → Photo · drag to look, WASD / Q E to move, wheel to zoom, Enter to shoot, Esc back | menu → 拍照 · drag on the right to look, stick on the left to move, pinch to zoom, round button to shoot | |
 | All controls | H | menu | |
 
 The **Immersive** button on the title page only appears in a browser that can open a headset (Safari on Apple Vision Pro). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#immersive-mode-apple-vision-pro).
@@ -142,6 +143,7 @@ If you like it, a ⭐ helps other people find it.
 | 压低加速 | Shift | 按住「加速」 | 右手捏住 |
 | 换机位 | V（Shift+V 往回） | 「跳」上方的机位按钮 | （只有追身机位） |
 | 菜单 / 暂停 | Esc | 角上的按钮 | 按数码表冠退出沉浸模式，菜单在外面等着 |
+| 拍照模式（一切定住，自由镜头） | 菜单 → 拍照 · 拖动鼠标转视角，WASD / Q E 移动，滚轮缩放，回车拍照，Esc 返回 | 菜单 → 拍照 · 右边拖动转视角，左边摇杆移动，双指缩放，圆按钮拍照 | |
 | 全部操作 | H | 菜单 | |
 
 标题页的「沉浸模式」按钮只在能打开头显的浏览器里出现（Apple Vision Pro 的 Safari）。

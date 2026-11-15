@@ -1119,6 +1119,19 @@ const TREE_MAT_SSL = `
 fn sprayAt(tx: vec4f, mat: vec4f) -> f32 {
   return (tx.x + 0.030 * sin(tx.y * 21.0 + mat.w * 5.0) + 0.018 * sin(tx.x * 33.0 + mat.w * 3.0) - abs(tx.y) * 0.9) / 0.115 + mat.w * 0.37;
 }
+// (declared before treeCut, which calls it: GLSL, the WebGL2 fallback, wants a function defined before its first use)
+// a larch's bare twigs: thin, wiry and few, so the sky shows through the crown. Close to, each twig is a line; from afar, where a pixel holds
+// many of them, the sheet keeps a fixed scatter of its texels (so that the crown reads as a haze of twigs, not as a solid cone)
+fn twigCut(mat: vec4f, tx: vec4f, fw: f32) -> f32 {
+  let cur: f32 = step(4.5, mat.x);
+  let pitch: f32 = mix(0.10, 0.07, cur); let ap: f32 = fw / pitch;
+  let s: f32 = select(sprayAt(tx, mat), (tx.x + 0.012 * sin(tx.y * 19.0 + mat.w * 7.0)) / pitch + mat.w * 0.61, cur > 0.5);
+  let k: f32 = floor(s); let f: f32 = abs(s - k - 0.5); let h: f32 = hash11(k + mat.w * 19.0);
+  let e: f32 = tx.z / (mix(0.65, 0.30, cur) + mix(0.35, 0.65, cur) * h);
+  let fine: f32 = saturate((0.20 * (1.0 - 0.4 * e) - f) / max(ap, 0.001) + 0.5) * step(e, 1.0);
+  let far: f32 = step(tx.z, mix(0.85, 0.62, cur)) * step(hash21(floor(tx.xy * vec2f(9.0, 11.0)) + vec2f(mat.w * 3.1, mat.w * 1.7)), 0.36);
+  return mix(fine, far, smoothstep(0.35, 1.0, ap));
+}
 // how much of a pixel a sheet of twigs fills. fw: the width of a pixel on the sheet (m). line: see snowLine.
 // (And where a pillow of the coarse level ends: its outline is not in its triangles.)
 fn treeCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
@@ -1152,18 +1165,6 @@ fn treeCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
   let e4: f32 = tx.z / (0.20 + 0.50 * hash11(k4 + mat.w * 31.0));
   fine3 = max(fine3, saturate((0.42 * (1.0 - 0.6 * e4) - f4) / max(fw / 0.043, 0.001) + 0.5) * step(e4, 1.0));
   return mix(fine3, step(tx.z, 0.62), smoothstep(0.45, 1.2, ap3));
-}
-// a larch's bare twigs: thin, wiry and few, so the sky shows through the crown. Close to, each twig is a line; from afar, where a pixel holds
-// many of them, the sheet keeps a fixed scatter of its texels (so that the crown reads as a haze of twigs, not as a solid cone)
-fn twigCut(mat: vec4f, tx: vec4f, fw: f32) -> f32 {
-  let cur: f32 = step(4.5, mat.x);
-  let pitch: f32 = mix(0.10, 0.07, cur); let ap: f32 = fw / pitch;
-  let s: f32 = select(sprayAt(tx, mat), (tx.x + 0.012 * sin(tx.y * 19.0 + mat.w * 7.0)) / pitch + mat.w * 0.61, cur > 0.5);
-  let k: f32 = floor(s); let f: f32 = abs(s - k - 0.5); let h: f32 = hash11(k + mat.w * 19.0);
-  let e: f32 = tx.z / (mix(0.65, 0.30, cur) + mix(0.35, 0.65, cur) * h);
-  let fine: f32 = saturate((0.20 * (1.0 - 0.4 * e) - f) / max(ap, 0.001) + 0.5) * step(e, 1.0);
-  let far: f32 = step(tx.z, mix(0.85, 0.62, cur)) * step(hash21(floor(tx.xy * vec2f(9.0, 11.0)) + vec2f(mat.w * 3.1, mat.w * 1.7)), 0.36);
-  return mix(fine, far, smoothstep(0.35, 1.0, ap));
 }
 // n1: lumps, n2: needles and grain (two reads of the detail texture). plast: how squarely the point faces the wind that plasters the stems.
 // fw: as in treeCut.

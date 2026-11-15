@@ -354,6 +354,7 @@ const UI = (() => {
       e.stopPropagation(); const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
       if (b === el.mGo) { if (U.state === 'title') U.go(); else U.menu(false); return; }
       if (b === el.mTop) { U.toTop(); return; }
+      if (b.id === 'm-photo') { if (typeof Photo !== 'undefined') Photo.enter(); if (e.detail) b.blur(); return; }
       if (d.sec && b.parentNode === el.nav) { show(d.sec); return; }
       if (d.time) U.setTime(d.time); else if (d.seg) U.gotoKind(d.seg); else if (d.view) U.setView(d.view); else if (d.new) U.newMountain(); else if (d.daily) U.daily();
       else if ('animal' in d) { U.animal(d.animal); U.menu(false); } else if (d.plane) { U.plane(); U.menu(false); }

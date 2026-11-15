@@ -377,6 +377,49 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #app.en #tuck { font-size: 12px; letter-spacing: .06em; text-indent: .06em; } #app.en #jump { font-size: 15px; letter-spacing: .04em; }
 @media (prefers-reduced-motion: reduce) { #go::after, #hint i::before, #hint i::after { animation: none; } }
 #fatal { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); font: 12px/1.4 ui-monospace, Menlo, monospace; color: #ffb4a8; background: rgba(40, 8, 4, .9); white-space: pre-wrap; z-index: 99; max-height: 40%; overflow: auto; }
+
+/* ---- 拍照: the moment held still, every word of the game gone, the lens in the player's hands (19d_photo.js) */
+#app.photo #hud, #app.photo #bar, #app.photo #menu, #app.photo #say, #app.photo #shade, #app.photo #title, #app.photo #pause, #app.photo #steer { visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; transition: none !important; }
+#photo { position: absolute; inset: 0; display: none; z-index: 30; }
+#app.photo #photo { display: block; }
+#ph-surf { position: absolute; inset: 0; touch-action: none; cursor: grab; }
+#ph-surf:active { cursor: grabbing; }
+#photo button { appearance: none; -webkit-appearance: none; margin: 0; border: 0; color: var(--snow); font-family: var(--f-ui); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+#photo svg { width: 18px; height: 18px; display: block; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+#photo .ph-top { position: absolute; left: var(--gl); right: var(--gr); top: calc(var(--gt) - 6px); display: flex; align-items: center; gap: 14px; pointer-events: none; }
+#photo .ph-top button, #photo .ph-r button { pointer-events: auto; display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px; background: rgba(5, 8, 13, .36); box-shadow: inset 0 0 0 1px rgba(244, 247, 251, .16); font-size: 13px; letter-spacing: .12em; }
+#photo #ph-back { padding-left: 9px; }
+#photo .ph-k { font-size: 11px; letter-spacing: .4em; color: var(--dim); text-shadow: 0 1px 8px rgba(5, 8, 13, .6); }
+#photo .ph-r { margin-left: auto; display: flex; gap: 8px; }
+#photo .ph-side { position: absolute; right: var(--gr); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 14px; }
+#ph-shut { width: 68px; height: 68px; padding: 0; border-radius: 50%; background: rgba(5, 8, 13, .22) !important; box-shadow: inset 0 0 0 3px rgba(244, 247, 251, .92); display: grid; place-items: center; }
+#ph-shut i { width: 52px; height: 52px; border-radius: 50%; background: rgba(244, 247, 251, .92); transition: transform .12s ease, background .12s ease; }
+#ph-shut:active i { transform: scale(.88); background: var(--sun); }
+#ph-up, #ph-dn { width: 44px; height: 44px; padding: 0; border-radius: 50%; background: rgba(5, 8, 13, .46); box-shadow: inset 0 0 0 1px rgba(244, 247, 251, .42); display: grid; place-items: center; }
+#ph-up.down, #ph-dn.down { background: rgba(255, 208, 138, .92); color: #1b1408; }
+#app.desk #ph-up, #app.desk #ph-dn { display: none; }
+#photo .ph-foot { position: absolute; left: var(--gl); right: var(--gr); bottom: var(--gb); display: flex; align-items: baseline; justify-content: center; gap: 18px; pointer-events: none; font-size: 12px; letter-spacing: .14em; color: rgba(244, 247, 251, .9); text-shadow: 0 0 3px rgba(5, 8, 13, .7), 0 1px 10px rgba(5, 8, 13, .8); text-align: center; }
+#photo .ph-foot b { font-weight: 400; color: var(--faint); white-space: nowrap; }
+#ph-stick { position: absolute; left: -60px; top: -60px; width: 120px; height: 120px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(244, 247, 251, .40); background: rgba(5, 8, 13, .14); opacity: 0; pointer-events: none; transition: opacity .15s ease; }
+#ph-stick.on { opacity: 1; }
+#ph-stick i { position: absolute; left: 38px; top: 38px; width: 44px; height: 44px; border-radius: 50%; background: rgba(244, 247, 251, .55); }
+#photo.bare .ph-top, #photo.bare .ph-side, #photo.bare .ph-foot { opacity: 0; pointer-events: none; }
+#photo.bare .ph-top *, #photo.bare .ph-side * { pointer-events: none !important; }
+#app.desk #photo.bare #ph-surf { cursor: none; }
+#ph-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+#ph-flash.on { animation: phflash .45s ease-out; }
+@keyframes phflash { 0% { opacity: .85; } 100% { opacity: 0; } }
+#ph-toast { position: absolute; left: 50%; top: calc(var(--gt) + 46px); transform: translate(-50%, -6px); display: flex; align-items: center; gap: 12px; height: 34px; padding: 0 18px; border-radius: 999px; background: rgba(5, 8, 13, .52); white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .3s ease, transform .3s ease; }
+#ph-toast.on { opacity: 1; transform: translate(-50%, 0); }
+#ph-toast small { font-size: 13px; letter-spacing: .2em; } #ph-toast b { font-weight: 400; font-size: 11px; letter-spacing: .06em; color: var(--dim); } #ph-toast b:empty { display: none; }
+#ph-card { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: rgba(5, 8, 13, .78); padding: var(--gt) var(--gr) var(--gb) var(--gl); }
+#ph-card.on { display: flex; }
+#ph-card img { max-width: 78%; max-height: calc(100% - 96px); border-radius: 4px; box-shadow: 0 6px 30px rgba(0, 0, 0, .5); -webkit-touch-callout: default; user-select: auto; -webkit-user-select: auto; pointer-events: auto; }
+#ph-card .ph-act { display: flex; gap: 12px; }
+#ph-card button { height: 40px; padding: 0 22px; border-radius: 999px; font-size: 14px; letter-spacing: .14em; background: rgba(244, 247, 251, .12); box-shadow: inset 0 0 0 1px rgba(244, 247, 251, .3); }
+#ph-card #ph-save { background: var(--sun); color: #1b1408; box-shadow: none; }
+#ph-card p { margin: 0; font-size: 11px; letter-spacing: .14em; color: var(--faint); }
+#menu nav #m-photo { color: var(--snow); }
 </style>
 <div id="app">
   <canvas id="view"></canvas>
@@ -420,6 +463,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
     <nav>
       <small class="mk" id="m-k">PAUSED · 暂停</small>
       <button type="button" id="m-go">继续滑</button>
+      <button type="button" id="m-photo">拍照</button>
       <i class="msep"></i>
       <button type="button" data-sec="sky">天色与天气</button>
       <button type="button" data-sec="view">视角</button>
@@ -455,12 +499,26 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
           <div class="keys"><b>V</b><span>换视角</span><b>T　X</b><span>换时间 · 换天气</span><b>N</b><span>下一种路段</span><b>G　P</b><span>叫出动物 · 航班</span><b>R</b><span>换一座山</span><b>M　F</b><span>静音 · 全屏</span><b>Esc　H　`</b><span>菜单 · 这一页 · 版本对比</span></div>
         </div>
         <div class="keys hand-only"><b>按住拖动</b><span>左右拖动转弯，拖过刻度就切雪</span><b class="fa-only">上下拖动</b><span class="fa-only">往上压板头，往下压板尾</span><b>跳</b><span>按住蓄力，松开起跳</span><b>加速</b><span>按住压低，慢的时候自动撑杖</span><b>机位</b><span>换视角</span><b>两指拖动</b><span>环顾四周</span></div>
-        <p class="note desk-only">Shift + 字母 往回切换。</p></section>
+        <p class="note desk-only">Shift + 字母 往回切换。</p>
+        <p class="note">暂停菜单里点「拍照」：时间全部停住，界面收起，自由移动镜头取景，再按快门存图。</p></section>
       <section data-sec="opt"><h4>SETTINGS · 设置<kbd>M</kbd><kbd>F</kbd></h4><div class="chips opts"><button type="button" id="o-snd" aria-pressed="true">声音 开</button><button type="button" id="o-fs" aria-pressed="false">全屏</button><button type="button" id="o-lang" lang="en">English</button><button type="button" id="o-q">画质 自动</button></div>
         <p class="note">画面和声音全部由代码实时生成，戴上耳机更好。</p></section>
       <section data-sec="vers"><div class="vhead"><h4>VERSIONS · 版本对比<kbd>`</kbd></h4><span class="note">给验收用，不是游戏的一部分 · 小圆点是推荐的版本</span><button type="button" class="pill vreset" id="sw-vreset" data-vreset="1">恢复推荐</button></div>
         <div class="vgrid" id="sw-vrows"></div></section>
     </div>
+  </div>
+  <div id="photo" aria-hidden="true" aria-label="拍照">
+    <div id="ph-surf"></div>
+    <div id="ph-stick"><i></i></div>
+    <div class="ph-top"><button type="button" id="ph-back"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 4.5L6.5 10l5.5 5.5"/></svg><span>返回</span></button><small class="ph-k">PHOTO · 拍照</small>
+      <div class="ph-r"><button type="button" id="ph-reset"><span>复位</span></button><button type="button" id="ph-hide"><span>隐藏文字</span></button></div></div>
+    <div class="ph-side"><button type="button" id="ph-up" aria-label="升高"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 12.5l5-5 5 5"/></svg></button>
+      <button type="button" id="ph-shut" aria-label="拍照"><i></i></button>
+      <button type="button" id="ph-dn" aria-label="降低"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 7.5l5 5 5-5"/></svg></button></div>
+    <div class="ph-foot"><span id="ph-hint"></span><b id="ph-mm"></b></div>
+    <div id="ph-flash"></div>
+    <div id="ph-toast"><small id="ph-tk"></small><b id="ph-tv"></b></div>
+    <div id="ph-card" aria-hidden="true"><img id="ph-img" alt=""><div class="ph-act"><button type="button" id="ph-save">保存到相册</button><button type="button" id="ph-again">继续拍</button></div><p>也可以长按图片保存</p></div>
   </div>
   <div id="say" aria-live="polite"><small id="say-k"></small><b id="say-v"></b></div>
   <div id="pause" role="dialog" aria-label="暂停" aria-hidden="true"><div class="card">

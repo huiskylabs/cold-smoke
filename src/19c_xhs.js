@@ -175,6 +175,12 @@ const XHS = self.XHS = (() => {
     catch (e) { console.warn('saveImageToPhotosAlbum', e && e.errMsg, code(e)); tell('没能存到相册'); }
     busy = false; b.disabled = false;
   }
+  // (拍照, 19d_photo.js: a picture taken in the photo mode, straight into the phone's album)
+  X.saveShot = async function (url) {
+    if (!has('writeTempFile') || !has('saveImageToPhotosAlbum')) return false;
+    try { const r = await mt.writeTempFile({ data: url }); await mt.saveImageToPhotosAlbum({ filePath: r && r.filePath }); return true; }
+    catch (e) { console.warn('saveShot', e && e.errMsg, code(e)); return false; }
+  };
   async function follow(b) {
     if (busy || followSt === 1) return; busy = true;
     try { const r = await mt.followAuthor(); followSt = r && typeof r.follow_status === 'number' ? r.follow_status : followSt; paintFollow(b); if (followSt === 1) tell('已关注，谢谢'); }
