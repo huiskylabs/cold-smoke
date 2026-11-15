@@ -330,7 +330,7 @@ const TreeModel = (() => {
     }
     const fine = lod === 0;
     // the stem: bark from below the snow to its top, flaring at the foot
-    { const top = S.top, r0 = 0.15 + 0.03 * (Q.white ? 0 : 1);
+    { const top = S.top, r0 = 0.105 + 0.02 * (Q.white ? 0 : 1);
       tube((t, o) => { const y = -1.4 + (top + 1.4) * t, ax = S.axis(y); o[0] = ax[0]; o[1] = y; o[2] = ax[1]; },
         t => { const y = -1.4 + (top + 1.4) * t; return lerp(r0, 0.035, Math.pow(sat(y / top), Q.white ? 1.0 : 0.7)) * (y < 0.6 ? 1 + 0.5 * (0.6 - Math.max(y, -0.4)) : 1); },
         fine ? 14 : 7, fine ? 8 : 5, -1, 0, 0, true); }
@@ -1321,7 +1321,7 @@ fn needleTint(seed: f32, kind: f32) -> vec3f {
 fn barkTint(seed: f32, kind: f32) -> vec3f {
   let k: f32 = mix(0.85, 1.2, fract(seed * 53.7 + 0.4));
   if (abs(kind - 8.0) < 0.5) { return vec3f(3.6, 3.0, 2.4) * k; }
-  if (abs(kind - 10.0) < 0.5) { return vec3f(2.6, 2.2, 2.05) * k; }
+  if (abs(kind - 10.0) < 0.5) { return vec3f(3.1, 2.95, 2.95) * k; }
   if (abs(kind - 11.0) < 0.5) { return vec3f(9.5, 9.4, 9.0) * k; }
   if (abs(kind - 6.0) < 0.5) { return vec3f(1.55, 1.55, 1.62) * k; }
   return vec3f(k);
