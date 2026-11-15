@@ -153,6 +153,9 @@ const Gates = (() => {
         // (beyond the terrain's finest ring the drawn snow is a coarser copy of itself: the sheet rides a little higher the farther off it is)
         let d: f32 = length(U.camPos.xyz - wp);
         wp.y = wp.y + 0.004 + 0.00002 * d * d;
+        // (round the skier the drawn snow is raised by the depth the skis ride at, terrain's snowLift: the sheet goes up with it, or a disc of
+        // it round the skier would lie under the snow, as the kicker's blue dye did)
+        wp.y = wp.y + M.p.z * smoothstep(mix(2.15, 7.5, M.p.w), mix(1.0, 3.0, M.p.w), length(wp.xz - U.player.xz));
         v.wp = wp; ${extra}
         v.clip = U.viewProj * vec4f(wp, 1.0);
         v.clip.z = v.clip.z - U.camFwd.w * (0.012 / max(v.clip.w, 0.05) + 0.0002 * v.clip.w);
@@ -340,13 +343,13 @@ const Gates = (() => {
   // the glare of the flames
   G.drawOver = function (R) {
     if (!live.length) return;
-    const o = R.origin, e = Sky.sunElev;
-    for (const g of live) if (g.lit && g.poolN && g.fade > 0) gfx.draw(pipePool, { u: { off: [g.an[0] - o[0], g.an[1] - o[1], g.an[2] - o[2], g.fade], p: [e, G.lanterns, 0, 0] }, tex: { tSnow: Tex.snow, tSnowF: Tex.snowFine, tNoise: Tex.noise, tSky: Sky.lut }, vb: [poolVB], ib: poolIB, count: g.poolN, first: g.slot * PIX });
+    const o = R.origin, e = Sky.sunElev, lf = typeof Terrain !== 'undefined' && Terrain.lift ? Terrain.lift : [0, 0];
+    for (const g of live) if (g.lit && g.poolN && g.fade > 0) gfx.draw(pipePool, { u: { off: [g.an[0] - o[0], g.an[1] - o[1], g.an[2] - o[2], g.fade], p: [e, G.lanterns, lf[0], lf[1]] }, tex: { tSnow: Tex.snow, tSnowF: Tex.snowFine, tNoise: Tex.noise, tSky: Sky.lut }, vb: [poolVB], ib: poolIB, count: g.poolN, first: g.slot * PIX });
     // (the dye is told how dark the night is and where the four lanterns nearest it burn: it is pigment, and shows its blue only where
     // there is light enough to see colour by)
     const nf = smooth(0.0, -0.09, e);
     const lant = (g, i) => { const f = g.flags[i]; return f ? [f.lx - o[0], f.ly + LFY - o[1], f.lz - o[2], lantOn(f.sd, e) * G.lanterns] : [0, -1e4, 0, 0]; };
-    if (G.dye > 0) for (const g of live) if (g.dyeN && g.fade > 0) gfx.draw(pipeDye, { u: { off: [g.an[0] - o[0], g.an[1] - o[1], g.an[2] - o[2], g.fade * G.dye], p: [nf, 0, 0, 0], l0: lant(g, 0), l1: lant(g, 1), l2: lant(g, 2), l3: lant(g, 3) }, tex: { tDetail: Tex.detail, tSky: Sky.lut }, vb: [dyeVB], ib: dyeIB, count: g.dyeN, first: g.slot * DI });
+    if (G.dye > 0) for (const g of live) if (g.dyeN && g.fade > 0) gfx.draw(pipeDye, { u: { off: [g.an[0] - o[0], g.an[1] - o[1], g.an[2] - o[2], g.fade * G.dye], p: [nf, 0, lf[0], lf[1]], l0: lant(g, 0), l1: lant(g, 1), l2: lant(g, 2), l3: lant(g, 3) }, tex: { tDetail: Tex.detail, tSky: Sky.lut }, vb: [dyeVB], ib: dyeIB, count: g.dyeN, first: g.slot * DI });
     if (nP) gfx.draw(pipeDrift, { u: { p: [0, 0, 0, 0] }, tex: { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, vb: [propVB, instP], ib: propIB, first: 0, count: driftN, instances: nP });
     if (nS) gfx.draw(pipeGlare, { u: { p: [0, 0, 0, 0] }, tex: { tSky: Sky.lut }, vb: [instS], count: 4, instances: nS });
   };

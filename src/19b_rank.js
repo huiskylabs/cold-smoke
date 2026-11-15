@@ -4,10 +4,14 @@
 // month / all-time (Beijing midnight, weeks from Monday) and keeps each player's BEST in each. Three things are ranked:
 //   极速      board 1   top speed of a run, km/h to a tenth                       (best: what the platform keeps anyway)
 //   最远飞行  board 2   the longest flight of a run, m to a tenth (from JUMP_T in the air, as on the splits)
-//   滑雪时长  boards 3, 4, 5   minutes skied today / this week / in all. A total is not a best, so each period has its own board, fed its
-//             own running total (today's minutes to 3, the week's to 4, all of them to 5); the latest total is always the best, so the
-//             platform's 'keep the best' does the right thing. Totals live in the container's storage (setStorage, client 9.46+) and are
-//             raised to what the platform already holds for this player, so a new phone or cleared storage never counts down.
+//   今日之山  board 3   today only: the average speed, km/h to a tenth, over the first three stretches of today's mountain skied in one go
+//             from the gate (UI: SP.d3). Everyone skis the same mountain on the same Beijing day, and the board's day turns with it.
+//   滑雪时长  board 5   minutes skied in all (all time only). A total is not a best, so it is fed the running total; the latest is always
+//             the best, so the platform's 'keep the best' does the right thing. The total lives in the container's storage (setStorage,
+//             client 9.46+) and is raised to what the platform already holds for this player, so a new phone or cleared storage never
+//             counts down.
+//   (2026-11-14: boards 3 and 4 used to hold 滑雪时长 today / this week. The owner kept only all time; 3 became 今日之山 and 4 is free.
+//   Board 3's day list may still show minutes from before the change until the next Beijing midnight.)
 // Outside the container (the web build, a browser) nothing here does anything and the menu has no 排行榜 at all.
 // Calls are few: a figure goes up only when it beats what was already sent for its period, at most once every 30 s (and when the page is
 // put away, the board is opened, or a day card comes); minutes are whole. Lists are cached for 45 s. The platform's own limit is 150 calls
@@ -20,7 +24,8 @@ const Rank = self.Rank = (() => {
   const VIEWS = [
     { id: 'v', name: '极速', boards: { day: 1, week: 1, all: 1 }, fmt: v => v.toFixed(1) + ' km/h' },
     { id: 'air', name: '最远飞行', boards: { day: 2, week: 2, all: 2 }, fmt: v => v.toFixed(1) + ' m' },
-    { id: 'time', name: '滑雪时长', boards: { day: 3, week: 4, all: 5 }, fmt: mins },
+    { id: 'd3', name: '今日之山', boards: { day: 3 }, fmt: v => v.toFixed(1) + ' km/h' },
+    { id: 'time', name: '滑雪时长', boards: { all: 5 }, fmt: mins },
   ];
   const PERIODS = [['day', '今日'], ['week', '本周'], ['all', '总榜']];
   const FLUSH_EVERY = 30000, CACHE = 45000, KEY = 'coldsmoke.playtime';
@@ -52,9 +57,9 @@ const Rank = self.Rank = (() => {
     try { if (txt) merge(JSON.parse(txt)); } catch (e) { }
     // what the platform already holds for this player (another phone, storage cleared): a floor for the totals
     try {
-      const [d, w, a] = await Promise.all([['day', 3], ['week', 4], ['all', 5]].map(([p, b]) => mt.getMyRank({ board: b, period: p }).catch(() => null)));
+      const a = await mt.getMyRank({ board: 5, period: 'all' }).catch(() => null);
       const sc = r => r && r.status === 'EXACT' && r.score != null ? +r.score * 60 : 0;
-      merge({ d: P.d, ds: sc(d), w: P.w, ws: sc(w), as: sc(a) });
+      merge({ as: sc(a) });
     } catch (e) { }
   }
   function save() {
@@ -95,7 +100,8 @@ const Rank = self.Rank = (() => {
       const v = Math.round(run.v * 36) / 10, a = Math.round(run.air * 10) / 10;
       if (v <= 400) want(1, v, d); if (a <= 600) want(2, a, d);
     }
-    want(3, Math.floor(P.ds / 60), d); want(4, Math.floor(P.ws / 60), P.w); want(5, Math.min(999999, Math.floor(P.as / 60)), 0);
+    const d3 = sp && sp.d3; if (d3 && d3.d === d && d3.v * 3.6 <= 400) want(3, Math.round(d3.v * 36) / 10, d);
+    want(5, Math.min(999999, Math.floor(P.as / 60)), 0);
     if (Date.now() - saved > FLUSH_EVERY) save();
     if (Object.keys(pend).length && Date.now() - lastFlush > FLUSH_EVERY && Date.now() > cool) R.flush();
   }
@@ -148,12 +154,12 @@ const Rank = self.Rank = (() => {
   }
   async function render() {
     if (!el || !R.on) return;
-    const my = ++sig, s = el.sec, bd = VIEWS.find(v => v.id === view), board = bd.boards[period];
+    const my = ++sig, s = el.sec, bd = VIEWS.find(v => v.id === view); if (!(period in bd.boards)) period = PERIODS.find(([id]) => id in bd.boards)[0]; const board = bd.boards[period];
     s.textContent = '';
     s.appendChild(node('h4', null, T('RANKING · 排行榜')));
     const row1 = node('div', 'chips rk-b'), row2 = node('div', 'chips rk-p');
     for (const v of VIEWS) { const x = node('button', v.id === view ? 'on' : '', T(v.name)); x.type = 'button'; x.dataset.rv = v.id; row1.appendChild(x); }
-    for (const [id, name] of PERIODS) { const x = node('button', id === period ? 'on' : '', T(name)); x.type = 'button'; x.dataset.rp = id; row2.appendChild(x); }
+    for (const [id, name] of PERIODS) { if (!(id in bd.boards)) continue; const x = node('button', id === period ? 'on' : '', T(name)); x.type = 'button'; x.dataset.rp = id; row2.appendChild(x); }
     s.appendChild(row1); s.appendChild(row2);
     const me = node('p', 'rk-me', T('读取中…')); s.appendChild(me);
     const box = node('ol', 'rk-list'); s.appendChild(box);
@@ -172,7 +178,7 @@ const Rank = self.Rank = (() => {
       if (fatal(code(e))) { off(e); return; }
       me.textContent = T(code(e) === 2002 ? '榜单还在准备，稍后再看' : '暂时读不到榜单，稍后再看');
     }
-    s.appendChild(node('p', 'note', T('今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。')));
+    s.appendChild(node('p', 'note', T(view === 'd3' ? '今日之山：从山顶一口气滑完前三段的平均速度，北京时间零点换山。每人只留最好的一次。' : view === 'time' ? '滑雪时长只算总榜，一直累计。' : '今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。')));
   }
   R.show = function () { if (el && R.on) render(); };
 
@@ -186,7 +192,7 @@ const Rank = self.Rank = (() => {
       await R.flush();
       const out = [];
       for (const v of VIEWS) {
-        const b = v.boards.day, st = sent[b]; if (!st || st.per !== P.d) continue;
+        const b = v.boards.day; if (!b) continue; const st = sent[b]; if (!st || st.per !== P.d) continue;
         const me = await call(mt.getMyRank, { board: b, period: 'day' });
         if (me && me.status === 'EXACT' && me.rank != null) out.push(T(v.name) + ' ' + (EN() ? '#' + me.rank : '第 ' + me.rank));
         else if (me && me.status === 'OVER_LIMIT') out.push(T(v.name) + ' 500+');

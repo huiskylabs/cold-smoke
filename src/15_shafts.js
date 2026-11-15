@@ -56,7 +56,9 @@ fn frag(v: VOut) -> FOut {
   var tmax: f32 = min(zf * len, M.p.x);
   let mu: f32 = dot(d, U.sunDir.xyz);
   let tanE: f32 = U.sunDir.y / max(length(U.sunDir.xz), 1e-3);
-  let jit: f32 = ign(v.clip.xy + 5.588238 * (U.origin.w - 64.0 * floor(U.origin.w / 64.0)));
+  // (the march's steps are offset per pixel by a pattern. With the owner's 'tgrain' b (U.lampDir.w = 1, 14_trees.js) the pattern is held still:
+  // moved every frame with nothing to average it over time, the beams between the trees shimmered)
+  let jit: f32 = ign(v.clip.xy + 5.588238 * (U.origin.w - 64.0 * floor(U.origin.w / 64.0)) * (1.0 - U.lampDir.w));
   var g0: vec3f = station(U.camPos.xyz);
   // a ray that climbs out of the layer has nothing more to find up there: stop where it leaves, and spend every step inside
   let top: f32 = 4.6 / M.p.y; let h0: f32 = max(U.camPos.y - g0.x, 0.0);

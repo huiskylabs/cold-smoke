@@ -23,7 +23,7 @@ defineGlobals([
   ['sprayT', 'vec4f'],     // the thrown snow's sun-side depth map: x scale, yz offset (from shadow-map xy), w light depth of the skier
   ['twi', 'vec4f'],        // rgb light of the bright band of sky low on the sun's bearing (what lights a slope after sunset), w spare
   ['lamp', 'vec4f'],       // the skier's headlamp, lit after dark: xyz render-space position, w strength (0 = off)
-  ['lampDir', 'vec4f'],    // xyz where it points, w spare
+  ['lampDir', 'vec4f'],    // xyz where it points, w 1: the trees' grain and the shafts' march offsets held still ('tgrain' b, 14_trees.js), 0: new every frame
 ]);
 
 const SL = {};

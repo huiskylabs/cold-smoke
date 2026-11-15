@@ -135,8 +135,9 @@ function packUniforms(layout, obj, out) {
 let _gfxId = 1;
 
 // ================================================================= WebGL2 backend
-function createGL(canvas) {
-  const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, depth: false, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: false });
+// opt.xr: the context may be handed to a WebXR session later (21_xr.js): asked for as compatible from the start, so nothing is rebuilt
+function createGL(canvas, opt = {}) {
+  const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, depth: false, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: false, xrCompatible: !!opt.xr });
   if (!gl) return null;
   const extF = gl.getExtension('EXT_color_buffer_float'), extHF = gl.getExtension('EXT_color_buffer_half_float');
   gl.getExtension('OES_texture_float_linear');
@@ -214,7 +215,10 @@ function createGL(canvas) {
     },
     setGlobals(f32) { gl.bindBuffer(gl.UNIFORM_BUFFER, gbuf); gl.bufferSubData(gl.UNIFORM_BUFFER, 0, f32); },
     beginFrame() { },
+    // (g.screen: a target that stands in for the canvas. In the headset each eye's finished picture is drawn into a texture of its own
+    // first, and only then handed to the headset's framebuffer: 21_xr.js)
     beginPass(T, o = {}) {
+      if (!T && g.screen) T = g.screen;
       gl.bindFramebuffer(gl.FRAMEBUFFER, T ? T.fb : null); curTarget = T; ysign = T ? -1 : 1;
       const w = T ? T.w : canvas.width, h = T ? T.h : canvas.height; gl.viewport(0, 0, w, h); g.passW = w; g.passH = h;
       gl.frontFace(T ? gl.CW : gl.CCW);
@@ -225,6 +229,11 @@ function createGL(canvas) {
       curProg = null;
     },
     endPass() { },
+    // a framebuffer this layer did not make (the headset's), and a rectangle of it: drawn into as the canvas is, the right way up
+    beginRaw(fb, x, y, w, h) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb); curTarget = null; ysign = 1; gl.viewport(x, y, w, h); g.passW = w; g.passH = h;
+      gl.frontFace(gl.CCW); curProg = null;
+    },
     draw(P, d) {
       if (!P.ready) g.finishPipeline(P);
       const desc = P.desc;

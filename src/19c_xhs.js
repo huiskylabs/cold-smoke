@@ -78,6 +78,15 @@ const XHS = self.XHS = (() => {
       const need = side === 'l' ? u1 + 8 : side === 'r' ? W - u0 + 8 : side === 't' ? v1 + 2 : H - v0 + 2;
       g[side] = Math.max(g[side], Math.min(need, 0.3 * Math.min(W, H)));
     }
+    // and whatever the host says is not safe to draw under (its own bars, the status bar), side by side of the screen onto the frame's sides
+    const sa = info.safeArea, ww = info.windowWidth || innerWidth, wh = info.windowHeight || innerHeight;
+    if (sa && sa.right > sa.left && sa.bottom > sa.top) {
+      const onto = (dx, dy) => { const a = (dx * ex[0] + dy * ex[1]) / W, b = (dx * ey[0] + dy * ey[1]) / H; return Math.abs(a) > Math.abs(b) ? (a < 0 ? 'l' : 'r') : (b < 0 ? 't' : 'b'); };
+      for (const [dx, dy, inset] of [[0, -1, sa.top], [0, 1, wh - sa.bottom], [-1, 0, sa.left], [1, 0, ww - sa.right]]) {
+        if (!(inset > 0) || inset > 0.3 * Math.min(ww, wh)) continue;
+        const k = onto(dx, dy); g[k] = Math.max(g[k], inset);
+      }
+    }
     for (const s of ['l', 'r', 't', 'b']) app.style.setProperty('--x' + s, Math.round(g[s]) + 'px');
     X.gutters = g;
   }
@@ -87,6 +96,8 @@ const XHS = self.XHS = (() => {
   X.init = function () {
     if (!mt) return;
     const menu = document.getElementById('menu'); if (!menu) return;
+    { const b = self.COLD_SMOKE && self.COLD_SMOKE.build, o = menu.querySelector('section[data-sec="opt"]');
+      if (b && o) { const p = node('p', 'note', ''); p.style.opacity = '.6'; const f = () => { p.textContent = (EN() ? 'Build ' : '版本 ') + b; }; f(); I18N.on(f); o.appendChild(p); } }
     navB = menu.querySelector('nav [data-sec="share"]'); sec = menu.querySelector('section[data-sec="share"]');
     if (navB && sec && (has('postNote') || has('saveImageToPhotosAlbum') || has('followAuthor'))) {
       navB.hidden = false;
@@ -145,8 +156,10 @@ const XHS = self.XHS = (() => {
       if (run.air > 1) f.push(en ? 'longest flight ' + run.air.toFixed(1) + ' m' : '最远飞行 ' + run.air.toFixed(1) + ' 米');
       if (f.length) out.push(f.join(' · '));
     }
-    if (seed) out.push(en ? 'Mountain no. ' + seed : '第 ' + seed + ' 号山');
-    out.push('#雪迹 #滑雪');
+    const daily = seed && typeof App !== 'undefined' && App.isDaily && App.isDaily();
+    if (daily) out.push(en ? 'Today\'s mountain, ' + App.dayLabel(App.today(), true) + ' (no. ' + seed + '): the same one for everyone today' : '今日之山 · ' + App.dayLabel() + '（第 ' + seed + ' 号山），今天大家滑的都是这一座');
+    else if (seed) out.push(en ? 'Mountain no. ' + seed : '第 ' + seed + ' 号山');
+    out.push(daily ? '#雪迹 #滑雪 #今日之山' : '#雪迹 #滑雪');
     return { title: en ? '雪迹 · Cold Smoke' : '雪迹 · 一个人，一座山', content: out.join('\n') };
   }
   let busy = false;
@@ -162,6 +175,12 @@ const XHS = self.XHS = (() => {
     catch (e) { console.warn('saveImageToPhotosAlbum', e && e.errMsg, code(e)); tell('没能存到相册'); }
     busy = false; b.disabled = false;
   }
+  // (拍照, 19d_photo.js: a picture taken in the photo mode, straight into the phone's album)
+  X.saveShot = async function (url) {
+    if (!has('writeTempFile') || !has('saveImageToPhotosAlbum')) return false;
+    try { const r = await mt.writeTempFile({ data: url }); await mt.saveImageToPhotosAlbum({ filePath: r && r.filePath }); return true; }
+    catch (e) { console.warn('saveShot', e && e.errMsg, code(e)); return false; }
+  };
   async function follow(b) {
     if (busy || followSt === 1) return; busy = true;
     try { const r = await mt.followAuthor(); followSt = r && typeof r.follow_status === 'number' ? r.follow_status : followSt; paintFollow(b); if (followSt === 1) tell('已关注，谢谢'); }

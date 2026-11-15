@@ -15,12 +15,13 @@
 //  - a tree is a stem and some ninety boughs in tiers; every bough carries one of the pillows, stretched to its length, sagging with it,
 //    and under the pillow a SPRAY of twigs (a sheet whose needles are cut out of it in the fragment stage) with CURTAINS of hanging
 //    branchlets: the dark fringe round every lump of snow and along every outline;
-//  - seven kinds of tree (three grown ones, an old giant, a young one, one that lost its top, a dead snag), each at two levels of detail.
-// Vertex: pos3 nrm3 | kind (0 snow, 1 spray, 2 curtain, 3 bark), light kept by the tree itself (ao), open sky overhead, which bough |
+//  - ten kinds of tree (three grown ones, an old giant, a young one, one that lost its top, a dead snag, a wind-flagged one on the ridge,
+//    and for the mixed wood a larch bare for the winter and a stone pine), each at two levels of detail.
+// Vertex: pos3 nrm3 | kind (0 snow, 1 spray, 2 curtain, 3 bark; a larch's bare twigs: 4 spray, 5 curtain), light kept by the tree itself (ao), open sky overhead, which bough |
 //         a b c (snow: height above its bough, -, 1 on the coarse level; sheets: metres along, metres across or down, 0..1 toward the ragged
 //         edge) | lever (metres out from the stem)
 const TreeModel = (() => {
-  const M = { NV: 8, FL: 14, names: ['spruce', 'broad spruce', 'fir', 'giant', 'young', 'broken top', 'snag', 'flagged'], protoMs: 0, buildMs: 0 };
+  const M = { NV: 10, FL: 14, names: ['spruce', 'broad spruce', 'fir', 'giant', 'young', 'broken top', 'snag', 'flagged', 'larch', 'stone pine'], protoMs: 0, buildMs: 0 };
   const CL = [2.0, 1.25, 0.6], CW = [0.52, 0.36, 0.20], CT = [0.17, 0.155, 0.13];      // the three sizes of pillow: length, half-width, depth of snow
   const env = t => Math.sqrt(Math.max(0, 5.07 * t * (1 - t) * (1 - 0.45 * t)));        // outline of a bough seen from above (0 at the trunk and the tip, 1 at its widest)
 
@@ -117,6 +118,12 @@ const TreeModel = (() => {
     // a spruce up on the ridge, shaped by the wind: a dense skirt where the snowpack sheltered it, above that bare stem and boughs on the lee
     // side only (+x, turned downwind where it stands), tiers of any length, and a leader the wind has bent over and broken
     { K: 14, y0: 0.45, y1: 8.7, R0: 2.4, pw: 0.66, m0: 9.0, m1: 5.6, d0: 0.40, d1: 0.16, load: 0.95, bare: 0.05, lean: 0.12, flag: true, broken: 9.1 },
+    // (the owner's choice 'tvar' c, the mixed wood) a larch in winter: it has dropped its needles, what is left is a cone of fine twigs, warm
+    // grey-ochre from afar, the boughs sagging and turning up at their tips; it holds hardly any snow
+    { K: 21, y0: 0.9, y1: 9.5, R0: 2.35, pw: 0.95, m0: 6.6, m1: 4.0, d0: 0.80, d1: 0.36, load: 0.35, bare: 0.04, lean: 0.35, larch: true },
+    // a stone pine (arolla): a broad, rounded crown kept full almost to the ground, several leaders where the top was lost long ago, the
+    // boughs held out level or turned up, and dense tufts of needles carrying heavy cushions of snow
+    { K: 13, y0: 0.55, y1: 8.2, R0: 2.75, pw: 0.36, m0: 6.8, m1: 5.6, d0: 0.20, d1: 0.04, load: 1.05, bare: 0.05, lean: 0.45, broken: 8.6 },
   ];
   M.KIND = KIND;
   // the boughs of one tree (the same list serves both levels of detail, the cards, and the snow that slides off)
@@ -162,20 +169,21 @@ const TreeModel = (() => {
     return { B, axis, crown, top, Q };
   }
 
-  // ---- put a tree together at one level of detail
+  // ---- put a tree together at one level of detail (a larch's boughs carry no pillow: what snow it holds lies in flecks along its twigs)
+  const NOSNOW = { n: 0, V: new Float32Array(0), I: new Uint32Array(0) };
   function build(v, lod) {
     const S = boughs(v), B = S.B, Q = S.Q, FL = M.FL;
     let nv = 0, ni = 0;
     // count first, then fill (typed arrays, no growing)
     const NS = [[7, 5, 3], [4, 3, 2]][lod], rings = lod ? 7 : 15, sides = lod ? 5 : 8, nTr = Math.ceil(rings * (S.top / 10)) + 1;
-    for (const b of B) { const p = pillows[b.cls][b.pw][lod]; nv += p.n; ni += p.I.length; if (!Q.snag) { const n = NS[b.cls]; nv += (n + 1) * 3; ni += n * 12; if (b.cls < 2 || lod === 0) { nv += (n + 1) * 2; ni += n * 6; } if (lod === 0 && b.cls < 2) { nv += 6 * (b.cls === 0 ? 2 : 1); ni += 12 * (b.cls === 0 ? 2 : 1); } } }
+    for (const b of B) { const p = Q.larch ? NOSNOW : pillows[b.cls][b.pw][lod]; nv += p.n; ni += p.I.length; if (!Q.snag) { const n = NS[b.cls]; nv += (n + 1) * 3; ni += n * 12; if (b.cls < 2 || lod === 0) { nv += (n + 1) * 2; ni += n * 6; } if (lod === 0 && b.cls < 2) { nv += 6 * (b.cls === 0 ? 2 : 1); ni += 12 * (b.cls === 0 ? 2 : 1); } } }
     nv += nTr * (sides + 1) + 1; ni += (nTr - 1) * sides * 6 + sides * 3;
     const V = new Float32Array(nv * FL), I = new Uint32Array(ni); let vo = 0, io = 0;
     const put = (x, y, z, nx, ny, nz, kind, ao, open, id, a, b, c, lev) => { const o = vo * FL; V[o] = x; V[o + 1] = y; V[o + 2] = z; V[o + 3] = nx; V[o + 4] = ny; V[o + 5] = nz; V[o + 6] = kind; V[o + 7] = ao; V[o + 8] = open; V[o + 9] = id; V[o + 10] = a; V[o + 11] = b; V[o + 12] = c; V[o + 13] = lev; return vo++; };
     // how much of the sky and of the light a point keeps, from where it is in the crown: deep in near the stem, under the tiers above, little
     const inCrown = (r, y) => smooth(0.25, 0.9, r / S.crown(y));
     for (const b of B) {
-      const p = pillows[b.cls][b.pw][lod], sx = b.L / CL[b.cls], sz = b.W / CW[b.cls] * b.flip, sy = b.th, ax = S.axis(b.y0), base = vo;
+      const p = Q.larch ? NOSNOW : pillows[b.cls][b.pw][lod], sx = b.L / CL[b.cls], sz = b.W / CW[b.cls] * b.flip, sy = b.th, ax = S.axis(b.y0), base = vo;
       const sagK = 0.38 / b.W;
       // the pillow, stretched along the bough; the bough's spine rises a little and then sags, its edges hang lower than its spine
       for (let i = 0; i < p.n; i++) {
@@ -195,7 +203,7 @@ const TreeModel = (() => {
         for (let e = -1; e <= 1; e++) {
           const zz = e * w, y = sp[1] - sagK * zz * zz * (e ? 1.15 : 1);
           let nx = -sp[2], nz = 2 * sagK * zz * 1.15, l = 1 / Math.sqrt(nx * nx + 1 + nz * nz);
-          put(ax[0] + r * b.ca - zz * b.sa, y, ax[1] + r * b.sa + zz * b.ca, (nx * b.ca - nz * b.sa) * l, l, (nx * b.sa + nz * b.ca) * l, 1, lerp(0.35, 0.8, q), lerp(0.15, 0.9, q), b.id, r, zz, Math.abs(e), r);
+          put(ax[0] + r * b.ca - zz * b.sa, y, ax[1] + r * b.sa + zz * b.ca, (nx * b.ca - nz * b.sa) * l, l, (nx * b.sa + nz * b.ca) * l, Q.larch ? 4 : 1, lerp(0.35, 0.8, q), lerp(0.15, 0.9, q), b.id, r, zz, Math.abs(e), r);
         }
       }
       for (let i = 0; i < n; i++) for (let e = 0; e < 2; e++) { const a = s0 + i * 3 + e, c = a + 3; I[io++] = a; I[io++] = a + 1; I[io++] = c; I[io++] = a + 1; I[io++] = c + 1; I[io++] = c; }
@@ -204,14 +212,14 @@ const TreeModel = (() => {
         const c0 = vo, D = (0.16 + 0.20 * b.cur) * Math.sqrt(b.L) * (b.cls === 2 ? 0.8 : 1);
         for (let i = 0; i <= n; i++) {
           const t = 0.1 + 0.92 * i / n, sp = spine(t), r = sp[0], d = D * (0.35 + 0.65 * Math.sin(PI * Math.min(1, t * 0.9 + 0.08))), q = inCrown(r, sp[1]);
-          for (let e = 0; e < 2; e++) put(ax[0] + r * b.ca, sp[1] - e * d, ax[1] + r * b.sa, -b.sa, 0, b.ca, 2, lerp(0.3, 0.7, q), lerp(0.1, 0.5, q), b.id, r, e * d, e, r);
+          for (let e = 0; e < 2; e++) put(ax[0] + r * b.ca, sp[1] - e * d, ax[1] + r * b.sa, -b.sa, 0, b.ca, Q.larch ? 5 : 2, lerp(0.3, 0.7, q), lerp(0.1, 0.5, q), b.id, r, e * d, e, r);
         }
         for (let i = 0; i < n; i++) { const a = c0 + i * 2, c = a + 2; I[io++] = a; I[io++] = a + 1; I[io++] = c; I[io++] = a + 1; I[io++] = c + 1; I[io++] = c; }
       }
       // ...and one or two hanging ACROSS a big bough (what shows when the bough points at the lens)
       if (lod === 0 && b.cls < 2) for (let m = 0; m < (b.cls === 0 ? 2 : 1); m++) {
         const t = b.cls === 0 ? (m ? 0.86 : 0.52) : 0.72, sp = spine(t), r = sp[0], w = Ws * env(t) * 0.95, D = (0.14 + 0.16 * b.cur) * Math.sqrt(b.L), q = inCrown(r, sp[1]), c0 = vo;
-        for (let e = -1; e <= 1; e++) for (let k = 0; k < 2; k++) { const zz = e * w, y = sp[1] - sagK * zz * zz - k * D * (e ? 0.7 : 1); put(ax[0] + r * b.ca - zz * b.sa, y, ax[1] + r * b.sa + zz * b.ca, b.ca, 0.3, b.sa, 2, lerp(0.3, 0.7, q), lerp(0.1, 0.5, q), b.id, zz + 7 * m + b.id, k * D, k, r); }
+        for (let e = -1; e <= 1; e++) for (let k = 0; k < 2; k++) { const zz = e * w, y = sp[1] - sagK * zz * zz - k * D * (e ? 0.7 : 1); put(ax[0] + r * b.ca - zz * b.sa, y, ax[1] + r * b.sa + zz * b.ca, b.ca, 0.3, b.sa, Q.larch ? 5 : 2, lerp(0.3, 0.7, q), lerp(0.1, 0.5, q), b.id, zz + 7 * m + b.id, k * D, k, r); }
         for (let e = 0; e < 2; e++) { const a = c0 + e * 2, c = a + 2; I[io++] = a; I[io++] = a + 1; I[io++] = c; I[io++] = a + 1; I[io++] = c + 1; I[io++] = c; }
       }
     }
@@ -248,6 +256,25 @@ const Trees = (() => {
   // meshes; beyond stand the cards (NK photographs of each kind, one tile each). life: the trees move and shed (0 = still).
   const T = { NV: TM.NV, NK: 12, r0: 14, w0: 3.5, max0: 8, r1: 48, w1: 8, max1: 72, far: 460, maxFar: 6144, tileW: 128, tileH: 256, ss: 2, pitch: 0.12, enabled: true, life: 1,
     stats: { near: 0, far: 0, tris: 0, fading: 0, out: 0, l0: 0, l1: 0, drawn: 0, shadow: 0, parts: 0 } };
+  // (going through the woods, the owner's choice 'tpass'. a: as it was: a tree between the lens and the skier, or right against the lens,
+  // fades out whole until it is clear. b: every tree stays. Its boughs give way round the body and are swept along with it as the skier
+  // pushes through, then swing back; only the patch of boughs that stands right between the lens and the figure is thinned, so the skier is
+  // always seen through it (the dithered see-through cut-out third-person games use for foliage); and the boughs keep rustling and shedding
+  // snow for as long as the skier is in them (07_game.js 'rustle', 18_sound.js). A trunk met head on is still a knock, as it was)
+  if (typeof Variants !== 'undefined') Variants.def('tpass', '穿林', [['a', '树会淡出'], ['b', '树留着']], 'b');
+  const stay = () => typeof Variants !== 'undefined' && Variants.val.tpass === 'b';
+  // (how alike the trees are, the owner's choice 'tvar'. a: as it was: every tree of a kind the same shape and colour, the snow on all much
+  // the same. b: no two alike: the needles' colour by stand and by tree, girth, how much snow each carries (see describe). c: as b, and a
+  // mixed wood: larches bare for the winter and stone pines stand among the spruce in stands of their own. A change re-places the trees)
+  if (typeof Variants !== 'undefined') Variants.def('tvar', '树的多样', [['a', '现在的'], ['b', '每棵不同'], ['c', '混交林']], 'c');
+  const vary = () => typeof Variants !== 'undefined' && Variants.val.tvar !== 'a';
+  // (the owner's choice 'tgrain', 树林闪烁. The hand-overs between a tree's levels of detail, the soft outline of a far tree's card and the
+  // see-through window round the skier are all cut with a grain of pixels. a: as it was, a new grain every frame: meant to read as a blend at
+  // 60 fps, but with nothing to average it over time the treeline sizzled, a fast flicker along every far crown (worst in grey heavy-snow light,
+  // and the slower the frame rate the worse). b: the grain is held still, and a far card's outline is cut clean: the woods stand still;
+  // and so is the pattern the light shafts' march is offset by (15_shafts.js), whose beams between the trees shimmered the same way.
+  // Read by the shaders as U.lampDir.w, set in 90_render.js)
+  if (typeof Variants !== 'undefined') Variants.def('tgrain', '树林闪烁', [['a', '原来（逐帧颗粒）'], ['b', '稳定']], 'b');
   const V0 = -0.9, V1 = 10.45, DR = 3.6, NSEG = 4;        // a card: model metres from its foot to its top, the depth it stores (+-DR toward the viewer), how many pieces it bends in
   const HWV = [];                                         // half-width of each kind's card (model metres)
   let gfx, pipe, pipeShadow, pipeBake, pipeDown, pipeDil, pipeCard, pipeCardShadow, pipeGhostZ, pipeGhost, pipeDust, atlasA, atlasB, baked = false;
@@ -258,6 +285,8 @@ const Trees = (() => {
 
   T.init = function (g) {
     gfx = g;
+    // (the atlas of cards holds a row per kind: where the GPU cannot hold that many rows of full height, the photographs are taken smaller)
+    { const mt = (gfx.caps && gfx.caps.maxTex) || 4096; if (T.NV * T.tileH > mt) { T.tileH = Math.floor(mt / T.NV / 8) * 8; T.tileW = T.tileH / 2; } }
     const all = TM.buildAll();
     for (let v = 0; v < T.NV; v++) {
       meshes.push([]); grp.push([]);
@@ -274,27 +303,27 @@ const Trees = (() => {
     farCPU = new Float32Array(T.maxFar * 12); farBuf = gfx.buffer(farCPU, 'vertex', true);
     dustGPU = new Float32Array(NP * 8); dustBuf = gfx.buffer(dustGPU, 'vertex', true);
     const mesh = { attrs: [['pos', 'vec3f'], ['nrm', 'vec3f'], ['mat', 'vec4f'], ['tx', 'vec4f']] }, per = { instanced: true, attrs: [['i0', 'vec4f'], ['i1', 'vec4f'], ['i2', 'vec4f'], ['i3', 'vec4f']] };
-    const TV = 'let t: TreeV = treeVertex(a.pos, a.nrm, a.mat, a.tx, a.i0, a.i1, a.i2, a.i3, M.p.x);';
+    const TV = 'let t: TreeV = treeVertex(a.pos, a.nrm, a.mat, a.tx, a.i0, a.i1, a.i2, a.i3, M.p.x, M.k);';
     const treeVS = (nudge) => `fn vert(a: VIn) -> VOut { var v: VOut; ${TV} v.wp = t.wp; v.nrm = t.n; v.bp = a.pos; v.mat = a.mat; v.tx = vec4f(t.hh, a.tx.yzw);
         let gq: f32 = floor(a.i3.x * 0.5); v.ex = vec4f(a.i1.z, a.i1.w, a.i3.x - 2.0 * gq, gq / 255.0);
         // (load, size; and for the tree's own shade beyond the sun's map: how far the point stands from the stem toward the sun, how wide the crown is)
         v.iv = vec4f(a.i2.w, a.i0.w, dot(t.wp.xz - a.i0.xz, normalize(U.sunDir.xz + vec2f(1e-5, 0.0))), M.p.y * a.i2.z * a.i0.w);
         v.clip = U.viewProj * vec4f(t.wp, 1.0);${nudge ? ' v.clip.z = v.clip.z - 0.00003 * v.clip.w;' : ''} return v; }`;
     const treeDesc = { lib: [SL.common, SL.hash, SL.fog, SL.shadow, SL.tonemap, TREE_SSL, TREE_SURF_SSL, TREE_MAT_SSL], buffers: [mesh, per], cull: 'none',
-      varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', mat: 'vec4f', tx: 'vec4f', ex: 'vec4f', iv: 'vec4f' }, uniforms: { p: 'vec4f' }, textures: { tDetail: '2d', tShadow: 'shadow', tSky: '2d' } };
+      varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', mat: 'vec4f', tx: 'vec4f', ex: 'vec4f', iv: 'vec4f' }, uniforms: { p: 'vec4f', k: 'vec4f' }, textures: { tDetail: '2d', tShadow: 'shadow', tSky: '2d' } };
     const treeFS = out => TREE_FS.replace('GHOST_OUT', out).replace('V0F', V0.toFixed(2)).replace('DVF', (V1 - V0).toFixed(2));
     pipe = gfx.pipeline(Object.assign({ name: 'tree', vs: treeVS(false), fs: treeFS('o.color = vec4f(col, 1.0);') }, treeDesc));
     // a tree being taken out of the picture (see update): its nearest surface is laid into the depth buffer first, then that one surface is
     // drawn over the finished view at the tree's strength, so the fade is even, with no layer showing through another
     pipeGhostZ = gfx.pipeline({ name: 'treeGhostZ', lib: [SL.common, SL.hash, TREE_SSL, TREE_SURF_SSL, TREE_MAT_SSL], buffers: [mesh, per], cull: 'none', varyings: { wp: 'vec3f', nrm: 'vec3f', mat: 'vec4f', tx: 'vec4f', iv: 'vec4f' },
-      uniforms: { p: 'vec4f' }, textures: {}, colorMask: false,
+      uniforms: { p: 'vec4f', k: 'vec4f' }, textures: {}, colorMask: false,
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; ${TV} v.wp = t.wp; v.nrm = t.n; v.mat = a.mat; v.tx = vec4f(t.hh, a.tx.yzw); v.iv = vec4f(a.i2.w, a.i0.w, 0.0, 0.0); v.clip = U.viewProj * vec4f(t.wp, 1.0); return v; }`,
       fs: `fn frag(v: VOut) -> FOut { var o: FOut; o.color = vec4f(0.0); let V: vec3f = normalize(U.camPos.xyz - v.wp);${TREE_FACE('v.wp', 'V')}
         if (treeCut(v.mat, v.tx, fw, snowLine(v.iv.x)) < 0.5) { discard; } return o; }` });
     pipeGhost = gfx.pipeline(Object.assign({ name: 'treeGhost', depthFunc: 'lequal', depthWrite: false, blend: 'premul', vs: treeVS(true), fs: treeFS('o.color = vec4f(col * v.ex.w, v.ex.w);') }, treeDesc));
     // into the sun's depth map: the twigs throw the shadow of what is left of them, a far pillow of its true outline
     pipeShadow = gfx.pipeline({
-      name: 'treeShadow', lib: [SL.common, SL.hash, TREE_SSL, TREE_SURF_SSL, TREE_MAT_SSL], buffers: [mesh, per], varyings: { mat: 'vec4f', tx: 'vec4f', iv: 'vec4f' }, uniforms: { p: 'vec4f' }, textures: {}, colorFormat: null, cull: 'none', depthBias: 2, depthBiasSlope: 2.5,
+      name: 'treeShadow', lib: [SL.common, SL.hash, TREE_SSL, TREE_SURF_SSL, TREE_MAT_SSL], buffers: [mesh, per], varyings: { mat: 'vec4f', tx: 'vec4f', iv: 'vec4f' }, uniforms: { p: 'vec4f', k: 'vec4f' }, textures: {}, colorFormat: null, cull: 'none', depthBias: 2, depthBiasSlope: 2.5,
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; ${TV} v.mat = a.mat; v.tx = vec4f(t.hh, a.tx.yzw); v.iv = vec4f(a.i2.w, a.i0.w, 0.0, 0.0); v.clip = U.shadowVP * vec4f(t.wp, 1.0); return v; }`,
       fs: `fn frag(v: VOut) -> FOut { var o: FOut; o.color = vec4f(0.0); if (treeCut(v.mat, v.tx, 0.07, snowLine(v.iv.x)) < 0.5) { discard; } return o; }`,
     });
@@ -369,13 +398,13 @@ const Trees = (() => {
         v.fx = vec4f(sc, a.i2.z * sc, a.i2.w, 8.5 * den);
         // the lie of the ground round the foot (the same map keeps its slope): height = dot(gp.xy, xz) + gp.z
         let gs: vec2f = texLod(tDen, a.i0.xz * M.t.x + M.t.yz, 0.0).xy * M.t.w;
-        v.gp = vec4f(gs, a.i0.y + 0.10 * sc - dot(gs, a.i0.xz), 0.0);`}
+        v.gp = vec4f(gs, a.i0.y + 0.10 * sc - dot(gs, a.i0.xz), a.i1.z);`}
         return v; }`;
     const perC = { instanced: true, attrs: [['i0', 'vec4f'], ['i1', 'vec4f'], ['i2', 'vec4f']] };
     const cardC = s => s.replace(/NKF/g, T.NK + '.0').replace(/NVF/g, T.NV + '.0').replace(/PITCH_C/g, Math.cos(T.pitch).toFixed(5)).replace(/PITCH_S/g, Math.sin(T.pitch).toFixed(5)).replace(/PITCH_T/g, Math.tan(T.pitch).toFixed(5)).replace(/KSTEP/g, (TAU / T.NK).toFixed(6)).replace(/DR2/g, (2 * DR).toFixed(2));
     pipeCard = gfx.pipeline({
       name: 'treeCard', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SL.tonemap, TREE_SURF_SSL], buffers: [perC], topology: 'strip', cull: 'none',
-      varyings: { wp: 'vec3f', uv: 'vec2f', vw: 'vec4f', ex: 'vec4f', fx: 'vec4f', gp: 'vec4f' }, uniforms: { t: 'vec4f' },
+      varyings: { wp: 'vec3f', uv: 'vec2f', vw: 'vec4f', ex: 'vec4f', fx: 'vec4f', gp: 'vec4f' }, uniforms: { t: 'vec4f', q: 'vec4f' },
       textures: { tA: '2d', tB: '2d', tShadow: 'shadow', tSky: '2d', tDen: '2d' },
       vs: cardVS(false), fs: cardC(TREE_CARD_FS),
     });
@@ -489,9 +518,9 @@ const Trees = (() => {
   // Where a tree stands, how tall it is and which way it is turned are the course's; what kind it is and how it grew follow from those.
   const CH = 8, CS = CH * TREE_CELL, NF = 12, chunks = new Map(), _at = {};
   // the stunted spruce up on a ridge: a as they were (young trees in even tiers), b flagged by the wind. (A change re-places the trees.)
-  Variants.def('rtree', '山脊树', [['a', '现在的'], ['b', '风旗云杉']], 'b'); Variants.on(n => { if (n === 'rtree') chunks.clear(); });
+  Variants.def('rtree', '山脊树', [['a', '现在的'], ['b', '风旗云杉']], 'b'); Variants.on(n => { if (n === 'rtree' || n === 'tvar') chunks.clear(); });
   function describe(out, o, x, z, h, rot, hint, seed, kind) {
-    const q = hash2U(Math.floor(x * 8), Math.floor(z * 8)) & 0xffff, r1 = hash2(q, 71), r2 = hash2(q, 72), r3 = hash2(q, 73), r4 = hash2(q, 74);
+    const q = hash2U(Math.floor(x * 8), Math.floor(z * 8)) & 0xffff, r1 = hash2(q, 71), r2 = hash2(q, 72), r3 = hash2(q, 73), r4 = hash2(q, 74), mode = Variants.val.tvar;
     const ca = Course.at(-z, _at), ridge = ca.ridge || 0, off = Math.abs(x - ca.cx) - ca.hw;
     let v = kind;
     if (v < 0) {
@@ -504,6 +533,12 @@ const Trees = (() => {
       if (ridge > 0.45 && r4 < smooth(0.45, 0.8, ridge) * 0.92 && Variants.val.rtree !== 'a') {
         const cx0 = ca.cx, g = (Course.at(-z + 6, _at).cx - cx0) / 6, l = Math.hypot(1, g); v = 7; rot = Math.atan2(-g / l, 1 / l) + 0.25 * (r3 - 0.5);
       }
+      // (the owner's choice 'tvar' c, the mixed wood: larches and stone pines among the spruce, each in stands of its own, never on the ridge)
+      if (mode === 'c' && v !== 7 && v !== 6) {
+        const r5 = hash2(q, 75), nl = vnoise2(x / 85, z / 85, 61), np = vnoise2(x / 120, z / 120, 67);
+        if (r5 < smooth(-0.15, 0.35, nl) * 0.75) v = 8;
+        else if (v !== 3 && hash2(q, 76) < smooth(-0.05, 0.4, np) * 0.7 * (1 - ridge)) v = 9;
+      }
     }
     // none grew quite straight (and all lean a little down the hill, as the creeping snow has pushed them); on the ridge the wind has had its way
     const la = v === 7 ? 0.32 : r3 * TAU, lk = 0.012 + 0.05 * r4 * r4 + 0.03 * ridge;
@@ -511,6 +546,16 @@ const Trees = (() => {
     out[o + 8] = Math.cos(la) * lk; out[o + 9] = Math.sin(la) * lk - 0.012; out[o + 10] = 0.9 + 0.22 * r1;
     // how much snow it carries: by the lie of the land in patches (shelter, wind), a little by the tree; up on the ridge everything is plastered
     out[o + 11] = clamp(0.84 + 0.17 * vnoise2(x / 70, z / 70, 31) + 0.2 * (r2 - 0.5) + 0.3 * ridge, 0.62, 1.15);
+    // (the owner's choice 'tvar' b and c: no two alike. The colour of the needles follows the stand (the tree's number now carries it, see
+    // needleTint), girth from slender spires to broad old cones, and the snow ranges from a tree the wind has swept nearly green to one
+    // plastered white; a larch holds hardly any)
+    if (mode !== 'a') {
+      const r6 = hash2(q, 77), r7 = hash2(q, 78);
+      out[o + 7] = clamp(0.5 + 0.48 * vnoise2(x / 110, z / 110, 53) + 0.3 * (r7 - 0.5), 0.002, 0.998);
+      out[o + 10] = 0.64 + 0.78 * r1;
+      out[o + 11] = clamp(0.62 + 0.60 * vnoise2(x / 55, z / 55, 31) + 0.65 * (r6 - 0.5) + 0.3 * ridge, 0.05, 1.15);
+      if (v === 8) out[o + 11] = 0.3 + 0.2 * r6;
+    }
   }
   function chunk(cx, cz) {
     const key = (cx + 4096) * 2097152 + (cz + 1048576);
@@ -525,7 +570,7 @@ const Trees = (() => {
     if (chunks.size > 2400) { let k = 0; for (const q of chunks.keys()) { chunks.delete(q); if (++k >= 600) break; } }
     return c;
   }
-  T.reset = () => { chunks.clear(); veil.clear(); shake.clear(); shed.clear(); nDust = 0; shedT = 2.5; rnd = RNG(7717); r0c = r1c = 0; grKey = NaN; };
+  T.reset = () => { chunks.clear(); veil.clear(); shake.clear(); shed.clear(); dumped.clear(); nDust = 0; shedT = 2.5; rnd = RNG(7717); r0c = r1c = 0; grKey = NaN; };
   T.extra = [];        // test hook: [x, z, h, rot, kind] trees drawn in addition to the course's own
   T.lod = n => { cardsOnly = !n; };        // test hook: 0 = every tree a card, 1 = as it should be
   T.shedSoon = (x, z) => { shedT = 0; shedAt = x === undefined ? null : [x, z]; };       // test hook: a bough somewhere in view (or of the tree at x, z) lets go at the next step
@@ -573,6 +618,19 @@ const Trees = (() => {
       dust[q + 9] = rnd(); dust[q + 10] = k;
       dust[q + 11] = c[o + 1] + G[0] * (p[0] + dust[q + 3] * 0.5 - c[o]) + G[1] * (p[2] + dust[q + 5] * 0.5 - c[o + 2]);      // the snow it will come down on
     }
+  }
+  // a bough of this tree on the skier's side, between heights u0 and u1 of the crown, that still carries a pillow worth the name
+  const dumped = new Map();
+  function facing(c, o, B, u0, u1) {
+    const P = typeof Game !== 'undefined' && Game.s ? Game.s.p : null; if (!P) return null;
+    let ux = P[0] - c[o], uz = P[2] - c[o + 2]; const l = Math.hypot(ux, uz) || 1; ux /= l; uz /= l;
+    const cs = c[o + 4], sn = c[o + 5];
+    let best = null, bs = -1e9;
+    for (let k = 0; k < 24; k++) {
+      const b = B[Math.floor(rnd() * B.length)]; if (b.cls > 1 || b.pw > 2 || b.u < u0 || b.u > u1) continue;
+      const sc = (b.ca * cs + b.sa * sn) * ux + (b.sa * cs - b.ca * sn) * uz + 0.3 * rnd(); if (sc > bs) { bs = sc; best = b; }
+    }
+    return bs > 0.2 ? best : null;
   }
   function letGo(c, o, key, low) {
     const B = TM.kinds[c[o + 6]].B; let b = null;
@@ -699,11 +757,23 @@ const Trees = (() => {
     // of their finest snow, which the wind of the pass takes along; and one of them, above head height, lets its load go at once, so that
     // it is coming down as the lens goes by. All of it is on the skier's side and early: a lens riding four metres behind is past the
     // tree a quarter of a second after the skier, and a speck takes a tenth of its life to show.
+    if (dumped.size > 400) dumped.clear();
     if (typeof Game !== 'undefined' && Game.events) for (const ev of Game.events) {
-      if (ev.type !== 'brush' && ev.type !== 'crash' && ev.type !== 'near') continue;
+      if (ev.type !== 'brush' && ev.type !== 'crash' && ev.type !== 'near' && ev.type !== 'rustle') continue;
       for (let i = 0; i < candN; i++) {
         const c = candA[i], o = candO[i]; if (Math.abs(c[o] - ev.x) > 0.05 || Math.abs(c[o + 2] - ev.z) > 0.05) continue;
         const key = c[o] * 8191 + c[o + 2], B = TM.kinds[c[o + 6]].B, hard = ev.type === 'crash';
+        // (still in among its boughs: it goes on shaking, and what the body pushes past loses a little more of its snow)
+        if (ev.type === 'rustle') {
+          shake.set(key, Math.max(shake.get(key) || 0, 0.7));
+          for (let k = 0, n = 0; k < 30 && n < 4; k++) { const b = B[Math.floor(rnd() * B.length)]; if (b.u > 0.55) continue; puff(c, o, b, 14, BRUSH, 0.15); n++; }
+          // (and the bough the body is pushing through, or the one just above it, drops what it carries: a lump that bursts on the tiers
+          // below and on the skier, the most of it from a tree the snow has plastered. A few to a tree, so a long push through one crown
+          // keeps shaking snow down without emptying the whole tree into the air)
+          const nb = dumped.get(key) || 0;
+          if (nb < 5) { const b = facing(c, o, B, 0.08, 0.5); if (b) { dumped.set(key, nb + 1); puff(c, o, b, b.cls ? 40 : 60, SHED, 0.25); bomb(c, o, b, 0.55 + 0.25 * rnd()); } }
+          break;
+        }
         if (ev.type === 'near') {
           const cs = c[o + 4], sn = c[o + 5], to = b => (b.ca * cs + b.sa * sn) * ev.ux + (b.sa * cs - b.ca * sn) * ev.uz, q0 = nDust * DF; let top = null, n = 0;
           shake.set(key, Math.max(shake.get(key) || 0, 0.25 + 0.25 * ev.k));
@@ -714,8 +784,11 @@ const Trees = (() => {
           break;
         }
         shake.set(key, hard ? 1.6 : 1.0);
-        for (let k = 0, n = 0; k < 40 && n < (hard ? 16 : 10); k++) { const b = B[Math.floor(rnd() * B.length)]; if (b.u > (hard ? 0.9 : 0.6)) continue; puff(c, o, b, 12, BRUSH, 0.2); n++; }
+        for (let k = 0, n = 0; k < 40 && n < (hard ? 16 : 10); k++) { const b = B[Math.floor(rnd() * B.length)]; if (b.u > (hard ? 0.9 : 0.6)) continue; puff(c, o, b, 18, BRUSH, 0.2); n++; }
         if (!shed.has(key)) letGo(c, o, key, true);       // (one bare bough to a tree: a second would hand the first its snow back)
+        // (a knock shakes the boughs above too: two or three more loads come down from over the skier's side, one after another)
+        { const nb = dumped.get(key) || 0, m = hard ? 3 : 2;
+          for (let j = 0; j < m && nb + j < 5; j++) { const b = facing(c, o, B, 0.15 + 0.12 * j, 0.75); if (!b) break; dumped.set(key, nb + j + 1); puff(c, o, b, b.cls ? 50 : 80, SHED, 0.35 + 0.3 * j); bomb(c, o, b, (hard ? 0.9 : 0.7) - 0.1 * j); } }
         break;
       }
     }
@@ -723,7 +796,7 @@ const Trees = (() => {
     shedT -= dt;
     if (shedT <= 0 && candN) {
       shedT = (2.0 + 4.0 * rnd()) * clamp(24 / candN, 1, 6);
-      for (let k = 0; k < 8 && !shedAt; k++) { const i = Math.floor(rnd() * candN), c = candA[i], o = candO[i], key = c[o] * 8191 + c[o + 2]; if (candD[i] < 5 || c[o + 6] === 6 || shed.has(key)) continue; letGo(c, o, key, false); break; }
+      for (let k = 0; k < 8 && !shedAt; k++) { const i = Math.floor(rnd() * candN), c = candA[i], o = candO[i], key = c[o] * 8191 + c[o + 2]; if (candD[i] < 5 || c[o + 6] === 6 || c[o + 6] === 8 || shed.has(key)) continue; letGo(c, o, key, false); break; }
       if (shedAt) { for (let i = 0; i < candN; i++) { const c = candA[i], o = candO[i]; if (Math.abs(c[o] - shedAt[0]) < 0.05 && Math.abs(c[o + 2] - shedAt[1]) < 0.05) letGo(c, o, c[o] * 8191 + c[o + 2], false); } shedAt = null; }
     }
   }
@@ -828,7 +901,7 @@ const Trees = (() => {
         // budget, and moves there smoothly: so a hand-over is always a matter of distance, across a band, and never a snap.
         const t0 = candN > T.max0 ? Math.min(zr0, candD[ord[T.max0]]) : zr0, t1 = candN > T.max1 ? Math.min(zr1, candD[ord[T.max1]]) : zr1;
         r0c = dt && r0c ? damp(r0c, t0, 5, dt) : t0; r1c = dt && r1c ? damp(r1c, t1, 5, dt) : t1;
-        let ns = 0;
+        let ns = 0; const keepAll = stay();
         for (let n = 0; n < candN; n++) {
           const i = ord[n], c = candA[i], o = candO[i], d = candD[i], x = c[o], z = c[o + 2], h = c[o + 3];
           const f0 = smooth(r0c, r0c - T.w0 * zoom, d), f1 = smooth(r1c, r1c - T.w1 * zoom, d);       // 1 = all fine mesh; 1 = all mesh
@@ -847,6 +920,7 @@ const Trees = (() => {
             const key = x * 8191 + z; let e = veil.get(key);
             if (!e) { e = [1, false]; e[1] = dl < 0.17 || de < 4.5; e[0] = e[1] ? 0 : 1; }
             else { e[1] = e[1] ? !(dl > 0.24 && de > 5.3) : (dl < 0.17 || de < 4.5); e[0] = dt ? clamp(e[0] + (e[1] ? -dt / 0.16 : dt / 0.35), 0, 1) : (e[1] ? 0 : 1); }
+            if (keepAll) { e[0] = 1; e[1] = false; }
             veil2.set(key, e);
             selI[ns] = i; selF[ns * 3] = f0; selF[ns * 3 + 1] = f1; selF[ns * 3 + 2] = e[0]; ns++;
             if (e[0] <= 0.004) st.out++; else if (e[0] < 0.999) st.fading++;
@@ -887,27 +961,35 @@ const Trees = (() => {
     if (nDust) dustStep(dt, ox, oy, oz); else st.parts = 0;
   };
   // phase of the gusts at the origin of render space (the shader adds each tree's own place), kept in step across the floating origin
+  // the skier's body among the boughs (version b of 'tpass'): its speed over the map (x, z), on (z), and whether the boughs right between
+  // the lens and the figure are thinned (w; not where the lens rides on the skier, first person: there is nothing between the two)
+  const _kU = [0, 0, 0, 0];
+  const bodyU = () => {
+    const on = stay() && typeof Game !== 'undefined' && Game.s ? 1 : 0, v = on ? Game.s.v : null;
+    _kU[0] = v ? v[0] : 0; _kU[1] = v ? v[2] : 0; _kU[2] = on; _kU[3] = on && !(typeof Fpv !== 'undefined' && Fpv.on) ? 1 : 0;
+    return _kU;
+  };
   const gust = () => { const G = Render.G, o = Render.origin, wx = G[GOFF.wind], wz = G[GOFF.wind + 2], wl = Math.max(Math.hypot(wx, wz), 0.05); return [((o[0] * wx + o[2] * wz) / wl * 0.045) % TAU, 0, 0, 0]; };
   T.draw = function (R) {
     if (!T.enabled || !baked) return;
-    const tex = { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, gp = gust()[0];
-    for (let l = 0; l < 2; l++) for (let v = 0; v < T.NV; v++) { const g = grp[v][l], m = meshes[v][l]; if (g.solid) gfx.draw(pipe, { u: { p: [gp, HWV[v], 0, 0] }, tex, vb: [m.vb, g.buf], ib: m.ib, count: m.count, instances: g.solid }); }
+    const tex = { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, gp = gust()[0], kU = bodyU();
+    for (let l = 0; l < 2; l++) for (let v = 0; v < T.NV; v++) { const g = grp[v][l], m = meshes[v][l]; if (g.solid) gfx.draw(pipe, { u: { p: [gp, HWV[v], v, vary() ? 1 : 0], k: kU }, tex, vb: [m.vb, g.buf], ib: m.ib, count: m.count, instances: g.solid }); }
     if (nFar) {
       const L3 = Terrain.levels && Terrain.levels[3], xf = L3 ? Terrain.sunBinding(R.origin, 3).xf : [0, 0, 0, 0];
-      gfx.draw(pipeCard, { u: { t: [xf[0], xf[1], xf[2], L3 ? 1 : 0] }, tex: { tA: atlasA, tB: atlasB, tShadow: R.shadowTex, tSky: Sky.lut, tDen: L3 ? L3.nTex : Tex.black }, vb: [farBuf], count: 2 * NSEG + 2, instances: nFar });
+      gfx.draw(pipeCard, { u: { t: [xf[0], xf[1], xf[2], L3 ? 1 : 0], q: [vary() ? 1 : 0, 0, 0, 0] }, tex: { tA: atlasA, tB: atlasB, tShadow: R.shadowTex, tSky: Sky.lut, tDen: L3 ? L3.nTex : Tex.black }, vb: [farBuf], count: 2 * NSEG + 2, instances: nFar });
     }
   };
   // over the finished view (after the sky and the clouds): the trees that are fading, and the snow in the air
   T.drawGhost = function (R) {
     if (!T.enabled || !baked) return;
-    const tex = { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, u = { p: gust() };
+    const tex = { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, u = { p: gust(), k: bodyU() };
     for (let l = 0; l < 2; l++) for (let v = 0; v < T.NV; v++) { const g = grp[v][l], m = meshes[v][l]; if (g.gn) gfx.draw(pipeGhostZ, { u, vb: [m.vb, g.gbuf], ib: m.ib, count: m.count, instances: g.gn }); }
-    for (let l = 0; l < 2; l++) for (let v = 0; v < T.NV; v++) { const g = grp[v][l], m = meshes[v][l]; if (g.gn) gfx.draw(pipeGhost, { u: { p: [u.p[0], HWV[v], 0, 0] }, tex, vb: [m.vb, g.gbuf], ib: m.ib, count: m.count, instances: g.gn }); }
+    for (let l = 0; l < 2; l++) for (let v = 0; v < T.NV; v++) { const g = grp[v][l], m = meshes[v][l]; if (g.gn) gfx.draw(pipeGhost, { u: { p: [u.p[0], HWV[v], v, vary() ? 1 : 0], k: u.k }, tex, vb: [m.vb, g.gbuf], ib: m.ib, count: m.count, instances: g.gn }); }
     if (T.stats.parts) gfx.draw(pipeDust, { u: { p: [0, 0, 0, 0] }, tex: { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, vb: [dustBuf], count: 4, instances: T.stats.parts });
   };
   T.drawShadow = function () {
     if (!T.enabled || !baked) return;
-    const u = { p: gust() };
+    const u = { p: gust(), k: bodyU() };
     // (every tree throws the shadow of its coarse mesh, the nearest ones too: the sun's map cannot tell the two apart, and a tree's shadow
     // then stays as it is while the tree itself changes level)
     for (let l = 0; l < 2; l++) for (let v = 0; v < T.NV; v++) { const g = grp[v][l], m = meshes[v][1]; if (g.n) gfx.draw(pipeShadow, { u, vb: [m.vb, g.buf], ib: m.ib, count: m.count, instances: g.n }); }
@@ -921,10 +1003,10 @@ const TREE_SSL = `
 struct TreeV { wp: vec3f, n: vec3f, hh: f32, }
 // where a vertex of a tree stands: this tree's size, girth, turn and lean; the wind in its top and under its boughs; the bough that has just
 // shed its snow. ph0: the phase of the gusts at the origin of render space. (All of it runs on game time.)
-fn treeVertex(pos: vec3f, nrm: vec3f, mat: vec4f, tx: vec4f, i0: vec4f, i1: vec4f, i2: vec4f, i3: vec4f, ph0: f32) -> TreeV {
+fn treeVertex(pos: vec3f, nrm: vec3f, mat: vec4f, tx: vec4f, i0: vec4f, i1: vec4f, i2: vec4f, i3: vec4f, ph0: f32, kb: vec4f) -> TreeV {
   var t: TreeV;
   let sc: f32 = i0.w; let gi: f32 = i2.z; let lev: f32 = tx.w; let tm: f32 = U.camPos.w;
-  let isSnow: f32 = step(mat.x, 0.5); let curt: f32 = step(1.5, mat.x) * step(mat.x, 2.5);
+  let isSnow: f32 = step(mat.x, 0.5); let curt: f32 = step(1.5, mat.x) * step(mat.x, 2.5) + step(4.5, mat.x);
   var p: vec3f = vec3f(pos.x * gi, pos.y, pos.z * gi);
   var hh: f32 = tx.x;
   // a bough that sheds: its snow sinks and is gone, the bough springs up, swings and settles
@@ -949,6 +1031,25 @@ fn treeVertex(pos: vec3f, nrm: vec3f, mat: vec4f, tx: vec4f, i0: vec4f, i1: vec4
                   + vec2f(sin(tm * 17.0 + ph), cos(tm * 15.0 + ph)) * (0.03 * shk) + i2.xy * 10.0;
   let off: vec2f = bend * (q * q * sc);
   t.wp = i0.xyz + vec3f(lp.x * i1.x + lp.z * i1.y + off.x, lp.y, lp.z * i1.x - lp.x * i1.y + off.y);
+  // the skier pushing through (version b of 'tpass'): the boughs give way round the body, from the skis to above the head, and are dragged
+  // along the way it goes (a jacket drags needles with it). The body is taken as a short capsule laid back along the way it came over the
+  // last fifth of a second, so a bough just gone past is still held over and swings back after it, not at once. The stem never moves;
+  // a bough gives the more the further out along it the point is.
+  if (kb.z > 0.5) {
+    let rel: vec3f = t.wp - U.player.xyz;
+    let dyv: f32 = rel.y - clamp(rel.y, 0.0, 1.85);
+    let back: vec2f = -kb.xy * 0.2; let bl2: f32 = max(dot(back, back), 1e-4);
+    let tb: f32 = clamp(dot(rel.xz, back) / bl2, 0.0, 1.0);
+    let dxz: vec2f = rel.xz - back * tb; let dh: f32 = length(dxz);
+    let RB: f32 = 0.9;
+    let wgt: f32 = (1.0 - smoothstep(0.0, RB, sqrt(dh * dh + dyv * dyv * 2.0))) * (1.0 - 0.55 * tb) * saturate(lev * 1.2);
+    if (wgt > 0.0) {
+      let spd: f32 = length(kb.xy);
+      var along: vec2f = vec2f(0.0); if (spd > 0.5) { along = kb.xy / spd; }
+      let disp: vec2f = (dxz / max(dh, 0.05) * (RB - min(dh, RB)) * 0.85 + along * (0.3 * saturate(spd / 12.0))) * wgt;
+      t.wp = t.wp + vec3f(disp.x, 0.10 * wgt, disp.y);
+    }
+  }
   let n: vec3f = normalize(vec3f(nrm.x, nrm.y * gi, nrm.z));
   t.n = vec3f(n.x * i1.x + n.z * i1.y, n.y, n.z * i1.x - n.x * i1.y);
   t.hh = hh;
@@ -958,11 +1059,12 @@ fn treeVertex(pos: vec3f, nrm: vec3f, mat: vec4f, tx: vec4f, i0: vec4f, i1: vec4
 
 // how the sun and the sky light a point of a tree, whatever it was drawn from (mesh or card): the two always agree
 const TREE_SURF_SSL = `
-struct TreeS { snow: f32, bark: f32, ao: f32, open: f32, thin: f32, tone: f32, N: vec3f, }
+struct TreeS { snow: f32, bark: f32, ao: f32, open: f32, thin: f32, tone: f32, N: vec3f, tn: vec3f, tb: vec3f, }
 // how deep the snow must lie on a bough to show as snow (m): a tree that carries less shows more of its needles
 // the pattern the hand-overs between levels of detail are made with: a fine grain that changes every frame (at 60 fps it reads as a true
 // blend, and in a still as grain, not as hatching)
-fn treeGrain(p: vec2f) -> f32 { return hash21(p + vec2f(37.0, 17.0) * (U.origin.w - 64.0 * floor(U.origin.w / 64.0))); }
+// (version b of 'tgrain', U.lampDir.w = 1: the grain is held still, frame after frame)
+fn treeGrain(p: vec2f) -> f32 { return hash21(p + vec2f(37.0, 17.0) * ((U.origin.w - 64.0 * floor(U.origin.w / 64.0)) * (1.0 - U.lampDir.w) + 1.0)); }
 fn snowLine(load: f32) -> f32 { return max(0.010, 0.022 + (1.0 - load) * 0.14); }
 fn treeLight(s: TreeS, V: vec3f, sh: f32) -> vec3f {
   let L: vec3f = U.sunDir.xyz; let N: vec3f = s.N;
@@ -974,14 +1076,31 @@ fn treeLight(s: TreeS, V: vec3f, sh: f32) -> vec3f {
   var cs: vec3f = vec3f(0.93, 0.955, 0.985) * (U.sunCol.rgb * saturate((ndl + 0.30) / 1.30) * sh + ambS * s.ao);
   cs += U.sunCol.rgb * vec3f(1.0, 0.93, 0.85) * (back * back * rim * (0.25 + 0.75 * sh) * 0.9 + 0.10 * sh * saturate(-ndl + 0.2) * s.open);
   // needles: nearly black green, bark browner
-  var albN: vec3f = mix(vec3f(0.015, 0.030, 0.022), vec3f(0.036, 0.054, 0.027), s.tone);
-  albN = mix(albN, vec3f(0.060, 0.047, 0.040), s.bark);
+  var albN: vec3f = mix(vec3f(0.015, 0.030, 0.022), vec3f(0.036, 0.054, 0.027), s.tone) * s.tn;
+  albN = mix(albN, vec3f(0.060, 0.047, 0.040) * s.tb, s.bark);
   let ambN: vec3f = sky * (0.9 + 0.7 * N.y) + U.ambGnd.rgb * (0.42 - 0.34 * N.y) + twiLight(N) * (0.4 + 0.6 * s.open);
   var cn: vec3f = albN * (U.sunCol.rgb * saturate((ndl + 0.45) / 1.45) * sh + ambN * s.ao);
   cn += albN * U.sunCol.rgb * back * back * rim * 2.5 * sh * (1.0 - s.bark);
   // a spray of needles lets the sun through: seen against the light, its fringe is a warm green
-  cn += vec3f(0.045, 0.060, 0.016) * U.sunCol.rgb * (s.thin * sh * saturate(-ndl) * (0.35 + 0.65 * back));
+  cn += vec3f(0.045, 0.060, 0.016) * s.tn * U.sunCol.rgb * (s.thin * sh * saturate(-ndl) * (0.35 + 0.65 * back));
   return mix(cn, cs, s.snow);
+}
+// (the owner's choice 'tvar' b and c) no two trees the same colour. seed: the tree's own number, which in b and c follows the stand it grows
+// in (trees of a stand are kin, and the soil and the light are the same for them): toward 0 the stand runs blue-grey, toward 1 yellow-olive.
+// Each tree is then darker or lighter on its own. kind: the species (fir bluer, stone pine bluer and lighter; a larch's twigs ochre, a dead
+// snag weathered silver). Returns the needles' colour in xyz; barkTint, the stem's (and a larch's twigs').
+fn needleTint(seed: f32, kind: f32) -> vec3f {
+  let h: f32 = seed * 2.0 - 1.0; let k: f32 = mix(0.62, 1.6, fract(seed * 37.13 + 0.21));
+  var t: vec3f = mix(vec3f(1.0), select(vec3f(1.40, 1.22, 0.50), vec3f(0.72, 0.98, 1.45), h < 0.0), min(abs(h) * 1.3, 1.0)) * k;
+  if (abs(kind - 2.0) < 0.5) { t = t * vec3f(0.88, 1.0, 1.16); }
+  if (abs(kind - 9.0) < 0.5) { t = t * vec3f(0.95, 1.12, 1.22) * 1.15; }
+  return t;
+}
+fn barkTint(seed: f32, kind: f32) -> vec3f {
+  let k: f32 = mix(0.85, 1.2, fract(seed * 53.7 + 0.4));
+  if (abs(kind - 8.0) < 0.5) { return vec3f(3.6, 3.0, 2.4) * k; }
+  if (abs(kind - 6.0) < 0.5) { return vec3f(1.55, 1.55, 1.62) * k; }
+  return vec3f(k);
 }
 // what the skier's headlamp adds when a tree stands in its beam
 fn treeLamp(s: TreeS, wp: vec3f) -> vec3f {
@@ -1000,10 +1119,24 @@ const TREE_MAT_SSL = `
 fn sprayAt(tx: vec4f, mat: vec4f) -> f32 {
   return (tx.x + 0.030 * sin(tx.y * 21.0 + mat.w * 5.0) + 0.018 * sin(tx.x * 33.0 + mat.w * 3.0) - abs(tx.y) * 0.9) / 0.115 + mat.w * 0.37;
 }
+// (declared before treeCut, which calls it: GLSL, the WebGL2 fallback, wants a function defined before its first use)
+// a larch's bare twigs: thin, wiry and few, so the sky shows through the crown. Close to, each twig is a line; from afar, where a pixel holds
+// many of them, the sheet keeps a fixed scatter of its texels (so that the crown reads as a haze of twigs, not as a solid cone)
+fn twigCut(mat: vec4f, tx: vec4f, fw: f32) -> f32 {
+  let cur: f32 = step(4.5, mat.x);
+  let pitch: f32 = mix(0.10, 0.07, cur); let ap: f32 = fw / pitch;
+  let s: f32 = select(sprayAt(tx, mat), (tx.x + 0.012 * sin(tx.y * 19.0 + mat.w * 7.0)) / pitch + mat.w * 0.61, cur > 0.5);
+  let k: f32 = floor(s); let f: f32 = abs(s - k - 0.5); let h: f32 = hash11(k + mat.w * 19.0);
+  let e: f32 = tx.z / (mix(0.65, 0.30, cur) + mix(0.35, 0.65, cur) * h);
+  let fine: f32 = saturate((0.20 * (1.0 - 0.4 * e) - f) / max(ap, 0.001) + 0.5) * step(e, 1.0);
+  let far: f32 = step(tx.z, mix(0.85, 0.62, cur)) * step(hash21(floor(tx.xy * vec2f(9.0, 11.0)) + vec2f(mat.w * 3.1, mat.w * 1.7)), 0.36);
+  return mix(fine, far, smoothstep(0.35, 1.0, ap));
+}
 // how much of a pixel a sheet of twigs fills. fw: the width of a pixel on the sheet (m). line: see snowLine.
 // (And where a pillow of the coarse level ends: its outline is not in its triangles.)
 fn treeCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
   if (mat.x < 0.5) { return select(1.0, step(line, tx.x), tx.z > 0.5); }
+  if (mat.x > 3.5) { return twigCut(mat, tx, fw); }
   if (mat.x > 2.5) { return 1.0; }
   if (mat.x < 1.5) {
     // a spray: each branchlet as long and as full as it likes, needles standing along both sides of it; and a second, finer set of them
@@ -1038,7 +1171,7 @@ fn treeCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
 fn treeSurface(mat: vec4f, tx: vec4f, N: vec3f, n1: vec4f, n2: vec4f, line: f32, load: f32, plast: f32, fw: f32) -> TreeS {
   var s: TreeS;
   s.ao = mat.y; s.open = mat.z;
-  let isSnow: f32 = step(mat.x, 0.5); let isBark: f32 = step(2.5, mat.x);
+  let isSnow: f32 = step(mat.x, 0.5); let isBark: f32 = step(2.5, mat.x); let isTwig: f32 = step(3.5, mat.x);
   let nd: f32 = n1.z * 0.6 + n2.z * 0.4;
   // a pillow is snow down to where it thins out over the needles: there the bough shows, a dark ragged line under every lump
   var snow: f32 = isSnow * smoothstep(-0.010, 0.010, tx.x - line + (nd - 0.5) * 0.07);
@@ -1049,12 +1182,14 @@ fn treeSurface(mat: vec4f, tx: vec4f, N: vec3f, n1: vec4f, n2: vec4f, line: f32,
     dust = smoothstep(0.30, 0.80, N.y) * smoothstep(0.60, 0.76, n2.z * 0.55 + n1.z * 0.25 + 0.20 * s.open + 0.25 * (load - 0.8));
     if (mat.x < 1.5) { dust = dust * mix(smoothstep(0.40, 0.16, abs(fract(sprayAt(tx, mat)) - 0.5)), 0.6, smoothstep(0.3, 1.0, fw / 0.115)); }
   }
+  // (a larch's twigs: a line of snow along the top of a twig here and there)
+  if (isTwig > 0.5) { dust = smoothstep(0.45, 0.85, N.y) * smoothstep(0.64, 0.82, n2.z * 0.55 + n1.z * 0.25 + 0.20 * s.open + 0.25 * (load - 0.8)); }
   snow = max(snow, (1.0 - isSnow) * dust * 0.88);
-  snow = max(snow, isBark * smoothstep(0.35, 0.75, plast + (nd - 0.5) * 0.6) * 0.9);
+  snow = max(snow, isBark * (1.0 - isTwig) * smoothstep(0.35, 0.75, plast + (nd - 0.5) * 0.6) * 0.9);
   s.snow = snow;
   s.bark = isBark * (1.0 - snow);
   s.thin = (1.0 - isSnow) * (1.0 - isBark);
-  s.tone = n1.w * 0.6 + 0.2 * s.open;
+  s.tone = n1.w * 0.6 + 0.2 * s.open; s.tn = vec3f(1.0); s.tb = vec3f(1.0);
   // needles are a thousand small facets, snow a soft crust
   let Nn: vec3f = normalize(N + (vec3f(n2.x, n2.y, n2.w) - 0.5) * 1.1);
   let Ns: vec3f = normalize(N + vec3f(n1.x - 0.5, 0.0, n1.y - 0.5) * 0.5 + (vec3f(n2.x, n2.y, n2.w) - 0.5) * 0.12);
@@ -1069,7 +1204,7 @@ const TREE_FACE = (pos, view) => `
   var Ng: vec3f = normalize(cross(dpdx(${pos}), dpdy(${pos}))); if (dot(Ng, ${view}) < 0.0) { Ng = -Ng; }
   let fc: f32 = dot(N0, Ng);
   // pillows and the stem are solid, their inner faces are never seen; twigs are seen from both sides
-  if (fc < -0.2 && (v.mat.x < 0.5 || v.mat.x > 2.5)) { discard; }
+  if (fc < -0.2 && (v.mat.x < 0.5 || (v.mat.x > 2.5 && v.mat.x < 3.5))) { discard; }
   let d1: vec2f = dpdx(v.tx.xy); let d2: vec2f = dpdy(v.tx.xy); let fw: f32 = sqrt(0.5 * (dot(d1, d1) + dot(d2, d2)));`;
 
 const TREE_FS = `
@@ -1080,15 +1215,33 @@ fn frag(v: VOut) -> FOut {
   // And a bough about to brush the lens thins out and is gone. (It is never left as a sprinkle of dark specks over the picture: below a
   // third of its pixels it is dropped altogether.)
   let g: f32 = treeGrain(v.clip.xy);
-  let kd: f32 = smoothstep(0.8, 1.7, dist);
+  var kd: f32 = smoothstep(0.8, 1.7, dist);
+  // (version b of 'tpass': the trees stay, and a crown the lens is passing through is not a wall: within three metres of the lens its boughs
+  // thin to a veil of needles going by, two in five of them still there right against the glass)
+  if (M.k.w > 0.5) { kd = select(0.0, mix(0.4, 1.0, smoothstep(0.9, 3.2, dist)), dist > 0.7); }
   let keep: f32 = min(v.ex.y, kd);
-  if (kd < 0.34 || g < v.ex.x || (keep < 0.999 && g >= keep)) { discard; }${TREE_FACE('v.wp', 'V')}
+  if (kd < 0.34 || g < v.ex.x || (keep < 0.999 && g >= keep)) { discard; }
+  // (version b of 'tpass': the trees all stay, and only the boughs standing right between the lens and the skier are thinned, in a window
+  // the shape of the figure that narrows toward it, so the skier is always seen through them. Boughs at the skier's side and round the body
+  // are left, and sweep across it)
+  if (M.k.w > 0.5) {
+    let pc: vec3f = U.player.xyz + vec3f(0.0, 0.9, 0.0); let ab: vec3f = pc - U.camPos.xyz; let L2: f32 = dot(ab, ab);
+    if (L2 > 1.0) {
+      let tt: f32 = clamp(dot(v.wp - U.camPos.xyz, ab) / L2, 0.0, 1.0);
+      let dq: vec3f = v.wp - U.camPos.xyz - ab * tt;
+      let rd: f32 = length(vec3f(dq.x, dq.y * 0.55, dq.z));
+      let rad: f32 = mix(2.0, 0.85, tt);
+      let hole: f32 = (1.0 - smoothstep(rad * 0.5, rad, rd)) * (1.0 - smoothstep(0.82, 0.93, tt));
+      if (hole > 0.0 && g < hole) { discard; }
+    }
+  }${TREE_FACE('v.wp', 'V')}
   var N: vec3f = N0; if (fc < 0.0) { N = -N0; }
   let n1: vec4f = tex(tDetail, v.bp.xz * 0.23 + v.bp.yy * vec2f(0.17, 0.11) + v.ex.z);                   // lumps
   let ln: f32 = snowLine(v.iv.x);
   if (treeCut(v.mat, v.tx, fw, ln + (n1.z - 0.5) * 0.03) < 0.5) { discard; }
   let n2: vec4f = tex(tDetail, v.bp.xy * 1.9 + v.bp.zz * vec2f(1.3, 1.7));                               // needles, grain
-  let s: TreeS = treeSurface(v.mat, v.tx, N, n1, n2, ln, v.iv.x, dot(N, normalize(vec3f(-U.wind.x, 0.3, -U.wind.z) + vec3f(1e-4, 0.0, 0.0))), fw);
+  var s: TreeS = treeSurface(v.mat, v.tx, N, n1, n2, ln, v.iv.x, dot(N, normalize(vec3f(-U.wind.x, 0.3, -U.wind.z) + vec3f(1e-4, 0.0, 0.0))), fw);
+  if (M.p.w > 0.5) { s.tn = needleTint(v.ex.z, M.p.z); s.tb = barkTint(v.ex.z, M.p.z); }
   // a sheet of twigs asks for the light on the side of it that faces the sun, whichever side is looked at: the sun comes through
   var Nq: vec3f = N; if (s.thin > 0.5 && dot(N, U.sunDir.xyz) < 0.0) { Nq = -N; }
   // (the depth of the sun's map spans 1200 m: 0.0001 of it is 12 cm. A tree must see the shadow of its own next tier.)
@@ -1130,7 +1283,8 @@ fn frag(v: VOut) -> FOut {
   // the outline: the alpha falls away from each photograph's edge like a distance, so between two photographs the outline moves over;
   // and it is taken a little soft (a band of the moving pattern), not as a hard cut
   let al: f32 = mix(a0.a, a1.a, w);
-  if (al < 0.63 + 0.08 * g || (v.ex.z < 0.999 && g < 1.0 - v.ex.z) || g > kd || kd < 0.34) { discard; }
+  // (version b of 'tgrain': the outline cut clean, at the middle of that band: a still grain along every far crown would crawl as the view moves)
+  if (al < 0.63 + 0.08 * mix(g, 0.5, U.lampDir.w) || (v.ex.z < 0.999 && g < 1.0 - v.ex.z) || g > kd || kd < 0.34) { discard; }
   let b: vec4f = mix(texLod(tB, uv0, v.ex.w), texLod(tB, uv1, v.ex.w), w);
   let nl: vec3f = normalize(mix(cardN(a0.xy, v.vw.x * KSTEP), cardN(a1.xy, v.vw.y * KSTEP), w));
   let N: vec3f = vec3f(nl.x * v.ex.x + nl.z * v.ex.y, nl.y, nl.z * v.ex.x - nl.x * v.ex.y);
@@ -1143,7 +1297,8 @@ fn frag(v: VOut) -> FOut {
   var s: TreeS;
   // (a tree that carries less snow: its pillows end higher up, where they are thicker)
   let ln: f32 = snowLine(v.fx.z) / 0.16;
-  s.snow = b.x * smoothstep(ln - 0.08, ln + 0.08, b.z + 0.08); s.ao = b.y; s.open = 1.0; s.bark = b.w; s.thin = (1.0 - b.x) * (1.0 - b.w); s.tone = 0.4; s.N = N;
+  s.snow = b.x * smoothstep(ln - 0.08, ln + 0.08, b.z + 0.08); s.ao = b.y; s.open = 1.0; s.bark = b.w; s.thin = (1.0 - b.x) * (1.0 - b.w); s.tone = 0.4; s.N = N; s.tn = vec3f(1.0); s.tb = vec3f(1.0);
+  if (M.q.x > 0.5) { s.tn = needleTint(v.gp.w, v.vw.w); s.tb = barkTint(v.gp.w, v.vw.w); }
   // The tree's own shade is worked out, not looked up (in the sun's map the tree is the flat it is drawn as): the far side of the crown
   // lies in shade, less so toward the top where the crown is thin.
   let hq: f32 = saturate(1.0 - v.uv.y);

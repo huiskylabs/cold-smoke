@@ -106,7 +106,10 @@ function cssFallbacks(markup) {
 fs.rmSync(out, { recursive: true, force: true }); fs.mkdirSync(path.join(out, 'fonts'), { recursive: true });
 fs.writeFileSync(path.join(out, 'index.html'), html);
 const raw = path.join(out, 'app.src.js');
-fs.writeFileSync(raw, polyfills + '\n' + script);
+// (which build this is, shown small under 设置 so a phone can tell which package it is running: the date and the commit)
+let stamp = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 16).replace('T', ' ') + ' (北京时间)';
+try { stamp += ' · ' + require('child_process').execSync('git rev-parse --short HEAD', { cwd: root }).toString().trim(); } catch (e) { }
+fs.writeFileSync(raw, polyfills + '\nself.COLD_SMOKE.build = ' + JSON.stringify(stamp) + ';\n' + script);
 execFileSync('npx', ['--yes', 'esbuild@0.24.2', raw, '--target=chrome61', '--minify', '--charset=utf8', '--legal-comments=none', '--outfile=' + path.join(out, 'app.js'), '--log-level=warning'], { stdio: 'inherit', cwd: root });
 fs.unlinkSync(raw);
 for (const f of fs.readdirSync(path.join(root, 'xhs', 'fonts'))) fs.copyFileSync(path.join(root, 'xhs', 'fonts', f), path.join(out, 'fonts', f));
