@@ -72,7 +72,14 @@ const Biome = (() => {
   B.clump = function (x, z) {
     if (!B.wild()) return 1;
     const n = vnoise2(x / 17, z / 17, 0x5a1d ^ cur.seed) * 0.75 + vnoise2(x / 6.5, z / 6.5, 0x77e1 ^ cur.seed) * 0.25;
-    return 0.25 + 1.35 * smooth(-0.35, 0.35, n);
+    return 0.06 + 1.6 * smooth(-0.18, 0.22, n);
+  };
+  // how tall a tree of a birch wood stands: tallest in the middle of a stand (the old trees), young ones round its edges and out in the
+  // gaps, and here and there an old giant by itself. Gives the wood a shape the eye can read instead of an even carpet
+  B.stature = function (x, z, r) {
+    if (!B.wild()) return 1;
+    const n = vnoise2(x / 17, z / 17, 0x5a1d ^ cur.seed) * 0.75 + vnoise2(x / 6.5, z / 6.5, 0x77e1 ^ cur.seed) * 0.25;
+    return lerp(0.55, 1.25, smooth(-0.15, 0.45, n)) * (r > 0.93 ? 1.35 : 1);
   };
   B.name = function (zh) { const c = B.cur(); if (!c) return ''; return zh ? c.zh : c.en; };
   return B;

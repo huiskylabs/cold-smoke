@@ -197,7 +197,7 @@ const Weather = (() => {
     const wk = lerp(1.9, 1, smoother(0.2, 0.95, kc));
     W.sky = { wa: [ov[0] * wk, ov[1] * wk, ov[2] * wk, kc], wb: [saz + H[0] / Math.max(Math.cos(sel), 0.2), sel + H[1], H[2], H[3]], wc: [sc[0], sc[1], sc[2], E],
       wd: [fd[0], fd[1], fd[2], Ef], we: f ? [f.az, f.top, f.seed, bl] : ZERO, wf: [0.050 * cg * kc, 0.036 * cg * kc, 0.024 * cg * kc, W.cityOut], wg: [W.cloud[0] / 1500, W.cloud[1] / 1500, 1.3 * ks, 0] };
-    W.veilU = ks < 0.002 ? null : { a: [P.sig * ks * den, P.D, P.sky * ks * den, ks], b: [ov[0] * 1.12 + gnd[0] * 0.08, ov[1] * 1.12 + gnd[1] * 0.08, ov[2] * 1.12 + gnd[2] * 0.08, 0],
+    W.veilU = ks < 0.002 ? null : { a: [P.sig * ks * den * (1 + 1.6 * wet), P.D * (1 - 0.35 * wet), P.sky * ks * den, ks], b: [ov[0] * 1.12 + gnd[0] * 0.08, ov[1] * 1.12 + gnd[1] * 0.08, ov[2] * 1.12 + gnd[2] * 0.08, 0],
       c: [0.030 * cg * ks, 0.021 * cg * ks, 0.014 * cg * ks, 0], d: [fd[0], fd[1], fd[2], Ef * ks],
       e: [((W.off[0] % 1024) + 1024) % 1024, 0, ((W.off[2] % 1024) + 1024) % 1024, App.t % 1024] };
     W.share = ks * (P.flakes / 1.35) * lerp(0.8, 1, v);          // (11_dust.js holds the blizzard's count of flakes)

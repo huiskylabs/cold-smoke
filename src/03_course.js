@@ -686,7 +686,7 @@ const Course = ((vn1, vn2, h2U) => {
     const h1 = hashU(h0 + 0x51ed27);
     if ((h1 & 0xffff) / 65536 > d * 0.9) return out;
     const r2 = ((h1 >>> 16) & 0xff) / 255, r3 = (h1 >>> 24) / 255;
-    out.ok = true; out.x = x; out.z = z; out.h = (6.5 + 9.5 * r2 * r2 + 2.5 * r3) * (1 - 0.6 * _ridge) * Biome.height(-z); out.r = out.h * 0.17; out.variant = (h0 >>> 5) % 5; out.rot = r3 * TAU; out.seed = h1;
+    out.ok = true; out.x = x; out.z = z; out.h = (6.5 + 9.5 * r2 * r2 + 2.5 * r3) * (1 - 0.6 * _ridge) * Biome.height(-z) * Biome.stature(x, z, r2); out.r = out.h * 0.17; out.variant = (h0 >>> 5) % 5; out.rot = r3 * TAU; out.seed = h1;
     return out;
   };
   // closest-trunk query for collisions / AO (checks the 3x3 neighbourhood)
