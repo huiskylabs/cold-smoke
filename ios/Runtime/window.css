@@ -1,0 +1,247 @@
+html, body, #app, #view { background: transparent; }
+
+/* UIKit supplies the physical edge and the usable bar region in viewport points. */
+#app {
+  --bar-offset: max(10px, var(--bar-inset, 0px));
+  --bar-room: calc(var(--bar-offset) + 52px + 12px);
+  --title-left: var(--gl);
+  --title-right: var(--gr);
+}
+:root[data-bar-edge="right"] #app { --title-right: max(var(--gr), var(--bar-room)); }
+:root[data-bar-edge="left"] #app {
+  --title-left: max(var(--gl), var(--bar-room));
+  --gl: max(20px, var(--sl), var(--bar-room));
+}
+#bar {
+  z-index: 1;
+  padding: 4px;
+  gap: 0;
+  background: rgba(20, 26, 34, .80);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22), 0 2px 10px rgba(0, 0, 0, .13);
+}
+#bar button { width: 44px; height: 44px; opacity: 1; }
+#bar svg { width: 22px; height: 22px; stroke-width: 1.75; }
+#bar.on #mn { display: block; }
+:root:is([data-bar-edge="right"], [data-bar-edge="left"]) #bar {
+  flex-direction: column;
+  top: max(12px, calc(var(--bar-top) + 6px));
+}
+:root[data-bar-edge="right"] #bar { right: var(--bar-offset); }
+:root[data-bar-edge="left"] #bar { left: var(--bar-offset); right: auto; }
+#app.menuopen #bar.on { visibility: visible; opacity: 1; }
+#app.menuopen #snd { display: none; }
+#mn[aria-expanded="true"] svg { display: none; }
+#mn[aria-expanded="true"]::before, #mn[aria-expanded="true"]::after {
+  content: ""; display: block; width: 18px; height: 2px; margin: auto;
+  background: currentColor; border-radius: 1px; transform: translateY(1px) rotate(45deg);
+}
+#mn[aria-expanded="true"]::after { transform: translateY(-1px) rotate(-45deg); }
+#snd.mute { color: #e4e9ef; }
+#bar button:active { background-color: #47505b; }
+
+/* Keep the mountain and the wordmark full size. Give only the actions a bounded column. */
+#app #title {
+  padding-left: var(--title-left);
+  padding-right: var(--title-right);
+}
+#app #title .cta { width: min(100%, 320px); flex: none; }
+#app #title .act { display: grid; grid-template-columns: minmax(0, 1fr); width: 100%; gap: 10px; }
+#app #title #go {
+  min-width: 0; width: 100%; height: auto; min-height: 50px; padding: 11px 18px;
+  font: -apple-system-headline; color: #231b11; background: #ffcd83;
+  letter-spacing: normal; text-indent: 0; text-transform: none; box-shadow: none;
+}
+#title #go::after { content: none; }
+#title #go:active { background: #eab771; }
+#title .more {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px;
+  overflow: hidden; border-radius: 18px; isolation: isolate;
+  background: rgba(44, 51, 60, .88);
+  border: 1px solid rgba(255, 255, 255, .26);
+}
+#title .more button {
+  justify-content: flex-start; min-width: 44px; min-height: 48px; height: auto;
+  padding: 8px 12px; gap: 8px; border-radius: 0; border: none; box-shadow: none;
+  font: -apple-system-subheadline; text-indent: 0; letter-spacing: normal;
+  text-align: start; color: white; background: rgba(15, 21, 29, .74); backdrop-filter: none;
+}
+#title .more button.on { color: var(--sun); background-color: #37332e; }
+#title .more button:active { background-color: #47505b; }
+#title .more button[hidden] { display: none; }
+#title .more button:focus-visible { outline-offset: -3px; }
+#title .more svg { width: 19px; height: 19px; }
+#title .cta .fine, #title .cta .keys { display: none; }
+#app #title .how { font: -apple-system-footnote; letter-spacing: normal; text-wrap: balance; }
+#title.on .cta > * { transition-delay: 0s; }
+#app.wide #title { padding-left: max(var(--col), var(--title-left)); }
+#app.wide #title .cta { width: min(100%, 320px); }
+:root[data-fold="vertical"] #app #title {
+  right: calc(100% - var(--fold-start)); padding-left: var(--title-left); padding-right: 16px;
+}
+:root[data-fold="horizontal"] #app #title { justify-content: flex-start; }
+:root[data-fold="horizontal"] #app #title .cta {
+  position: absolute; top: calc(var(--fold-start) + var(--fold-gap) + 8px);
+  bottom: var(--gb); overflow-y: auto; touch-action: pan-y; pointer-events: auto;
+  width: min(320px, calc(100% - var(--title-left) - var(--title-right)));
+}
+@media (max-height: 520px) {
+  #app #title { gap: 12px; padding-top: var(--gt); padding-bottom: var(--gb); }
+  #app #title .mark .cn { font-size: 44px; }
+  #app #title .mark .rule, #app #title .tag, #app #title .how { display: none; }
+  #app #title .mark .en { margin-top: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #app #title *, #app #bar { transition: none; }
+}
+
+/* The slots provide geometry for UIKit. Preserve the jump charge ring outside its button. */
+.native-controls #app :is(#title, #bar, #menu, #pad, #photo) button { visibility: hidden !important; }
+.native-controls #app #jump.down::before { visibility: visible; }
+.native-controls #app #pad button { transform: none; }
+.native-controls #app #bar, .native-controls #app #more {
+  background: transparent; border: 0; box-shadow: none; backdrop-filter: none; overflow: visible;
+}
+.native-controls #app #bar { gap: 8px; padding: 0; }
+.native-controls #app.run { --hud-right: max(calc(var(--gr) - 6px), var(--sr), var(--xr)); }
+.native-controls[data-bar-edge="right"] #app.run { --hud-right: var(--bar-offset); }
+.native-controls[data-bar-edge="left"] #app.run { --hud-right: max(10px, var(--sr)); }
+.native-controls #app.run :is(#bar, #shoot) { left: auto; right: var(--hud-right); }
+.native-controls #app.run #bar {
+  top: max(calc(var(--gt) + 8px), calc(var(--bar-top, 0px) + 24px));
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+.native-controls #app #pad #shoot { top: 50%; transform: translateY(-50%); width: 48px; height: 48px; }
+@media (max-width: 560px), (max-height: 560px) {
+  .native-controls #app #pad #shoot { width: 44px; height: 44px; }
+}
+.native-controls #app #title .act { transform: none; }
+.native-controls #app #go { min-height: 54px; }
+.native-controls #app #more { gap: 8px; }
+.native-controls #app #more button { min-height: 46px; }
+.native-controls #app #menu nav button { padding-inline: 14px; font: -apple-system-subheadline; letter-spacing: normal; }
+.native-controls #app #menu nav #m-go { padding-inline: 26px; }
+.native-controls #app #menu .vrow { flex-wrap: wrap; }
+.native-controls #app:not(.wide) #hint {
+  bottom: calc(var(--gb) + 180px);
+  width: max-content; max-width: calc(100% - var(--gl) - var(--gr));
+  box-sizing: border-box; height: auto; min-height: 46px; padding-block: 6px;
+  white-space: normal; text-wrap: balance;
+}
+
+.native-controls #photo button { min-height: 44px; min-width: 44px; }
+.native-controls #photo {
+  --nav-size: 44px;
+  --nav-gap: 8px;
+  --rail-side: max(12px, var(--sr));
+  --rail-top: max(16px, var(--st));
+  --rail-bottom: max(12px, var(--sb));
+}
+.native-controls:is([data-bar-edge="right"], [data-bar-edge="left"]) #photo {
+  /* Use the bar region, not the safe area of the scene beside it. */
+  --rail-side: max(0px, calc(var(--photo-bar-axis) - 34px));
+  --rail-top: calc(var(--photo-bar-top) + 8px);
+  --rail-bottom: calc(var(--photo-bar-bottom) + 8px);
+}
+.native-controls #photo .ph-top {
+  /* Keep the viewfinder caption away from the rail. */
+  --side-inset: calc(10% - 22px);
+  left: max(20px, var(--sl), var(--side-inset));
+  right: calc(var(--rail-side) + 80px);
+  top: max(calc(var(--gt) + 8px), calc(10% - 22px));
+  container-type: inline-size;
+}
+.native-controls[data-control-layout="compact"][data-bar-edge="left"] #photo .ph-top {
+  left: calc(var(--rail-side) + 80px);
+  right: max(20px, var(--sr), var(--side-inset));
+  flex-direction: row-reverse;
+}
+.native-controls #photo .ph-rail {
+  position: absolute;
+  top: var(--rail-top); bottom: var(--rail-bottom); right: var(--rail-side); width: 68px;
+  display: grid; grid-template-rows: minmax(max-content, 1fr) auto 1fr;
+  justify-items: center; row-gap: 8px; pointer-events: none;
+}
+.native-controls[data-control-layout="compact"][data-bar-edge="left"] #photo .ph-rail { left: var(--rail-side); right: auto; }
+.native-controls #photo .ph-nav,
+.native-controls #photo .ph-r { display: flex; flex-direction: column; align-items: center; gap: var(--nav-gap); }
+.native-controls #photo .ph-nav { align-self: start; }
+.native-controls #photo .ph-r { margin: 0; }
+.native-controls[data-control-layout="compact"] #photo { --nav-size: 48px; --nav-gap: 12px; }
+.native-controls[data-control-layout="compact"] #photo .ph-r { gap: 0; }
+@media (max-height: 520px) {
+  .native-controls[data-control-layout="compact"] #photo { --nav-size: 44px; --nav-gap: 8px; }
+}
+.native-controls #photo .ph-side { position: static; transform: none; gap: clamp(8px, 2vh, 14px); }
+.native-controls #photo :is(#ph-back, #ph-reset, #ph-hide) {
+  box-sizing: border-box; width: var(--nav-size); height: var(--nav-size); flex: none; padding: 0; overflow: hidden;
+}
+/* On the inner display the top row and the shutter use separate vertical anchors. */
+.native-controls[data-control-layout="expanded"] #photo {
+  --nav-left: max(20px, var(--sl), calc(10% - var(--nav-size) / 2));
+  --nav-top: max(calc(var(--gt) + 8px), var(--rail-top), calc(10% - var(--nav-size) / 2));
+}
+.native-controls[data-control-layout="expanded"] #photo .ph-rail { inset: 0; width: auto; display: block; }
+.native-controls[data-control-layout="expanded"] #photo .ph-nav {
+  position: absolute; top: var(--nav-top); left: var(--nav-left);
+  right: calc(var(--rail-side) + (68px - var(--nav-size)) / 2);
+  flex-direction: row; justify-content: space-between;
+}
+.native-controls[data-control-layout="expanded"] #photo .ph-r { flex-direction: row; }
+.native-controls[data-control-layout="expanded"] #photo .ph-top {
+  top: var(--nav-top); left: calc(var(--nav-left) + var(--nav-size) + 14px);
+  min-height: var(--nav-size);
+}
+.native-controls[data-control-layout="expanded"] #photo .ph-side {
+  position: absolute; top: 50%; right: var(--rail-side); transform: translateY(-50%);
+}
+.native-controls #photo.bare .ph-rail { visibility: hidden; }
+@container (max-width: 370px) {
+  .native-controls #photo .ph-k { display: none; }
+}
+/* Size the action row to the photo so the two buttons sit below its corners. */
+.native-controls #ph-card.on {
+  display: grid; grid-template-columns: minmax(0, max-content);
+  place-content: center; justify-items: center;
+}
+.native-controls #ph-card img {
+  max-width: calc((var(--cw) - var(--gl) - var(--gr)) * .78);
+  max-height: calc(var(--ch) - var(--gt) - var(--gb) - 96px);
+}
+.native-controls #ph-card .ph-act { justify-self: stretch; justify-content: space-between; }
+.native-controls #ph-card button { box-sizing: border-box; width: 44px; height: 44px; padding: 0; }
+.native-controls #ph-card p { justify-self: stretch; contain: inline-size; text-align: center; }
+
+/* UIKit measures this slot in the same coordinate space as Jump and Tuck. */
+.native-controls #app #pad #vw {
+  --camera-margin: max(var(--gl), calc(var(--gr) + 166px));
+  left: 0; right: 0; bottom: var(--gb); margin-inline: auto;
+  width: min(392px, calc(100% - var(--camera-margin) - var(--camera-margin)));
+  height: 46px; pointer-events: none;
+}
+.native-controls #app:not(.wide) #pad #vw {
+  --camera-margin: max(var(--gl), var(--gr));
+  bottom: calc(var(--gb) + 120px);
+}
+
+/* Leave a separate touch row below the two thumb controls on the cover display. */
+.native-controls[data-control-layout="compact"] #app.run #pad {
+  --action-lift: clamp(38px, calc(var(--ch) * .09), 64px);
+  --picker-bottom: calc(max(var(--sb), var(--xb)) + 8px);
+}
+.native-controls[data-control-layout="compact"] #app.run #pad #vw {
+  bottom: var(--picker-bottom);
+}
+.native-controls[data-control-layout="compact"] #app.run #pad :is(#jump, #tuck) {
+  translate: 0 calc(0px - var(--action-lift));
+}
+@media (max-height: 520px) {
+  .native-controls[data-control-layout="compact"] #app.run #pad {
+    --action-lift: 38px;
+    --picker-bottom: max(4px, var(--sb), var(--xb));
+  }
+}
+
+/* SwiftUI supplies the pause interface. Keep the game and its live scenery underneath. */
+.native-controls #menu { visibility: hidden; pointer-events: none; }

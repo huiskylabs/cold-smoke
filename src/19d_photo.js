@@ -37,12 +37,14 @@ const Photo = self.Photo = (() => {
   }
 
   // ---- in and out
-  P.can = () => !P.on && typeof UI !== 'undefined' && UI.open && !UI.gone && !App.swapping && App.ready && !(App.gfx && App.gfx.lost) && !(typeof XR !== 'undefined' && XR.active);
+  P.can = () => !P.on && typeof UI !== 'undefined' && (UI.open || UI.state === 'run') && !UI.gone && !App.swapping && App.ready && !(App.gfx && App.gfx.lost) && !(typeof XR !== 'undefined' && XR.active);
   P.enter = function () {
     if (!P.can()) return false;
     if (!el) build();
+    const fromRun = !UI.open;
+    if (fromRun && !UI.pause()) return false;
     const c = Render.cam, F = typeof Fpv !== 'undefined' ? Fpv : null;
-    saved = { pos: c.pos.slice(), fwd: c.fwd.slice(), up: c.up.slice(), right: c.right.slice(), fovY: c.fovY, near: c.near, roll: c.roll,
+    saved = { fromRun, pos: c.pos.slice(), fwd: c.fwd.slice(), up: c.up.slice(), right: c.right.slice(), fovY: c.fovY, near: c.near, roll: c.roll,
       scale: Render.scale, blur: Render.motionBlur, fpv: F ? [F.vis, F.hideFig] : null };
     // (from inside the helmet, first person and the ski tips, the figure is drawn without its head and its own arms: here it is seen whole)
     if (F) { F.vis = false; F.hideFig = false; }
@@ -70,6 +72,7 @@ const Photo = self.Photo = (() => {
     try { redraw(); Render.computeGlobals(App.t, 0, App.state); } catch (e) { }
     el.app.classList.remove('photo'); el.root.setAttribute('aria-hidden', 'true');
     stickOff();
+    if (s?.fromRun && !document.hidden) UI.resume();
     if (App.redraw && App.paused) App.redraw();
   };
 
@@ -122,10 +125,16 @@ const Photo = self.Photo = (() => {
 
   // ---- the picture: the canvas read in the frame it was drawn in (WebGL keeps no buffer once the frame is shown, WebGPU hands it on)
   P.snap = function () { if (!P.on || busy) return; busy = true; want = true; };
-  function grab() {
+  async function grab() {
+    const session = saved;
     let url = null, cv = null;
-    try { const v = document.getElementById('view'); cv = document.createElement('canvas'); cv.width = v.width; cv.height = v.height; cv.getContext('2d').drawImage(v, 0, 0); }
-    catch (e) { console.warn('photo', e); busy = false; tell('没能拍下来'); return; }
+    try {
+      if (App.gfx.capturePhoto) cv = await App.gfx.capturePhoto();
+      else {
+        const v = document.getElementById('view'); cv = document.createElement('canvas'); cv.width = v.width; cv.height = v.height; cv.getContext('2d').drawImage(v, 0, 0);
+      }
+    } catch (e) { console.warn('photo', e); busy = false; if (saved === session) tell('没能拍下来'); return; }
+    if (saved !== session) { busy = false; return; }
     el.flash.classList.remove('on'); void el.flash.offsetWidth; el.flash.classList.add('on');
     P.shots++;
     const name = fileName();
@@ -135,7 +144,7 @@ const Photo = self.Photo = (() => {
       return;
     }
     cv.toBlob(b => {
-      busy = false; if (!b) { tell('没能拍下来'); return; }
+      busy = false; if (saved !== session) return; if (!b) { tell('没能拍下来'); return; }
       if (hand()) showShot(b, name);
       else { download(b, name); tell('已保存', name); }
     }, 'image/png');
@@ -162,6 +171,11 @@ const Photo = self.Photo = (() => {
   }
   async function saveShot() {
     if (!shot) return; const { b, name } = shot;
+    if (App.gfx.sharePhoto) {
+      try { if (await App.gfx.sharePhoto(b, name)) { closeShot(); tell('已保存'); } }
+      catch (e) { console.warn('share', e); tell('没能拍下来'); }
+      return;
+    }
     try {
       const f = new File([b], name, { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f] }); closeShot(); tell('已保存'); return; }

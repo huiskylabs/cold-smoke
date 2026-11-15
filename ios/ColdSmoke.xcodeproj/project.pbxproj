@@ -1,0 +1,423 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		BA153BC81101421FAF001010 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BA153BC81101421FAF001011 /* Assets.xcassets */; };
+		BA153BC81101421FAF001012 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = BA153BC81101421FAF001013 /* AppIcon.icon */; };
+		58BB12DC95ABDC35C21F44A7 /* MetalBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52FE7269C8F3E3B20A691B42 /* MetalBridge.swift */; };
+		A4C11EC07E4ED715DA580D22 /* ColdSmokeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF8F9555D064E876CFB42768 /* ColdSmokeApp.swift */; };
+		BA153BC81101421FAF001002 /* GameControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA153BC81101421FAF001001 /* GameControls.swift */; };
+		BB153BC81101421FAF001002 /* CameraPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB153BC81101421FAF001001 /* CameraPicker.swift */; };
+		BC153BC81101421FAF001002 /* PauseMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC153BC81101421FAF001001 /* PauseMenu.swift */; };
+		C0822653B1377A96137F49D9 /* GameController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB67DF8914546C3AB40E5E3 /* GameController.swift */; };
+		CBA91E8BA8D4DD95534D00CF /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D461D209A1DDCA0BD5133ED3 /* Foundation.framework */; };
+		CD0403B923EA2726C4EB086C /* MetalRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8DCAD455FCECEBC49E71319 /* MetalRenderer.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		BA153BC81101421FAF001011 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BA153BC81101421FAF001013 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
+		1904E29CB79C36DABEAE42C5 /* build-resources.sh */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.script.sh; path = "build-resources.sh"; sourceTree = "<group>"; };
+		1990F5D3B51DF8345608096A /* metal-gfx.js */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.javascript; path = "metal-gfx.js"; sourceTree = "<group>"; };
+		512443848E55130731A8E58A /* window.css */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.css; path = window.css; sourceTree = "<group>"; };
+		52FE7269C8F3E3B20A691B42 /* MetalBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetalBridge.swift; sourceTree = "<group>"; };
+		9F4EDDD2104E8467366ECEBF /* metal-shaders.js */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.javascript; path = "metal-shaders.js"; sourceTree = "<group>"; };
+		AF8F9555D064E876CFB42768 /* ColdSmokeApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ColdSmokeApp.swift; sourceTree = "<group>"; };
+		BA153BC81101421FAF001001 /* GameControls.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameControls.swift; sourceTree = "<group>"; };
+		BB153BC81101421FAF001001 /* CameraPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CameraPicker.swift; sourceTree = "<group>"; };
+		BC153BC81101421FAF001001 /* PauseMenu.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PauseMenu.swift; sourceTree = "<group>"; };
+		BA153BC81101421FAF001003 /* game-controls.js */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.javascript; path = "game-controls.js"; sourceTree = "<group>"; };
+		CBDB97E4BFF7FABAE3AA431C /* ColdSmoke.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ColdSmoke.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D461D209A1DDCA0BD5133ED3 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
+		D8DCAD455FCECEBC49E71319 /* MetalRenderer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MetalRenderer.swift; sourceTree = "<group>"; };
+		FAB67DF8914546C3AB40E5E3 /* GameController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameController.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		2EF88178DA1F47ED07A350D3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CBA91E8BA8D4DD95534D00CF /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		004D0A93755E8C1822F0C4EA /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				D461D209A1DDCA0BD5133ED3 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		29046016C52D4259837F6A23 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				BA153BC81101421FAF001011 /* Assets.xcassets */,
+				BA153BC81101421FAF001013 /* AppIcon.icon */,
+				AF8F9555D064E876CFB42768 /* ColdSmokeApp.swift */,
+				FAB67DF8914546C3AB40E5E3 /* GameController.swift */,
+				BA153BC81101421FAF001001 /* GameControls.swift */,
+				BB153BC81101421FAF001001 /* CameraPicker.swift */,
+				BC153BC81101421FAF001001 /* PauseMenu.swift */,
+				52FE7269C8F3E3B20A691B42 /* MetalBridge.swift */,
+				D8DCAD455FCECEBC49E71319 /* MetalRenderer.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		739C9BB66C09B59817E7699E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				CBDB97E4BFF7FABAE3AA431C /* ColdSmoke.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		85974D7CF1069E2143319AC1 /* Runtime */ = {
+			isa = PBXGroup;
+			children = (
+				1990F5D3B51DF8345608096A /* metal-gfx.js */,
+				BA153BC81101421FAF001003 /* game-controls.js */,
+				9F4EDDD2104E8467366ECEBF /* metal-shaders.js */,
+				512443848E55130731A8E58A /* window.css */,
+			);
+			path = Runtime;
+			sourceTree = "<group>";
+		};
+		A3561927B889D768A723696E /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				004D0A93755E8C1822F0C4EA /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		F6248CB3899F6BD6891D2181 = {
+			isa = PBXGroup;
+			children = (
+				739C9BB66C09B59817E7699E /* Products */,
+				A3561927B889D768A723696E /* Frameworks */,
+				29046016C52D4259837F6A23 /* App */,
+				85974D7CF1069E2143319AC1 /* Runtime */,
+				1904E29CB79C36DABEAE42C5 /* build-resources.sh */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		D4679796B92AA1FDE60B65CB /* ColdSmoke */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 00A5478124703B83E7483423 /* Build configuration list for PBXNativeTarget "ColdSmoke" */;
+			buildPhases = (
+				8BA335E088C2F47138DD27B0 /* Sources */,
+				2EF88178DA1F47ED07A350D3 /* Frameworks */,
+				C790B40E2DEE6A511CBA74D5 /* Resources */,
+				A370C4C31728EE9DD8E85E74 /* Bundle offline game */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ColdSmoke;
+			productName = ColdSmoke;
+			productReference = CBDB97E4BFF7FABAE3AA431C /* ColdSmoke.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		088C125F885BB3AC2AB1BB3F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					D4679796B92AA1FDE60B65CB = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = FEFF352FC374927F942C3E53 /* Build configuration list for PBXProject "ColdSmoke" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = F6248CB3899F6BD6891D2181;
+			productRefGroup = 739C9BB66C09B59817E7699E /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D4679796B92AA1FDE60B65CB /* ColdSmoke */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		C790B40E2DEE6A511CBA74D5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BA153BC81101421FAF001010 /* Assets.xcassets in Resources */,
+				BA153BC81101421FAF001012 /* AppIcon.icon in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A370C4C31728EE9DD8E85E74 /* Bundle offline game */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/build-resources.sh",
+				"$(SRCROOT)/../template.html",
+				"$(SRCROOT)/../src",
+				"$(SRCROOT)/Runtime",
+				"$(SRCROOT)/Runtime/game-controls.js",
+				"$(SRCROOT)/Runtime/metal-gfx.js",
+				"$(SRCROOT)/Runtime/metal-shaders.js",
+				"$(SRCROOT)/Runtime/window.css",
+				"$(SRCROOT)/../xhs/fonts",
+			);
+			name = "Bundle offline game";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Game",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/build-resources.sh\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Game\"";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8BA335E088C2F47138DD27B0 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A4C11EC07E4ED715DA580D22 /* ColdSmokeApp.swift in Sources */,
+				C0822653B1377A96137F49D9 /* GameController.swift in Sources */,
+				BA153BC81101421FAF001002 /* GameControls.swift in Sources */,
+				BB153BC81101421FAF001002 /* CameraPicker.swift in Sources */,
+				BC153BC81101421FAF001002 /* PauseMenu.swift in Sources */,
+				58BB12DC95ABDC35C21F44A7 /* MetalBridge.swift in Sources */,
+				CD0403B923EA2726C4EB086C /* MetalRenderer.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		72245CF7CEC8784ADC4D70B2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		7D0BD9B9157DBC54191E73F5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "雪迹";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "将拍摄的雪场照片存入相册。 Save your ski photos to your library.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Tilt your phone to steer the skier. 倾斜手机控制转向。";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = xyz.huisky.coldsmoke;
+				PRODUCT_NAME = ColdSmoke;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		9A35C340CA975FA249C64C66 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "雪迹";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "将拍摄的雪场照片存入相册。 Save your ski photos to your library.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Tilt your phone to steer the skier. 倾斜手机控制转向。";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = xyz.huisky.coldsmoke;
+				PRODUCT_NAME = ColdSmoke;
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		D66F0254368BDF23B5481139 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Owholemodule";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		00A5478124703B83E7483423 /* Build configuration list for PBXNativeTarget "ColdSmoke" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7D0BD9B9157DBC54191E73F5 /* Release */,
+				9A35C340CA975FA249C64C66 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FEFF352FC374927F942C3E53 /* Build configuration list for PBXProject "ColdSmoke" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				72245CF7CEC8784ADC4D70B2 /* Debug */,
+				D66F0254368BDF23B5481139 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 088C125F885BB3AC2AB1BB3F /* Project object */;
+}

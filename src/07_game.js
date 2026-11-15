@@ -260,7 +260,9 @@ const Game = (() => {
       if (sound && S.jT > 0) { S.popV = lerp(POP_V0, POP_V1, chgK(S.jT)) * (1 + 0.3 * sat((S.load / GRAV - 1.1) / 0.6)); S.popT = 0; }
       S.jOn = false; S.jT = 0;
     }
+    const previousCharge = S.charge;
     S.charge = S.jOn ? chgK(S.jT) : Math.max(0, S.charge - dt / 0.07);
+    if (previousCharge < 1 && S.charge === 1) G.onJumpCharged?.();
     let nPop = 0;
     if (S.popT >= 0) { const q = S.popT / POP_T, sq = Math.sin(PI * q); if (q >= 1 || !contact) { S.popT = -1; S.lift = contact; } else { nPop = S.popV * 2 / POP_T * sq * sq; S.popT += dt; } }
     // accelerate: one control. Slow, the skier double-poles, stroke after stroke (S.dp is the phase of the stroke: reach, plant at 0.22, drive

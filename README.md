@@ -57,6 +57,14 @@ What makes it unusual is what the repository **doesn't** contain:
 
 The **Immersive** button on the title page only appears in a browser that can open a headset (Safari on Apple Vision Pro). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#immersive-mode-apple-vision-pro).
 
+### iPhone Duo
+
+Open `ios/ColdSmoke.xcodeproj` with Xcode and the iOS 27.1 SDK or newer. Run the **ColdSmoke** scheme on an iPhone Duo simulator or signed device. The build bundles the local Web game and fonts for offline play.
+
+WKWebView runs the shared simulation and audio. The iOS graphics adapter sends the shared scene to Metal, and UIKit presents the game buttons with Liquid Glass on iOS 26 and later. The camera follows the native window as the phone folds. While skiing, tap the camera icon on the right to frame a shot. The shutter captures the Metal scene, **Save** opens the system share sheet, and **Back** resumes the run.
+
+The native pause menu keeps your selected page as the Duo opens or closes. Time and snowfall preview the current scene; **Mountain** holds run-changing actions, and **Preferences → Advanced** contains version comparisons.
+
 ### Run it locally
 
 You need [Node.js](https://nodejs.org) 18 or newer and a browser with WebGPU or WebGL2 (any recent Chrome, Edge, Safari or Firefox).
@@ -149,6 +157,14 @@ If you like it, a ⭐ helps other people find it.
 | 全部操作 | H | 菜单 | |
 
 标题页的「沉浸模式」按钮只在能打开头显的浏览器里出现（Apple Vision Pro 的 Safari）。
+
+### 在 iPhone Duo 上运行
+
+用带 iOS 27.1 或更新 SDK 的 Xcode 打开 `ios/ColdSmoke.xcodeproj`，选择 **ColdSmoke** 和 Duo 模拟器或已签名的真机，点运行。Xcode 会将当前 `src/`、界面和字体打进应用，可离线游玩。
+
+WKWebView 运行与 Web 版共用的滑行逻辑和声音，Metal 绘制雪场，UIKit 提供原生 Liquid Glass 游戏按钮。折叠时相机按窗口尺寸更新。滑行时点右侧的相机图标取景，按快门拍下雪场。点「保存」打开系统分享面板，点「返回」继续滑行。
+
+原生暂停菜单在展开与合上时保留当前页面。天色和降雪可以直接预览；「雪山」集中管理回到山顶和换山，「偏好设置 → 高级」中可以对比版本。
 
 ### 在本地运行
 
