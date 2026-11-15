@@ -47,7 +47,7 @@ const Sky = (() => {
         o.color = vec4f(c, 1.0); return o; }`,
     });
     pipeSky = gfx.pipeline({
-      name: 'sky', lib: [SL.common, SL.hash, SL.noise, SL.fog, NEBULA_SSL, vistaSSL(), CLOUDSEA_SSL, CIRRUS_SSL, NIGHT_SSL, AURORA_SSL, CONTRAIL_SSL, ANTISOLAR_SSL, weatherSkySSL()], buffers: [], varyings: { uv: 'vec2f' },
+      name: 'sky', lib: [SL.common, SL.hash, SL.noise, SL.fog, NEBULA_SSL, vistaSSL(), metroSSL(), CLOUDSEA_SSL, CIRRUS_SSL, NIGHT_SSL, AURORA_SSL, CONTRAIL_SSL, ANTISOLAR_SSL, weatherSkySSL()], buffers: [], varyings: { uv: 'vec2f' },
       uniforms: { au: 'vec4f', p: 'vec4f', nr: 'vec4f', nu: 'vec4f', nf: 'vec4f', sd: 'vec4f', mo: 'vec4f', hi: 'vec4f', fr: 'vec4f', pa: 'vec4f', pb: 'vec4f', pc: 'vec4f', cs: 'vec4f', ab: 'vec4f', ns: 'vec4f',
         wa: 'vec4f', wb: 'vec4f', wc: 'vec4f', wd: 'vec4f', we: 'vec4f', wf: 'vec4f', wg: 'vec4f' },
       textures: { tSky: '2d', tNebA: '2d', tNebB: '2d', tDetail: '2d', tFarA: '2d', tFarB: '2d', tCityA: '2d', tCityB: '2d', tCitySh: '2d', tSeaA: '2d', tSeaB: '2d' }, depthFunc: 'lequal', depthWrite: false, cull: 'none',
@@ -90,7 +90,8 @@ const Sky = (() => {
         col = overcast(d, mu, col);
         // beyond the mountain, nearest last: ranges on the horizon, the cloud deck, the city standing in it
         col = farRanges(d, col);
-        col = mix(col, cloudSea(d, mu, col), smoothstep(0.0, -0.006, d.y));
+        if (U.world.x > 0.5) { col += metroDome(d); col = mix(col, metroPlain(d, mu, col), smoothstep(0.0, -0.006, d.y)); }   // (不夜城: 16b_metro.js)
+        else { col = mix(col, cloudSea(d, mu, col), smoothstep(0.0, -0.006, d.y)); }
         { let cb: vec3f = col; col = mix(cityLayer(d, col), cb, M.wf.w); }      // (behind heavy snow only a shape of it: 05b_weather.js)
         // ...and nearer than all of it, a bolt of lightning
         col += bolt(d);
@@ -221,6 +222,8 @@ const Sky = (() => {
   Variants.def('aurora', '极光', [['a', '和星云轮流'], ['b', '随机'], ['c', '关']], 'b');
   S.auroraK = 0.35;
   S.show = function () {
+    // (over the endless city the sky is its own, deep blue and starry, as in the concept: no nebula, no aurora)
+    if (Variants.val.world === 'b') return 'none';
     const v = Variants.val.aurora; if (v === 'c') return 'nebula';
     const n = Math.floor((S.clock - S.times.day) / S.cycle), sd = typeof Course !== 'undefined' ? Course.seed % 9973 : 0;
     const h = (k) => { const q = Math.sin(k * 127.1 + 311.7) * 43758.5453; return q - Math.floor(q); };

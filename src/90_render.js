@@ -71,7 +71,7 @@ const Render = (() => {
     const sp = [sun[0] * 1e5, sun[1] * 1e5, sun[2] * 1e5], cw = vp[3] * sp[0] + vp[7] * sp[1] + vp[11] * sp[2];
     const sx = (vp[0] * sp[0] + vp[4] * sp[1] + vp[8] * sp[2]) / cw, sy = (vp[1] * sp[0] + vp[5] * sp[1] + vp[9] * sp[2]) / cw;
     G.set([sx * 0.5 + 0.5, 0.5 - sy * 0.5, cw > 0 ? 1 : 0, Sky.elev], GOFF.sunScr);
-    G.set([(state.dust != null ? state.dust : 1) * (1 - 0.6 * Sky.night), 1, 1, state.microShadow != null ? state.microShadow : 1], GOFF.fx); G.set([Sky.E * Sky.nd, time * 0.004, Sky.lights, Sky.stars], GOFF.skyP); G.set([Sky.twi[0], Sky.twi[1], Sky.twi[2], 0], GOFF.twi);
+    G.set([(state.dust != null ? state.dust : 1) * (1 - 0.6 * Sky.night), 1, 1, state.microShadow != null ? state.microShadow : 1], GOFF.fx); G.set([Sky.E * Sky.nd, time * 0.004, Sky.lights, Sky.stars], GOFF.skyP); G.set([Sky.twi[0], Sky.twi[1], Sky.twi[2], 0], GOFF.twi); G.set([typeof Metro !== 'undefined' && Metro.on() ? 1 : 0, 0, 0, 0], GOFF.world);
     // (w, the shutter the crystals streak by, thrown snow and the dust in the air alike: as much shorter as time runs slower, like the
     // picture's own (07c_feel.js). Left at full length in a jump's slow motion, every grain kept its streak while its motion shrank)
     G.set([state.focus || 7.5, 9, 44, (typeof Feel !== 'undefined' ? Feel.timeK : 1) / 800], GOFF.dof);

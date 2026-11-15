@@ -471,7 +471,7 @@ const Vista = (() => {
     // (the night's colour, 12_nebula.js NSKY: the lights calmer by night, half the searchlights out)
     const nk = NSKY.step(R.time), cs = lerp(1, nk[2], Sky.lights);
     const dome = i => { const k = 0.5 + 0.5 * Math.sin(t * (0.09 + 0.017 * i) + i * 2.1), a = DOME[i][0], b = DOME[i][1], s = 0.3 * CORES[i][3] / 1000; return [lerp(a[0], b[0], k) * s, lerp(a[1], b[1], k) * s, lerp(a[2], b[2], k) * s, 0]; };
-    if (gl > 0.001) gfx.draw(pipeGlow, { u: { p: [e, dk, gl, t], q: [0, V.glowEnc / 1.2 * L.deck, L.dome, 0], c0: dome(0), c1: dome(1), c2: dome(2), c3: dome(3), c4: dome(4) }, tex: { tDetail: Tex.detail, tCityZ: V.cityZ, tCityA: V.cityA, tCityB: V.cityB, tGlow: V.glowTex, tSeaB: Clouds.sea.B }, count: 4 });
+    if (gl > 0.001) gfx.draw(pipeGlow, { u: { p: [e, dk, gl, t], q: [0, typeof Metro !== 'undefined' && Metro.on() ? 0 : V.glowEnc / 1.2 * L.deck, L.dome, 0], c0: dome(0), c1: dome(1), c2: dome(2), c3: dome(3), c4: dome(4) }, tex: { tDetail: Tex.detail, tCityZ: V.cityZ, tCityA: V.cityA, tCityB: V.cityB, tGlow: V.glowTex, tSeaB: Clouds.sea.B }, count: 4 });
     if (V.nBeam && e < 0 && L.beam > 0) gfx.draw(pipeBeam, { u: { p, q: [L.beam * nk[4], cs, nk[3], 0] }, tex, vb: [V.beamBuf], count: 4, instances: V.nBeam });
     gfx.draw(pipeFace, { u: { p, q: [L.win, L.screen, L.strip, L.flood], r: [L.sign, L.dayWin, L.dayLed, L.dayFlood], s: [cs, 0, 0, 0] }, tex, vb: [V.faceBuf], count: 4, instances: V.nFace });
     gfx.draw(pipeSpot, { u: { p, q: [L.spot, L.glint, 0, 0] }, tex, vb: [V.spotBuf], count: 4, instances: V.nSpot });
@@ -611,6 +611,8 @@ fn deckA(p: vec2f, lod: f32) -> f32 { let q: f32 = texLod(tDetail, p / 17000.0, 
 // the deck swallows the lower floors: its billows stand at different heights, and wisps hang round the floors just above them. For a point
 // h metres above the deck's floor and dist metres off along d: x = how much of it shows, y = how much of what shows the wisps veil
 fn cityFeet(d: vec3f, dist: f32, h: f32) -> vec2f {
+  // (不夜城, 16b_metro.js: no deck, the towers stand on the ground)
+  if (U.world.x > 0.5) { return vec2f(smoothstep(-3.0, 3.0, h), 0.0); }
   let pp: vec2f = normalize(d.xz) * dist + vec2f(U.skyP.y * 9000.0, U.skyP.y * 2500.0);
   let wl: f32 = texLod(tDetail, pp / 900.0 + vec2f(0.11, 0.83) + h * 0.0011, 0.0).z;
   let top: f32 = min(deckA(pp, log2(max(dist * 2.0 * U.camRight.w * U.res.w / sqrt(max(-d.y, 0.02)) / 33.0, 1.0))), 1.0) * 260.0 + 40.0 * (wl - 0.42);
@@ -867,7 +869,7 @@ fn frag(v: VOut) -> FOut { var o: FOut; o.color = vec4f(0.0);
   let hl: f32 = max(length(d.xz), 1e-4); let dh: vec2f = d.xz / hl; let sl: f32 = d.y / hl;
   // tb: how far off the line of sight ends in the deck (roughly, to begin with)
   var col: vec3f = vec3f(0.0); var tb: f32 = 1e9; if (sl < -0.003) { tb = ${f(HP)} / -sl; }
-  if (d.y < -0.034 && d.y > -0.185) {
+  if (d.y < -0.034 && d.y > -0.185 && M.q.y > 0.0) {
     // ---- the deck, lit from below and by the walls that stand in it: the light lies where the line of sight meets the cloud that is
     // drawn there (the cloud sea's own panorama of distances, seaRange in 05_sky.js)
     let dy: f32 = -d.y;

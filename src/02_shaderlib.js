@@ -24,6 +24,7 @@ defineGlobals([
   ['twi', 'vec4f'],        // rgb light of the bright band of sky low on the sun's bearing (what lights a slope after sunset), w spare
   ['lamp', 'vec4f'],       // the skier's headlamp, lit after dark: xyz render-space position, w strength (0 = off)
   ['lampDir', 'vec4f'],    // xyz where it points, w 1: the trees' grain and the shafts' march offsets held still ('tgrain' b, 14_trees.js), 0: new every frame
+  ['world', 'vec4f'],     // x 1: the world below the mountain is the endless night city (16b_metro.js 不夜城), 0: the cloud sea
 ]);
 
 const SL = {};

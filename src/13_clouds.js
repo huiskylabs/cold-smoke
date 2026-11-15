@@ -123,6 +123,7 @@ const Clouds = (() => {
     gfx.endPass();
   }
   function bakeSea(tg, jb, f0, f1, all) {
+    if (typeof Metro !== 'undefined' && Metro.on()) return;                // (不夜城: no cloud sea to bake, 16b_metro.js)
     const r0 = Math.round(f0 * se.h), r1 = Math.round(f1 * se.h);
     gfx.beginPass(tg, all ? { color: [0, 0, 0, 0] } : {});
     if (r1 > r0) gfx.draw(pipeSea, { u: { r: [0, r0 / se.h, 1, r1 / se.h], t: [0, r0 / se.h, 1, r1 / se.h], p: [jb.phi, C.seaSigma, C.seaSilver, C.seaRate], l: [jb.L[0], jb.L[1], jb.L[2], C.seaKd],
