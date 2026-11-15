@@ -38,11 +38,12 @@ const Biome = (() => {
     if (!id) { let acc = 0; id = ORDER[ORDER.length - 1]; for (const n of ORDER) { acc += KINDS[n].w; if (r0 < acc) { id = n; break; } } }
     const K = KINDS[id];
     cur = Object.assign({ id, seed }, K, {
-      dens: K.dens * (0.78 + 0.44 * r()),
+      dens: K.dens * (0.92 + 0.25 * r()),
       line: K.line + (id === 'bare' ? 0 : 0.10 * (r() - 0.5)),
       rime: id === 'alps' ? 0 : clamp(K.rime * (0.75 + 0.5 * r()), 0, 1.15),
       load: K.load * (0.85 + 0.3 * r()),
-      wave: 2600 + 1800 * r(), phase: 0.15 * r(),
+      // (the run starts at or a little below the tree line, never on the bare tops: the owner found the first stretch far too thin)
+      wave: 2600 + 1800 * r(), phase: 0.16 + 0.10 * r(),
     });
     return cur;
   };
@@ -57,7 +58,7 @@ const Biome = (() => {
   // the course's tree density is multiplied by this: the kind's own thickness, and above the tree line only scattered stunted trees
   B.density = function (s) {
     const c = B.cur(); if (!c) return 1;
-    return c.dens * lerp(1, 0.22, B.above(s, c));
+    return c.dens * lerp(1, 0.5, B.above(s, c));
   };
   // and their height: stunted only right at and above the tree line (below it they stand full height)
   B.height = function (s) {
