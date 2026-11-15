@@ -749,7 +749,7 @@ const Trees = (() => {
       const gx = Course.treeDensity(x + 3.5, z) - Course.treeDensity(x - 3.5, z), gz = Course.treeDensity(x, z + 3.5) - Course.treeDensity(x, z - 3.5), gl = Math.hypot(gx, gz);
       const k = smooth(0.04, 0.35, gl);
       if (k > 0.02) {
-        const dx = -gx / gl, dz = -gz / gl, amt = (0.07 + 0.12 * r4) * k;
+        const dx = -gx / gl, dz = -gz / gl, amt = (0.11 + 0.15 * r4) * k;
         rot = Math.atan2(-dz, dx) + (r3 - 0.5) * 1.2 * (1 - k); lean = dx * amt; leanZ = dz * amt;
       }
       // (birches stand tall; the short ones are young saplings, slender and few-limbed by their size)

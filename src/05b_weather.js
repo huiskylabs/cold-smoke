@@ -68,7 +68,7 @@ const Weather = (() => {
   // stay under a grey sky with a little snow falling and the far wood fading into white, and the heavy ones are a soft snowfall, not a gale)
   W.target = function (id) {
     const wet = typeof Biome !== 'undefined' && Biome.cur() ? Biome.cur().wet : 0;
-    return id === 'heavy' ? 1 - 0.3 * wet : 0.6 * wet;
+    return id === 'heavy' ? 1 - 0.3 * wet : 0.75 * wet;
   };
   W.set = function (id, now) {
     if (!W.levels.some(l => l[0] === id)) return W.level;

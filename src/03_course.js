@@ -627,7 +627,7 @@ const Course = ((vn1, vn2, h2U) => {
   const _t = { x: 0, z: 0, h: 0, r: 0, variant: 0, rot: 0, ok: false }; let _ridge = 0;
   C.treeDensity = function (x, z) {
     const s = -z; if (s < -400) return 0; const c = at(s), u = x - c.cx, au = Math.abs(u), e = LV ? edgeE(s, u, au - c.hw, c.hw) : au - c.hw;
-    let d = 0;
+    let d = 0, laneD = 0;
     if (e > 3) {
       const patch = 0.55 + 0.45 * vnoise2(x / 70, z / 70, 21);
       // (the owner's choice 'biome': a birch wood comes right down to the run's edge, so the run is a lane between walls of trees)
@@ -653,6 +653,13 @@ const Course = ((vn1, vn2, h2U) => {
       const lane = 0.42 * c.hw * vnoise1(s / 150 + 2.3, C.seed + 9), isl = vnoise2(x / 30 + 7.1, z / 46, 26);
       const g = c.forest * smooth(0.50, 0.66, isl) * smooth(6, 11, Math.abs(u - lane)) * smooth(150, 230, s) * (1 - c.ridge);
       d = Math.max(d, g * 0.7 * C.isl);
+      // (the owner's choice 'biome': on a birch mountain, stretches of the run where the wood closes in from both sides and leaves one lane
+      // eight to fourteen metres wide winding down through it; the birches either side lean over it and their crowns meet overhead, the
+      // birch lane of the owner's photograph from Hakuba. Elsewhere the run is open as before)
+      if (Biome.wild()) {
+        const st = smooth(0.05, 0.3, vnoise1(s / 420 + 7.7, C.seed + 31)) * smooth(260, 340, s) * (1 - c.ridge) * (1 - smooth(0.3, 0.6, c.mog || 0));
+        if (st > 0.01) laneD = c.forest * st * 0.95 * smooth(4.0, 7.0, Math.abs(u - lane)) * (0.75 + 0.25 * smooth(-0.4, 0.2, isl));
+      }
     }
     // the ridge: wind-stunted spruce, plastered white, in loose groups along both edges of the crest (they are what goes by at speed up there)
     _ridge = c.ridge;
@@ -665,6 +672,8 @@ const Course = ((vn1, vn2, h2U) => {
     // (the owner's choice 'biome': what kind of mountain this seed grew, and how high up it the run is: above the tree line only a few
     // stunted trees stand. 03b_biome.js)
     if (d > 0) d *= Biome.density(s) * Biome.clump(x, z);
+    // (the walls of a birch lane are not broken up into stands: they are walls)
+    if (laneD > 0) d = Math.max(d, laneD * (LV && e < 14 ? clearAt(s, u) : 1) * Biome.density(s));
     return d;
   };
   C.treeInCell = function (ci, cj, out) {
