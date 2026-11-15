@@ -68,7 +68,7 @@ const Board = (() => {
       for (let it = 0; it < 3; it++) {
         hipL = v3.add(v3.mad(pel, pb.X, -L.hipW), v3.mul(pb.Y, -L.hipD)); hipR = v3.add(v3.mad(pel, pb.X, L.hipW), v3.mul(pb.Y, -L.hipD));
         const over = Math.max(v3.len(v3.sub(hipL, J.ankleL)), v3.len(v3.sub(hipR, J.ankleR))) - (L.thigh + L.shin) * 0.97;
-        if (over <= 0) break; pel = v3.mad(pel, v3.norm(v3.sub(aM, pel)), over + 0.002);
+        if (over <= -0.02) break; pel = v3.mad(pel, v3.norm(v3.sub(aM, pel)), over >= 0.02 ? over : (over + 0.02) * (over + 0.02) / 0.08);      // (given up softly)
       }
     }
     J.pelvis = pel; J.hipL = hipL; J.hipR = hipR;
