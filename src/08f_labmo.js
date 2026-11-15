@@ -57,5 +57,29 @@ const LabMo = (() => {
     out.clip = cw; out.v = v; out.s = st.s;
     return out;
   };
+  // ---- on a snowboard (Variants 'ride' b, 08a_board.js): the lab's board turn. Toe and heel turns are not mirror images, so each has its own
+  // table; everything is in the board solver's rider space (x toward the tail, y up, z toward the heel edge: the rider faces -z), and the figure
+  // is rolled about the board's length to the game's lean (+ = over the toes)
+  const outB = { w: 0, cref: 0.21, pel: [0, 0, 0], pb: null, t1: null, t2: null, hb: null, ua: [null, null], fa: [null, null] }, sb = { w: 0, s: 0, A: 0.35, prev: 0, cref: 0.21 };
+  M.stepB = function (p, sec, dt) {
+    const T = D.clips.sbturn; if (!T) return null;
+    const idle = sec.idle ? sec.idle.rest || 0 : 0, grab = Math.max(p.grabL || 0, p.grabR || 0);
+    const wT = on() ? (1 - Math.min(1, (p.air || 0) * 2.5)) * (1 - Math.min(1, (p.tuck || 0) * 1.6)) * (1 - Math.min(1, grab * 2)) * (1 - idle) : 0;
+    sb.w = dt > 0 ? sb.w + (wT - sb.w) * (1 - Math.exp(-dt * 6)) : wT;
+    const lean = p.lean || 0, a = Math.abs(lean);
+    if (dt > 0) { sb.A = Math.max(0.3, a, sb.A * Math.exp(-dt / 3)); const da = (a - sb.prev) / dt, sT = da < -0.04 ? 1 : da > 0.04 ? 0 : sb.s; sb.s += (sT - sb.s) * (1 - Math.exp(-dt * 5));
+      sb.cref += ((p.crouch == null ? 0.21 : p.crouch) - sb.cref) * (1 - Math.exp(-dt / 1.5)); }
+    else { sb.A = Math.max(0.3, a); sb.s = 0; sb.cref = p.crouch == null ? 0.21 : p.crouch; }
+    sb.prev = a;
+    if (sb.w < 1e-3) return null;
+    const tab = lean >= 0 ? T.toe : T.heel, v = a / sb.A, ri = row(tab.rise, v), fo = row(tab.fall, v), r = ri.map((q, k) => q + (fo[k] - q) * sb.s);
+    const V = i => [r[i], r[i + 1], r[i + 2]];
+    // (the lab's lean over the toes, + toward -z; the rest to the game's lean)
+    const c0 = Math.atan2(-r[2], r[1]), cr = lean - c0, cs = Math.cos(cr), sn = Math.sin(cr), R = q => [q[0], q[1] * cs + q[2] * sn, -q[1] * sn + q[2] * cs];
+    outB.w = sb.w; outB.cref = sb.cref; const pv = V(0); pv[0] *= 0.5; outB.pel = R(pv);      // (the lab's rider moves the hips 27 cm along the board through a turn, 12-16 cm toward the tail between turns: half of it here)
+    outB.pb = ortho(R(V(3)), R(V(6))); outB.t1 = ortho(R(V(9)), R(V(12))); outB.t2 = ortho(R(V(15)), R(V(18))); outB.hb = ortho(R(V(21)), R(V(24)));
+    outB.ua[0] = nrm(R(V(27))); outB.ua[1] = nrm(R(V(30))); outB.fa[0] = nrm(R(V(33))); outB.fa[1] = nrm(R(V(36)));
+    return outB;
+  };
   return M;
 })();

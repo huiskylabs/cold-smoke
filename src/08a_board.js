@@ -43,8 +43,11 @@ const Board = (() => {
     const hinge = 0.16 + 0.24 * c + (lean > 0 ? 0.50 * lean : 0.42 * lean) + 0.55 * tuck + 0.25 * gM + (id ? id.up : 0);
     const up2 = Math.min(hinge * 1.08 + 0.05 - 0.035 * (id ? id.br : 0), 1.6), rollT = -0.10 * fa + (id ? id.sx : 0);
     const yawP = -0.28 + 0.25 * sep, yawC = -0.40 + 0.35 * sep + (id ? id.ty : 0);
-    const pb = basis(yawP, clamp(hinge * 0.55, -0.3, 0.9), -0.08 * fa);
-    const t1 = basis((yawP + yawC) * 0.5, hinge, rollT), t2 = basis(yawC, up2, rollT * 0.8);
+    let pb = basis(yawP, clamp(hinge * 0.55, -0.3, 0.9), -0.08 * fa);
+    let t1 = basis((yawP + yawC) * 0.5, hinge, rollT), t2 = basis(yawC, up2, rollT * 0.8);
+    // (人物动作 b, 08f_labmo.js: the lab's board turn sets the pelvis, the trunk, the head and the arms, faded in by lab.w; the board, the
+    // feet and the knees over the toes stay this solver's)
+    const LB = sec.labB; if (LB && LB.w > 0) { pb = LabMo.mixB(pb, LB.pb, LB.w); t1 = LabMo.mixB(t1, LB.t1, LB.w); t2 = LabMo.mixB(t2, LB.t2, LB.w); }
     const oC = v3.mul(t1.Y, L.spine), oN = v3.add(oC, v3.mul(t2.Y, L.chest));      // chest and neck from the pelvis
     // ---- pelvis: placed so that the body's centre of mass sits on the line from the board's edge leaned over by the lean (toward the toes is
     // -z), and over the nose or the tail by fore/aft. Masses, roughly: legs 0.30 (half of it at the hips), pelvis 0.15, trunk 0.35 at the chest,
@@ -59,6 +62,15 @@ const Board = (() => {
       const over = Math.max(v3.len(v3.sub(hipL, J.ankleL)), v3.len(v3.sub(hipR, J.ankleR))) - (L.thigh + L.shin) * 0.96;
       if (over <= -0.02) break; H -= (over >= 0.02 ? over : (over + 0.02) * (over + 0.02) / 0.08) * 1.1;
     }
+    if (LB && LB.w > 0) {
+      const lp = v3.add(aM, v3.mul(LB.pel, LabMo.LEG)); lp[1] += -0.30 * (c - LB.cref); lp[0] += -0.07 * fa;
+      pel = v3.lerp(pel, lp, LB.w);
+      for (let it = 0; it < 3; it++) {
+        hipL = v3.add(v3.mad(pel, pb.X, -L.hipW), v3.mul(pb.Y, -L.hipD)); hipR = v3.add(v3.mad(pel, pb.X, L.hipW), v3.mul(pb.Y, -L.hipD));
+        const over = Math.max(v3.len(v3.sub(hipL, J.ankleL)), v3.len(v3.sub(hipR, J.ankleR))) - (L.thigh + L.shin) * 0.97;
+        if (over <= 0) break; pel = v3.mad(pel, v3.norm(v3.sub(aM, pel)), over + 0.002);
+      }
+    }
     J.pelvis = pel; J.hipL = hipL; J.hipR = hipR;
     // knees: over the toes of their own boot (the bindings are turned out, so the knees part a little)
     // (on the toes the whole leg leans out over the toe edge: the knee bends up off that line, not down toward the snow, or it reads as kneeling)
@@ -69,7 +81,8 @@ const Board = (() => {
     J.shL = v3.add(v3.mad(J.neck, t2.X, -L.shW), v3.mul(t2.Y, -L.shD)); J.shR = v3.add(v3.mad(J.neck, t2.X, L.shW), v3.mul(t2.Y, -L.shD));
     // head: eyes level, looking down the run over the front shoulder (more round toward the nose on the heels, more toward the toes on the toes)
     const yawH = -1.12 + 0.18 * ts - 0.15 * hs + (p.headYaw || 0) * 0.5 + (id ? id.hy : 0), hp = Math.max(0.10 + 0.08 * c + (id ? id.hp : 0), up2 - 1.0);
-    const hb = basis(yawH, hp, 0.04 * fa), nY = v3.norm(v3.add(t2.Y, hb.Y));
+    let hb = basis(yawH, hp, 0.04 * fa); if (LB && LB.w > 0) hb = LabMo.mixB(hb, LB.hb, LB.w);
+    const nY = v3.norm(v3.add(t2.Y, hb.Y));
     J.skull = v3.mad(J.neck, nY, L.neck); J.head = v3.add(v3.mad(J.skull, hb.Y, L.head), v3.mul(hb.Z, -0.015));
     // ---- hands: relaxed, the front one out toward the nose, the back one by the back hip; low and ahead on the toes, reaching forward on the
     // heels, wide in the air, in front of the knees in a tuck; a grab takes the toe edge
@@ -91,6 +104,9 @@ const Board = (() => {
       return { w: t, e, d: v3.norm(fr(hl, side * 0.1, -1, -0.35)) };
     };
     const hL = hand(-1, gL), hR = hand(1, gR);
+    if (LB && LB.w > 0) for (let k = 0; k < 2; k++) { const h = k ? hR : hL, sh = k ? J.shR : J.shL, wa = LB.w * (1 - gM);
+      const le = v3.mad(sh, LB.ua[k], L.uarm), lg = v3.mad(le, LB.fa[k], L.farm + L.grip);
+      const e = v3.mad(sh, v3.norm(v3.sub(v3.lerp(h.e, le, wa), sh)), L.uarm); h.w = v3.mad(e, v3.norm(v3.sub(v3.lerp(h.w, lg, wa), e)), L.farm + L.grip); h.e = e; }
     J.gripL = hL.w; J.elbowL = hL.e; J.gripR = hR.w; J.elbowR = hR.e; J.poleDL = hL.d; J.poleDR = hR.d;
     J.wristL = v3.mad(J.elbowL, v3.norm(v3.sub(J.gripL, J.elbowL)), L.farm); J.wristR = v3.mad(J.elbowR, v3.norm(v3.sub(J.gripR, J.elbowR)), L.farm);
     J.tipL = J.gripL.slice(); J.tipR = J.gripR.slice(); J.plantedL = 0; J.plantedR = 0;      // (no poles: nothing is ever planted)
