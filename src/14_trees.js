@@ -383,9 +383,15 @@ const TreeModel = (() => {
         tuftsAlong(P2, L2, [0.35, 0.7, 1.0], b.id, lv, up, 1);
       }
     }
+    // (the far cards are photographed in a fixed frame, 10.45 m from the foot: a crown that rose above it came out with its top cut flat.
+    // The whole tree is shrunk to stand inside it, the same for both levels; the instance's own height scales it back)
+    if (!(v in fitBroad)) { let ym = 0; for (let i = 1; i < V.length; i += 14) ym = Math.max(ym, V[i]); fitBroad[v] = Math.min(1, 10.1 / ym); }
+    const fs = fitBroad[v];
+    if (fs < 1) for (let i = 0; i < V.length; i += 14) { V[i] *= fs; V[i + 1] *= fs; V[i + 2] *= fs; }
     const nv = vo, ni = I.length;
-    return { V: Float32Array.from(V), I: Uint32Array.from(I), nv, ni, S };
+    return { V: Float32Array.from(V), I: Uint32Array.from(I), nv, ni, S, fit: fs };
   }
+  const fitBroad = {};
   // all kinds, both levels: [v][lod] = { V, I, nv, ni }, and the list of boughs of each kind
   M.buildAll = function () {
     if (!pillows) makePillows();
@@ -498,7 +504,8 @@ const Trees = (() => {
         let n1: vec4f = tex(tDetail, v.bp.xz * 0.23 + v.bp.yy * vec2f(0.17, 0.11) + 0.5);
         let n2: vec4f = tex(tDetail, v.bp.xy * 1.9 + v.bp.zz * vec2f(1.3, 1.7));
         let ln: f32 = snowLine(1.0);
-        if (treeCut(v.mat, v.tx, fw, ln + (n1.z - 0.5) * 0.03) < 0.5) { discard; }
+        // (a birch's twigs are photographed as they will be seen on the card, from afar: as clumps of rime with sky between them)
+        if (treeCut(v.mat, v.tx, select(fw, fw * 14.0, v.mat.x > 5.5), ln + (n1.z - 0.5) * 0.03) < 0.5) { discard; }
         var s: TreeS = treeSurface(v.mat, v.tx, N, n1, n2, ln, 1.0, 0.0, fw);
         if (M.m.z > 9.5 && v.mat.x > 2.5 && v.mat.x < 3.5 && v.mat.w > -0.5) { s.snow = max(s.snow, smoothstep(-0.25, 0.4, s.N.y + (n2.z - 0.5) * 0.5) * 0.92); s.bark = 1.0 - s.snow; }
         if (M.m.x < 0.5) { o.color = vec4f(dot(s.N, x) * 0.5 + 0.5, dot(s.N, y) * 0.5 + 0.5, saturate(0.5 + v.cl.z / ${(2 * DR).toFixed(2)}), 1.0); }
@@ -565,7 +572,7 @@ const Trees = (() => {
       vs: cardVS(true),
       fs: `fn frag(v: VOut) -> FOut { var o: FOut; o.color = vec4f(0.0);
         let k: f32 = select(v.vw.x, v.vw.y, v.vw.z > 0.5);
-        if (texLod(tA, vec2f((k + v.uv.x) / ${T.NK}.0, (v.vw.w + v.uv.y) / ${T.NV}.0), 1.0).a < 0.62) { discard; }
+        if (texLod(tA, vec2f((k + v.uv.x) / ${T.NK}.0, (v.vw.w + v.uv.y) / ${T.NV}.0), 1.0).a < select(0.62, 0.5, v.vw.w > 9.5)) { discard; }
         return o; }`,
     });
     // the photographs are cut-outs: grow each one's colours a few texels into the empty surround, so filtering at the outline never reads a
@@ -1310,6 +1317,10 @@ fn sprayAt(tx: vec4f, mat: vec4f) -> f32 {
 // (the owner's choice 'biome') a tuft of a broadleaf tree's twigs: they fan out from its root, each its own length, finer ones between,
 // and none quite straight. tx: metres along, metres across, the tuft's length. From afar, where a pixel holds many of them, a fixed scatter
 // of the sheet's texels, thinning toward the tuft's edge, so the crown reads as a haze of twigs
+fn rimeNoise(p: vec2f) -> f32 {
+  let i: vec2f = floor(p); let f: vec2f = p - i; let u: vec2f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash21(i), hash21(i + vec2f(1.0, 0.0)), u.x), mix(hash21(i + vec2f(0.0, 1.0)), hash21(i + vec2f(1.0, 1.0)), u.x), u.y);
+}
 fn rimeCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
   // (the more rime, the thicker every twig: the load comes back out of the snow line, see snowLine)
   let th: f32 = 1.0 + 1.4 * saturate(1.0 - (line - 0.022) / 0.14);
@@ -1324,7 +1335,12 @@ fn rimeCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
   let d2: f32 = abs(s2 - k2 - 0.5) * rr / 13.0;
   c = max(c, saturate((0.010 * th * (1.0 - 0.5 * e) - d2) / max(fw, 0.0005) + 0.5) * step(e, 0.35 + 0.6 * h2) * step(0.12, e));
   let ap: f32 = fw * 13.0 / rr;
-  let far: f32 = step(hash21(floor(tx.xy * vec2f(36.0, 36.0)) + vec2f(mat.w * 3.1, mat.w * 1.7)), (0.45 + 0.17 * th) * (1.0 - 0.7 * e * e));
+  // from afar (and in the photographs of the far cards) the twigs of a tuft merge into clumps of rime with sky between them, dense at the
+  // root, ragged toward the tips: a lace with holes big enough to outlast the far cards' smaller copies, never a solid cotton ball
+  let cs: vec2f = vec2f(mat.w * 3.1, mat.w * 1.7);
+  let cn: f32 = rimeNoise(tx.xy * 4.5 + cs) * 0.62 + rimeNoise(tx.xy * 10.0 + cs * 2.3) * 0.38;
+  let cw: f32 = clamp(fw * 5.0, 0.03, 0.10);
+  let far: f32 = smoothstep(-cw, cw, cn - (0.50 + 0.40 * e * e) + 0.05 * (th - 1.0));
   return mix(c, far, smoothstep(0.5, 1.4, ap / th));
 }
 fn twigCut(mat: vec4f, tx: vec4f, fw: f32, line: f32) -> f32 {
@@ -1510,7 +1526,10 @@ fn frag(v: VOut) -> FOut {
   // and it is taken a little soft (a band of the moving pattern), not as a hard cut
   let al: f32 = mix(a0.a, a1.a, w);
   // (version b of 'tgrain': the outline cut clean, at the middle of that band: a still grain along every far crown would crawl as the view moves)
-  if (al < 0.63 + 0.08 * mix(g, 0.5, U.lampDir.w) || (v.ex.z < 0.999 && g < 1.0 - v.ex.z) || g > kd || kd < 0.34) { discard; }
+  // (a birch's crown is a lace of twigs, not a solid: averaged down for a far tree its alpha sinks below a conifer's cut and the crown,
+  // then the thin stem, fell away in pieces. Its own cut sits lower, near where the outline's falling alpha begins)
+  let cut0: f32 = select(0.63 + 0.08 * mix(g, 0.5, U.lampDir.w), 0.47 + 0.05 * mix(g, 0.5, U.lampDir.w), v.vw.w > 9.5);
+  if (al < cut0 || (v.ex.z < 0.999 && g < 1.0 - v.ex.z) || g > kd || kd < 0.34) { discard; }
   let b: vec4f = mix(texLod(tB, uv0, v.ex.w), texLod(tB, uv1, v.ex.w), w);
   let nl: vec3f = normalize(mix(cardN(a0.xy, v.vw.x * KSTEP), cardN(a1.xy, v.vw.y * KSTEP), w));
   let N: vec3f = vec3f(nl.x * v.ex.x + nl.z * v.ex.y, nl.y, nl.z * v.ex.x - nl.x * v.ex.y);
