@@ -288,7 +288,9 @@ fn overcast(d: vec3f, mu: f32, colIn: vec3f) -> vec3f {
   // (kept true right at the sun, so the disc goes in and out with the light on the snow)
   let kc: f32 = M.wa.w;
   // (the edge is wide while the cloud is coming in, so the first of it arrives as soft torn stratus, never a slab with a hard rim)
-  let cov: f32 = smoothstep(1.05 - 1.35 * kc, 1.05 - 1.35 * kc + mix(0.75, 0.25, kc) * mix(2.2, 1.0, soft), n + 0.35 * kc);
+  // (and its edges are soft everywhere: a deck left partly open, as on the rime mountains' light overcast, had sharp-rimmed pale holes in it
+  // all over the sky like torn paper)
+  let cov: f32 = smoothstep(1.05 - 1.35 * kc, 1.05 - 1.35 * kc + mix(1.5, 0.6, kc) * mix(2.2, 1.0, soft), n + 0.35 * kc);
   let toSun: f32 = acos(clamp(mu, -1.0, 1.0));
   // (a tear, not a porthole: three times longer along the drift than across it, its edge torn at the scale of the cloud's own lumps)
   let el: f32 = asin(clamp(d.y, -1.0, 1.0));
@@ -298,11 +300,11 @@ fn overcast(d: vec3f, mu: f32, colIn: vec3f) -> vec3f {
   // tore the edge into horizontal slats)
   let ra: f32 = texLod(tDetail, vec2f(dz, el) * 1.9 + vec2f(0.29, 0.61) + M.wg.xy * 0.02, 0.0).z;
   let rb: f32 = texLod(tDetail, vec2f(dz, el) * 6.1 + vec2f(0.83, 0.17), 0.0).z;
-  let rag: f32 = ((ra - 0.5) * 1.3 + (rb - 0.5) * 0.6 + (n - 0.5) * 0.4) * M.wb.z * smoothstep(0.03, 0.15, toSun);
-  let hole: f32 = M.wb.w * smoothstep(M.wb.z + M.wc.w, M.wb.z - M.wc.w, length(lc) + rag);
+  let rag: f32 = ((ra - 0.5) * 1.3 + (rb - 0.5) * 0.25 + (n - 0.5) * 0.3) * M.wb.z * smoothstep(0.03, 0.15, toSun);
+  let hole: f32 = M.wb.w * smoothstep(M.wb.z + 2.5 * M.wc.w, M.wb.z - 2.0 * M.wc.w, length(lc) + rag);
   // (thickest in front of the sun itself unless a break is there: where the light on the snow says the sun is in, no disc shows through)
   // (and while snow falls there is snow in the break too: what shows through it is a hazed blue, never the deep clear sky)
-  let tau: f32 = max(cov * (5.5 + 8.0 * n + 7.0 * smoothstep(0.15, 0.03, toSun)) * (1.0 - hole), M.wg.z);
+  let tau: f32 = max(cov * cov * (5.5 + 8.0 * n + 7.0 * smoothstep(0.15, 0.03, toSun)) * (1.0 - hole), M.wg.z);
   // (thick cloud lets nothing of the sky above through, however bright: no stars, nebula or moon show through the overcast at night; only
   // where it thins toward a break does the sky come through, hazed)
   let T: f32 = exp(-tau - 2.0 * kc * max(tau - 2.0, 0.0));
@@ -322,7 +324,10 @@ fn overcast(d: vec3f, mu: f32, colIn: vec3f) -> vec3f {
   c += vec3f(0.78, 0.86, 1.0) * (M.wd.w * (0.7 + 2.6 * exp(-sq(wxAng(d, M.wd.xyz)) / 0.10)) * (0.6 + 0.8 * n));
   // (what shows through a break: the disc itself, but the sky's wide glare round it held to a few times the overcast, as the snow in the
   // break scatters it away; while the cloud is still coming in the clear sky's glare is left as it is)
-  let cin: vec3f = mix(colIn, mix(min(colIn, vec3f(luma(M.wa.rgb) * 4.0)), colIn, smoothstep(0.03, 0.008, toSun)), smoothstep(0.3, 0.8, kc));
+  // (and the clear sky's own clouds are not seen through it: their crisp outlines, greyed by the falling snow, hung in the overcast as
+  // dark paper cut-outs. Through snow only the sky's smooth light comes, and the disc)
+  let sm: vec3f = mix(colIn, skyLut(d), 0.85 * smoothstep(0.2, 0.6, kc) * smoothstep(0.008, 0.03, toSun));
+  let cin: vec3f = mix(sm, mix(min(sm, vec3f(luma(M.wa.rgb) * 4.0)), sm, smoothstep(0.03, 0.008, toSun)), smoothstep(0.3, 0.8, kc));
   return cin * T + c * (1.0 - T);
 }
 fn boltWalk(x: f32, s: f32) -> f32 { let i: f32 = floor(x); let fr: f32 = x - i; return mix(hash21(vec2f(i, s)), hash21(vec2f(i + 1.0, s)), fr) * 2.0 - 1.0; }

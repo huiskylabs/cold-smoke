@@ -24,6 +24,7 @@ const Biome = (() => {
   const ORDER = ['alps', 'japan', 'china', 'bare'];
   B.KINDS = KINDS; B.ORDER = ORDER;
   if (typeof Variants !== 'undefined') Variants.def('biome', '植被', [['a', '现在的'], ['b', '随种子'], ['c', '阿尔卑斯'], ['d', '岳桦雾凇'], ['e', '东北白桦'], ['f', '高山无树']], 'b');
+  if (typeof Variants !== 'undefined') Variants.def('haze', '林间雾', [['a', '原来的'], ['b', '林子里有雾']], 'b');
   const FORCE = { c: 'alps', d: 'japan', e: 'china', f: 'bare' };
   let key = '', cur = null;
   // what this seed grew (and its own turns of the knobs: every seed a little thicker or thinner, its tree line higher or lower, more or

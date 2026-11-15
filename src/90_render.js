@@ -62,6 +62,9 @@ const Render = (() => {
     G.set([...sun, Sky.milk], GOFF.sunDir); G.set([...Sky.sunCol, 260], GOFF.sunCol); G.set([...Sky.ambSky, Post.exposure], GOFF.ambSky); G.set([...Sky.ambGnd, state.drift != null ? state.drift : 1], GOFF.ambGnd);
     // haze: thin up here, pooling toward the cloud sea far below the camera
     G.set([state.fogDensity != null ? state.fogDensity : 0.00016, 1 / 900, e[1] - 700, 9000], GOFF.fogA);
+    // (the owner's choice 'haze' 林间雾, b: the air inside the wood, on every kind of mountain; 02_shaderlib.js applyWoodFog)
+    const wood = typeof Variants !== 'undefined' && Variants.val.haze === 'b';
+    G.set([wood ? (state.woodFog != null ? state.woodFog : 0.5) : 0, state.woodFogL || 120, 0, 0], GOFF.fogB);
     G.set([R.W, R.H, 1 / R.W, 1 / R.H], GOFF.res);
     G.set([((o[0] % 1024) + 1024) % 1024, ((o[1] % 1024) + 1024) % 1024, ((o[2] % 1024) + 1024) % 1024, R.frame], GOFF.origin);
     G.set([state.speed || 0, state.lean || 0, dt, R.shadowRange], GOFF.misc);

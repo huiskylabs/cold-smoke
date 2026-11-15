@@ -23,6 +23,7 @@ defineGlobals([
   ['sprayT', 'vec4f'],     // the thrown snow's sun-side depth map: x scale, yz offset (from shadow-map xy), w light depth of the skier
   ['twi', 'vec4f'],        // rgb light of the bright band of sky low on the sun's bearing (what lights a slope after sunset), w spare
   ['lamp', 'vec4f'],       // the skier's headlamp, lit after dark: xyz render-space position, w strength (0 = off)
+  ['fogB', 'vec4f'],       // the air inside the wood (trees only, 'haze' b): x how much at most, y over how many metres it builds, zw spare
   ['lampDir', 'vec4f'],    // xyz where it points, w 1: the trees' grain and the shafts' march offsets held still ('tgrain' b, 14_trees.js), 0: new every frame
 ]);
 
@@ -120,6 +121,21 @@ fn applyFog(col: vec3f, wp: vec3f) -> vec3f {
   let mu: f32 = dot(d, U.sunDir.xyz);
   fc += U.sunCol.rgb * (hg(mu, 0.72) * 0.55 + hg(mu, 0.2) * 0.15) * 0.25;
   return mix(col, fc, f);
+}
+// the air inside a wood: looking between the trunks the far ones stand behind the near ones in a pale haze, so the wood has depth and
+// cannot be seen through to the end. Only the trees take it: the open snow and the mountains far away stay as clear as they were.
+fn applyWoodFog(col: vec3f, wp: vec3f) -> vec3f {
+  let c: vec3f = applyFog(col, wp);
+  let v: vec3f = wp - U.camPos.xyz; let dist: f32 = length(v); let d: vec3f = v / max(dist, 1e-3);
+  let w: f32 = U.fogB.x * (1.0 - exp(-max(dist - 8.0, 0.0) / U.fogB.y));
+  if (w < 1e-3) { return c; }
+  let hd: vec3f = normalize(vec3f(d.x, max(d.y, -0.02) * 0.4 + 0.03, d.z));
+  var fc: vec3f = skyLut(hd) * 0.92 + U.ambGnd.rgb * 0.1;
+  // (a pale, faintly blue grey, brighter than the sky low down: the open sky's own blue turned dark green trees teal)
+  fc = vec3f(0.90, 0.94, 1.0) * (luma(fc) * 1.3);
+  let mu: f32 = dot(d, U.sunDir.xyz);
+  fc += U.sunCol.rgb * (hg(mu, 0.72) * 0.55 + hg(mu, 0.2) * 0.15) * 0.25;
+  return mix(c, fc, w);
 }
 `;
 

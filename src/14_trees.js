@@ -1531,7 +1531,7 @@ fn frag(v: VOut) -> FOut {
   }
   var col: vec3f = treeLight(s, V, sh);
   col += treeLamp(s, v.wp);
-  col = applyFog(col, v.wp);
+  col = applyWoodFog(col, v.wp);
   GHOST_OUT
   return o;
 }
@@ -1598,7 +1598,7 @@ fn frag(v: VOut) -> FOut {
   if (cover < 0.999) { sh = sh * mix(exp(-v.fx.w * pow(1.0 - hq, 1.5)), 1.0, cover); }
   var col: vec3f = treeLight(s, V, sh);
   col += treeLamp(s, wt);
-  col = applyFog(col, v.wp);
+  col = applyWoodFog(col, v.wp);
   o.color = vec4f(col, 1.0);
   return o;
 }
