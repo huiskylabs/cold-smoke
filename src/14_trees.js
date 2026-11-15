@@ -379,7 +379,7 @@ const TreeModel = (() => {
         const tw = (r1 - 0.5) * 1.4, c = Math.cos(tw), sn = Math.sin(tw);
         let ex = dx * c - dz * sn, ez = dx * sn + dz * c, ey = dy + up * (0.6 + 0.6 * r2);
         const lob = 0.5 + 0.5 * Math.sin(p[0] * 1.25 + lw[0]) * Math.sin(p[1] * 1.05 + lw[1]) * Math.sin(p[2] * 1.35 + lw[2]);
-        tuft(p[0], p[1], p[2], ex, ey, ez, Q.tuft * (0.7 + 0.6 * r3) * (0.6 + 0.4 * Math.sqrt(len)) * (0.75 + 0.5 * lob) * Q.tw, r2 * PI, id, lev0 + t * len);
+        tuft(p[0], p[1], p[2], ex, ey, ez, 0.62 * Q.tuft * (0.7 + 0.6 * r3) * (0.6 + 0.4 * Math.sqrt(len)) * (0.75 + 0.5 * lob) * Q.tw, r2 * PI, id, lev0 + t * len);
       }
     };
     const up = Q.hang < 0 ? 0.9 : -0.8;
@@ -408,7 +408,8 @@ const TreeModel = (() => {
         const P2 = (t, o) => { const r = t * L2; o[0] = x0 + r * dx + wx * Math.sin(PI * t) * L2; o[1] = y0 + r * dy - sag * r * r; o[2] = z0 + r * dz + wz * Math.sin(PI * t) * L2; };
         tube(P2, t => lerp(R2, R2 * 0.35, t), order === 1 ? (fine ? 4 : 2) : 2, order === 1 ? (fine ? 4 : 3) : 3, id, lv, lv + L2, false);
         if (order + 1 < deep) kids(P2, L2, R2, order + 1, id, lv, seed * 31 + j * 7 + 11);
-        else tuftsAlong(P2, L2, order + 1 < 3 ? [0.3, 0.5, 0.7, 0.85, 1.0] : [0.3, 0.55, 0.8, 1.0], id, lv, up, 1);
+        // (many small tufts, not a few big ones: a tuft a metre across is one flat fan, and read as a palm frond or a sheet of paper)
+        else tuftsAlong(P2, L2, order + 1 < 3 ? [0.22, 0.36, 0.5, 0.62, 0.74, 0.86, 1.0] : [0.25, 0.42, 0.58, 0.74, 0.88, 1.0], id, lv, up, 1);
       }
     }
     for (const b of B) {
