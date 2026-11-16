@@ -65,7 +65,16 @@ const Clouds = (() => {
     order = C.list.map((c, i) => i).sort((a, b) => C.list[a].el - C.list[b].el);     // the lower in the sky, the farther off: drawn first
   };
   // they ride the wind at their level: the nearer ones (higher in the picture) cross the sky faster; round behind you and in again
-  const azAt = (c, t) => { const a = c.az + C.wind * c.el * t; return ((a + 1.45) % 2.9 + 2.9) % 2.9 - 1.45; };
+  // (Variants 'vary' b: every mountain but the first has its own arrangement of the sky: the clouds turned round together by up to half a
+  // radian, the nebula moved along the sky (12_nebula.js). The sun, the moon and the city keep their bearings: everything the key light
+  // touches is built for that one bearing, and the city's is written into the sky shader. 寒烟山 keeps the sky it always had)
+  if (typeof Variants !== 'undefined') Variants.def('vary', '远景随山变', [['a', '不变'], ['b', '每座山不同']], 'a');
+  C.skyOf = function () {
+    if (typeof Variants === 'undefined' || Variants.val.vary !== 'b' || typeof Course === 'undefined' || !Course.seed || Course.seed === 261111) return [0, 0, 0];
+    const h = hashU(Course.seed * 7 + 31337);
+    return [((h & 1023) / 1023 - 0.5) * 1.0, (((h >>> 10) & 1023) / 1023) * 0.65 - 0.15, (((h >>> 20) & 1023) / 1023 - 0.5) * 0.08];      // [clouds, nebula azimuth, nebula height] (rad)
+  };
+  const azAt = (c, t) => { const a = c.az + C.skyOf()[0] + C.wind * c.el * t; return ((a + 1.45) % 2.9 + 2.9) % 2.9 - 1.45; };
   const rect = i => { const tx = i % COLS, ty = Math.floor(i / COLS); return [tx / COLS, ty / ROWS, (tx + 1) / COLS, (ty + 1) / ROWS]; };
   // The thermals that make a cloud: a broad low mound that stays, and bubbles that push up through it one after another, each in its own
   // stretch of the cloud: it swells and climbs, stands a while as a crisp turret, then loses its supply, leans with the wind and is eaten
