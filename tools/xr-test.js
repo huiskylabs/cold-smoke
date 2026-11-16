@@ -27,7 +27,7 @@ const check = (name, ok, info) => { console.log((ok ? 'ok   ' : 'FAIL ') + name 
   // (the build wraps everything in one function: the page's modules are reached through window.__ski.m, bound here by name)
   const ev = f => page.evaluate('(() => { const { App, XR, UI, Game, Input, Render, Quality } = __ski.m; return (' + f.toString() + ')(); })()'), wait = ms => page.waitForTimeout(ms);
   const trig = async (hand, v) => page.evaluate(`__xrdev.controllers.${hand}.updateButtonValue('trigger', ${v})`);
-  await page.goto('file://' + path.resolve(__dirname, '../dist/dev.html') + '?lang=zh&seed=7&gov=0');
+  await page.goto('file://' + path.resolve(__dirname, '../dist/dev.html') + '?dev&lang=zh&seed=7&gov=0');
   await page.waitForFunction(() => window.__ski && __ski.m.App.ready, null, { timeout: 1800000, polling: 1000 });
   const b = await ev(() => ({ ok: XR.ok, backend: App.gfx.caps.backend, button: !document.getElementById('xr').hidden }));
   check('the emulated headset is found, the page draws with WebGL2 and shows the button', b.ok && b.backend === 'webgl2' && b.button, b);

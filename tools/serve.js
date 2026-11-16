@@ -6,7 +6,8 @@ const root = path.resolve(__dirname, '..'), port = +process.argv[2] || 8080;
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.woff2': 'font/woff2', '.png': 'image/png', '.jpg': 'image/jpeg', '.gif': 'image/gif' };
 http.createServer((req, res) => {
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-  if (p === '/' || p === '/index.html') p = '/dist/dev.html';
+  // / and /index.html are the game. A path ending in /dev is the same page (the game then opens developer mode from the path).
+  if (p === '/' || p === '/index.html' || /(?:^|\/)dev\/?$/.test(p)) p = '/dist/dev.html';
   const f = path.join(root, path.normalize(p));
   if (!f.startsWith(root)) { res.writeHead(403); return res.end(); }
   fs.readFile(f, (err, data) => {

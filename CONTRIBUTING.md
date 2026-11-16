@@ -20,11 +20,11 @@ Frame-rate reports from real phones and laptops are especially useful.
 1. Fork, then `npm start` (builds and serves on <http://localhost:8080>).
 2. Edit `src/*.js` or `template.html`, run `node build.js`, reload.
 3. Keep the spirit of the project:
-   - **No asset files.** No images, audio, models or textures. Everything is generated in code. Fonts for the title are the one exception.
+   - **No asset files.** No images, audio, models or textures. Everything is generated in code. Fonts for the title are the one committed exception. The iOS and visionOS pictures (goggles, snow, and the jump and tuck symbols) are drawn by `node tools/generate-icons.js` and are not committed. `ios/build-resources.sh` runs that script, and Xcode runs the script before it compiles the asset catalog, so the App Store icon is on disk at build time. Node.js 18 or newer has to be on `PATH` for an Xcode build; the script also looks in Homebrew's usual locations.
    - **No runtime dependencies or bundler.** The game stays one HTML file built by `build.js`.
    - Plain modern JavaScript; files are concatenated in name order, so a new module goes where its number puts it.
    - Landscape only. Desktop browser first, phone in landscape second.
-4. Before changing how something looks, read the decisions in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). If you want to offer a different look or feel, add it as a `Variants` option (`src/00b_variants.js`) so it can be compared in the game's versions page.
+4. Before changing how something looks, read the decisions in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). If you want to offer a different look or feel, add it as a `Variants` option (`src/00b_variants.js`) so it can be compared on the versions page, which developer mode (`?dev`) opens.
 5. Check both renderers (default and `?backend=webgl2`) and both languages (`?lang=en`, `?lang=zh`). New UI text goes in `src/00a_i18n.js`.
 6. Open a pull request with a short description and, for visual changes, before and after screenshots.
 
@@ -46,10 +46,10 @@ Frame-rate reports from real phones and laptops are especially useful.
 1. Fork 之后 `npm start`（构建并在 <http://localhost:8080> 打开）。
 2. 改 `src/*.js` 或 `template.html`，跑 `node build.js`，刷新。
 3. 保持这个项目的原则：
-   - **不加素材文件。** 不要图片、音频、模型、贴图，一切用代码生成。标题字体是唯一的例外。
+   - **不加素材文件。** 不要图片、音频、模型、贴图，一切用代码生成。标题字体是唯一提交进仓库的例外。iOS 和 visionOS 的护目镜、雪地、起跳和加速图标由 `node tools/generate-icons.js` 绘制，不提交。`ios/build-resources.sh` 会先跑这个脚本，Xcode 也是在编译素材目录之前跑它，这样构建时 App Store 图标已经在磁盘上。用 Xcode 构建时 `PATH` 里要有 Node.js 18 或更新版本；脚本也会去 Homebrew 的常见目录里找。
    - **不加运行时依赖，不用打包工具。** 游戏始终是 `build.js` 拼出来的一个 HTML 文件。
    - 用普通的现代 JavaScript；文件按名字顺序拼接，新模块按编号放在合适的位置。
    - 只做横屏。电脑浏览器优先，其次是横着拿的手机。
-4. 改画面之前先读 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 里记下的取舍。想提供另一种画面或手感，可以加成一个 `Variants` 选项（`src/00b_variants.js`），这样能在游戏的版本页里对比。
+4. 改画面之前先读 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) 里记下的取舍。想提供另一种画面或手感，可以加成一个 `Variants` 选项（`src/00b_variants.js`），这样能在开发模式（`?dev`）的版本页里对比。
 5. 两种渲染（默认和 `?backend=webgl2`）和两种语言（`?lang=en`、`?lang=zh`）都看一下。新的界面文字加到 `src/00a_i18n.js`。
 6. 提 PR 时简单说明改了什么，画面相关的附上改前改后的截图。

@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------- boot, main loop, test hooks
 const App = { state: { speed: 0, lean: 0 }, ready: false, t: 0, lookYaw: null, lampTilt: 0.07 };
 const QS = new URLSearchParams(location.search);
-const DEV = QS.has('dev');
+// ?dev, or a path ending in /dev, is the test harness and the developer menu. The 小红书 build sets COLD_SMOKE.noDev and never opens it.
+const DEV = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (QS.has('dev') || /(?:^|\/)dev\/?$/.test(location.pathname));
 
 // Start-up runs in stages with a breath between them, so the loading page can show where it has got to
 async function boot(stage) {
@@ -13,19 +14,25 @@ async function boot(stage) {
   if (DEV) console.log('quality', Quality.tier, Quality.why, Quality.gpu);
   // a browser that can open a headset's immersive mode (Safari on Apple Vision Pro) is drawn with WebGL2 from the start: WebXR hands its
   // framebuffer to WebGL only, so that is the context that can later be taken into the headset without starting over (21_xr.js)
-  const xrOK = await XR.probe();
+  const xrOK = /*native{*/!self.COLD_SMOKE?.createGraphics && /*}native*/await XR.probe();
   let gfx = null; const want = QS.get('backend') || (gpuFellBack() || xrOK ? 'webgl2' : null);
-  if (want !== 'webgl2') { try { gfx = await createGPU(canvas, { offscreen: QS.has('offscreen') }); } catch (e) { console.warn('WebGPU init failed', e); gfx = null; } }
+  /*native{*/if (self.COLD_SMOKE?.createGraphics) gfx = await self.COLD_SMOKE.createGraphics(canvas);
+  else /*}native*/if (want !== 'webgl2') { try { gfx = await createGPU(canvas, { offscreen: QS.has('offscreen') }); } catch (e) { console.warn('WebGPU init failed', e); gfx = null; } }
   if (!gfx) gfx = createGL(canvas, { xr: xrOK });
   if (!gfx) throw new Error('这台设备的浏览器不支持 WebGL2，画面无法启动。');
   App.gfx = gfx;
   Course.forceType = QS.get('seg') || null; Course.classic = QS.has('classic');      // dev: a mountain made of one kind of run; the runs in the order the first mountain had them
-  Course.setSeed(seedInHash() || Math.floor(+QS.get('seed')) || (DEV ? Course.seed : App.randomSeed()));      // which mountain: see App.newMountain
+  Course.setSeed(DEV ? (seedInHash() || Math.floor(+QS.get('seed')) || Course.seed) : Course.seed);      // outside dev: always the home mountain (寒烟山)
   if (QS.get('tod')) { const q = QS.get('tod'); Sky.setClock(q in Sky.times ? Sky.times[q] : +q || 0); }
   await step(0.08, '磨雪');
   makeNoiseTextures(gfx); makeSnowTexture(gfx, Sky.az); Terrain.setSun(Sky.az);
   await step(0.20, '远山与城市');
-  { const t0 = performance.now(); Vista.init(gfx, { farW: +QS.get('vistares') || (gfx.caps.maxTex >= 4096 ? 3072 : 2048), cityW: +QS.get('cityres') || 1024, keep: DEV && QS.has('vistadbg') }); if (DEV) console.log('vista', Math.round(performance.now() - t0) + 'ms', JSON.stringify(Vista.stats)); }
+  {
+    const t0 = performance.now()/*native{*/, spatial = !!(self.COLD_SMOKE?.spatial && gfx.caps.maxTex >= 4096)/*}native*/;
+    Vista.init(gfx, { farW: +QS.get('vistares') || (/*native{*/spatial ? 4096 : /*}native*/gfx.caps.maxTex >= 4096 ? 3072 : 2048),
+      cityW: +QS.get('cityres') || (/*native{*/spatial ? 1536 : /*}native*/1024), keep: DEV && QS.has('vistadbg') });
+    if (DEV) console.log('vista', Math.round(performance.now() - t0) + 'ms', JSON.stringify(Vista.stats));
+  }
   await step(0.36, '立起天空');
   Render.init(gfx, canvas); Sky.init(gfx); Terrain.init(gfx); Post.init(gfx); Skier.init(gfx);
   await step(0.40, '林子里有鹿');
@@ -103,7 +110,7 @@ function tick(dt, draw) {
   // the day moves on while you ski (the title page stays in the afternoon)
   if (Game.mode === 'run' && Sky.rate !== 0) Sky.setClock(Sky.clock + dt * (Sky.rate || 1));
   Sky.updatePlane(App.t, dt, cp, Render.cam.fwd);
-  Weather.update(dt);                                                   // light or heavy snow: its clouds, wind, sun and lightning (05b_weather.js)
+  Weather.update(dt);                                                   // clear, light or heavy snow: its clouds, wind, sun and lightning (05b_weather.js)
   Feel.update(dt);                                                     // speed in the lens, snow on the glass, the air of this run (reads Game.events: keep above the loop that clears them)
   Render.computeGlobals(App.t, dt, st);
   for (const ev of Game.events) {
@@ -132,9 +139,11 @@ function loop(now) {
   requestAnimationFrame(loop);
   if (App.gfx && App.gfx.lost) { UI.lost(); return; }                    // the graphics device was taken away: the interface says so, and offers to start over
   if (!App.ready || App.paused || XR.active) { lastT = now; return; }       // (in the headset its own frames drive the game: 21_xr.js)
+  /*native{*/if (App.gfx.busy?.()) { lastT = now; return; }
+  /*}native*/
   const raw = (now - lastT) / 1000, dt = clamp(raw, 1 / 240, 1 / 20); lastT = now;
   if (App.photoFrame) { try { App.photoFrame(dt); } catch (e) { console.warn('photo', e); if (typeof Photo !== 'undefined') Photo.exit(); } return; }      // 拍照: the world stands still, only the lens moves (19d_photo.js)
-  try { tick(dt * App.resumeK, true); UI.frame(dt); govern(now, raw); } catch (e) { App.ready = false; reportError(e); }
+  try { tick(dt * App.resumeK, true); UI.frame(dt); govern(now, raw/*native{*/, App.gfx.gpuSeconds/*}native*/); } catch (e) { App.ready = false; reportError(e); }
 }
 function fit() {
   if (XR.active) return;                                                // (the headset sets the size of what is drawn while it is on)
@@ -148,7 +157,7 @@ function fit() {
 // 60 frames a second come first. If this machine cannot hold them at full sharpness the picture is drawn a little smaller and stretched,
 // and it goes back up when there is room again. If even that is not enough, the Quality level steps down (00c_quality.js; only while it is
 // on 自动) and the picture starts again at full size for that level; after a long while with room to spare it may step back up, once
-const Gov = { on: QS.get('gov') !== '0' && !QS.get('w'), acc: 0, n: 0, slow: 0, fast: 0, last: 0, downs: 0, t0: 0, calm: 0 };
+const Gov = { on: QS.get('gov') !== '0' && !QS.get('w'), acc: 0, /*native{*/work: 0, /*}native*/n: 0, slow: 0, fast: 0, last: 0, downs: 0, t0: 0, calm: 0 };
 function govern(now, raw) {
   if (!Gov.on || raw > 1) return;                                         // (a tab coming back to the front is not a slow frame)
   if (!Gov.t0) Gov.t0 = now; if (now - Gov.t0 < 3000) return;             // the first seconds are still compiling and warming up
@@ -163,6 +172,25 @@ function govern(now, raw) {
   if (avg < 1 / 57 && Render.scale >= 1) Gov.calm++; else Gov.calm = 0;
   if (Gov.calm >= 60 && Quality.ups < 1 && Quality.tier > 0 && now - Gov.last > 60000 && Quality.step(-1)) { Gov.calm = 0; Gov.fast = 0; Gov.last = now; App.applyQuality(); }
 }
+/*native{*/
+govern = function (now, raw, gpu) {
+  if (!Gov.on || raw > 1) return;
+  if (!Gov.t0) Gov.t0 = now; if (now - Gov.t0 < 3000) return;
+  const metal = gpu !== undefined;
+  if (metal && !(gpu > 0)) return; // no completed frame for this display yet
+  Gov.work += metal ? gpu : raw; Gov.acc += raw; Gov.n++; if (Gov.acc < 1) return;
+  const avg = Gov.acc / Gov.n, work = Gov.work / Gov.n; Gov.acc = Gov.work = Gov.n = 0;
+  const slow = metal ? work > 0.018 && avg > 1 / 50 : avg > 1 / 50;
+  const fast = metal ? work < 0.011 : avg < 1 / 57;
+  if (slow) { Gov.slow++; Gov.fast = 0; } else if (fast) { Gov.fast++; Gov.slow = 0; } else { Gov.slow = 0; Gov.fast = 0; }
+  const floor = Quality.L.floor;
+  if (Gov.slow >= 2 && Render.scale > floor) { Render.scale = Math.max(floor, Render.scale * (work > 1 / 36 ? 0.8 : 0.9)); Gov.slow = 0; Gov.downs++; Gov.last = now; fit(); }
+  else if (Gov.slow >= 2 && Quality.step(1)) { Render.scale = 1; Gov.slow = 0; Gov.fast = 0; Gov.downs = 0; Gov.calm = 0; Gov.last = now; App.applyQuality(); }
+  else if (Gov.fast >= 12 && Render.scale < 1 && (metal || Gov.downs < 5) && now - Gov.last > 20000) { Render.scale = Math.min(1, Render.scale * 1.08); Gov.fast = 0; Gov.last = now; fit(); }
+  if (fast && Render.scale >= 1) Gov.calm++; else Gov.calm = 0;
+  if (Gov.calm >= 60 && Quality.ups < 1 && Quality.tier > 0 && now - Gov.last > 60000 && Quality.step(-1)) { Gov.calm = 0; Gov.fast = 0; Gov.last = now; App.applyQuality(); }
+};
+/*}native*/
 // a Quality level into the modules that read it once (the rest read Quality.L as they draw). first: before anything is built
 App.applyQuality = function (first) {
   const L = Quality.L;
@@ -191,13 +219,14 @@ function reportError(e) {
   const el = document.getElementById('fatal'); if (el) { el.hidden = false; el.textContent = I18N.t(String(e && e.message ? e.message : e)); }
 }
 
-// ---- which mountain. A seed in the address names it: #seed-<n>, or ?seed=<n> (inside the frame the game is published in only a plain hash
-// survives). Otherwise every visit gets another one. The test harness (?dev) always gets the first mountain, the one seed 261111 makes:
-// its scripts aim at jumps they know.
-const seedInHash = () => { const h = location.hash || ''; if (/(?:^|[#&])(?:today|daily)(?:$|&)/.test(h)) return App.dailySeed(); const m = /(?:^|[#&])seed[-=](\d{1,12})/.exec(h); return m ? +m[1] : 0; };
-// ---- 今日之山: one mountain a day, the same for everyone who asks for it. The day is Beijing's (it turns at Beijing midnight, as the 小红书
-// boards count days: 16:00 UTC), and the mountain's number is that day hashed into six figures, so it needs no server and every phone agrees.
-// #today (or #daily) in the address is today's mountain, whatever day the link is opened; once there the address names it as #seed-<n>.
+// ---- which mountain. Outside dev the address cannot name one: play opens on the home seed (寒烟山, Course.seed). #seed-<n>, ?seed=,
+// #today and #daily are ignored, and nothing writes #seed- back into the address. A mountain in 滑过的山 is chosen from the registry, not
+// from a seed the player types. In dev a seed in the address names it: #seed-<n>, or ?seed=<n> (inside a frame only a plain hash survives).
+// The test harness asks for dev; its scripts aim at jumps they know on the home mountain.
+const seedInHash = () => { if (!DEV) return 0; const h = location.hash || ''; if (/(?:^|[#&])(?:today|daily)(?:$|&)/.test(h)) return App.dailySeed(); const m = /(?:^|[#&])seed[-=](\d{1,12})/.exec(h); return m ? +m[1] : 0; };
+// ---- 今日之山: one mountain a day, the same for everyone who asks for it. Dev only (normal play never asks for it). The day is Beijing's
+// (it turns at Beijing midnight, as the 小红书 boards count days: 16:00 UTC), and the mountain's number is that day hashed into six figures,
+// so it needs no server and every phone agrees. #today (or #daily) is today's mountain; once there the address names it as #seed-<n>.
 App.today = () => Math.floor((Date.now() + 8 * 3600e3) / 86400e3);
 App.dailySeed = (d = App.today()) => { let h = Math.imul(d ^ 0x2c1b3c6d, 0x297a2d39); h ^= h >>> 15; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16; return 100000 + (h >>> 0) % 900000; };
 App.isDaily = () => Course.seed === App.dailySeed();
@@ -224,7 +253,7 @@ App.swap = function (place, now = QS.has('manual')) {
 Variants.on((n, id, first) => { if (n === 'mogf' && !first) { const s0 = -Game.s.p[2]; App.swap(() => Game.reset(s0)); } });
 App.onTick.push(() => {
   const sw = App.swapping, t = performance.now(); if (!sw) return;
-  Gov.acc = Gov.n = Gov.slow = 0;                // (these frames say nothing about how fast this machine draws)
+  Gov.acc = /*native{*/Gov.work = /*}native*/Gov.n = Gov.slow = 0;                // (these frames say nothing about how fast this machine draws)
   if (!sw.lift) { if (Terrain.rebuildStep(24) && t - sw.t0 >= 230) sw.lift = 1; }      // drawn again from this frame on: the new place is on the screen before the veil thins
   else if (sw.lift === 1) { sw.lift = 2; sw.t0 = t; const veil = document.getElementById('veil'); if (veil) { veil.style.transition = 'opacity .65s ease-out'; veil.classList.add('lift'); } }
   else if (t - sw.t0 > 260) { App.swapping = null; if (sw.run && Game.mode === 'title') Game.start(); }      // the push-off is seen: it waits for the veil to thin
@@ -244,7 +273,7 @@ App.newMountain = function (seed, now) {
   for (const f of App.onMountain) f(Course.seed);
   return Course.seed;
 };
-addEventListener('hashchange', () => { const n = seedInHash(); if (App.ready && n && n !== Course.seed) App.newMountain(n); });
+addEventListener('hashchange', () => { if (!DEV) return; const n = seedInHash(); if (App.ready && n && n !== Course.seed) App.newMountain(n); });
 
 // ---- test API (used by the headless harness; harmless in production)
 window.__ski = {
@@ -305,7 +334,7 @@ window.__ski = {
     };
   },
   reset(s0) { Game.reset(s0); Game.mode = 'title'; },
-  // set the time of day: seconds into the 10-minute day, or a name (day, golden, sunset, dusk, night, dawn, sunrise)
+  // set the time of day: minutes from midnight on the 24-minute day, or a name (day, golden, sunset, dusk, night, dawn, sunrise)
   tod(t) { Sky.setClock(typeof t === 'string' ? Sky.times[t] : t); Sky.update(); Clouds.baked = false; Vista.shadowElev = -9; Vista.updateShadow(true); return +Sky.sunElev.toFixed(4); },
   game: () => Game, input: () => Input, app: () => App, ui: () => UI, i18n: () => I18N,
   get m() { return { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Skier, Tex, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Atmo, Deer, View, Variants, Weather, Grains, Quality, SnowLook, XR, UI }; },

@@ -1,0 +1,14 @@
+{
+  "layers": [
+    {
+      "filename": "Goggles.solidimagestacklayer"
+    },
+    {
+      "filename": "Snow.solidimagestacklayer"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}

@@ -83,7 +83,9 @@ fn vert(a: VIn) -> VOut {
     const dayK = typeof Sky !== 'undefined' ? 1 - smooth(0.2, 0.8, Sky.night || 0) : 1;
     if (sh > 0.001) { let id = 0; for (const L of D.heavy) { const n = Math.min(L.n, Math.ceil(L.n * (sh + 0.04) * Quality.L.dust)); gfx.draw(pipeF, { u: { p: [L.W, L.size, L.fall, id], q: [sh, L.shut, L.op, L.n], o: [o[0], o[1], o[2], dayK] }, tex: { tDepth: R.depth, tShadow: R.shadowTex }, count: 4, instances: n }); id += L.n; } }
     let id = 0;
-    for (const L of D.layers) { gfx.draw(pipe, { u: { p: [L.W, L.power, L.fall, id], o: [o[0], o[1], o[2], 0], w: ow }, tex: { tDepth: R.depth, tShadow: R.shadowTex }, count: 4, instances: Math.ceil(L.n * Quality.L.dust) }); id += L.n; }
+    // 晴 turns the diamond dust down with Weather.dust (小雪 is 1, the way a clear day always looked); 大雪 is the flakes above
+    const dustK = typeof Weather !== 'undefined' && Weather.dust != null ? Weather.dust : 1;
+    for (const L of D.layers) { const n = Math.round(L.n * Quality.L.dust * dustK); if (n > 0) gfx.draw(pipe, { u: { p: [L.W, L.power, L.fall, id], o: [o[0], o[1], o[2], 0], w: ow }, tex: { tDepth: R.depth, tShadow: R.shadowTex }, count: 4, instances: n }); id += L.n; }
   };
   return D;
 })();
@@ -190,7 +192,7 @@ fn frag(v: VOut) -> FOut {
   var o: FOut;
   let zf: f32 = linDepth(texFetchD(tDepth, vec2i(v.clip.xy), 0));
   let ndc: vec2f = vec2f(v.uv.x * 2.0 - 1.0, 1.0 - v.uv.y * 2.0);
-  let dv: vec3f = U.camFwd.xyz + U.camRight.xyz * (ndc.x * U.camRight.w * U.camUp.w) + U.camUp.xyz * (ndc.y * U.camRight.w);
+  let dv: vec3f = screenRay(ndc);
   let len: f32 = length(dv); let d: vec3f = dv / len; let r: f32 = zf * len;
   let sky: f32 = smoothstep(9000.0, 13000.0, zf);
   // it builds with distance and levels off (a snowfall is so many kilometres across, and the cloud it falls from is near overhead: looking up

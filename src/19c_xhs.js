@@ -120,7 +120,7 @@ const XHS = self.XHS = (() => {
     let fb = null; if (has('followAuthor')) { fb = btn('follow', '关注作者'); paintFollow(fb); }
     sec.appendChild(row);
     msg = node('p', 'note', ''); sec.appendChild(msg);
-    if (has('postNote')) sec.appendChild(node('p', 'note', T('把此刻的画面带进一篇笔记，速度、落差和山的编号会写在正文里，发之前都可以改。')));
+    if (has('postNote')) sec.appendChild(node('p', 'note', T('把此刻的画面带进一篇笔记，速度、落差和这座山会写在正文里，发之前都可以改。')));
     if (fb) sec.appendChild(node('p', 'note', T('喜欢这座山，可以关注做它的人，新的版本会先在主页发。')));
     if (fb && has('getFollowStatus')) mt.getFollowStatus().then(r => { followSt = r && typeof r.follow_status === 'number' ? r.follow_status : followSt; paintFollow(fb); }, () => { });
   };
@@ -156,8 +156,11 @@ const XHS = self.XHS = (() => {
       if (run.air > 1) f.push(en ? 'longest flight ' + run.air.toFixed(1) + ' m' : '最远飞行 ' + run.air.toFixed(1) + ' 米');
       if (f.length) out.push(f.join(' · '));
     }
-    const daily = seed && typeof App !== 'undefined' && App.isDaily && App.isDaily();
-    if (daily) out.push(en ? 'Today\'s mountain, ' + App.dayLabel(App.today(), true) + ' (no. ' + seed + '): the same one for everyone today' : '今日之山 · ' + App.dayLabel() + '（第 ' + seed + ' 号山），今天大家滑的都是这一座');
+    const mtn = seed && typeof Course !== 'undefined' && typeof Course.mountainBySeed === 'function' && Course.mountainBySeed(seed);
+    const named = mtn ? (en ? mtn.en : mtn.zh) : '';
+    const daily = !named && seed && typeof UI !== 'undefined' && UI.dev && typeof App !== 'undefined' && App.isDaily && App.isDaily();
+    if (named) out.push(named);
+    else if (daily) out.push(en ? 'Today\'s mountain, ' + App.dayLabel(App.today(), true) + ' (no. ' + seed + '): the same one for everyone today' : '今日之山 · ' + App.dayLabel() + '（第 ' + seed + ' 号山），今天大家滑的都是这一座');
     else if (seed) out.push(en ? 'Mountain no. ' + seed : '第 ' + seed + ' 号山');
     out.push(daily ? '#雪迹 #滑雪 #今日之山' : '#雪迹 #滑雪');
     return { title: en ? '雪迹 · Cold Smoke' : '雪迹 · 一个人，一座山', content: out.join('\n') };

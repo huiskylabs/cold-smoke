@@ -76,12 +76,14 @@ const Course = ((vn1, vn2, h2U) => {
   const CH = 2048, NF = 18;       // metres per cache chunk, fields per metre
   const F = { baseY: 0, cx: 1, hw: 2, dish: 3, shoulder: 4, gul: 5, gw: 6, goff: 7, roll: 8, mog: 9, forest: 10, glade: 11, powder: 12, ridge: 13, wall: 14, rtail: 15, tilt: 16, bank: 17 };
   const chunks = new Map();
+  // Adjacent terrain texels query the same nine tree cells for ambient occlusion.
+  const nearbyCells = new Array(64 * 64);
   let rng = RNG(C.seed), planned = 0, lastTypes = [], deck = [], pairs = [];
   let LV = null, trng = rng;      // the richer mountain: its level (TERR_LV) or null for the mountain as it was, and its own random stream
   // running integrals carried across chunks
   const integ = new Map();   // chunkIndex -> {baseY, rollPh, gPh} at chunk start
 
-  // ---- one number makes the mountain. C.seed is the number people see and pass round (1..999999). KEY is that number hashed, and every
+  // ---- one number makes the mountain. C.seed is that number (1..999999); outside dev it stays HOME (寒烟山). KEY is that number hashed, and every
   // random choice in this module hangs on it: the deck of runs (rng, toss), every noise field, every hash. For seed HOME the key is 0, which
   // leaves each of them exactly what it was when there was only one mountain: HOME (the test harness boots on it) is that mountain's ground
   // to the last bit, its runs in the order deal() gives them now; with C.classic set, in the order they had: the first mountain itself.
@@ -97,6 +99,7 @@ const Course = ((vn1, vn2, h2U) => {
     n = Math.floor(+n); if (n >= 1) C.seed = (n - 1) % 999999 + 1;
     KEY = hashU(C.seed) ^ hashU(HOME); KZ = Math.imul(KEY, 0x9e3779b1);
     C.segs = []; C.feats.clear(); chunks.clear(); integ.clear(); rng = RNG(FIRST ^ KEY); planned = 0; lastTypes = []; deck = []; pairs = [];
+    nearbyCells.fill(undefined);
     hand = []; dealt = []; toss = RNG(KEY + TOSS);
     const tv = typeof Variants !== 'undefined' ? Variants.val : {};
     C.lv = TERR_LV[tv.tdiff] ? tv.tdiff : 'b'; LV = tv.terr === 'b' ? TERR_LV[C.lv] : null; C.rich = !!LV; C.isl = LV ? LV.isl : 1;
@@ -105,6 +108,13 @@ const Course = ((vn1, vn2, h2U) => {
     return C.seed;
   };
   C.reset = C.setSeed;
+  // Official mountains (id, seed, Chinese name, English name). Play opens on the first, 寒烟山. `released` ones are offered in 滑过的山;
+  // a mountain the player has skied stays on their list too. A later mountain is another entry here.
+  C.mountains = [
+    { id: 'hanyan', seed: HOME, zh: '寒烟山', en: 'Mount Cold Smoke', released: true },
+  ];
+  C.mountainBySeed = n => { const s = n == null ? C.seed : Math.floor(+n) || 0; return C.mountains.find(q => q.seed === s) || null; };
+  C.mountainName = n => { const m = C.mountainBySeed(n); return m ? m.zh : ''; };
 
   // ---- the deal: which kind of run comes next. A deck holds every kind once and the two that bring speed and air, steeps and kickers,
   // twice. It is shuffled and played in that order, each time the first card that keeps the rules, and shuffled again if it will not go out:
@@ -675,10 +685,20 @@ const Course = ((vn1, vn2, h2U) => {
     return out;
   };
   // closest-trunk query for collisions / AO (checks the 3x3 neighbourhood)
+  function nearbyTree(ci, cj) {
+    const index = (cj & 63) * 64 + (ci & 63);
+    let cell = nearbyCells[index];
+    if (!cell || cell.ci !== ci || cell.cj !== cj) {
+      if (!cell) nearbyCells[index] = cell = {};
+      C.treeInCell(ci, cj, cell);
+      cell.ci = ci; cell.cj = cj;
+    }
+    return cell;
+  }
   C.nearTree = function (x, z, out) {
     const ci = Math.floor(x / TREE_CELL), cj = Math.floor(z / TREE_CELL); let best = 1e9; out.ok = false;
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
-      const t = C.treeInCell(ci + a, cj + b); if (!t.ok) continue;
+      const t = nearbyTree(ci + a, cj + b); if (!t.ok) continue;
       const d = Math.hypot(t.x - x, t.z - z); if (d < best) { best = d; out.ok = true; out.x = t.x; out.z = t.z; out.h = t.h; out.r = t.r; out.d = d; out.soft = false; }
     }
     // (the saplings that mark a jump: they bend and shed their snow, they do not stop anyone. soft = brushed, never hit)
