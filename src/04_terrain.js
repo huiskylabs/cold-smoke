@@ -843,13 +843,17 @@ fn frag(v: VOut) -> FOut {
     // (snr2) soft glints, as many to a pixel at any distance (fewer on the groomed run: its crystals are rounded). Where the cells grow
     // too small to show they go over into their mean, a fine sheen, instead of being cut off
     let dens: f32 = mix(1.0, 0.6, groom);
-    let gF: f32 = smoothstep(220.0, 22.0, dist);
+    // (the fine glints, M.sf.x: seen only to some 110 m, each one less bright and with a lower ceiling, so it stays a pinpoint after the bloom
+    // and the shutter instead of a disc four or five pixels wide; the sheen further off is twice as strong, so the slope toward the sun
+    // keeps its light where the glints give out)
+    let fg: f32 = M.sf.x;
+    let gF: f32 = mix(smoothstep(220.0, 22.0, dist), smoothstep(110.0, 14.0, dist), fg);
     if (gF > 0.0 && sh > 0.0 && rock < 1.0) {
       sp = mix(sparkSoft(wxz, c0, N, Hh, ja, jb, idet, 380.0), sparkSoft(wxz + vec2f(3.7, 9.1), c0 * 2.0, N, Hh, ja, jb, idet, 380.0), lf);
       if (loose > 0.05 && M.sg.w < 1.5) { sp += sparkSoft(wxz + vec2f(7.3, 1.9), c0 * 0.5, N, Hh, ja, jb, idet, 380.0) * (1.6 * loose); }
     }
-    let gl: vec3f = min(sp.rgb * (30.0 * U.fx.y * gF * dens * (1.0 - 0.7 * pol) * (1.0 + 1.5 * loose)), vec3f(7.0));
-    let sheen: f32 = 0.05 * U.fx.y * dens * (1.0 - gF) * smoothstep(600.0, 120.0, dist) * pow(saturate(dot(N, Hh)), 4.0);
+    let gl: vec3f = min(sp.rgb * (mix(30.0, 9.0, fg) * U.fx.y * gF * dens * (1.0 - 0.7 * pol) * (1.0 + 1.5 * loose)), vec3f(mix(7.0, 3.0, fg)));
+    let sheen: f32 = mix(0.05, 0.10, fg) * U.fx.y * dens * (1.0 - gF) * smoothstep(600.0, 120.0, dist) * pow(saturate(dot(N, Hh)), 4.0);
     col += U.sunCol.rgb * sh * (vec3f(spec) + gl + sheen) * (1.0 - rock);
   } else {
     if (spFade > 0.0 && sh > 0.0 && rock < 1.0) {
