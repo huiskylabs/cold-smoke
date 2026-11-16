@@ -81,7 +81,7 @@ const Course = ((vn1, vn2, h2U) => {
   // running integrals carried across chunks
   const integ = new Map();   // chunkIndex -> {baseY, rollPh, gPh} at chunk start
 
-  // ---- one number makes the mountain. C.seed is the number people see and pass round (1..999999). KEY is that number hashed, and every
+  // ---- one number makes the mountain. C.seed is that number (1..999999); outside dev it stays HOME (寒烟山). KEY is that number hashed, and every
   // random choice in this module hangs on it: the deck of runs (rng, toss), every noise field, every hash. For seed HOME the key is 0, which
   // leaves each of them exactly what it was when there was only one mountain: HOME (the test harness boots on it) is that mountain's ground
   // to the last bit, its runs in the order deal() gives them now; with C.classic set, in the order they had: the first mountain itself.
@@ -105,6 +105,13 @@ const Course = ((vn1, vn2, h2U) => {
     return C.seed;
   };
   C.reset = C.setSeed;
+  // Official mountains (id, seed, Chinese name, English name). Play opens on the first, 寒烟山. `released` ones are offered in 滑过的山;
+  // a mountain the player has skied stays on their list too. A later mountain is another entry here.
+  C.mountains = [
+    { id: 'hanyan', seed: HOME, zh: '寒烟山', en: 'Mount Cold Smoke', released: true },
+  ];
+  C.mountainBySeed = n => { const s = n == null ? C.seed : Math.floor(+n) || 0; return C.mountains.find(q => q.seed === s) || null; };
+  C.mountainName = n => { const m = C.mountainBySeed(n); return m ? m.zh : ''; };
 
   // ---- the deal: which kind of run comes next. A deck holds every kind once and the two that bring speed and air, steeps and kickers,
   // twice. It is shuffled and played in that order, each time the first card that keeps the rules, and shuffled again if it will not go out:

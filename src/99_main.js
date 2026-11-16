@@ -21,7 +21,7 @@ async function boot(stage) {
   if (!gfx) throw new Error('这台设备的浏览器不支持 WebGL2，画面无法启动。');
   App.gfx = gfx;
   Course.forceType = QS.get('seg') || null; Course.classic = QS.has('classic');      // dev: a mountain made of one kind of run; the runs in the order the first mountain had them
-  Course.setSeed(seedInHash() || Math.floor(+QS.get('seed')) || (DEV ? Course.seed : App.randomSeed()));      // which mountain: see App.newMountain
+  Course.setSeed(DEV ? (seedInHash() || Math.floor(+QS.get('seed')) || Course.seed) : Course.seed);      // outside dev: always the home mountain (寒烟山)
   if (QS.get('tod')) { const q = QS.get('tod'); Sky.setClock(q in Sky.times ? Sky.times[q] : +q || 0); }
   await step(0.08, '磨雪');
   makeNoiseTextures(gfx); makeSnowTexture(gfx, Sky.az); Terrain.setSun(Sky.az);
@@ -192,13 +192,14 @@ function reportError(e) {
   const el = document.getElementById('fatal'); if (el) { el.hidden = false; el.textContent = I18N.t(String(e && e.message ? e.message : e)); }
 }
 
-// ---- which mountain. A seed in the address names it: #seed-<n>, or ?seed=<n> (inside the frame the game is published in only a plain hash
-// survives). Otherwise every visit gets another one. The test harness (?dev) always gets the first mountain, the one seed 261111 makes:
-// its scripts aim at jumps they know.
-const seedInHash = () => { const h = location.hash || ''; if (/(?:^|[#&])(?:today|daily)(?:$|&)/.test(h)) return App.dailySeed(); const m = /(?:^|[#&])seed[-=](\d{1,12})/.exec(h); return m ? +m[1] : 0; };
-// ---- 今日之山: one mountain a day, the same for everyone who asks for it. The day is Beijing's (it turns at Beijing midnight, as the 小红书
-// boards count days: 16:00 UTC), and the mountain's number is that day hashed into six figures, so it needs no server and every phone agrees.
-// #today (or #daily) in the address is today's mountain, whatever day the link is opened; once there the address names it as #seed-<n>.
+// ---- which mountain. Outside dev the address cannot name one: play opens on the home seed (寒烟山, Course.seed). #seed-<n>, ?seed=,
+// #today and #daily are ignored, and nothing writes #seed- back into the address. A mountain in 滑过的山 is chosen from the registry, not
+// from a seed the player types. In dev a seed in the address names it: #seed-<n>, or ?seed=<n> (inside a frame only a plain hash survives).
+// The test harness asks for dev; its scripts aim at jumps they know on the home mountain.
+const seedInHash = () => { if (!DEV) return 0; const h = location.hash || ''; if (/(?:^|[#&])(?:today|daily)(?:$|&)/.test(h)) return App.dailySeed(); const m = /(?:^|[#&])seed[-=](\d{1,12})/.exec(h); return m ? +m[1] : 0; };
+// ---- 今日之山: one mountain a day, the same for everyone who asks for it. Dev only (normal play never asks for it). The day is Beijing's
+// (it turns at Beijing midnight, as the 小红书 boards count days: 16:00 UTC), and the mountain's number is that day hashed into six figures,
+// so it needs no server and every phone agrees. #today (or #daily) is today's mountain; once there the address names it as #seed-<n>.
 App.today = () => Math.floor((Date.now() + 8 * 3600e3) / 86400e3);
 App.dailySeed = (d = App.today()) => { let h = Math.imul(d ^ 0x2c1b3c6d, 0x297a2d39); h ^= h >>> 15; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16; return 100000 + (h >>> 0) % 900000; };
 App.isDaily = () => Course.seed === App.dailySeed();
@@ -245,7 +246,7 @@ App.newMountain = function (seed, now) {
   for (const f of App.onMountain) f(Course.seed);
   return Course.seed;
 };
-addEventListener('hashchange', () => { const n = seedInHash(); if (App.ready && n && n !== Course.seed) App.newMountain(n); });
+addEventListener('hashchange', () => { if (!DEV) return; const n = seedInHash(); if (App.ready && n && n !== Course.seed) App.newMountain(n); });
 
 // ---- test API (used by the headless harness; harmless in production)
 window.__ski = {

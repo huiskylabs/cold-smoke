@@ -15,7 +15,7 @@ const UI = (() => {
     el = { app: $('app'), veil: $('veil'), shade: $('shade'), load: $('load'), fill: $('load-fill'), stage: $('load-stage'), title: $('title'), go: $('go'), how: $('how'), hud: $('hud'),
       seg: $('seg'), segEn: $('seg-en'), segCn: $('seg-cn'), hint: $('hint'), hintT: $('hint-t'), spd: $('spd'), tach: $('tach'), drop: $('drop'), snd: $('snd'), fs: $('fs'),
       bar: $('bar'), mn: $('mn'), menu: $('menu'), nav: $('menu').querySelector('nav'), pane: $('mpane'), mk: $('m-k'), mGo: $('m-go'), mTop: $('m-top'), oSnd: $('o-snd'), oFs: $('o-fs'), oLang: $('o-lang'), oQ: $('o-q'),
-      time: $('sw-time'), kinds: $('sw-seg'), ev: $('sw-ev'), view: $('sw-view'), seed: $('sw-seed'), more: $('more'), drop2: $('drop2'), vw: $('vw'),
+      time: $('sw-time'), kinds: $('sw-seg'), ev: $('sw-ev'), view: $('sw-view'), seed: $('sw-seed'), skied: $('sw-skied'), more: $('more'), drop2: $('drop2'), vw: $('vw'),
       say: $('say'), sayK: $('say-k'), sayV: $('say-v'), cut: $('cut'), jump: $('jump'), tuck: $('tuck'),
       pause: $('pause'), pauseS: $('pause-s'), pauseT: $('pause-t'), steer: $('steer'), steerV: $('steer-v'),
       clk: $('clock'), clkT: $('clk-t'), clkS: $('clk-s'), clkG: $('clk-g') };
@@ -50,8 +50,8 @@ const UI = (() => {
       else if (e.code === 'KeyF') U.fullscreen();
       else if (U.state === 'title' || U.state === 'run') {
         const d = e.shiftKey ? -1 : 1;
-        if (e.code === 'KeyT') { if (U.dev) U.nextTime(d); } else if (e.code === 'KeyN') U.nextKind(d); else if (e.code === 'KeyG') { if (U.dev) U.animal(); } else if (e.code === 'KeyP') { if (U.dev) U.plane(); }
-        else if (e.code === 'KeyR') U.newMountain(); else if (e.code === 'Escape') U.menu(true);
+        if (e.code === 'KeyT') { if (U.dev) U.nextTime(d); } else if (e.code === 'KeyN' && U.dev) U.nextKind(d); else if (e.code === 'KeyG') { if (U.dev) U.animal(); } else if (e.code === 'KeyP') { if (U.dev) U.plane(); }
+        else if (e.code === 'KeyR' && U.dev) U.newMountain(); else if (e.code === 'Escape') U.menu(true);
         else if (e.code === 'KeyH') U.menu('keys'); else if (e.code === 'Backquote') { if (U.dev) U.menu('vers'); }
       }
     });
@@ -104,7 +104,7 @@ const UI = (() => {
     if (!el) return; U.state = 'title';
     el.load.classList.remove('on'); el.veil.classList.add('lift'); el.shade.classList.add('on'); el.title.classList.add('on'); el.snd.classList.add('on');
     if (!U.hh && fsAvail()) el.fs.classList.add('on');
-    el.bar.classList.add('on'); paint();
+    el.bar.classList.add('on'); paint(); sayMountain();
   };
   U.sound = function (on) { Sound.setOn(on); el.snd.classList.toggle('mute', !on); el.snd.setAttribute('aria-pressed', on ? 'true' : 'false'); if (U.open) paint(); };
   U.keepAwake = function () { try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(w => { wake = w; }, () => { }); } catch (e) { } };
@@ -219,7 +219,8 @@ const UI = (() => {
   // gathered on its clock in App.onTick (so the slow motion of a jump and the tests' fast-forward count them right); when they show, and for how
   // long, is the interface's, on real time. Only skiing counts: a change of place (a switch, another mountain) carries nothing across it, so a
   // switch never makes a result, and a stretch counts only if it was skied from its top (the gate, or where a switch sets the skier down).
-  // The bests of each kind last as long as the page (another mountain, the gate again: kept); the run so far starts again at 出发.
+  // The bests of each kind last as long as the page (another mountain, the gate again: kept); the run so far starts again at 出发, and again
+  // on another mountain, which keeps its own bests.
   const SP = U.sp = { cur: null, p: [0, 0, 0], seed: 0, air: false, to: null, best: {}, run: null, res: null, segT: -1, day: null, dayQ: null, days: 1, clock: null, nat: 0 };
   const JUMP_T = 0.75;          // s off the snow before a flight is a jump, not a hop off a bump (the slow motion of a jump takes hold from 0.6 s, whole at 1)
   const freshRun = () => ({ t: 0, dist: 0, drop: 0, v: 0, air: 0 });
@@ -227,8 +228,8 @@ const UI = (() => {
   const dayUp = () => !!SP.day && SP.day.t < 5;
   function initSplits() {
     el.split = $('split'); el.day = $('day'); el.dayK = $('day-k'); el.dayT = $('day-t'); el.dayF = $('day-f'); el.dayR = $('day-r');
-    SP.run = freshRun(); App.onTick.push(spTick); App.onTick.push(dbTick);
-    document.addEventListener('visibilitychange', () => { if (document.hidden) dbSave(true); });
+    SP.run = freshRun(); App.onTick.push(spTick); App.onTick.push(dbTick); App.onTick.push(mtnTick);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { dbSave(true); mtnSave(true); } });
   }
   // 出发: a new run (the bests of each kind stay)
   function newRun() {
@@ -270,8 +271,10 @@ const UI = (() => {
   // (a stretch counts from its top: from within its first 80 m, which takes in the gate at 14 m and where a switch sets the skier down)
   function spBegin() {
     const S = Game.s, s = -S.p[2], sg = Course.segAt(s);
+    const moved = SP.seed && SP.seed !== Course.seed;          // another mountain: the run so far is that mountain's, and starts again
     SP.cur = { idx: sg.idx, type: sg.type, whole: s - sg.s0 < 80, t: 0, v: 0, air: 0 };
     SP.p = S.p.slice(); SP.seed = Course.seed; SP.air = !!S.air; SP.to = null; SP.chain = null;
+    if (moved) SP.run = freshRun();
   }
   // a best is a figure shown higher than the best shown before for that kind of run (time is not compared: no two runs of a kind are the same length)
   function spFinish(c) {
@@ -352,11 +355,11 @@ const UI = (() => {
   }
 
   // ================================================================ the menu, and the direct switches
-  // What the mountain otherwise shows only to those who ski long enough can be asked for: the hour of the day, the weather, each kind of run,
-  // the animals and the airliner, the views, another mountain. All of it lives in one menu. In a run the menu is the pause: the world holds
+  // What the mountain otherwise shows only to those who ski long enough can be asked for: the views, and 滑过的山, the official mountains
+  // that are released or already skied on this device. All of it lives in one menu. Developer mode adds the hour, the weather, each kind of
+  // run, the animals and the airliner, a seed and today's mountain, and the versions. In a run the menu is the pause: the world holds
   // still where it is (Game.mode 'hold': nothing steps, but the picture is still drawn, so whatever is picked shows at once behind the shade).
-  // On the title page the same menu opens from the buttons beside 出发. While skiing the keys N R V do the same without it;
-  // T X G P and ` (the hour, the weather, an encounter, the versions) only in developer mode.
+  // On the title page the same menu opens from the buttons beside 出发. While skiing, V steps the view; N R T X G P and ` only in developer mode.
   // Everything the other modules own is reached through what they already expose, and read defensively: a part that is missing has no control.
   let ease = null, cut = null, back = null, pausedAt = 0, sayT = 0, swAcc = 0, faunaI = 0, evSig = null, hold = null, sec = 'view';
   const held = [], gy = { id: null, y: 0, on: false, over: false, neg: false };
@@ -399,7 +402,7 @@ const UI = (() => {
       if (b === el.mTop) { U.toTop(); return; }
       if (b.id === 'm-photo') { if (typeof Photo !== 'undefined') Photo.enter(); if (e.detail) b.blur(); return; }
       if (d.sec && b.parentNode === el.nav) { show(d.sec); return; }
-      if (d.time) U.setTime(d.time); else if (d.seg) U.gotoKind(d.seg); else if (d.view) U.setView(d.view); else if (d.new) U.newMountain(); else if (d.daily) U.daily();
+      if (d.time) U.setTime(d.time); else if (d.seg) U.gotoKind(d.seg); else if (d.view) U.setView(d.view); else if (d.mtn) U.pickMountain(d.mtn); else if (d.new) U.newMountain(); else if (d.daily) U.daily();
       else if ('animal' in d) { U.animal(d.animal); U.menu(false); } else if (d.plane) { U.plane(); U.menu(false); }
       else if (b === el.oSnd) U.sound(!Sound.on); else if (b === el.oFs) U.fullscreen(); else if (b === el.oLang) I18N.set(EN() ? 'zh' : 'en'); else if (b === el.oQ) { Quality.cycle(); paint(); }
       else if (d.vn) { const V = varMod(); if (V) try { V.set(d.vn, d.vid); } catch (err) { console.warn(err); } paint(); }
@@ -422,8 +425,8 @@ const UI = (() => {
       if (document.hidden) { letGo(); U.pause(); if (hold) App.paused = true; }          // (out of sight nothing is drawn at all)
       else if (App.paused && !U.gone) App.paused = false;
     });
-    // a mountain named in the address while the page is open (a link followed, the back button) is gone to as well
-    addEventListener('hashchange', () => { const m = /^#seed-(\d{1,9})$/.exec(location.hash); if (m && +m[1] !== Course.seed) U.newMountain(+m[1]); });
+    // a mountain named in the address while the page is open (a link followed, the back button) is gone to as well. Outside dev the address cannot name one.
+    addEventListener('hashchange', () => { if (!U.dev) return; const m = /^#seed-(\d{1,9})$/.exec(location.hash); if (m && +m[1] !== Course.seed) U.newMountain(+m[1]); });
     if (App.onMountain) App.onMountain.push(onMountain);          // (the page's own listener takes a link followed first: this hears of that change too)
   }
   // the two moves under the thumb. Each button keeps the finger that pressed it (captured: sliding off it neither lets go nor reaches the
@@ -438,7 +441,7 @@ const UI = (() => {
   }
   // which part of the menu is open
   function show(s) {
-    if (!U.dev && (s === 'sky' || s === 'ev' || s === 'vers')) s = 'view';
+    if (!U.dev && (s === 'sky' || s === 'ev' || s === 'vers' || s === 'seg')) s = 'view';
     if (!el.pane.querySelector('section[data-sec="' + s + '"]')) s = 'view'; sec = s;
     for (const b of el.nav.querySelectorAll('button[data-sec]')) b.classList.toggle('on', b.dataset.sec === s);
     for (const x of el.pane.children) x.classList.toggle('on', x.dataset.sec === s);
@@ -494,8 +497,8 @@ const UI = (() => {
     }
     for (const b of el.view.children) b.classList.toggle('on', b.dataset.view === Game.view);
     const mt = typeof App.newMountain === 'function'; el.nav.querySelector('[data-sec="mt"]').hidden = !mt;
-    if (mt) { const n = '#' + Course.seed; if (el.seed.textContent !== n) el.seed.textContent = n; }
-    paintDaily();
+    if (mt && el.seed) { const n = '#' + Course.seed; if (el.seed.textContent !== n) el.seed.textContent = n; }
+    paintDaily(); paintSkied();
     el.oSnd.textContent = T(Sound.on ? '声音 开' : '声音 关'); el.oSnd.classList.toggle('on', !!Sound.on); el.oSnd.setAttribute('aria-pressed', Sound.on ? 'true' : 'false');
     const fsOK = !U.hh && fsAvail(), full = !!document.fullscreenElement;
     el.oFs.hidden = !fsOK; el.oFs.classList.toggle('on', full); el.oFs.textContent = T(full ? '退出全屏' : '全屏');
@@ -656,7 +659,7 @@ const UI = (() => {
     return { s, x };
   }
   U.gotoKind = function (type) {
-    if (!live() || !SEG_TYPES[type]) return false;
+    if (!U.dev || !live() || !SEG_TYPES[type]) return false;
     const sg = nextOfKind(type); if (!sg) return false;
     if (!cutTo(() => {
       const run = Game.mode === 'run', at = standIn(sg);
@@ -667,28 +670,87 @@ const UI = (() => {
     if (U.state === 'title') say('路段', SEG_NAMES[type]);          // (in a run the name of the run comes up by itself)
     return true;
   };
-  U.nextKind = function (dir) { const ks = Object.keys(SEG_TYPES), i = ks.indexOf(Course.segAt(-Game.s.p[2]).type); return U.gotoKind(ks[(i + (dir || 1) + ks.length) % ks.length]); };
+  U.nextKind = function (dir) { if (!U.dev) return false; const ks = Object.keys(SEG_TYPES), i = ks.indexOf(Course.segAt(-Game.s.p[2]).type); return U.gotoKind(ks[(i + (dir || 1) + ks.length) % ks.length]); };
 
-  // ---- another mountain (the seeding itself is the course's: App.newMountain). The seed is written into the address as #seed-<n>
-  function reflect(n) { if (n == null) return; const h = '#seed-' + n; try { if (location.hash !== h) history.replaceState(null, '', h); } catch (e) { try { location.hash = h; } catch (_) { } } }
+  // ---- another mountain (the seeding itself is the course's: App.newMountain). In dev the seed is written into the address as #seed-<n>
+  function reflect(n) { if (!U.dev || n == null) return; const h = '#seed-' + n; try { if (location.hash !== h) history.replaceState(null, '', h); } catch (e) { try { location.hash = h; } catch (_) { } } }
   // The change is App.swap's own single transition: its veil closes over the last picture, the new mountain is made behind it, and it lifts
   // on the skier at the gate, pushing off again by itself if a run was on (no dip of ours on top of it: that showed the held picture between
   // the two). What follows a change, however it came (the key, the menu, a link followed), is onMountain's: App.onMountain calls it
   U.newMountain = function (seed) {
-    if (!live() || typeof App.newMountain !== 'function' || cut || App.swapping) return false;
+    if (!U.dev || !live() || typeof App.newMountain !== 'function' || cut || App.swapping) return false;
     try { App.newMountain(seed); } catch (e) { console.warn(e); return false; }
     return true;
   };
-  function onMountain(n) { settle(); reflect(n); if (isDaily()) say('今日之山', dayLabel()); else say('山', '#' + n); paintDaily(); if (U.open) paint(); }
+  function mtnWord(m) { return m ? (EN() ? m.en : m.zh) : ''; }
+  function sayMountain(n) {
+    const m = typeof Course.mountainBySeed === 'function' && Course.mountainBySeed(n);
+    if (m) say('山', mtnWord(m)); else if (isDaily()) say('今日之山', dayLabel()); else say('山', '#' + (n == null ? Course.seed : n));
+  }
+  function onMountain(n) { mtnSave(true); settle(); reflect(n); sayMountain(n); paintDaily(); if (U.open) paint(); }
 
-  // ---- 今日之山: today's mountain (App.dailySeed: the Beijing day hashed), one tap from the title page or the menu's 山. Everything else is
-  // the mountain's as always (the splits, the day card, the seed in the address). What it adds: the date beside the number, and this
-  // player's best on it today (the longest distance skied in one go from 出发, the top speed, the longest flight), kept in this browser
-  // until the day turns, so coming back to the same mountain later in the day has something to beat
-  const isDaily = () => typeof App.isDaily === 'function' && App.isDaily();
+  // a named mountain from 滑过的山 (only one the list is showing). The same mountain again just says its name.
+  U.pickMountain = function (id) {
+    const m = mtnListed().find(q => q.id === id);
+    if (!m || !live() || typeof App.newMountain !== 'function' || cut || App.swapping) return false;
+    if (Course.seed === m.seed) { sayMountain(m.seed); return true; }
+    try { App.newMountain(m.seed); } catch (e) { console.warn(e); return false; }
+    return true;
+  };
+
+  // ---- 滑过的山: every official mountain that is released, or that this player has skied, kept on this device with their bests there
+  // (the farthest in one go from 出发, the top speed, the longest flight). A later mountain is another entry in Course.mountains.
+  const MKEY = 'coldsmoke.skied';
+  let MB = null, mtnSaved = 0, mtnSig = '';
+  function mtnAll() {
+    if (MB) return MB; MB = {};
+    try { const o = JSON.parse(localStorage.getItem(MKEY) || 'null'); if (o && typeof o === 'object' && !Array.isArray(o)) MB = o; } catch (e) { }
+    return MB;
+  }
+  function mtnRec(all, id) { const b = all[id]; return b && typeof b === 'object' ? b : null; }
+  function mtnSave(force) { if (!MB) return; const t = performance.now(); if (!force && t - mtnSaved < 10000) return; mtnSaved = t; try { localStorage.setItem(MKEY, JSON.stringify(MB)); } catch (e) { } }
+  function mtnListed() { const all = mtnAll(), reg = (typeof Course !== 'undefined' && Course.mountains) || []; return reg.filter(m => m && m.id && (m.released || mtnRec(all, m.id))); }
+  function mtnFigs(b) {
+    if (!b) return ''; const dist = +b.dist || 0, v = +b.v || 0, air = +b.air || 0, f = [];
+    if (dist > 1) f.push(T('最远') + ' ' + (dist < 1000 ? Math.round(dist) + ' m' : (dist / 1000).toFixed(1) + ' km'));
+    if (v > 1) f.push(T('极速') + ' ' + Math.round(v * 3.6) + ' km/h');
+    if (air > 0) f.push(T('飞行') + ' ' + Math.round(air) + ' m');
+    return f.join(' · ');
+  }
+  function mtnTick() {
+    if (typeof Game === 'undefined' || Game.mode !== 'run' || !SP.run) return;
+    const m = typeof Course.mountainBySeed === 'function' && Course.mountainBySeed(); if (!m) return;
+    const all = mtnAll(); let b = mtnRec(all, m.id); if (!b) { b = { dist: 0, v: 0, air: 0 }; all[m.id] = b; }
+    const R = SP.run; let up = !b.skied; b.skied = 1;
+    if (R.dist > (+b.dist || 0)) { b.dist = R.dist; up = true; }
+    if (R.v > (+b.v || 0)) { b.v = R.v; up = true; }
+    if (R.air > (+b.air || 0)) { b.air = R.air; up = true; }
+    if (up) mtnSave(false);
+  }
+  function paintSkied() {
+    if (!el || !el.skied) return;
+    const list = mtnListed(), all = mtnAll();
+    const sig = (EN() ? 'en:' : 'zh:') + list.map(m => m.id + ':' + mtnWord(m) + ':' + mtnFigs(mtnRec(all, m.id))).join('|');
+    if (sig !== mtnSig) {
+      mtnSig = sig; el.skied.textContent = '';
+      for (const m of list) {
+        const row = document.createElement('div'), b = document.createElement('button'), p = document.createElement('p'), figs = mtnFigs(mtnRec(all, m.id));
+        b.type = 'button'; b.className = 'pill'; b.dataset.mtn = m.id; b.textContent = mtnWord(m);
+        p.className = 'daily'; p.textContent = figs || T('还没滑过');
+        row.appendChild(b); row.appendChild(p); el.skied.appendChild(row);
+      }
+    }
+    for (const b of el.skied.querySelectorAll('button')) { const m = list.find(q => q.id === b.dataset.mtn); b.classList.toggle('on', !!(m && Course.seed === m.seed)); }
+  }
+
+  // ---- 今日之山: today's mountain (App.dailySeed: the Beijing day hashed). Dev only, beside the other developer controls, so normal play
+  // never writes that race. In dev, one tap from the title page or the seed row. Everything else is the mountain's as always (the splits,
+  // the day card, the seed in the address). What it adds: the date beside the number, and this player's best on it today (the longest
+  // distance skied in one go from 出发, the top speed, the longest flight), kept in this browser until the day turns
+  const isDaily = () => !!U.dev && typeof App.isDaily === 'function' && App.isDaily();
   const dayLabel = () => App.dayLabel(App.today(), EN());
   U.daily = function () {
-    if (typeof App.dailySeed !== 'function') return false;
+    if (!U.dev || typeof App.dailySeed !== 'function') return false;
     if (isDaily()) { say('今日之山', dayLabel()); return true; }
     return U.newMountain(App.dailySeed());
   };

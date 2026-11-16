@@ -27,6 +27,8 @@ const Rank = self.Rank = (() => {
     { id: 'd3', name: '今日之山', boards: { day: 3 }, fmt: v => v.toFixed(1) + ' km/h' },
     { id: 'time', name: '滑雪时长', boards: { all: 5 }, fmt: mins },
   ];
+  // board 3 stays as it is on the server. The chip and the race are dev-only; normal play does not show or submit them.
+  const views = () => VIEWS.filter(v => v.id !== 'd3' || (typeof UI !== 'undefined' && UI.dev));
   const PERIODS = [['day', '今日'], ['week', '本周'], ['all', '总榜']];
   const FLUSH_EVERY = 30000, CACHE = 45000, KEY = 'coldsmoke.playtime';
   let mt = null, el = null, view = 'v', period = 'day', lastFlush = 0, cool = 0, flushing = null, sig = 0, saved = 0, last = '';
@@ -154,11 +156,12 @@ const Rank = self.Rank = (() => {
   }
   async function render() {
     if (!el || !R.on) return;
-    const my = ++sig, s = el.sec, bd = VIEWS.find(v => v.id === view); if (!(period in bd.boards)) period = PERIODS.find(([id]) => id in bd.boards)[0]; const board = bd.boards[period];
+    const list = views(); let bd = list.find(v => v.id === view); if (!bd) { view = list[0].id; bd = list[0]; }
+    const my = ++sig, s = el.sec; if (!(period in bd.boards)) period = PERIODS.find(([id]) => id in bd.boards)[0]; const board = bd.boards[period];
     s.textContent = '';
     s.appendChild(node('h4', null, T('RANKING · 排行榜')));
     const row1 = node('div', 'chips rk-b'), row2 = node('div', 'chips rk-p');
-    for (const v of VIEWS) { const x = node('button', v.id === view ? 'on' : '', T(v.name)); x.type = 'button'; x.dataset.rv = v.id; row1.appendChild(x); }
+    for (const v of list) { const x = node('button', v.id === view ? 'on' : '', T(v.name)); x.type = 'button'; x.dataset.rv = v.id; row1.appendChild(x); }
     for (const [id, name] of PERIODS) { if (!(id in bd.boards)) continue; const x = node('button', id === period ? 'on' : '', T(name)); x.type = 'button'; x.dataset.rp = id; row2.appendChild(x); }
     s.appendChild(row1); s.appendChild(row2);
     const me = node('p', 'rk-me', T('读取中…')); s.appendChild(me);
@@ -191,7 +194,7 @@ const Rank = self.Rank = (() => {
     try {
       await R.flush();
       const out = [];
-      for (const v of VIEWS) {
+      for (const v of views()) {
         const b = v.boards.day; if (!b) continue; const st = sent[b]; if (!st || st.per !== P.d) continue;
         const me = await call(mt.getMyRank, { board: b, period: 'day' });
         if (me && me.status === 'EXACT' && me.rank != null) out.push(T(v.name) + ' ' + (EN() ? '#' + me.rank : '第 ' + me.rank));
