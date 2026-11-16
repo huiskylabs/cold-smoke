@@ -140,7 +140,7 @@ function loop(now) {
   requestAnimationFrame(loop);
   if (App.gfx && App.gfx.lost) { UI.lost(); return; }                    // the graphics device was taken away: the interface says so, and offers to start over
   if (!App.ready || App.paused || XR.active) { lastT = now; return; }       // (in the headset its own frames drive the game: 21_xr.js)
-  if (App.gfx.busy?.()) return;
+  if (App.gfx.busy?.()) { lastT = now; return; }
   const raw = (now - lastT) / 1000, dt = clamp(raw, 1 / 240, 1 / 20); lastT = now;
   if (App.photoFrame) { try { App.photoFrame(dt); } catch (e) { console.warn('photo', e); if (typeof Photo !== 'undefined') Photo.exit(); } return; }      // 拍照: the world stands still, only the lens moves (19d_photo.js)
   try { tick(dt * App.resumeK, true); UI.frame(dt); govern(now, raw, App.gfx.gpuSeconds); } catch (e) { App.ready = false; reportError(e); }
