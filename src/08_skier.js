@@ -39,6 +39,14 @@ const Skier = (() => {
     };
     return { X: f([1, 0, 0]), Y: f([0, 1, 0]), Z: f([0, 0, 1]) };
   }
+  // a weight that hands one way of moving over to another, eased on a critically damped path (no overshoot) over about 2/w seconds, so the
+  // limbs it moves never change speed in a frame. Kept in sec per frame (sec.pfN): a second solve of the same frame starts from the same place
+  function ez(sec, key, x, w) {
+    const E = sec.ez || (sec.ez = {}), dt = sec.pfDt || 0; let q = E[key];
+    if (!q || !(dt > 0) || !(x === x)) { E[key] = { n: sec.pfN, b: [x, 0], o: [x, 0] }; return x; }
+    if (q.n !== sec.pfN) { q.b = q.o; q.n = sec.pfN; }
+    const d = q.b[0] - x, e = Math.exp(-w * dt), bb = (q.b[1] + w * d) * dt; q.o = [x + (d + bb) * e, (q.b[1] - w * bb) * e]; return q.o[0];
+  }
   function ik2(a, c, l1, l2, pole) {
     const d = v3.sub(c, a), L = v3.len(d) || 1e-6, Lc = clamp(L, Math.abs(l1 - l2) + 1e-4, l1 + l2 - 1e-4), dn = v3.mul(d, 1 / L);
     const x = (l1 * l1 - l2 * l2 + Lc * Lc) / (2 * Lc), h = Math.sqrt(Math.max(0, l1 * l1 - x * x));
@@ -110,7 +118,7 @@ const Skier = (() => {
     const lean = p.lean || 0, sl = Math.sin(lean), al = Math.abs(sl), edge = p.edge || 0, tuck = sat(p.tuck || 0), air = sat(p.air || 0);
     const stance = p.stance == null ? 0.31 : p.stance, lead = p.lead || 0, liftL = p.liftL || 0, liftR = p.liftR || 0, armL = p.armL || P0.armL, armR = p.armR || P0.armR;
     const gL = smooth(0, 1, p.grabL || 0), gR = smooth(0, 1, p.grabR || 0), gM = Math.max(gL, gR), gS = gR - gL;
-    const f = clamp(p.dp || 0, 0, 1), dpw = f > 0 ? (1 - smooth(0, 0.7, tuck)) * (1 - air) * (1 - gM) * (1 - smooth(0.14, 0.5, Math.abs(lean))) : 0;   // (nobody double-poles on one edge)
+    const f = clamp(p.dp || 0, 0, 1), dpw = ez(sec, 'dpw', f > 0 ? (1 - smooth(0, 0.7, tuck)) * (1 - air) * (1 - gM) * (1 - smooth(0.14, 0.5, Math.abs(lean))) : 0, 16);   // (nobody double-poles on one edge. Eased: a stroke begun or given up hands the arms over in a moment, never in a frame)
     const PL = LEN.pole, J = {}, F = new Array(K.NB);
     // standing at ease (see update): rest 0..1 with the pole tips set down at T (u: one lifted, to be set down afresh), up: the trunk more upright, br: a
     // breath drawn 0..1, sh: the weight on the left (-1) or right (+1) ski, hy, hp, ty: where head and shoulders are turned, sx: the body's slow sway
@@ -176,16 +184,22 @@ const Skier = (() => {
       if (hc > 1e-5 && R > 1e-5) { const t0 = Math.atan2(Cc, Bc), w = Math.acos(clamp(-A / (hc * R), -1, 1)), wrap = q => Math.atan2(Math.sin(q), Math.cos(q)), ta = wrap(t0 + w), tb = wrap(t0 - w);
         // (of the two places, the one nearer straight ahead; but where the two are nearly as near, as the edges change over, that choice could
         // flip back and forth and the knee jumped a few centimetres in a frame: the one it took last frame keeps it until the other is the nearer by a good margin (sec.pf, kept by update))
-        const kq = sec.pf ? sec.pf[side < 0 ? 0 : 1] : null; if (kq && kq.kn !== sec.pfN) { kq.kp = kq.ko; kq.kn = sec.pfN; }
+        const kq = sec.pf ? sec.pf[side < 0 ? 0 : 1] : null; if (kq && kq.kn !== sec.pfN) { kq.kp = kq.ko; kq.kvp = kq.kvo; kq.kn = sec.pfN; }
         let ca = Math.abs(ta), cb = Math.abs(tb); if (kq && kq.kp != null) { if (Math.abs(wrap(ta - kq.kp)) < Math.abs(wrap(tb - kq.kp))) ca -= 0.3; else cb -= 0.3; }
         th = ca < cb ? ta : tb;
         // (and the knee's swing about the line from hip to ankle (it keeps both bones their length) follows over a thirtieth of a second: where the
         // ski's edge and the leg's lean cross through flat together the answer moved unevenly from one frame to the next)
-        if (kq) { if (kq.kp != null && sec.pfDt > 0) th = kq.kp + wrap(th - kq.kp) * (1 - Math.exp(-sec.pfDt / 0.03)); kq.ko = th; }
+        if (kq) { if (kq.kp != null && sec.pfDt > 0) { const w = 30, h = sec.pfDt, d = -wrap(th - kq.kp), e = Math.exp(-w * h), vv = kq.kvp || 0, b = (vv + w * d) * h; th = th + (d + b) * e; kq.kvo = (vv - w * b) * e; } else kq.kvo = 0; kq.ko = th; }      // (2026-11-15: critically damped, so its speed never jumps either)
         // (but a leg flung out to the side (the spread eagle, the X) cannot keep its shin square in the boot: the nearest it can come put the knee out
         // sideways or right round behind, the thigh screwed round on itself by up to half a turn, and the cloth at the hip, hung between the pelvis and that
         // thigh, was wrung thin. Past what the boot can hold the knee goes back to bending over the ski's tip, the way a straight leg is carried in the air)
-        th0 = th; th *= 1 - smooth(0.5, 1.5, Math.abs(A) / (hc * R)); }
+        th0 = th; th *= ez(sec, 'kf' + side, 1 - smooth(0.5, 1.5, Math.abs(A) / (hc * R)), 20); }      // (eased: on a leg near straight this changes fast)
+      // (and the swing as drawn, whichever way it was found, eased once more the same way: a leg thrown wide in the air, or one that comes straight,
+      // can change which rule finds it, and the knee must not jump for that)
+      { const kq = sec.pf ? sec.pf[side < 0 ? 0 : 1] : null;
+        if (kq) { if (kq.fn !== sec.pfN) { kq.fp = kq.fo; kq.fvp = kq.fvo; kq.fn = sec.pfN; }
+          if (kq.fp != null && sec.pfDt > 0) { const wrap = q => Math.atan2(Math.sin(q), Math.cos(q)), w = 30, h = sec.pfDt, d = wrap(kq.fp - th), e = Math.exp(-w * h), vv = kq.fvp || 0, b = (vv + w * d) * h; th = th + (d + b) * e; kq.fvo = (vv - w * b) * e; }
+          else kq.fvo = 0; kq.fo = th; } }
       const kp = q => v3.add(v3.mad(ank, dn, x), v3.add(v3.mul(e1, hc * Math.cos(q)), v3.mul(e2, hc * Math.sin(q)))); J['kneeRaw' + (side < 0 ? 'L' : 'R')] = kp(th0 + (th - th0) * 0.15); return kp(th);
     };
     J.kneeL = knee(hipL, J.ankleL, fbL, -1); J.kneeR = knee(hipR, J.ankleR, fbR, 1);
@@ -377,8 +391,9 @@ const Skier = (() => {
     J.gripL = hL.w; J.elbowL = hL.e; J.gripR = hR.w; J.elbowR = hR.e; J.poleDL = hL.d; J.poleDR = hR.d;
     J.wristL = v3.mad(J.elbowL, v3.norm(v3.sub(J.gripL, J.elbowL)), LEN.farm); J.wristR = v3.mad(J.elbowR, v3.norm(v3.sub(J.gripR, J.elbowR)), LEN.farm);
     // (the lab's arms, except while a pole is being planted or held in the snow, or in a double-pole stroke: those are the game's own)
+    if (!(L && L.w > 0)) { ez(sec, 'wa0', 0, 18); ez(sec, 'wa1', 0, 18); }
     if (L && L.w > 0) for (let k = 0; k < 2; k++) { const sd = k ? 'R' : 'L', h = k ? hR : hL, side = k ? 1 : -1;
-      const wa = L.w * (1 - Math.max(sat((k ? p.plantR : p.plantL) * 1.5 || 0), sat(h.planted * 2))) * (1 - dpw); if (!(wa > 0)) continue;
+      const wa = ez(sec, 'wa' + k, L.w * (1 - Math.max(sat((k ? p.plantR : p.plantL) * 1.5 || 0), sat(h.planted * 2))) * (1 - dpw), 18); if (!(wa > 1e-4)) continue;      // (handed over eased, never in a frame)
       const sh = J['sh' + sd], le = v3.mad(sh, L.ua[k], LEN.uarm), lg = pushOut(v3.mad(le, L.fa[k], LEN.farm + LEN.grip), 0.045, side);
       const e = v3.mad(sh, v3.norm(v3.sub(v3.lerp(J['elbow' + sd], le, wa), sh)), LEN.uarm), g = v3.mad(e, v3.norm(v3.sub(v3.lerp(J['grip' + sd], lg, wa), e)), LEN.farm + LEN.grip);
       J['elbow' + sd] = e; J['grip' + sd] = g; h.e = e; h.w = g;
@@ -935,11 +950,17 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     const go = (key, x) => { const q = fl[key]; if (!(dt > 0) || !q || !(x === x)) { fl[key] = [x, 0]; return x; }
       const d = q[0] - x, b = (q[1] + w * d) * dt; q[0] = x + (d + b) * e; q[1] = (q[1] - w * b) * e; return q[0]; };
     for (const k of FLOW) if (typeof p[k] === 'number') p[k] = go(k, p[k]);
+    // (the stroke's phase too, where it turns back (a stroke given up before the tips went in): the hands slow and come back, they do not bounce.
+    // Not across the start of the next stroke, where the phase starts again from 0 by design, nor at the end of the last)
+    { const d = typeof p.dp === 'number' ? p.dp : 0, q = fl.dp;
+      if (!(dt > 0) || !q) fl.dp = [d, 0, d];
+      else if (d > q[2] || (d === q[2] && Math.abs(q[0] - d) < 1e-4) || d < q[2] - 0.5 || (d <= 0 && q[2] > 0.5) || (d <= 0 && q[0] <= 1e-3)) { q[1] = d >= q[2] && d - q[2] < 0.5 ? (d - q[2]) / dt : 0; q[0] = d; q[2] = d; }      // (going forward, starting over, ending: as it is)
+      else { q[2] = d; p.dp = Math.max(0, go('dp', d)); } }      // (turning back: eased from the speed it had)
     for (const k of FA) if (p[k] && p[k].length === 3) p[k] = [go(k + 0, p[k][0]), go(k + 1, p[k][1]), go(k + 2, p[k][2])];
   }
   K.update = function (root, pose, origin) {
     for (const k in P0) cur[k] = P0[k]; Object.assign(cur, pose);
-    const now = typeof App !== 'undefined' && App.t === App.t ? App.t : 0, sec = st.sec, f = clamp(cur.dp || 0, 0, 1);
+    const now = typeof App !== 'undefined' && App.t === App.t ? App.t : 0, sec = st.sec; let f = clamp(cur.dp || 0, 0, 1);
     let dt = now - st.t;
     // a new pose object, a new place or a gap in time: nothing to carry over
     const cut = st.pose !== pose || st.root !== root || !(dt >= 0) || dt > 0.25 || v3.len(v3.sub(root.pos, st.pos)) > 6;
@@ -947,13 +968,13 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     const toW = q => [root.pos[0] + X[0] * q[0] + Y[0] * q[1] + Z[0] * q[2], root.pos[1] + X[1] * q[0] + Y[1] * q[1] + Z[1] * q[2], root.pos[2] + X[2] * q[0] + Y[2] * q[1] + Z[2] * q[2]];
     // (standing at ease changes what the pose asks for: before anything is made of it)
     sec.idle = ease(root, pose, cut, cut ? 0 : dt, X, Z, toW);
-    sec.pfN++; sec.pfDt = cut ? 0 : Math.max(dt, 0); if (cut) for (const q of sec.pf) { q.o = q.p = q.ho = q.hp = q.ko = q.kp = null; }
+    sec.pfN++; sec.pfDt = cut ? 0 : Math.max(dt, 0); if (cut) for (const q of sec.pf) { q.o = q.p = q.ho = q.hp = q.ko = q.kp = q.fo = q.fp = null; }
     if (cut) { st.lean = [cur.lean, 0]; st.cf = [cur.crouch, 0]; st.crouch = [cur.crouch, 0]; st.dp = null; st.pp[0] = st.pp[1] = null; st.f0 = f; dt = 0; }
     // (2026-11-15, the owner: every change of move must flow, nothing may snap. What the game asks of the body can change in a frame: the legs
     // thrown long for a take-off, a tuck dropped into, a grab, the air begun or ended, the arms told somewhere new. The body is carried there
     // over a few hundredths of a second on a critically damped path (no overshoot, nothing springs back): its speed never jumps, so a joint
     // never snaps. Lean and edge are left alone (the skis are on the snow with them), and so are the stroke's phase, the plants and the trick angles)
-    flow(cur, cut ? 0 : dt);
+    flow(cur, cut ? 0 : dt); f = clamp(cur.dp || 0, 0, 1);
     // the hem of the jacket is cloth on a moving body: it lags behind what the body does (speeding up, turning) and the wind of the run lifts it off the
     // seat and shakes it, on the game's time (slow motion slows it too). p: how far the back hem stands out (radians about the small of the back, never
     // in through the seat), r: how far it swings to a side; v: the figure's velocity in the world, smoothed (its change, read in the figure's frame, is what the hem lags behind)

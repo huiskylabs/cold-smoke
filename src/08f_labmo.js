@@ -45,12 +45,12 @@ const LabMo = (() => {
   // between postures that are far apart at the same lean, and every jump snapped the legs: the owner's "卡蹦".)
   const PH = () => ({ w: 0, cref: 0.21, dl: 0, u: 0, prev: null, ref: 0.6, sv: null, svv: 0, su: 0, suv: 0 });
   const st = PH(), sb = PH();
-  function phase(S, p, dt, peak) {
+  function phase(S, p, dt, peak, wn) {
     const lean = p.lean || 0, cr = p.crouch == null ? 0.21 : p.crouch;
     if (dt > 0 && S.prev != null) {
       const r = (lean - S.prev) / dt; S.dl += (r - S.dl) * (1 - Math.exp(-dt / 0.08));
       // u: the lean's rate against a brisk turn's (about 1.5 rad/s), saturating softly, then eased over ~0.15 s
-      const uT = Math.tanh(-S.dl / 1.5 * 1.6); S.u += (uT - S.u) * (1 - Math.exp(-dt / 0.15));
+      const uT = Math.tanh(-S.dl / 1.5 * 1.6); S.u += (uT - S.u) * (1 - Math.exp(-dt / 0.06));
       // how deep the turns go: follows a deeper lean at once-ish, forgets slowly
       const a = Math.abs(lean); S.ref += (a - S.ref) * (1 - Math.exp(-dt / (a > S.ref ? 0.3 : 3)));
       S.cref += (cr - S.cref) * (1 - Math.exp(-dt / 1.5));
@@ -60,7 +60,7 @@ const LabMo = (() => {
     // the signed share (which side and how far) and u are then eased critically (no overshoot, ~0.1 s), so even when the game's lean swings over
     // in a few frames the legs take a quarter of a second or more to change, as real skiers' do (edge change about 0.4 s, knees bent throughout)
     const sv = (lean >= 0 ? 1 : -1) * Math.min(1, sa / ref);
-    if (dt > 0 && S.sv != null) { const wn = 16, h = Math.min(dt, 0.05);
+    if (dt > 0 && S.sv != null) { const h = Math.min(dt, 0.05);
       S.svv += (wn * wn * (sv - S.sv) - 2 * wn * S.svv) * h; S.sv += S.svv * h;
       S.suv += (wn * wn * (S.u - S.su) - 2 * wn * S.suv) * h; S.su += S.suv * h; }
     else { S.sv = sv; S.svv = 0; S.su = S.u; S.suv = 0; }
@@ -74,7 +74,9 @@ const LabMo = (() => {
   const weight = (S, p, dt, extra) => {
     const idle = p.idleRest || 0, grab = Math.max(p.grabL || 0, p.grabR || 0);
     const wT = on() ? (1 - Math.min(1, (p.air || 0) * 2.5)) * (1 - Math.min(1, (p.tuck || 0) * 1.6)) * (1 - Math.min(1, grab * 2)) * extra * (1 - idle) : 0;
-    S.w = dt > 0 ? S.w + (wT - S.w) * (1 - Math.exp(-dt * 6)) : wT; return S.w;
+    // (critically damped, about a quarter of a second: the figure is handed over without its speed ever jumping)
+    if (dt > 0) { const w = 12, d = S.w - wT, e = Math.exp(-w * dt), b = ((S.wv || 0) + w * d) * dt; S.w = Math.min(1, Math.max(0, wT + (d + b) * e)); S.wv = ((S.wv || 0) - w * b) * e; }
+    else { S.w = wT; S.wv = 0; } return S.w;
   };
   const out = { w: 0, cref: 0.21, pel: [0, 0, 0], pb: null, t1: null, t2: null, hb: null, ua: [null, null], fa: [null, null] };
   function fill(o, S, r, cr, axis) {
@@ -87,7 +89,7 @@ const LabMo = (() => {
   }
   M.step = function (p, sec, dt, speed) {
     p.idleRest = sec.idle ? sec.idle.rest || 0 : 0;
-    const ph = phase(st, p, dt, D.clips.carve.peak); weight(st, p, dt, p.dp > 0 ? 0 : 1);
+    const ph = phase(st, p, dt, D.clips.carve.peak, 16); weight(st, p, dt, p.dp > 0 ? 0 : 1);
     if (st.w < 1e-3) return null;
     // which turns, by speed (m/s)
     const sm = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
@@ -107,7 +109,7 @@ const LabMo = (() => {
   M.stepB = function (p, sec, dt) {
     const T = D.clips.sbturn; if (!T) return null;
     p.idleRest = sec.idle ? sec.idle.rest || 0 : 0;
-    const ph = phase(sb, p, dt, T.toe.peak); weight(sb, p, dt, 1);
+    const ph = phase(sb, p, dt, T.toe.peak, 11)      /* (a board's toe and heel postures lie further apart: a little slower over) */; weight(sb, p, dt, 1);
     if (sb.w < 1e-3) return null;
     // (toe side: the toe table; heel side: the heel table, whose way in is the toe turn's way out, so u's sign turns with the side)
     let r = at(ph.side > 0 ? T.toe : T.heel, ph.v, ph.u * ph.side);
