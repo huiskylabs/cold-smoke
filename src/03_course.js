@@ -400,6 +400,8 @@ const Course = ((vn1, vn2, h2U) => {
   function wallAt(s) {
     let a = 0, wt = 0;
     for (let k = -4; k <= 4; k++) { const w = 5 - Math.abs(k); a += w * paramsAt(s + k * 112.5, _pw).ridge; wt += w; }
+    // (不夜城, 16b_metro.js: an open mountainside over the city. No valley walls: the land beside the run falls gently away)
+    if (typeof Variants !== 'undefined' && Variants.val.world === 'b') return -0.22;
     return 1 - 0.72 * a / wt;
   }
   const _pw = {};
@@ -468,7 +470,7 @@ const Course = ((vn1, vn2, h2U) => {
 
   // the large shapes of the mountain away from the run: ridges, peaks and the walls of the valley (e = distance beyond the edge of the run)
   function relief(x, z, e, cell) {
-    const m = smooth(30, 900, e), mx = x / 1400, mz = z / 1400;
+    const m = smooth(30, 900, e) * (typeof Variants !== 'undefined' && Variants.val.world === 'b' ? 0.42 : 1), mx = x / 1400, mz = z / 1400;      // (不夜城: low shoulders, so the city shows over them)
     const r1 = 1 - Math.abs(vnoise2(mx, mz, 71)), r2 = 1 - Math.abs(vnoise2(mx * 2.3 + 5.1, mz * 2.3, 72)), r3 = 1 - Math.abs(vnoise2(mx * 5.1, mz * 5.1 + 2.2, 73));
     return m * m * (r1 * r1 * 520 + r2 * r2 * 170 + (cell < 40 ? r3 * r3 * 60 : 30)) * (0.35 + 0.65 * smooth(0, 1500, e + 400 * vnoise2(mz * 0.7, mx * 0.7, 74)));
   }

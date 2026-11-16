@@ -1,196 +1,387 @@
-// ---------------------------------------------------------------- 不夜城: the world below as one endless city at night
-// The other world under the mountain (Variants 'world' b). Where the cloud sea lay (05_sky.js cloudSea) there is now the ground itself, the same
-// 950 m below the eye, and on it a city that runs on to the curve of the earth: a grid of street lamps, avenues and ring roads brighter than
-// the streets, a river through it as a dark ribbon with lit banks and bridges, cars crawling along the big roads, parks and the odd dark
-// patch. The towers of 16_vista.js stand on it as its downtown. Thin wisps of cloud drift low over it and take its light from below.
-// Everything is worked out per pixel from where the line of sight meets the ground, and every pattern is box-filtered over what one pixel
-// covers there (hundreds of metres along the line of sight near the horizon), so nothing crawls or sparkles: far off the grid simply turns
-// into its average, a carpet of sodium light.
-// Real references (Innsbruck from the Nordkette, Vancouver from the North Shore, cities seen from summits at night): streets read as chains
-// of orange points, intersections a little brighter, the big roads as continuous bright lines, white-blue light only in the centre and on a
-// few big roads, water and parks black, the far city a band of light under a lit, orange haze.
+// ---------------------------------------------------------------- 不夜城: a new map. The world below the mountain is one endless city at night
+// Built from the owner's concept picture (Variants 'world' b): from the snow you look down, from far higher than any real mountain stands
+// over a town, on a city that covers a small planet to its curved, blue-rimmed horizon. Deep blue ground under moonlit snow, gold street
+// light everywhere, the big avenues running straight away from the eye into the distance, two wide rivers with their bridges, towers
+// all over it and a crowd of very tall ones downtown, snowy foothills coming down from our mountain with small towns in their valleys and
+// a lit road winding down to the city, and low banks of cloud lit warm from below.
+// None of the cloud-sea world is kept here: no far ranges, no old skyline. The whole view is worked out once, by a ray caster in a
+// fragment shader (metroBakeFS), into two panoramas round the eye (the world below never comes nearer, it only turns, as the cloud sea
+// did): E = the light it gives off at night, A = what it is made of, for the sun or the moon to light (a: water). Every frame the sky
+// shader fetches them (metroPlain), adds the air between, and makes the lights shimmer a little.
 Variants.def('world', '山下的世界', [['a', '云海浮城'], ['b', '不夜城']], 'b');
 const Metro = (() => {
-  const M = { deck: 950, re: 7.4e6, wisp: 300, lamp: 1.0 };
+  // H: how far below the eye the city lies (m); RE: the radius of its little planet (the horizon dips, and curves, far more than the earth's);
+  // AZ: the panorama covers bearings +-AZ about the city's; ta, tb: its rows, packed toward the horizon (drop = ta v + tb v^4);
+  // bend: how much farther the ground falls away to either side than straight ahead (rad at 90 degrees: the planet's curve, overdrawn)
+  const M = { H: 2200, RE: 9.0e5, AZ: 1.3, ta: 0.33, tb: 0.97, bend: 0.20, W: 2048, Hh: 1024, R1: 10500, DC: [500, 12500], lamp: 0.42, samples: 4, done: false, E: null, A: null, pipes: [] };
   M.on = () => Variants.val.world === 'b';
-  // a world change drops the clouds' panoramas: the deck is baked again from scratch when it comes back
+  let gfx, pipe, tE, tA;
+  M.init = function (g, res) {
+    gfx = g; if (res) { M.W = res; M.Hh = res >> 1; }
+    M.E = gfx.texture({ w: M.W, h: M.Hh, format: 'rgba16f', filter: 'linear', wrap: 'clamp', mips: true }); tE = gfx.target({ color: M.E });
+    M.A = gfx.texture({ w: M.W, h: M.Hh, format: 'rgba16f', filter: 'linear', wrap: 'clamp', mips: true }); tA = gfx.target({ color: M.A });
+    pipe = gfx.pipeline({ name: 'metroBake', lib: [SL.common, SL.hash, SL.noise], topology: 'strip', buffers: [], varyings: { uv: 'vec2f' }, uniforms: { r: 'vec4f', t: 'vec4f', m: 'vec4f' },
+      textures: {}, colorFormat: 'rgba16f', depth: false, depthTest: false, cull: 'none', vs: CLOUD_RECT_VS, fs: metroBakeFS() });
+    M.pipes = [pipe];
+  };
+  // once, before the first frame that shows it (in bands, so that no single draw is long)
+  M.update = function () {
+    if (M.done || !gfx || !M.on()) return;
+    const N = 8, t0 = performance.now();
+    for (const [tg, mode] of [[tE, 0], [tA, 1]]) {
+      gfx.beginPass(tg, { color: [0, 0, 0, 0] });
+      for (let i = 0; i < N; i++) gfx.draw(pipe, { u: { r: [0, i / N, 1, (i + 1) / N], t: [0, i / N, 1, (i + 1) / N], m: [mode, M.samples, M.W, M.Hh] }, tex: {}, count: 4 });
+      gfx.endPass();
+    }
+    gfx.genMips(M.E); gfx.genMips(M.A);
+    M.done = true; M.ms = performance.now() - t0;
+  };
   Variants.on((n, v, init) => { if (n === 'world' && !init && typeof Clouds !== 'undefined') Clouds.baked = false; });
   return M;
 })();
+const metroF = x => (Number.isInteger(x) ? x.toFixed(1) : String(+x.toFixed(7)));
 
-function metroSSL() {
-  const V = Vista, f = x => (Number.isInteger(x) ? x.toFixed(1) : String(+x.toFixed(7)));
-  const a = V.cityAz, D = V.cityDist, C = [D * Math.sin(a), -D * Math.cos(a)], Uu = [Math.cos(a), Math.sin(a)], Ww = [Math.sin(a), -Math.cos(a)];
-  const ga = 0.38, P = 108;
+// ---- the city itself, for the bake. Local axes: u to the right as seen from the mountain, w away from it (m from the eye)
+function metroBakeFS() {
+  const f = metroF, M = Metro, H = M.H, DC = M.DC;
+  // the quarters with tall towers: [u, w, radius, height of the tallest]
+  const CORES = [[DC[0], DC[1], 1700, 1000], [-5200, 9000, 800, 420], [3900, 7300, 620, 330], [-1500, 6900, 520, 300], [6800, 14500, 900, 460], [-7600, 16500, 1000, 480], [1200, 19500, 900, 420], [-3200, 13800, 600, 340]];
   return `
-// box-filtered pulse train: lines of width f (as a share of the period) centred on the integers of x, seen through a window w periods wide
+const MH: f32 = ${f(H)}; const MRE: f32 = ${f(M.RE)}; const MR1: f32 = ${f(M.R1)}; const MCS: f32 = 120.0;
 fn mLine(x: f32, f: f32, w: f32) -> f32 {
   let ww: f32 = max(w, 0.002);
   let a: f32 = x + 0.5 * (ww + f); let b: f32 = x - 0.5 * (ww - f);
   return saturate((floor(a) * f + min(fract(a), f) - floor(b) * f - min(fract(b), f)) / ww);
 }
-// a band |s| < hw seen through a window fw wide (all in metres)
 fn mBand(s: f32, hw: f32, fw: f32) -> f32 { let w: f32 = max(fw, 0.5); return saturate((min(s + hw, 0.5 * w) - max(s - hw, -0.5 * w)) / w); }
-// how wide (m) the window of a pixel is across a direction n on the ground: fr along the line of sight, fa across it
 fn mFoot(n: vec2f, dh: vec2f, fr: f32, fa: f32) -> f32 { let c: f32 = dot(n, dh); return abs(c) * fr + sqrt(max(1.0 - c * c, 0.0)) * fa; }
-// streets of one grid: g = grid coordinates (m), wg = the pixel's window along each axis, P = block, lw = lit width of a street,
-// sp = lamp spacing. Lamps are points along the streets: a chain of dots up close, a line further off, a share of a pixel far away
-fn mStreets(g: vec2f, wg: vec2f, P: f32, lw: f32, sp: f32) -> f32 {
-  // (no two streets are lit alike: one number a street, and one a stretch of it between crossings; where a pixel holds many, their mean)
-  let n: vec2f = floor(g / P + 1.0); let m: vec2f = floor(g / P + 0.5);
-  let mx: f32 = smoothstep(0.3, 1.2, wg.y / P); let my: f32 = smoothstep(0.3, 1.2, wg.x / P);
-  let bx: f32 = mix(sq(hashu(u32(i32(n.y) * 7919 + 13)) * 1.35) * (0.15 + 1.0 * step(0.22, hash21(vec2f(m.x, n.y) + vec2f(0.5, 91.0)))), 0.62, mx);
-  let by: f32 = mix(sq(hashu(u32(i32(n.x) * 6007 + 71)) * 1.35) * (0.15 + 1.0 * step(0.22, hash21(vec2f(n.x, m.y) + vec2f(47.0, 0.5)))), 0.62, my);
-  let sx: f32 = mLine(g.y / P + 0.5, lw / P, wg.y / P) * (0.05 + 0.95 * mLine(g.x / sp, 0.2, wg.x / sp)) * bx;
-  let sy: f32 = mLine(g.x / P + 0.5, lw / P, wg.x / P) * (0.05 + 0.95 * mLine(g.y / sp + 0.5, 0.2, wg.y / sp)) * by;
-  return sx + sy;
+// the road that winds down from the mountain to the city: where it lies (u) at w
+fn mRoadU(w: f32) -> f32 { let k: f32 = 1.0 - smoothstep(5200.0, 9800.0, w); return (520.0 * sin(w / 760.0 + 0.6) + 260.0 * sin(w / 310.0)) * k * smoothstep(300.0, 1500.0, w) + 160.0; }
+// the rivers: the near one crosses in front of downtown, the far one behind it, an arm joins them on the left.
+// Signed distance to the bank (m, < 0 on the water)
+fn mRiver(u: f32, w: f32) -> f32 {
+  let c1: f32 = 10250.0 + 520.0 * sin(u / 4300.0 + 0.9) + 210.0 * sin(u / 1500.0 + 2.0);
+  let w1: f32 = 430.0 + 170.0 * sin(u / 2900.0 + 1.0);
+  let s1: f32 = abs(w - c1) / sqrt(1.0 + sq(0.12 * cos(u / 4300.0 + 0.9) + 0.14 * cos(u / 1500.0 + 2.0))) - w1;
+  let c2: f32 = 15400.0 + 1500.0 * sin(u / 6800.0 + 2.6) + 380.0 * sin(u / 2100.0);
+  let w2: f32 = 380.0 + 160.0 * sin(u / 3700.0 + 4.0);
+  let s2: f32 = abs(w - c2) / sqrt(1.0 + sq(0.22 * cos(u / 6800.0 + 2.6) + 0.18 * cos(u / 2100.0))) - w2;
+  let c3: f32 = -6900.0 + 700.0 * sin(w / 1900.0);
+  let s3: f32 = max(abs(u - c3) - 300.0, max(c1 - w, w - c2));
+  return min(min(s1, s2), s3);
 }
-// the scatter of single lights inside the blocks (windows, yards, car parks): a lit point in some cells of a fine lattice
-fn mPoints(g: vec2f, wg: vec2f, c: f32, share: f32) -> f32 {
-  let k: vec2f = floor(g / c); let h: f32 = hash21(k + vec2f(311.0, 17.0));
-  let on: f32 = mix(step(1.0 - share, h) * (0.4 + 1.2 * hash21(k + vec2f(5.0, 777.0))), share, smoothstep(0.4, 1.4, max(wg.x, wg.y) / c));
-  return on * mLine(g.x / c - 0.5, 3.0 / c, wg.x / c) * mLine(g.y / c - 0.5, 3.0 / c, wg.y / c);
+// the foothills: height above the plain (m). Spurs run down from the mountain, the road's valley between them
+fn mHills(u: f32, w: f32) -> f32 {
+  let r: f32 = length(vec2f(u, w)); if (r > MR1) { return 0.0; }
+  let env: f32 = (MH - 240.0) * pow(1.0 - r / MR1, 1.45);
+  let az: f32 = atan2(u, max(w, 1.0));
+  let n: f32 = vnoise2(vec2f(az * 5.5 + 0.35 * sin(r / 2100.0) + 3.0, r / 5200.0));
+  let rg: f32 = 1.0 - abs(2.0 * n - 1.0);
+  let val: f32 = smoothstep(120.0, 1500.0 + 0.12 * r, abs(u - mRoadU(w)));
+  let det: f32 = fbm2(vec2f(u, w) / 900.0) - 0.5;
+  return max(env * (0.30 + 0.70 * pow(rg, 1.3)) * (0.16 + 0.84 * val) * (1.0 + 0.5 * det) + 70.0 * det * (1.0 - smoothstep(MR1 - 2500.0, MR1, r)), 0.0);
 }
-// the river: its centre line (city-local w as a function of u) and half its width
-fn mRiverW(u: f32) -> f32 { return -5300.0 + 900.0 * sin(u / 5200.0 + 1.0) + 360.0 * sin(u / 1900.0 + 0.4) + 140.0 * sin(u / 700.0); }
-// the lie of the city at a spot (city-local u, w): x = how built up (0 open country .. 1 dense), y = how much of the light is white,
-// z = park (0 .. 1), w = which grid (0 the downtown one, 1 the outer one)
-fn mLand(u: f32, w: f32, lod: f32) -> vec4f {
-  let r: f32 = length(vec2f(u, w));
-  let n1: f32 = texLod(tDetail, vec2f(u, w) / 41000.0 + vec2f(0.31, 0.57), lod).z;
-  let n2: f32 = texLod(tDetail, vec2f(u, w) / 9500.0 + vec2f(0.77, 0.13), lod).z;
-  let n3: f32 = texLod(tDetail, vec2f(u, w) / 2600.0 + vec2f(0.05, 0.91), lod).z;
-  // dense in the middle, on and on outward in clumps of suburbs and satellite towns; never quite empty (it is an endless city)
-  let dens: f32 = saturate(0.22 + 0.85 * exp(-r / 9000.0) + 1.1 * (n1 - 0.47) + 0.9 * (n2 - 0.5)) * smoothstep(0.26, 0.45, n3 + 0.12 * exp(-r / 4000.0));
-  let white: f32 = saturate(0.75 * exp(-r / 3800.0) + 0.6 * (n2 - 0.55));
-  let park: f32 = smoothstep(0.37, 0.30, n3) * smoothstep(1200.0, 2500.0, r) + smoothstep(0.36, 0.30, n2) * 0.8;
-  let grid: f32 = step(0.5, n1) * step(6500.0, r);
-  return vec4f(dens, white, saturate(park), grid);
+// how tall the towers of a quarter may stand at a spot
+fn mCoreH(u: f32, w: f32) -> f32 {
+  var h: f32 = 0.0;
+${CORES.map(c => `  h = max(h, ${f(c[3])} * exp(-(sq(u - ${f(c[0])}) + sq(w - ${f(c[1])})) / ${f(c[2] * c[2])}));`).join('\n')}
+  return h;
 }
-// the wisps of cloud low over the city: their density at a spot p (m from the eye), lod for far off
-fn mWisp(p: vec2f, lod: f32) -> f32 {
-  let q: vec2f = p + vec2f(U.skyP.y * 9000.0, U.skyP.y * 2500.0);
-  // drawn out along the wind (+x), in long torn bands
-  let a: f32 = texLod(tDetail, vec2f(q.x / 21000.0, q.y / 6500.0) + vec2f(0.43, 0.29), lod).z;
-  let b: f32 = texLod(tDetail, vec2f(q.x / 5200.0, q.y / 1900.0) + vec2f(0.11, 0.67), lod + 0.5).z;
-  return smoothstep(0.50, 0.72, a * 0.72 + b * 0.38);
+// how built up the land is (0 .. 1), how white its light, park 0 .. 1, which grid
+fn mLand(u: f32, w: f32) -> vec4f {
+  let p: vec2f = vec2f(u, w); let r: f32 = length(p - vec2f(${f(DC[0])}, ${f(DC[1])}));
+  let n1: f32 = fbm2(p / 15000.0 + vec2f(3.1, 7.7)); let n2: f32 = fbm2(p / 4200.0 + vec2f(9.7, 1.3)); let n3: f32 = vnoise2(p / 1300.0 + vec2f(0.5, 4.1));
+  let dens: f32 = saturate(0.62 + 0.65 * exp(-r / 9000.0) + 1.3 * (n1 - 0.5) + 0.9 * (n2 - 0.5));
+  let white: f32 = saturate(0.8 * exp(-r / 3500.0) + 0.8 * (n2 - 0.6));
+  let park: f32 = (1.0 - smoothstep(0.22, 0.30, n3)) * smoothstep(900.0, 2200.0, r);
+  return vec4f(dens, white, park, step(0.55, n1) * step(7000.0, r));
 }
-// the city's light as the air and the cloud over it receive it, averaged over the blocks round p (m from the eye): scene units at night
-fn mGlowAt(p: vec2f) -> vec3f {
-  let rel: vec2f = p - vec2f(${f(C[0])}, ${f(C[1])});
-  let u: f32 = dot(rel, vec2f(${f(Uu[0])}, ${f(Uu[1])})); let w: f32 = dot(rel, vec2f(${f(Ww[0])}, ${f(Ww[1])}));
-  let L: vec4f = mLand(u, w, 4.0);
-  return mix(vec3f(1.0, 0.50, 0.17), vec3f(1.0, 0.80, 0.58), L.y) * (L.x * (1.0 - 0.7 * L.z) * 0.22) + cityGlow3(p) * 0.6;
+// the ray: its height above the (curving) ground x metres out, falling at slope s
+fn mRayH(x: f32, s: f32) -> f32 { return MH - x * s + x * x / (2.0 * MRE); }
+fn mTint(h: f32) -> vec3f {
+  if (h < 0.62) { return mix(vec3f(1.0, 0.70, 0.36), vec3f(1.0, 0.86, 0.62), h / 0.62); }
+  if (h < 0.86) { return vec3f(0.86, 0.93, 1.0); }
+  if (h < 0.92) { return vec3f(0.25, 0.85, 1.0); }
+  if (h < 0.96) { return vec3f(1.0, 0.30, 0.85); }
+  return vec3f(0.55, 0.40, 1.0);
 }
-
-// the ground under the eye, and the city on it, as seen along d (d.y < 0). haze: the colour of the air toward the horizon there
-fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
-  let hl: f32 = max(length(d.xz), 1e-4); let dh: vec2f = d.xz / hl; let s: f32 = -d.y / hl;
-  let night: f32 = U.skyP.z;
-  // the air over the whole city glows with it: orange, strongest low down, where the eye looks through the most of it
-  let hz: vec3f = haze + vec3f(1.0, 0.50, 0.20) * (0.035 * night);
-  // where the line of sight meets the ground, on an earth that curves away (r: horizontal distance, m); past the rim only the lit air
-  let k: f32 = ${f(2 * M_DECK())} / ${f(Metro.re)};
-  let disc: f32 = s * s - k;
-  if (disc <= 0.0) { return hz; }
-  let r: f32 = ${f(2 * M_DECK())} / (s + sqrt(disc));
-  let dist: f32 = sqrt(r * r + ${f(M_DECK() * M_DECK())});
-  let p: vec2f = dh * r;
-  // what one pixel covers there: along the line of sight and across it (m)
-  let pa: f32 = 2.0 * U.camRight.w * U.res.w;
-  let slope: f32 = max(s - r / ${f(Metro.re)}, 2e-4);
-  let fr: f32 = dist * pa / slope; let fa: f32 = dist * pa;
-  // city-local axes (u to the right as seen from the mountain, w away), and the grid
-  let rel: vec2f = p - vec2f(${f(C[0])}, ${f(C[1])});
-  let uA: vec2f = vec2f(${f(Uu[0])}, ${f(Uu[1])}); let wA: vec2f = vec2f(${f(Ww[0])}, ${f(Ww[1])});
-  let u: f32 = dot(rel, uA); let w: f32 = dot(rel, wA);
-  let lodM: f32 = log2(max(fr / ${f(41000 / 512)}, 1.0));
-  let L: vec4f = mLand(u, w, lodM);
-  // ---- the grids: downtown's (that of the towers, 16_vista.js) and, out in the suburbs, one turned across it with smaller blocks
-  let ga: f32 = ${f(ga)} + 0.55 * L.w; let gc: f32 = cos(ga); let gs: f32 = sin(ga);
-  let gx: vec2f = uA * gc + wA * gs; let gy: vec2f = wA * gc - uA * gs;
+// the ground of the city at (u, w): mode 0 the light it gives off at night, mode 1 what it is made of (a: water).
+// dh: the line of sight on the map, fr / fa: what the sample covers along and across it (m)
+fn mGround(u: f32, w: f32, dh: vec2f, fr: f32, fa: f32, mode: f32) -> vec4f {
+  let L: vec4f = mLand(u, w);
+  let rel: vec2f = vec2f(u - ${f(DC[0])}, w - ${f(DC[1])});
+  // the grid: its long avenues run nearly straight away from the mountain; the outer boroughs are turned across it
+  let ga: f32 = 0.07 + 0.52 * L.w; let gc: f32 = cos(ga); let gs: f32 = sin(ga);
+  let gx: vec2f = vec2f(gc, gs); let gy: vec2f = vec2f(-gs, gc);
   let g: vec2f = vec2f(dot(rel, gx), dot(rel, gy));
   let wg: vec2f = vec2f(mFoot(gx, dh, fr, fa), mFoot(gy, dh, fr, fa));
-  let P: f32 = mix(${f(P)}, 86.0, L.w);
-  var street: f32 = mStreets(g, wg, P, 6.0, 33.0);
-  // the blocks themselves: a faint scatter of lit windows and yards, more in some blocks than in others (one number a block; when a
-  // pixel holds many blocks, their mean)
+  let P: f32 = MCS;
+  // streets: chains of lamps, no two streets lit alike
+  let n: vec2f = floor(g / P + 1.0); let m: vec2f = floor(g / P + 0.5);
+  let mx: f32 = smoothstep(0.3, 1.2, wg.y / P); let my: f32 = smoothstep(0.3, 1.2, wg.x / P);
+  let bx: f32 = mix(sq(hashu(u32(i32(n.y) * 7919 + 13)) * 1.3) * (0.2 + step(0.2, hash21(vec2f(m.x, n.y) + vec2f(0.5, 91.0)))), 0.62, mx);
+  let by: f32 = mix(sq(hashu(u32(i32(n.x) * 6007 + 71)) * 1.3) * (0.2 + step(0.2, hash21(vec2f(n.x, m.y) + vec2f(47.0, 0.5)))), 0.62, my);
+  let lx: f32 = mLine(g.y / P + 0.5, 7.0 / P, wg.y / P); let ly: f32 = mLine(g.x / P + 0.5, 7.0 / P, wg.x / P);
+  let street: f32 = lx * (0.10 + 0.90 * mLine(g.x / 30.0, 0.25, wg.x / 30.0)) * bx + ly * (0.10 + 0.90 * mLine(g.y / 30.0 + 0.5, 0.25, wg.y / 30.0)) * by;
+  // the lights inside the blocks: windows and yards, a dense scatter
   let cell: vec2f = floor(g / P + 0.5);
   let many: f32 = smoothstep(0.4, 1.5, max(wg.x, wg.y) / P);
   let blk: f32 = mix(hash21(cell + vec2f(17.0 * L.w, 3.0)), 0.5, many);
-  var fill: f32 = mPoints(g, wg, 19.0, 0.12 + 0.40 * blk * L.x) * 3.0 + 0.006 * blk;
-  // ---- the avenues: every 7th and 9th street of the grid, brighter and continuous (two rows of lamps and the traffic between)
-  // (one avenue in three is a great lit boulevard, the rest hardly brighter than a street)
-  let ax7: f32 = floor(g.x / (7.0 * P) - 3.0 / 7.0 + 0.5); let ay9: f32 = floor(g.y / (9.0 * P) - 5.0 / 9.0 + 0.5);
-  let kax: f32 = mix(0.25 + 1.1 * step(0.62, hashu(u32(i32(ax7) * 131 + 7))), 0.62, smoothstep(0.3, 1.0, wg.x / (7.0 * P)));
-  let kay: f32 = mix(0.25 + 1.1 * step(0.62, hashu(u32(i32(ay9) * 173 + 3))), 0.62, smoothstep(0.3, 1.0, wg.y / (9.0 * P)));
-  let avx: f32 = mLine(g.x / (7.0 * P) - 3.0 / 7.0, 16.0 / (7.0 * P), wg.x / (7.0 * P)) * kax * (0.3 + 0.7 * mLine(g.y / 36.0, 0.3, wg.y / 36.0));
-  let avy: f32 = mLine(g.y / (9.0 * P) - 5.0 / 9.0, 16.0 / (9.0 * P), wg.y / (9.0 * P)) * kay * (0.3 + 0.7 * mLine(g.x / 36.0, 0.3, wg.x / 36.0));
-  // the cars on them: white coming, red going, crawling in long strings
-  let t: f32 = U.camPos.w;
-  let carx: f32 = 0.7 + 1.0 * mLine(g.y / 23.0 - t * 0.52, 0.18, wg.y / 23.0);
-  let cary: f32 = 0.7 + 1.0 * mLine(g.x / 29.0 + t * 0.41, 0.18, wg.x / 29.0);
-  var road: f32 = avx * carx + avy * cary;
-  // ---- the motorways: a ring round the centre and long straight ones out to the edge of the world, the brightest lines of all
-  let rr: f32 = length(vec2f(u, w)); let rn: vec2f = rel / max(rr, 1.0);
-  let ang: f32 = atan2(w, u); let tg: vec2f = vec2f(-rn.y, rn.x);
-  var mw: f32 = (mBand(rr - 6200.0, 14.0, mFoot(rn, dh, fr, fa)) + mBand(rr - 15500.0, 12.0, mFoot(rn, dh, fr, fa)) * 0.8)
-    * (0.55 + 0.45 * sin(ang * 7.0 + 1.3) * sin(ang * 3.0)) * (0.35 + 0.65 * mLine(ang * rr / 40.0, 0.3, mFoot(tg, dh, fr, fa) / 40.0));
-  for (var i: i32 = 0; i < 5; i++) {
-    let an: f32 = 0.35 + f32(i) * 1.31 + 0.2 * sin(f32(i) * 3.7);
-    let dv: vec2f = uA * cos(an) + wA * sin(an); let nv: vec2f = vec2f(-dv.y, dv.x);
-    let along: f32 = dot(rel, dv); let off: f32 = dot(rel, nv) - 260.0 * sin(along / 4100.0 + f32(i));
-    mw += mBand(off, 12.0, mFoot(nv, dh, fr, fa)) * smoothstep(1500.0, 3000.0, along) * (0.6 + 1.4 * mLine(along / 37.0 - t * 0.7 * (f32(i & 1) * 2.0 - 1.0), 0.25, mFoot(dv, dh, fr, fa) / 37.0));
+  let pc: f32 = 15.0; let pk: vec2f = floor(g / pc); let share: f32 = 0.16 + 0.60 * blk * L.x;
+  let pon: f32 = mix(step(1.0 - share, hash21(pk + vec2f(311.0, 17.0))) * (0.3 + 1.4 * hash21(pk + vec2f(5.0, 777.0))), share, smoothstep(0.4, 1.4, max(wg.x, wg.y) / pc));
+  let pts: f32 = pon * mLine(g.x / pc - 0.5, 3.2 / pc, wg.x / pc) * mLine(g.y / pc - 0.5, 3.2 / pc, wg.y / pc);
+  let pcol: vec3f = mix(mTint(hash21(pk + vec2f(91.0, 33.0)) * (0.70 + 0.22 * L.y)), vec3f(1.0, 0.70, 0.36), many);
+  // the avenues: every 6th street away from the eye, every 8th across; lines of light with a glow about them
+  let ax: f32 = floor(g.x / (6.0 * P) + 0.5); let ay: f32 = floor(g.y / (8.0 * P) + 0.5);
+  let kax: f32 = mix(0.35 + 1.0 * step(0.45, hashu(u32(i32(ax) * 131 + 7))), 0.9, smoothstep(0.3, 1.0, wg.x / (6.0 * P)));
+  let kay: f32 = mix(0.30 + 1.0 * step(0.55, hashu(u32(i32(ay) * 173 + 3))), 0.75, smoothstep(0.3, 1.0, wg.y / (8.0 * P)));
+  let dax: f32 = (fract(g.x / (6.0 * P) + 0.5) - 0.5) * 6.0 * P; let day: f32 = (fract(g.y / (8.0 * P) + 0.5) - 0.5) * 8.0 * P;
+  let avx: f32 = (mBand(dax, 9.0, wg.x) * 1.0 + 0.05 * exp(-abs(dax) / 60.0)) * kax;
+  let avy: f32 = (mBand(day, 9.0, wg.y) * 1.0 + 0.05 * exp(-abs(day) / 60.0)) * kay;
+  // motorways: a ring round downtown, a wider one, and long ones out across the plain
+  let rr: f32 = length(rel); let rn: vec2f = rel / max(rr, 1.0);
+  var mw: f32 = mBand(rr - 3900.0, 13.0, mFoot(rn, dh, fr, fa)) * 1.4 + 0.14 * exp(-abs(rr - 3900.0) / 80.0) + mBand(rr - 9800.0, 12.0, mFoot(rn, dh, fr, fa)) + 0.10 * exp(-abs(rr - 9800.0) / 80.0);
+  for (var i: i32 = 0; i < 6; i++) {
+    let an: f32 = 0.5 + f32(i) * 1.05 + 0.25 * sin(f32(i) * 3.7);
+    let dv: vec2f = vec2f(cos(an), sin(an)); let nv: vec2f = vec2f(-dv.y, dv.x);
+    let along: f32 = dot(rel, dv); let off: f32 = dot(rel, nv) - 320.0 * sin(along / 3600.0 + f32(i));
+    mw += (mBand(off, 13.0, mFoot(nv, dh, fr, fa)) * 1.4 + 0.12 * exp(-abs(off) / 80.0)) * smoothstep(800.0, 2600.0, along);
   }
-  // ---- the river: black water with the light of its banks on it, lamps along both banks, and the bridges carrying the avenues over
-  let rw: f32 = mRiverW(u); let rs: f32 = (w - rw) / sqrt(1.0 + sq(900.0 / 5200.0 * cos(u / 5200.0 + 1.0) + 360.0 / 1900.0 * cos(u / 1900.0 + 0.4)));
-  let rf: f32 = mFoot(wA, dh, fr, fa);
-  let water: f32 = mBand(rs, 430.0, rf);
-  let bank: f32 = mBand(abs(rs) - 442.0, 6.0, rf) * (0.4 + 0.6 * mLine((u / 26.0), 0.35, mFoot(uA, dh, fr, fa) / 26.0));
-  // the land: parks are dark, open country darker still
-  let land: f32 = L.x * (1.0 - 0.88 * L.z);
-  street *= land; fill *= mix(0.3, 1.0, land); road *= mix(0.35, 1.0, L.x) * (1.0 - 0.7 * L.z);
-  let dry: f32 = 1.0 - water;
-  // ---- the light of it all (scene units at night): sodium, whiter downtown and on the motorways
-  let sod: vec3f = vec3f(1.0, 0.47, 0.13); let led: vec3f = vec3f(0.95, 0.88, 0.78);
-  let cs: vec3f = mix(sod, led, L.y * 0.8);
-  // (the points inside the blocks: a mix of warm windows and the odd cold white one)
-  var em: vec3f = cs * (street * 4.2) * dry + mix(vec3f(1.0, 0.62, 0.32), vec3f(0.85, 0.92, 1.0), 0.25 + 0.4 * L.y) * (fill * 3.0 * dry) + mix(sod * 1.1, led, 0.25 + 0.5 * L.y) * (road * 3.6 * dry + bank * 3.0);
-  em += mix(vec3f(1.0, 0.56, 0.22), vec3f(0.92, 0.95, 1.0), 0.2 + 0.3 * L.y) * (mw * 1.5 * mix(0.45, 1.0, L.x));
-  // (the towers' own quarters light their feet: the glow of the downtown streets)
-  em += cityGlow3(p) * (0.12 * dry);
-  em *= ${f(Metro.lamp)} * night;
-  // ---- by day (and under all of it): roofs and streets in the sun, the river a dark mirror
-  let sunN: f32 = saturate(U.sunDir.y) * (1.0 - 0.6 * cityShadow(p));
-  let lit: vec3f = (U.sunCol.rgb * sunN + U.ambSky.rgb * 0.9 + U.twi.rgb * 0.3) * (1.0 - 0.6 * night);
-  // (it is winter down there too: snow on the roofs and the parks, the streets ploughed dark between them)
-  let dst: f32 = saturate(mLine(g.y / P + 0.5, 16.0 / P, wg.y / P) + mLine(g.x / P + 0.5, 16.0 / P, wg.x / P) + avx + avy + mw);
-  let roof: vec3f = mix(vec3f(0.30, 0.30, 0.31), vec3f(0.62, 0.64, 0.67), 0.35 + 0.65 * blk) * mix(0.8, 1.0, L.x);
-  let alb: vec3f = mix(mix(roof, vec3f(0.12, 0.125, 0.13), dst * mix(0.5, 1.0, L.x)), vec3f(0.60, 0.63, 0.66), L.z * 0.8);
-  let refl: vec3f = vistaHaze(vec3f(d.x, -d.y, d.z)) * (0.10 + 0.6 * pow(1.0 - s, 8.0)) + mGlowAt(p) * (0.25 * night);
-  var c: vec3f = mix(alb * lit, refl, water) + em;
-  // the air between: the farther, the more of the lit haze
-  c = mix(hz + mGlowAt(p) * (0.10 * night), c, exp(-dist / ${f(SEA.air)}));
-  // ---- thin wisps of cloud low over the city (their floor ${f(Metro.wisp)} m up), lit from below by it and from above by the moon
-  let hw: f32 = ${f(M_DECK() - Metro.wisp)};
-  let dw: f32 = s * s - 2.0 * hw / ${f(Metro.re)};
-  if (dw > 0.0) {
-    let rc: f32 = 2.0 * hw / (s + sqrt(dw)); let pc: vec2f = dh * rc; let dc: f32 = sqrt(rc * rc + hw * hw);
-    let fc: f32 = dc * pa / max(s, 2e-4);
-    let den: f32 = mWisp(pc, log2(max(fc / ${f(5200 / 512)}, 1.0)));
-    // a thin sheet: looked down on it hides little, toward the horizon it is a long way through and thickens into a band of lit mist
-    let al: f32 = (1.0 - exp(-den * 0.05 / max(s, 0.012))) * 0.8;
-    let ug: vec3f = mGlowAt(pc) * ((2.0 + 1.4 * den) * night); let under: vec3f = mix(ug, vec3f(luma(ug)) * vec3f(1.0, 0.86, 0.80), 0.35);
-    let wc: vec3f = (U.sunCol.rgb + U.twi.rgb * 0.8) * (0.35 + 0.5 * pow(saturate(mu * 0.5 + 0.5), 4.0)) + U.ambSky.rgb * 1.1 + under;
-    c = mix(c, mix(hz, wc, exp(-dc / ${f(SEA.air)})), al);
+  // water, banks, bridges (the avenues carry on across the water)
+  let rs: f32 = mRiver(u, w); let rf: f32 = max(fr * 0.6, fa);
+  let water: f32 = saturate(0.5 - rs / max(rf, 1.0));
+  let bank: f32 = mBand(rs - 16.0, 7.0, rf) * (0.35 + 0.65 * mLine((u + w) / 24.0, 0.4, (fr + fa) / 24.0));
+  let land: f32 = L.x * (1.0 - 0.85 * L.z);
+  // the foot of the mountain: no city on the slopes, only what lies in the valleys
+  let hl: f32 = mHills(u, w); let flat: f32 = 1.0 - smoothstep(20.0, 160.0, hl);
+  let gold: vec3f = vec3f(1.0, 0.66, 0.30); let warm: vec3f = vec3f(1.0, 0.80, 0.52); let led: vec3f = vec3f(0.90, 0.93, 1.0);
+  if (mode < 0.5) {
+    let cs: vec3f = mix(gold, warm, 0.1 + 0.4 * L.y);
+    var em: vec3f = (cs * (street * 5.0 * land) + pcol * (pts * 7.0 * mix(0.25, 1.0, land))) * (1.0 - water);
+    let brd: f32 = (avx * 1.3 + avy) * mix(0.3, 1.0, L.x);
+    em += mix(gold * 1.1, led, 0.10 + 0.25 * L.y) * ((brd * (1.0 - water) + avx * step(1.0, kax) * 1.8 * water) * 3.2) + mix(gold, led, 0.25) * (mw * 3.0 * (1.0 - 0.7 * water)) + warm * (bank * 4.0);
+    // the water mirrors what stands on its banks: long shimmering streaks
+    let sh: f32 = exp(min(rs, 0.0) / 260.0) * (0.5 + 0.9 * vnoise2(vec2f(u / 34.0, w / 600.0)));
+    em += mix(gold, vec3f(1.0, 0.45, 0.55), vnoise2(vec2f(u / 400.0, 3.0))) * (water * sh * 0.22 * mix(0.4, 1.0, L.x));
+    return vec4f(em * flat, water * flat);
   }
-  return c;
+  // by day, and under the moon: snow on the roofs and the parks, dark streets, blue water
+  let dst: f32 = saturate(lx + ly + avx + avy + mw);
+  let roof: vec3f = mix(vec3f(0.16, 0.19, 0.30), vec3f(0.42, 0.48, 0.66), 0.25 + 0.75 * blk);
+  var alb: vec3f = mix(mix(roof, vec3f(0.07, 0.08, 0.12), dst * mix(0.5, 1.0, L.x)), vec3f(0.55, 0.62, 0.76), L.z * 0.8);
+  alb = mix(alb, vec3f(0.04, 0.09, 0.26), water);
+  return vec4f(alb, water);
 }
-// the city's glow in the air just over the horizon, all round (added to the sky; d.y > -0.02)
+// the mountain's foot at (u, w), hl m above the plain
+fn mHillShade(u: f32, w: f32, hl: f32, mode: f32) -> vec4f {
+  let e: f32 = 40.0;
+  let nx: f32 = mHills(u + e, w) - mHills(u - e, w); let nz: f32 = mHills(u, w + e) - mHills(u, w - e);
+  let N: vec3f = normalize(vec3f(-nx, 2.0 * e, -nz));
+  let steep: f32 = 1.0 - N.y;
+  let fo: f32 = smoothstep(0.42, 0.60, fbm2(vec2f(u, w) / 420.0) + 0.9 * steep - 0.25 * smoothstep(200.0, 1200.0, hl));
+  let rd: f32 = abs(u - mRoadU(w)) / sqrt(1.0 + sq((mRoadU(w + 20.0) - mRoadU(w - 20.0)) / 40.0));
+  // the towns in the valleys: clusters of warm lights low down, thinning up the slopes
+  let low: f32 = (1.0 - smoothstep(60.0, 520.0, hl)) * smoothstep(2200.0, 4200.0, length(vec2f(u, w)));
+  let tn: f32 = smoothstep(0.50, 0.72, fbm2(vec2f(u, w) / 700.0 + vec2f(5.0, 2.0))) * low + 0.8 * exp(-rd / 260.0) * smoothstep(900.0, 2500.0, w);
+  if (mode < 0.5) {
+    let k: vec2f = floor(vec2f(u, w) / 22.0); let on: f32 = step(1.0 - 0.34 * saturate(tn), hash21(k + vec2f(7.0, 19.0)));
+    let fp: vec2f = fract(vec2f(u, w) / 22.0) - 0.5;
+    var em: vec3f = mTint(hash21(k) * 0.78) * (on * exp(-dot(fp, fp) * 22.0) * 5.0);
+    // the road down: two ribbons of light, and its glow on the snow beside it
+    let rk: f32 = smoothstep(500.0, 1500.0, w);
+    em += vec3f(1.0, 0.62, 0.26) * ((1.0 - smoothstep(8.0, 26.0, rd)) * 5.5 + 0.9 * exp(-rd / 60.0) + 0.16 * exp(-rd / 420.0)) * rk;
+    em += vec3f(1.0, 0.25, 0.12) * ((1.0 - smoothstep(3.0, 9.0, abs(rd - 14.0))) * 3.0) * rk;
+    em += vec3f(1.0, 0.60, 0.28) * (0.10 * saturate(tn));
+    return vec4f(em, 0.0);
+  }
+  // snow under a light from the upper left, the hollows bluer; forest dark on the steeper ground
+  let sh: f32 = saturate(0.55 + 0.9 * dot(N, normalize(vec3f(-0.5, 0.55, -0.45)))) * (0.75 + 0.25 * smoothstep(0.0, 500.0, hl));
+  let snow: vec3f = mix(vec3f(0.26, 0.33, 0.56), vec3f(0.74, 0.80, 0.94), sh);
+  return vec4f(mix(snow, vec3f(0.035, 0.05, 0.085), fo * 0.9), 0.0);
+}
+// a bank of cloud at p (m from the eye), y m above the plain: its density
+fn mCloud(p: vec2f, y: f32) -> f32 {
+  let r: f32 = length(p);
+  let zone: f32 = smoothstep(6200.0, 7400.0, r) * (1.0 - smoothstep(9000.0, 10800.0, r)) + 0.6 * smoothstep(0.60, 0.72, vnoise2(p / 6000.0 + vec2f(2.0, 5.0))) * smoothstep(10500.0, 13000.0, r) * (1.0 - smoothstep(20000.0, 28000.0, r));
+  if (zone < 0.01) { return 0.0; }
+  // heaps with rounded tops: the big shape, and smaller billows on it
+  let base: f32 = fbm2(p / 2600.0 + vec2f(1.7, 8.3)); let bil: f32 = vnoise2(p / 520.0 + vec2f(4.0, 1.0));
+  let heap: f32 = smoothstep(0.50, 0.70, base) * zone;
+  let top: f32 = 180.0 + 460.0 * heap * (0.55 + 0.45 * bil);
+  return saturate((top - y) / 110.0) * saturate((y - 150.0) / 60.0) * smoothstep(0.02, 0.25, heap);
+}
+// what the eye sees along (bearing az from the city's, dropping th below level): mode 0 light, mode 1 matter
+fn mScene(az: f32, th: f32, mode: f32, dAz: f32, dTh: f32) -> vec4f {
+  let dl: vec2f = vec2f(sin(az), cos(az)); let s: f32 = tan(th);
+  // the plain, on its little planet
+  let disc: f32 = s * s - 2.0 * MH / MRE;
+  var xg: f32 = 2.0e5; var onG: f32 = 0.0;
+  if (disc > 0.0) { xg = 2.0 * MH / (s + sqrt(disc)); onG = 1.0; }
+  // the foothills first (they are nearer)
+  var hit: i32 = 0; var xh: f32 = 0.0;
+  if (s > 0.16) {
+    var xp: f32 = 250.0; var dp: f32 = mRayH(xp, s) - mHills(dl.x * xp, dl.y * xp);
+    for (var i: i32 = 0; i < 90; i++) {
+      let x: f32 = xp + max(40.0, 0.35 * dp); if (x > min(xg, MR1)) { break; }
+      let d: f32 = mRayH(x, s) - mHills(dl.x * x, dl.y * x);
+      if (d < 0.0) { xh = mix(xp, x, dp / (dp - d)); hit = 1; break; }
+      xp = x; dp = d;
+    }
+  }
+  var col: vec4f = vec4f(0.0); var xs: f32 = xg;
+  if (hit == 1) {
+    xs = xh; let u: f32 = dl.x * xh; let w: f32 = dl.y * xh; let hl: f32 = mHills(u, w);
+    col = mHillShade(u, w, hl, mode);
+    if (hl < 160.0) { let dist: f32 = sqrt(xh * xh + MH * MH); col = mix(mGround(u, w, dl, dist * dTh / max(s, 0.02), dist * dAz, mode), col, smoothstep(20.0, 160.0, hl)); }
+  }
+  if (hit == 0 && onG > 0.5) {
+    // ---- the towers: walk the grid from where the line of sight comes down among the roofs to where it meets the ground
+    var hm: f32 = 150.0;
+${CORES.map(c => `    { let t0: f32 = dot(vec2f(${f(c[0])}, ${f(c[1])}), dl); let b: f32 = abs(${f(c[0])} * dl.y - ${f(c[1])} * dl.x); if (b < ${f(c[2] * 2.2)} && t0 < xg + ${f(c[2] * 2.2)} && t0 > xg - ${f(c[3] * 1.4)} / s - ${f(c[2] * 2.2)}) { hm = max(hm, ${f(c[3] * 1.4)}); } }`).join('\n')}
+    let x0: f32 = max(xg - hm / s, 300.0);
+    let rel0: vec2f = dl * x0 - vec2f(${f(DC[0])}, ${f(DC[1])});
+    let gc: f32 = cos(0.07); let gs: f32 = sin(0.07);
+    let g0: vec2f = vec2f(rel0.x * gc + rel0.y * gs, -rel0.x * gs + rel0.y * gc) / MCS;
+    var gd: vec2f = vec2f(dl.x * gc + dl.y * gs, -dl.x * gs + dl.y * gc);
+    if (abs(gd.x) < 1e-4) { gd.x = 1e-4; }
+    if (abs(gd.y) < 1e-4) { gd.y = 1e-4; }
+    var c: vec2f = floor(g0); let st: vec2f = sign(gd); let inv: vec2f = vec2f(1.0) / abs(gd);
+    var tm: vec2f = (c + max(st, vec2f(0.0)) - g0) / gd; let tend: f32 = (xg - x0) / MCS;
+    var th0: f32 = 0.0; var tw: i32 = 0; var tn: vec2f = vec2f(0.0); var tx: f32 = 0.0; var tinfo: vec4f = vec4f(0.0); var tq: f32 = 0.0;
+    for (var i: i32 = 0; i < 110; i++) {
+      if (th0 > tend) { break; }
+      // the tower of this cell, if it has one
+      let cc: vec2f = (c + 0.5) * MCS; let cu: f32 = cc.x * gc - cc.y * gs + ${f(DC[0])}; let cw: f32 = cc.x * gs + cc.y * gc + ${f(DC[1])};
+      let h3: vec3f = hash33(vec3f(c.x, c.y, 7.0)); let ch: f32 = mCoreH(cu, cw);
+      let hero: f32 = step(abs(c.x), 0.5) * step(abs(c.y), 0.5);
+      if (h3.x < 0.16 + 0.62 * saturate(ch / 260.0) + hero) {
+        let Ld: vec4f = mLand(cu, cw);
+        let ht: f32 = mix(ch * (0.30 + 0.85 * h3.y * h3.y) + 130.0 * Ld.x * (0.25 + h3.z) * step(0.35, Ld.x), 1250.0, hero);
+        let hs: f32 = mix(0.21 + 0.15 * h3.z, 0.42, hero);
+        if (ht > 28.0 && mRiver(cu, cw) > 40.0 && mHills(cu, cw) < 15.0 && (Ld.z < 0.5 || ch > 150.0)) {
+          let lo: vec2f = (c + 0.5 - hs - g0) / gd; let hi: vec2f = (c + 0.5 + hs - g0) / gd;
+          let t1: vec2f = min(lo, hi); let t2: vec2f = max(lo, hi);
+          let te: f32 = max(max(t1.x, t1.y), 0.0); let tx2: f32 = min(t2.x, t2.y);
+          if (te < tx2) {
+            let he: f32 = mRayH(x0 + te * MCS, s);
+            if (he < ht) {
+              tw = 1; tx = x0 + te * MCS; tinfo = vec4f(ht, h3.x, h3.y, h3.z); tq = he;
+              if (t1.x > t1.y) { tn = vec2f(-st.x, 0.0); } else { tn = vec2f(0.0, -st.y); }
+              break;
+            }
+            let hx: f32 = mRayH(x0 + tx2 * MCS, s);
+            if (hx < ht) { tw = 2; tx = x0 + mix(te, tx2, (he - ht) / max(he - hx, 1e-3)) * MCS; tinfo = vec4f(ht, h3.x, h3.y, h3.z); tq = ht; break; }
+          }
+        }
+      }
+      if (tm.x < tm.y) { th0 = tm.x; tm.x += inv.x; c.x += st.x; } else { th0 = tm.y; tm.y += inv.y; c.y += st.y; }
+    }
+    if (tw > 0) {
+      xs = tx; let u: f32 = dl.x * tx; let w: f32 = dl.y * tx; let Lw: vec4f = mLand(u, w);
+      let tint: vec3f = mTint(fract(tinfo.y * 7.31 + tinfo.w * 3.7) * (0.74 + 0.22 * Lw.y));
+      let tall: f32 = saturate(tinfo.x / 700.0);
+      if (tw == 1) {
+        // a wall: lit windows in blocks, lit floors, the glow of the street at its foot, a lit top on the tall ones
+        let q: f32 = dot(vec2f(u, w), vec2f(-tn.y, tn.x));
+        let wc: vec2f = floor(vec2f(q / 9.0, tq / 7.0)); let fl: f32 = hash21(vec2f(floor(tq / 7.0), tinfo.z * 91.0));
+        let on: f32 = step(mix(0.62, 0.30, tall) - 0.25 * step(0.72, fl), hash21(wc + vec2f(tinfo.y * 177.0, tinfo.z * 53.0)));
+        if (mode < 0.5) {
+          var em: vec3f = tint * (on * (0.5 + 1.3 * hash21(wc + vec2f(3.0, 3.0))) * mix(1.0, 2.0, tall)) + tint * 0.10;
+          em += vec3f(1.0, 0.70, 0.36) * (1.0 * exp(-tq / 45.0));
+          em += tint * (1.4 * tall * smoothstep(0.90, 1.0, tq / tinfo.x));
+          col = vec4f(em, 0.0);
+        } else {
+          let face: f32 = 0.55 + 0.45 * saturate(dot(tn, normalize(vec2f(-0.6, -0.8))));
+          col = vec4f(mix(vec3f(0.05, 0.06, 0.10), vec3f(0.13, 0.16, 0.24), face) * (0.8 + 0.4 * tinfo.z), 0.0);
+        }
+      } else {
+        // a roof: snow by day; at night a rim of light, and on the tall ones a lit crown
+        if (mode < 0.5) { col = vec4f(tint * (0.25 + 2.0 * tall * step(0.5, tinfo.z)) + vec3f(1.0, 0.2, 0.1) * (2.0 * step(0.86, tinfo.z)), 0.0); }
+        else { col = vec4f(vec3f(0.58, 0.64, 0.78), 0.0); }
+      }
+    } else {
+      let u: f32 = dl.x * xg; let w: f32 = dl.y * xg; let dist: f32 = sqrt(xg * xg + MH * MH);
+      col = mGround(u, w, dl, dist * dTh / max(s - xg / MRE, 0.004), dist * dAz, mode);
+    }
+  }
+  // ---- banks of cloud lying low where the foothills meet the city, and a few farther out: lit from below by what they lie over
+  let xa: f32 = 2.0 * (MH - 620.0) / (s + sqrt(max(s * s - 2.0 * (MH - 620.0) / MRE, 0.0)));
+  let xb: f32 = min(2.0 * (MH - 180.0) / (s + sqrt(max(s * s - 2.0 * (MH - 180.0) / MRE, 0.0))), xs);
+  if (xb > xa && s > 0.03) {
+    var T: f32 = 1.0; var acc: vec3f = vec3f(0.0); let dx: f32 = (xb - xa) / 22.0;
+    for (var i: i32 = 0; i < 22; i++) {
+      let x: f32 = xa + (f32(i) + 0.5) * dx; let p: vec2f = dl * x; let y: f32 = mRayH(x, s);
+      let dn: f32 = mCloud(p, y);
+      if (dn > 0.0) {
+        let a: f32 = 1.0 - exp(-dn * dx * 0.0035);
+        let hf: f32 = saturate((y - 180.0) / 440.0);
+        var cc: vec3f = vec3f(0.30, 0.34, 0.46) * (0.35 + 0.65 * hf);
+        if (mode < 0.5) { cc = mix(vec3f(1.0, 0.62, 0.34), vec3f(0.80, 0.62, 0.72), hf) * (1.1 * (1.0 - 0.85 * hf)) * (0.5 + 0.8 * mLand(p.x, p.y).x); }
+        acc += cc * (T * a); T *= 1.0 - a;
+      }
+      if (T < 0.03) { break; }
+    }
+    col = vec4f(col.rgb * T + acc, col.a * T);
+  }
+  return col;
+}
+fn frag(v: VOut) -> FOut { var o: FOut;
+  let dAz: f32 = ${f(2 * M.AZ)} / M.m.z; let n: i32 = i32(M.m.y);
+  var sum: vec4f = vec4f(0.0);
+  for (var i: i32 = 0; i < 4; i++) {
+    if (i < n) {
+      var j: vec2f = (vec2f(f32(i & 1), f32(i / 2)) - 0.5) * 0.5;
+      if (n == 1) { j = vec2f(0.0); }
+      let uv: vec2f = v.uv + j / M.m.zw;
+      let az: f32 = (uv.x - 0.5) * ${f(2 * M.AZ)}; let vv: f32 = saturate(uv.y);
+      let th: f32 = ${f(M.ta)} * vv + ${f(M.tb)} * vv * vv * vv * vv;
+      let dTh: f32 = (${f(M.ta)} + ${f(4 * M.tb)} * vv * vv * vv) / M.m.w;
+      sum += mScene(az, th + 1e-4, M.m.x, dAz * 0.5, dTh * 0.5);
+    }
+  }
+  o.color = sum / f32(max(n, 1)); return o; }
+`;
+}
+
+// ---- every frame, in the sky shader: the panoramas, the air, the horizon. (They ride in the cloud sea's two texture slots: tSeaA = E, tSeaB = A)
+function metroSSL() {
+  const V = Vista, f = metroF, M = Metro, dip = Math.sqrt(2 * M.H / M.RE);
+  return `
+// where a line of sight lies in the panoramas: x = bearing, y = row; z = how far below the planet's rim it runs (rad; the rim is bent
+// down to either side)
+fn metroUV(d: vec3f) -> vec3f {
+  let az: f32 = atan2(d.x, -d.z) - ${f(V.cityAz)};
+  let a: f32 = atan2(sin(az), cos(az));
+  let th: f32 = atan2(-d.y, length(d.xz)) - ${f(M.bend)} * (1.0 - cos(a));
+  let tc: f32 = max(th, ${f(dip)});
+  var v: f32 = min(tc / ${f(M.ta)}, 1.0);
+  for (var i: i32 = 0; i < 4; i++) { let c: f32 = v * v * v; v -= (${f(M.ta)} * v + ${f(M.tb)} * c * v - tc) / (${f(M.ta)} + ${f(4 * M.tb)} * c); }
+  return vec3f(a / ${f(2 * M.AZ)} + 0.5, saturate(v), th - ${f(dip)});
+}
+fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
+  let q: vec3f = metroUV(d); let night: f32 = U.skyP.z;
+  // above the rim: only the air (metroDome adds its glow)
+  if (q.z <= 0.0) { return haze; }
+  let s: f32 = tan(min(q.z + ${f(dip)}, 1.4));
+  let dist: f32 = 2.0 * ${f(M.H)} / (s + sqrt(max(s * s - ${f(2 * M.H / M.RE)}, 0.0)));
+  let lod: f32 = max(log2(2.0 * U.camRight.w * U.res.w / ${f(2 * M.AZ / M.W)}), 0.0);
+  let ex: f32 = 1.0 - smoothstep(${f(M.AZ - 0.08)}, ${f(M.AZ)}, abs((q.x - 0.5) * ${f(2 * M.AZ)}));
+  let E: vec4f = texLod(tSeaA, q.xy, lod); let A: vec4f = texLod(tSeaB, q.xy, lod);
+  // the lights shimmer in the air between: each a little, never together
+  let tw: f32 = 0.82 + 0.72 * texLod(tDetail, q.xy * vec2f(37.0, 19.0) + vec2f(U.camPos.w * 0.021, U.camPos.w * 0.013), 0.0).a * texLod(tDetail, q.xy * vec2f(23.0, 41.0) - vec2f(U.camPos.w * 0.017, 0.0), 0.0).a;
+  let lit: vec3f = (U.sunCol.rgb * (saturate(U.sunDir.y + 0.15) * 0.9) + U.ambSky.rgb * 1.1 + U.twi.rgb * 0.3) * (1.0 - 0.80 * night);
+  // water: a dark mirror for the sky, with a sheen toward the horizon
+  let mir: vec3f = (vistaHaze(vec3f(d.x, -d.y, d.z)) + vec3f(0.02, 0.05, 0.14) * night) * (0.25 + 0.55 * pow(1.0 - saturate(s), 6.0));
+  var c: vec3f = (mix(A.rgb * lit, A.rgb * lit * 0.6 + mir, A.a) + E.rgb * (tw * night * ${f(M.lamp)})) * ex;
+  // the air: by night a deep blue that the city warms a little, thickening toward the rim
+  let air: vec3f = mix(haze, vec3f(0.035, 0.06, 0.16) + vec3f(0.10, 0.07, 0.05) * luma(E.rgb), night * 0.85);
+  c = mix(air, c, exp(-dist / mix(34000.0, 52000.0, night)));
+  return mix(haze, c, smoothstep(0.0, 0.004, q.z));
+}
+// the planet's rim: a thin bright line of blue air, and its glow over it (added to the sky all round)
 fn metroDome(d: vec3f) -> vec3f {
-  let e: f32 = max(d.y, 0.0);
-  return vec3f(1.0, 0.50, 0.20) * ((0.05 * exp(-e / 0.02) + 0.012 * exp(-e / 0.08)) * U.skyP.z * smoothstep(-0.03, 0.0, d.y));
+  let q: vec3f = metroUV(d); let e: f32 = max(-q.z, 0.0);
+  return (vec3f(0.30, 0.52, 1.0) * (0.55 * exp(-e / 0.006) + 0.16 * exp(-e / 0.035)) + vec3f(0.55, 0.42, 0.40) * (0.05 * exp(-e / 0.05))) * (0.42 * mix(0.35, 1.0, U.skyP.z)) * (1.0 - smoothstep(0.0, 0.012, q.z));
 }
 `;
 }
-function M_DECK() { return Metro.deck; }

@@ -89,10 +89,10 @@ const Sky = (() => {
         // in heavy snow the overcast is drawn over all of that, the sun coming and going through its breaks (05b_weather.js)
         col = overcast(d, mu, col);
         // beyond the mountain, nearest last: ranges on the horizon, the cloud deck, the city standing in it
-        col = farRanges(d, col);
-        if (U.world.x > 0.5) { col += metroDome(d); col = mix(col, metroPlain(d, mu, col), smoothstep(0.0, -0.006, d.y)); }   // (不夜城: 16b_metro.js)
+        if (U.world.x < 0.5) { col = farRanges(d, col); }
+        if (U.world.x > 0.5) { col += metroDome(d); col = mix(col, metroPlain(d, mu, col), smoothstep(0.02, 0.0, d.y)); }   // (不夜城: 16b_metro.js)
         else { col = mix(col, cloudSea(d, mu, col), smoothstep(0.0, -0.006, d.y)); }
-        { let cb: vec3f = col; col = mix(cityLayer(d, col), cb, M.wf.w); }      // (behind heavy snow only a shape of it: 05b_weather.js)
+        if (U.world.x < 0.5) { let cb: vec3f = col; col = mix(cityLayer(d, col), cb, M.wf.w); }      // (behind heavy snow only a shape of it: 05b_weather.js)
         // ...and nearer than all of it, a bolt of lightning
         col += bolt(d);
         o.color = vec4f(col, 0.0); return o; }`,
@@ -222,8 +222,6 @@ const Sky = (() => {
   Variants.def('aurora', '极光', [['a', '和星云轮流'], ['b', '随机'], ['c', '关']], 'b');
   S.auroraK = 0.35;
   S.show = function () {
-    // (over the endless city the sky is its own, deep blue and starry, as in the concept: no nebula, no aurora)
-    if (Variants.val.world === 'b') return 'none';
     const v = Variants.val.aurora; if (v === 'c') return 'nebula';
     const n = Math.floor((S.clock - S.times.day) / S.cycle), sd = typeof Course !== 'undefined' ? Course.seed % 9973 : 0;
     const h = (k) => { const q = Math.sin(k * 127.1 + 311.7) * 43758.5453; return q - Math.floor(q); };
@@ -251,7 +249,7 @@ const Sky = (() => {
       sd: [S.disc[0], S.disc[1], S.disc[2], S.isMoon ? 0 : 1], mo: [md[0], md[1], md[2], S.moonVis], hi: [S.sunHi[0], S.sunHi[1], S.sunHi[2], S.night], fr: [S.sunFar[0] * wk, S.sunFar[1] * wk, S.sunFar[2] * wk, strobe + 0.5 * beacon],
       pa: PL.on ? [PL.x - cam[0], PL.z - cam[2], S.hiAlt, 1] : [0, 0, S.hiAlt, 0], pb: [PL.hx, PL.hz, PL.len, PL.v], pc: [PL.cut, S.glare, (Variants.val.moon === 'b' ? 1 : 0) * S.night, 0], cs: [Clouds.sea.f, Clouds.sea.oA, Clouds.sea.oB, 0], ab: S.anti, ns: [NSKY.step(Render.time)[0], NSKY.v[1], 0, 0],
       wa: wx ? wx.wa : [0, 0, 0, 0], wb: wx ? wx.wb : [0, 0, 0, 0], wc: wx ? wx.wc : [0, 0, 0, 0], wd: wx ? wx.wd : [0, 0, 0, 0], we: wx ? wx.we : [0, 0, 0, 0], wf: wx ? wx.wf : [0, 0, 0, 0], wg: wx ? wx.wg : [0, 0, 0, 0] },
-      tex: { tSky: lutTex, tNebA: Nebula.texA, tNebB: Nebula.texB, tDetail: Tex.detail, tFarA: Vista.farA, tFarB: Vista.farB, tCityA: Vista.cityA, tCityB: Vista.cityB, tCitySh: Vista.shTex, tSeaA: Clouds.sea.A, tSeaB: Clouds.sea.B }, count: 3 });
+      tex: { tSky: lutTex, tNebA: Nebula.texA, tNebB: Nebula.texB, tDetail: Tex.detail, tFarA: Vista.farA, tFarB: Vista.farB, tCityA: Vista.cityA, tCityB: Vista.cityB, tCitySh: Vista.shTex, tSeaA: Metro.on() && Metro.done ? Metro.E : Clouds.sea.A, tSeaB: Metro.on() && Metro.done ? Metro.A : Clouds.sea.B }, count: 3 });
   };
   return S;
 })();
