@@ -21,6 +21,19 @@ const Post = (() => {
   const gPick = () => P.ghostV[typeof Variants !== 'undefined' && Variants.val.ghost] || P.ghostV.c;
   if (typeof Variants !== 'undefined') Variants.def('ghost', '逆光光斑', [['a', '现在的'], ['b', '轻'], ['c', '明显']], 'c');
   P.gOld = gPick()[0]; P.gNew = gPick()[1];
+  // the crumbs of snow on the glass (Variants 'lens' b, c): a, as delivered (big hard-edged clots that read as stickers of popcorn); b, a
+  // smaller crumb, a wider soft edge (it is far out of focus) and half as dense: a smudge of white rather than a thing on the picture.
+  // [size, how much it covers, softness]
+  P.lsnowV = { a: [1, 1, 0], b: [0.62, 0.55, 1] };
+  if (typeof Variants !== 'undefined') Variants.def('lsnow', '└ 镜头雪团', [['a', '原来'], ['b', '小而淡']], 'b');
+  // the cool white balance (composite below) is right by day and by night, but with the sun on the horizon it pushed the orange and gold of the
+  // sky toward yellow-green, and the far ranges and the city went olive (photographs of a sunrise over a sea of cloud: orange, yellow, pale
+  // blue, no green). b: neutral while the sun is low, cool again once it is up or well down. How much of the cool balance: 0..1
+  if (typeof Variants !== 'undefined') Variants.def('wbal', '日落白平衡', [['a', '原来'], ['b', '日落回中性']], 'b');
+  P.wbK = function () {
+    if (typeof Variants === 'undefined' || Variants.val.wbal === 'a' || typeof Sky === 'undefined') return 1;
+    return Math.max(Sky.milk || 0, Sky.night || 0);
+  };
   // highlights: as delivered (the film curve per channel, so backlit spray and the glare round a low sun burn to a saturated yellow), or
   // losing their colour toward white as they near the top of the curve, the way film and the eye do (composite below). Eased like the ghosts
   const wPick = () => (typeof Variants !== 'undefined' && Variants.val.hi === 'a') ? 0 : 1;
@@ -103,7 +116,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   }
   o.color = vec4f(acc / 12.0, 0.0, 1.0); return o; }` }, sweep));
     pComp = gfx.pipeline({
-      name: 'composite', lib: [SL.common, SL.hash, SL.noise, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', w: 'vec4f', wb: 'vec4f', sh: 'vec4f', ws: 'vec4f' }, textures: { tScene: '2d', tBloom: '2d', tDepth: 'depth', tVis: '2d', tRay: '2d' },
+      name: 'composite', lib: [SL.common, SL.hash, SL.noise, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', w: 'vec4f', wb: 'vec4f', sh: 'vec4f', ws: 'vec4f', ls: 'vec4f' }, textures: { tScene: '2d', tBloom: '2d', tDepth: 'depth', tVis: '2d', tRay: '2d' },
       colorFormat: 'canvas', depth: false, depthTest: false, cull: 'none', vs: VS_FULLSCREEN, fs: COMPOSITE_FS,
     });
     // the shutter stays open for a moment while the mountain goes by: every point of the picture is smeared along the path it took
@@ -206,7 +219,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     for (let i = m.length - 2; i >= 0; i--) { gfx.beginPass(m[i].t, {}); gfx.draw(pUp, { u: { p: [1 / m[i + 1].w, 1 / m[i + 1].h, 1.0, 0] }, tex: { tA: m[i + 1].tex }, count: 3 }); gfx.endPass(); }
     { const g = gPick(), k = 1 - Math.exp(-8 * clamp(Render.dt || 0, 0, 0.1)); P.gOld += (g[0] - P.gOld) * k; P.gNew += (g[1] - P.gNew) * k; P.white += (wPick() - P.white) * k; }
     gfx.beginPass(null, { color: [0, 0, 0, 1] });
-    gfx.draw(pComp, { u: { p: [P.exposure, 1 / m.length, P.rayBase * P.rays, P.rayOcc * P.rays], q: [P.satPre, P.satPost, P.flare, P.rayFall], r: [P.burst, P.ghosts * P.gOld, P.slow, P.speed], w: [P.wet, P.wetAge, P.wetSeed, P.fringe], wb: [P.wetBias[0], P.wetBias[1], P.wetNew, P.ghosts * P.gNew], sh: [P.chat[0] / W, P.chat[1] / H, P.chat[2], P.white], ws: [P.wetBlow, P.wetLook, P.wetC[0], P.wetC[1]] }, tex: { tScene: sceneTex, tBloom: m[0].tex, tDepth: depthTex, tVis: visTex, tRay: rayA }, count: 3 });
+    gfx.draw(pComp, { u: { p: [P.exposure, 1 / m.length, P.rayBase * P.rays, P.rayOcc * P.rays], q: [P.satPre, P.satPost, P.flare, P.rayFall], r: [P.burst, P.ghosts * P.gOld, P.slow, P.speed], w: [P.wet, P.wetAge, P.wetSeed, P.fringe], wb: [P.wetBias[0], P.wetBias[1], P.wetNew, P.ghosts * P.gNew], sh: [P.chat[0] / W, P.chat[1] / H, P.chat[2], P.white], ws: [P.wetBlow, P.wetLook, P.wetC[0], P.wetC[1]], ls: (P.lsnowV[typeof Variants !== 'undefined' && Variants.val.lsnow] || P.lsnowV.a).concat([P.wbK()]) }, tex: { tScene: sceneTex, tBloom: m[0].tex, tDepth: depthTex, tVis: visTex, tRay: rayA }, count: 3 });
     gfx.endPass();
   };
   return P;
@@ -366,7 +379,7 @@ fn snoCrumbs(p: vec2f, n: f32, seed: f32, dens: f32, life: vec2f, px: f32) -> Sn
   // each crumb is torn away at its own moment as the snow goes, and shrinks toward it
   let s: f32 = smoothstep(0.0, 0.22, M.w.x - mix(life.x, life.y, k.x));
   if (s <= 0.0 || h.z > dens * wetDens((id + 0.5) / n)) { return o; }
-  let r0: f32 = mix(0.12, 0.20, k.y * k.y); let q: vec2f = f - (vec2f(2.2 * r0) + h.xy * (1.0 - 4.4 * r0));
+  let r0: f32 = mix(0.12, 0.20, k.y * k.y) * M.ls.x; let q: vec2f = f - (vec2f(2.2 * r0) + h.xy * (1.0 - 4.4 * r0));
   // a clot of snow, not a disc: a core and four lumps of their own sizes thrown out round it, so the outline is lobed and uneven
   var e: f32 = length(q * vec2f(1.0, mix(0.8, 1.25, h.x))) / r0;
   for (var i: i32 = 0; i < 4; i++) {
@@ -380,7 +393,7 @@ fn snoCrumbs(p: vec2f, n: f32, seed: f32, dens: f32, life: vec2f, px: f32) -> Sn
   let fr: f32 = 0.55 * vnoise2(fq) + 0.30 * vnoise2(fq * 2.7 + 3.1) + 0.15 * vnoise2(fq * 7.3 + 1.7) - 0.5;
   let grain: f32 = hash21(floor(p * 900.0 + h.xy * 97.0));
   let ee: f32 = e + fr * 0.75 + (grain - 0.5) * 0.30 * smoothstep(0.6, 1.0, e);
-  let soft: f32 = max(0.08, px * n / r0 * 2.5);
+  let soft: f32 = max(mix(0.08, 0.30, M.ls.z), px * n / r0 * 2.5);
   // (dense in the middle, thinning toward the frayed rim, where the light comes through between the crystals)
   o.m = smoothstep(1.0 + soft, 1.0 - soft * 1.6, ee) * mix(0.55, 1.0, smoothstep(1.0, 0.35, ee)) * mix(0.80, 0.97, k.z) * min(s * 1.6, 1.0);
   // single crystals out in the fraying edge, and stood proud on the crumb: some catch the sun
@@ -390,6 +403,7 @@ fn snoCrumbs(p: vec2f, n: f32, seed: f32, dens: f32, life: vec2f, px: f32) -> Sn
   o.m = max(o.m, spec * 0.7);
   o.g = spec * step(0.93, gh.z);
   o.t = fr + 0.6 * (grain - 0.5) * smoothstep(0.9, 0.4, ee);
+  o.m *= M.ls.y;
   return o;
 }
 fn lensSnow(uv: vec2f) -> Sno {
@@ -455,7 +469,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   col += lensFlare(v.uv, vv) * M.q.z;
   // white balance toward the low sun (sunlit snow a warm white, sky-lit shadows properly blue), exposure, then the film curve.
   // chroma is pushed a little before the curve (deep sky, rich shadows) and again after it.
-  col *= vec3f(0.93, 1.0, 1.10) * M.p.x;
+  col *= mix(vec3f(1.0), vec3f(0.93, 1.0, 1.10), M.ls.w) * M.p.x;
   // path to white: film and the eye lose colour as light nears their top, so backlit spray, a sunlit cloud edge or the glare round the sun
   // go gold at their rims and white where they are densest, never a saturated yellow "fire" (the curve works per channel, and red and green
   // reach its shoulder together long before blue does). Graded on brightness, so the warm snow of the low sun keeps its colour and the deep
