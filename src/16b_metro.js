@@ -13,7 +13,7 @@ const Metro = (() => {
   // H: how far below the eye the city lies (m); RE: the radius of its little planet (the horizon dips, and curves, far more than the earth's);
   // AZ: the panorama covers bearings +-AZ about the city's; ta, tb: its rows, packed toward the horizon (drop = ta v + tb v^4);
   // bend: how much farther the ground falls away to either side than straight ahead (rad at 90 degrees: the planet's curve, overdrawn)
-  const M = { H: 2200, RE: 9.0e5, AZ: 1.3, ta: 0.33, tb: 0.97, bend: 0.20, W: 2048, Hh: 1024, R1: 10500, DC: [500, 12500], lamp: 0.42, samples: 4, done: false, E: null, A: null, pipes: [] };
+  const M = { H: 2200, RE: 9.0e5, AZ: 1.3, ta: 0.33, tb: 0.97, bend: 0.34, lift: 0.17, W: 2048, Hh: 1024, R1: 10500, DC: [500, 12500], lamp: 0.42, samples: 4, done: false, E: null, A: null, pipes: [] };
   M.on = () => Variants.val.world === 'b';
   let gfx, pipe, tE, tA;
   M.init = function (g, res) {
@@ -75,11 +75,11 @@ fn mHills(u: f32, w: f32) -> f32 {
   let r: f32 = length(vec2f(u, w)); if (r > MR1) { return 0.0; }
   let env: f32 = (MH - 240.0) * pow(1.0 - r / MR1, 1.45);
   let az: f32 = atan2(u, max(w, 1.0));
-  let n: f32 = vnoise2(vec2f(az * 5.5 + 0.35 * sin(r / 2100.0) + 3.0, r / 5200.0));
-  let rg: f32 = 1.0 - abs(2.0 * n - 1.0);
+  let n: f32 = vnoise2(vec2f(az * 8.0 + 0.35 * sin(r / 2100.0) + 3.0, r / 5200.0));
+  let rg: f32 = (1.0 - abs(2.0 * n - 1.0)) * (0.72 + 0.40 * (1.0 - abs(2.0 * vnoise2(vec2f(az * 21.0 + 9.0, r / 2400.0)) - 1.0)));
   let val: f32 = smoothstep(120.0, 1500.0 + 0.12 * r, abs(u - mRoadU(w)));
   let det: f32 = fbm2(vec2f(u, w) / 900.0) - 0.5;
-  return max(env * (0.30 + 0.70 * pow(rg, 1.3)) * (0.16 + 0.84 * val) * (1.0 + 0.5 * det) + 70.0 * det * (1.0 - smoothstep(MR1 - 2500.0, MR1, r)), 0.0);
+  return max(env * (0.30 + 0.70 * pow(rg, 1.7)) * (0.16 + 0.84 * val) * (1.0 + 0.5 * det) + 70.0 * det * (1.0 - smoothstep(MR1 - 2500.0, MR1, r)), 0.0);
 }
 // how tall the towers of a quarter may stand at a spot
 fn mCoreH(u: f32, w: f32) -> f32 {
@@ -178,7 +178,7 @@ fn mHillShade(u: f32, w: f32, hl: f32, mode: f32) -> vec4f {
   let nx: f32 = mHills(u + e, w) - mHills(u - e, w); let nz: f32 = mHills(u, w + e) - mHills(u, w - e);
   let N: vec3f = normalize(vec3f(-nx, 2.0 * e, -nz));
   let steep: f32 = 1.0 - N.y;
-  let fo: f32 = smoothstep(0.42, 0.60, fbm2(vec2f(u, w) / 420.0) + 0.9 * steep - 0.25 * smoothstep(200.0, 1200.0, hl));
+  let fo: f32 = smoothstep(0.42, 0.60, fbm2(vec2f(u, w) / 260.0) + 1.3 * steep - 0.25 * smoothstep(200.0, 1200.0, hl));
   let rd: f32 = abs(u - mRoadU(w)) / sqrt(1.0 + sq((mRoadU(w + 20.0) - mRoadU(w - 20.0)) / 40.0));
   // the towns in the valleys: clusters of warm lights low down, thinning up the slopes
   let low: f32 = (1.0 - smoothstep(60.0, 520.0, hl)) * smoothstep(2200.0, 4200.0, length(vec2f(u, w)));
@@ -191,12 +191,12 @@ fn mHillShade(u: f32, w: f32, hl: f32, mode: f32) -> vec4f {
     let rk: f32 = smoothstep(500.0, 1500.0, w);
     em += vec3f(1.0, 0.62, 0.26) * ((1.0 - smoothstep(8.0, 26.0, rd)) * 5.5 + 0.9 * exp(-rd / 60.0) + 0.16 * exp(-rd / 420.0)) * rk;
     em += vec3f(1.0, 0.25, 0.12) * ((1.0 - smoothstep(3.0, 9.0, abs(rd - 14.0))) * 3.0) * rk;
-    em += vec3f(1.0, 0.60, 0.28) * (0.10 * saturate(tn));
+    em += vec3f(1.0, 0.56, 0.24) * (0.34 * saturate(tn));
     return vec4f(em, 0.0);
   }
   // snow under a light from the upper left, the hollows bluer; forest dark on the steeper ground
-  let sh: f32 = saturate(0.55 + 0.9 * dot(N, normalize(vec3f(-0.5, 0.55, -0.45)))) * (0.75 + 0.25 * smoothstep(0.0, 500.0, hl));
-  let snow: vec3f = mix(vec3f(0.26, 0.33, 0.56), vec3f(0.74, 0.80, 0.94), sh);
+  let sh: f32 = saturate(0.10 + 1.5 * dot(N, normalize(vec3f(-0.62, 0.50, -0.30)))) * (0.70 + 0.30 * smoothstep(0.0, 500.0, hl));
+  let snow: vec3f = mix(vec3f(0.10, 0.14, 0.36), vec3f(0.84, 0.90, 1.0), sh);
   return vec4f(mix(snow, vec3f(0.035, 0.05, 0.085), fo * 0.9), 0.0);
 }
 // a bank of cloud at p (m from the eye), y m above the plain: its density
@@ -352,7 +352,7 @@ function metroSSL() {
 fn metroUV(d: vec3f) -> vec3f {
   let az: f32 = atan2(d.x, -d.z) - ${f(V.cityAz)};
   let a: f32 = atan2(sin(az), cos(az));
-  let th: f32 = atan2(-d.y, length(d.xz)) - ${f(M.bend)} * (1.0 - cos(a));
+  let th: f32 = atan2(-d.y, length(d.xz)) + ${f(M.lift)} - ${f(M.bend)} * (1.0 - cos(a));
   let tc: f32 = max(th, ${f(dip)});
   var v: f32 = min(tc / ${f(M.ta)}, 1.0);
   for (var i: i32 = 0; i < 4; i++) { let c: f32 = v * v * v; v -= (${f(M.ta)} * v + ${f(M.tb)} * c * v - tc) / (${f(M.ta)} + ${f(4 * M.tb)} * c); }
@@ -372,7 +372,21 @@ fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
   let lit: vec3f = (U.sunCol.rgb * (saturate(U.sunDir.y + 0.15) * 0.9) + U.ambSky.rgb * 1.1 + U.twi.rgb * 0.3) * (1.0 - 0.80 * night);
   // water: a dark mirror for the sky, with a sheen toward the horizon
   let mir: vec3f = (vistaHaze(vec3f(d.x, -d.y, d.z)) + vec3f(0.02, 0.05, 0.14) * night) * (0.25 + 0.55 * pow(1.0 - saturate(s), 6.0));
-  var c: vec3f = (mix(A.rgb * lit, A.rgb * lit * 0.6 + mir, A.a) + E.rgb * (tw * night * ${f(M.lamp)})) * ex;
+  // the lights are points, not a paste: over the baked glow, two sizes of sparks (a few of them far brighter than the rest), each
+  // fixed to its bearing so that it stays put
+  let sa: vec2f = vec2f((q.x - 0.5) * ${f(2 * M.AZ)}, q.z);
+  var spark: f32 = 0.0;
+  for (var i: i32 = 0; i < 2; i++) {
+    let cs: f32 = mix(0.0021, 0.0052, f32(i)); let g: vec2f = sa / cs + vec2f(f32(i) * 37.0, 11.0);
+    let cl: vec2f = floor(g); let h: vec2f = hash22(cl + vec2f(3.0, 501.0));
+    let o: vec2f = fract(g) - 0.5 - (h - 0.5) * 0.55; let b: f32 = hash21(cl + vec2f(77.0, 9.0));
+    spark += exp(-dot(o, o) * mix(26.0, 34.0, f32(i))) * b * b * b * b * mix(3.4, 10.0, f32(i));
+  }
+  let El: f32 = luma(E.rgb);
+  let farK: f32 = smoothstep(5000.0, 16000.0, dist);
+  let Ec: vec3f = mix(E.rgb, vec3f(1.0, 0.50, 0.13) * El * 1.3, 0.62 * (1.0 - A.a)) * mix(0.85 + 0.4 * spark, 0.36 + spark, farK);
+  let nightGround: vec3f = A.rgb * vec3f(0.035, 0.05, 0.15) * night;
+  var c: vec3f = (mix(A.rgb * lit + nightGround, A.rgb * lit * 0.6 + mir, A.a) + Ec * (tw * night * ${f(M.lamp)})) * ex;
   // the air: by night a deep blue that the city warms a little, thickening toward the rim
   let air: vec3f = mix(haze, vec3f(0.035, 0.06, 0.16) + vec3f(0.10, 0.07, 0.05) * luma(E.rgb), night * 0.85);
   c = mix(air, c, exp(-dist / mix(34000.0, 52000.0, night)));
