@@ -16,6 +16,13 @@
 // landing is made the downbeat of the next chord. When time runs slow (Game.timeScale) tempo, pitch and brightness sag with it.
 const Music = (() => {
   const MU = { bpm: 90, level: 0.28, sag: 0.13, look: 0.2 };        // look: how far ahead notes are written (s): a frame that hangs for less than this does not make the beat stumble
+  // how loud the score sits against the wind and the snow: a, as delivered (measured: 5 to 9 dB under them between 500 Hz and 2 kHz, where the
+  // plucked line lives, and the faster the more); b, 4 dB up. And the title page: a, silent until the first push (as delivered); b, the bed
+  // and the slowest layer 6 dB down while the title is up, carried on without a break into the run
+  const LevelV = { a: 1, b: 1.585 };
+  if (typeof Variants !== 'undefined') { Variants.def('mlevel', '音乐音量', [['a', '原来'], ['b', '大一点']], 'b'); Variants.def('tmusic', '标题页音乐', [['a', '没有'], ['b', '有']], 'a'); }
+  const vOf = n => typeof Variants !== 'undefined' ? Variants.val[n] : null;
+  MU.titleOn = () => vOf('tmusic') === 'b';
   const MIX = { pad: 1.15, arp: 1.1, bass: 0.7, shim: 1.3, lead: 1.25, air: 1 };       // the layers against each other (set by measuring each one alone)
   // a chord: bass note and the note the bass moves to, four bed voices, six notes for the pulse (low to high), five for lead and shimmer.
   // The bed is voiced open: never two seconds side by side and no semitone low down (under snow and wind a cluster is only mud)
@@ -219,11 +226,12 @@ const Music = (() => {
       const dt = clamp(t - T.t, 0, MU.look); T.t = t;
       const e = s.sun == null ? 0.2 : s.sun, tsR = clamp(s.ts || 1, 0.05, 1);
       T.night = smooth(0, -0.17, e); T.want = e < -0.1 ? 'nebula' : e < 0.03 ? 'ember' : e < 0.12 ? 'gold' : 'clear';
-      if (s.run && !T.on) {        // a run begins (the first or a later one): from the top, with nothing remembered of what the skier was doing before
+      const live = s.run || (!!s.title && MU.titleOn());
+      if (live && !T.on) {        // a run begins (the first or a later one): from the top, with nothing remembered of what the skier was doing before
         T.on = true; T.pos = T.next = T.abs = T.step = T.bar = T.chord = 0; T.wantP = T.wantB = T.tierP = T.tierB = T.carve = T.bloom = T.hush = T.fly = T.tail = 0; T.ph = null;
         T.set = T.want; T.sp = s.speed; h.out.v = NaN; say(t, 'start');
       }
-      else if (!s.run && T.on) { T.on = false; T.d = 0; T.full = false; set(h.out, 0, t, 0.3); for (const b of banks) b.g.setTargetAtTime(0, t, 0.3); bG.gain.setTargetAtTime(0, t, 0.1); say(t, 'stop'); }
+      else if (!live && T.on) { T.on = false; T.d = 0; T.full = false; set(h.out, 0, t, 0.3); for (const b of banks) b.g.setTargetAtTime(0, t, 0.3); bG.gain.setTargetAtTime(0, t, 0.1); say(t, 'stop'); }
       if (!T.on) return;
       // what the skier is doing, as the few slow numbers the score listens to
       const kd = T.kind = KIND[s.kind] || KIND.bowl; T.sp = damp(T.sp, s.speed, 1.5, dt);
@@ -245,7 +253,7 @@ const Music = (() => {
       set(h.pad, 1 - 0.08 * Math.min(T.tierP, 2) - 0.07 * T.tierB + 0.25 * T.bloom, t, 0.5);
       set(h.eq, -2 - 7 * sat((E || 0) * 0.85), t, 0.08);                    // room for the scrape of the edges, where it lives
       set(h.rvG, 0.5 * kd.r * (1 + 0.3 * T.night), t, 0.8); set(h.dA, kd.r > 1.1 ? 0.6 : 0.5, t, 0.8);
-      set(h.out, MU.level * (1 - 0.15 * T.night), t, 0.8);
+      set(h.out, MU.level * (LevelV[vOf('mlevel')] || 1) * (s.run ? 1 : 0.5) * (1 - 0.15 * T.night), t, s.run ? 0.8 : 1.6);
       // the clock runs on the game's time; nothing is written while the skier is in the air on a real jump
       if (!T.full) { T.pos += dt * ts * SPS; const end = T.pos + MU.look * ts * SPS; let n = 0; while (T.next <= end && n++ < 6) { step(Math.max(t, t + (T.next - T.pos) / (ts * SPS))); T.next++; } }
     };
