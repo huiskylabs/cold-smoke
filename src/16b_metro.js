@@ -73,7 +73,7 @@ fn mWisp(p: vec2f, lod: f32) -> f32 {
   // drawn out along the wind (+x), in long torn bands
   let a: f32 = texLod(tDetail, vec2f(q.x / 21000.0, q.y / 6500.0) + vec2f(0.43, 0.29), lod).z;
   let b: f32 = texLod(tDetail, vec2f(q.x / 5200.0, q.y / 1900.0) + vec2f(0.11, 0.67), lod + 0.5).z;
-  return smoothstep(0.49, 0.62, a * 0.72 + b * 0.38);
+  return smoothstep(0.50, 0.72, a * 0.72 + b * 0.38);
 }
 // the city's light as the air and the cloud over it receive it, averaged over the blocks round p (m from the eye): scene units at night
 fn mGlowAt(p: vec2f) -> vec3f {
@@ -163,8 +163,11 @@ fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
   // ---- by day (and under all of it): roofs and streets in the sun, the river a dark mirror
   let sunN: f32 = saturate(U.sunDir.y) * (1.0 - 0.6 * cityShadow(p));
   let lit: vec3f = (U.sunCol.rgb * sunN + U.ambSky.rgb * 0.9 + U.twi.rgb * 0.3) * (1.0 - 0.6 * night);
-  let alb: vec3f = mix(mix(vec3f(0.21, 0.205, 0.20), vec3f(0.13, 0.135, 0.14), saturate(street * 2.0 + road)), vec3f(0.07, 0.085, 0.06), L.z) * (0.8 + 0.4 * blk);
-  let refl: vec3f = vistaHaze(vec3f(d.x, -d.y, d.z)) * (0.02 + 0.5 * pow(1.0 - s, 8.0)) + mGlowAt(p) * (0.25 * night);
+  // (it is winter down there too: snow on the roofs and the parks, the streets ploughed dark between them)
+  let dst: f32 = saturate(mLine(g.y / P + 0.5, 16.0 / P, wg.y / P) + mLine(g.x / P + 0.5, 16.0 / P, wg.x / P) + avx + avy + mw);
+  let roof: vec3f = mix(vec3f(0.30, 0.30, 0.31), vec3f(0.62, 0.64, 0.67), 0.35 + 0.65 * blk) * mix(0.8, 1.0, L.x);
+  let alb: vec3f = mix(mix(roof, vec3f(0.12, 0.125, 0.13), dst * mix(0.5, 1.0, L.x)), vec3f(0.60, 0.63, 0.66), L.z * 0.8);
+  let refl: vec3f = vistaHaze(vec3f(d.x, -d.y, d.z)) * (0.10 + 0.6 * pow(1.0 - s, 8.0)) + mGlowAt(p) * (0.25 * night);
   var c: vec3f = mix(alb * lit, refl, water) + em;
   // the air between: the farther, the more of the lit haze
   c = mix(hz + mGlowAt(p) * (0.10 * night), c, exp(-dist / ${f(SEA.air)}));
@@ -176,8 +179,8 @@ fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
     let fc: f32 = dc * pa / max(s, 2e-4);
     let den: f32 = mWisp(pc, log2(max(fc / ${f(5200 / 512)}, 1.0)));
     // a thin sheet: looked down on it hides little, toward the horizon it is a long way through and thickens into a band of lit mist
-    let al: f32 = (1.0 - exp(-den * 0.07 / max(s, 0.012))) * 0.9;
-    let under: vec3f = mGlowAt(pc) * ((4.0 + 3.0 * den) * night);
+    let al: f32 = (1.0 - exp(-den * 0.05 / max(s, 0.012))) * 0.8;
+    let ug: vec3f = mGlowAt(pc) * ((2.0 + 1.4 * den) * night); let under: vec3f = mix(ug, vec3f(luma(ug)) * vec3f(1.0, 0.86, 0.80), 0.35);
     let wc: vec3f = (U.sunCol.rgb + U.twi.rgb * 0.8) * (0.35 + 0.5 * pow(saturate(mu * 0.5 + 0.5), 4.0)) + U.ambSky.rgb * 1.1 + under;
     c = mix(c, mix(hz, wc, exp(-dc / ${f(SEA.air)})), al);
   }
