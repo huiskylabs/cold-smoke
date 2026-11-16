@@ -52,7 +52,7 @@ const Director = (() => {
   }
   const baseViewCam = G.viewCam;
   G.viewCam = function (dt, cam, pos, f) {
-    if (free) { freeCam(dt); return true; }
+    if (free) { if (typeof Post !== 'undefined') Post.fish = 0; freeCam(dt); return true; }
     return baseViewCam ? baseViewCam(dt, cam, pos, f) : false;
   };
 

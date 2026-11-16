@@ -352,7 +352,11 @@ const Fpv = (() => {
         // (the middle of the two tips' upper ends, and the way the skis point)
         const P = m4.tp(R, [(a[12] + b[12]) * 0.5 + (a[4] + b[4]) * 0.0685 - (a[8] + b[8]) * 0.4775, (a[13] + b[13]) * 0.5 + (a[5] + b[5]) * 0.0685 - (a[9] + b[9]) * 0.4775, (a[14] + b[14]) * 0.5 + (a[6] + b[6]) * 0.0685 - (a[10] + b[10]) * 0.4775]);
         const dm = [-(a[8] + b[8]) * 0.5, -(a[9] + b[9]) * 0.5, -(a[10] + b[10]) * 0.5], D = [R[0] * dm[0] + R[4] * dm[1] + R[8] * dm[2], R[1] * dm[0] + R[5] * dm[1] + R[9] * dm[2], R[2] * dm[0] + R[6] * dm[1] + R[10] * dm[2]];
-        const v = [P[0] - c.pos[0] + o[0], P[1] - c.pos[1] + o[1], P[2] - c.pos[2] + o[2]], k = lerp(SLIDE.y, tv().slideY, tk) * Math.tan(c.fovY / 2), a0 = v3.dot(v, c.up), a1 = v3.dot(D, c.up), b0 = v3.dot(v, c.fwd), b1 = v3.dot(D, c.fwd), den = a1 - k * b1;
+        // (ny: where the tip is held, -1 the bottom of the picture. The fisheye bends a wide perspective, so the aim is the place in that
+        // picture which lands on ny once it is bent; the last frame's barrel, like the camera this reads)
+        let ny = lerp(SLIDE.y, tv().slideY, tk);
+        if (typeof Post !== 'undefined' && Post.fish >= 1e-4 && Post.fishUV && Render.W > 0) { const u = Post.fishUV(0.5, 0.5 - ny * 0.5, Post.fish, Render.W / Math.max(1, Render.H)); ny = (0.5 - u[1]) * 2; }
+        const v = [P[0] - c.pos[0] + o[0], P[1] - c.pos[1] + o[1], P[2] - c.pos[2] + o[2]], k = ny * Math.tan(c.fovY / 2), a0 = v3.dot(v, c.up), a1 = v3.dot(D, c.up), b0 = v3.dot(v, c.fwd), b1 = v3.dot(D, c.fwd), den = a1 - k * b1;
         // (how far along D the tip has to go to stand at SLIDE.y of the picture's half height)
         const raw = b0 > 0.15 && den > 0.05 ? (k * b0 - a0) / den : (a0 < 0 ? mx : 0);
         want = sd.smin(-sd.smin(-raw, 0, 0.06), mx, 0.10);

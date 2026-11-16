@@ -13,7 +13,24 @@ const Post = (() => {
   Object.assign(P, { wetLook: 0, wetBlow: 0, wetC: [0.5, 0.5] });
   // also from 07c_feel.js: radial, the least streak at the very corners of the frame at speed (picture heights; 0 = none), drawn toward radC,
   // the point in the frame the lens is heading for (uv); radIn, how far out from the middle it begins (1 = the middle of a side, 1.41 a corner)
-  Object.assign(P, { radial: 0, radC: [0.5, 0.5], radIn: 0.6 });
+  Object.assign(P, { radial: 0, radC: [0.5, 0.5], radIn: 0.6, fish: 0 });
+  // helmet fisheye (first person, 07b_views.js). The scene stays a perspective; `fish` is the barrel (0 everywhere else, and then
+  // the picture is exactly what was drawn). These two are the same curve as fishUV / fishFwd in the composite, so a joint or the sun
+  // can be put where the glass will show it. aspect is width/height. uv is 0..1, y down.
+  P.fishUV = function (uvx, uvy, a, aspect) {
+    if (!(a >= 1e-4) || !(aspect > 0)) return [uvx, uvy];
+    const ax = aspect, dx = (uvx - 0.5) * ax, dy = uvy - 0.5, rc2 = 0.25 * (ax * ax + 1), r2 = dx * dx + dy * dy, s = (1 + a * r2 / rc2) / (1 + a);
+    return [0.5 + dx * s / ax, 0.5 + dy * s];
+  };
+  P.fishFwd = function (uvx, uvy, a, aspect) {
+    if (!(a >= 1e-4) || !(aspect > 0)) return [uvx, uvy];
+    const ax = aspect, dx = (uvx - 0.5) * ax, dy = uvy - 0.5, rc = 0.5 * Math.sqrt(ax * ax + 1), rs = Math.hypot(dx, dy) / rc;
+    if (rs < 1e-5) return [uvx, uvy];
+    const b = rs * (1 + a); let r = rs;
+    for (let i = 0; i < 3; i++) { const r2 = r * r; r -= (a * r2 * r + r - b) / (3 * a * r2 + 1); }
+    const s = Math.max(r, 0) / rs;
+    return [0.5 + dx * s / ax, 0.5 + dy * s];
+  };
   // how strongly the sun's ghosts show is the owner's call (Variants, the 场景 panel): as delivered (four faint discs of one colour each, all
   // but lost in the picture), light, or clear (lensGhosts below: soft discs split into rainbow fringes, after the Steep reference). Each
   // version is [delivered ghosts, new ghosts]; a change is eased in over a few tenths of a second
@@ -103,7 +120,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   }
   o.color = vec4f(acc / 12.0, 0.0, 1.0); return o; }` }, sweep));
     pComp = gfx.pipeline({
-      name: 'composite', lib: [SL.common, SL.hash, SL.noise, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', w: 'vec4f', wb: 'vec4f', sh: 'vec4f', ws: 'vec4f' }, textures: { tScene: '2d', tBloom: '2d', tDepth: 'depth', tVis: '2d', tRay: '2d' },
+      name: 'composite', lib: [SL.common, SL.hash, SL.noise, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', w: 'vec4f', wb: 'vec4f', sh: 'vec4f', ws: 'vec4f', fe: 'vec4f' }, textures: { tScene: '2d', tBloom: '2d', tDepth: 'depth', tVis: '2d', tRay: '2d' },
       colorFormat: 'canvas', depth: false, depthTest: false, cull: 'none', vs: VS_FULLSCREEN, fs: COMPOSITE_FS,
     });
     // the shutter stays open for a moment while the mountain goes by: every point of the picture is smeared along the path it took
@@ -207,13 +224,41 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     for (let i = m.length - 2; i >= 0; i--) { gfx.beginPass(m[i].t, {}); gfx.draw(pUp, { u: { p: [1 / m[i + 1].w, 1 / m[i + 1].h, 1.0, 0] }, tex: { tA: m[i + 1].tex }, count: 3 }); gfx.endPass(); }
     { const g = gPick(), k = 1 - Math.exp(-8 * clamp(Render.dt || 0, 0, 0.1)); P.gOld += (g[0] - P.gOld) * k; P.gNew += (g[1] - P.gNew) * k; P.white += (wPick() - P.white) * k; }
     gfx.beginPass(null, { color: [0, 0, 0, 1] });
-    gfx.draw(pComp, { u: { p: [P.exposure, 1 / m.length, P.rayBase * P.rays, P.rayOcc * P.rays], q: [P.satPre, P.satPost, P.flare, P.rayFall], r: [P.burst, P.ghosts * P.gOld, P.slow, P.speed], w: [P.wet, P.wetAge, P.wetSeed, P.fringe], wb: [P.wetBias[0], P.wetBias[1], P.wetNew, P.ghosts * P.gNew], sh: [P.chat[0] / W, P.chat[1] / H, P.chat[2], P.white], ws: [P.wetBlow, P.wetLook, P.wetC[0], P.wetC[1]] }, tex: { tScene: sceneTex, tBloom: m[0].tex, tDepth: depthTex, tVis: visTex, tRay: rayA }, count: 3 });
+    gfx.draw(pComp, { u: { p: [P.exposure, 1 / m.length, P.rayBase * P.rays, P.rayOcc * P.rays], q: [P.satPre, P.satPost, P.flare, P.rayFall], r: [P.burst, P.ghosts * P.gOld, P.slow, P.speed], w: [P.wet, P.wetAge, P.wetSeed, P.fringe], wb: [P.wetBias[0], P.wetBias[1], P.wetNew, P.ghosts * P.gNew], sh: [P.chat[0] / W, P.chat[1] / H, P.chat[2], P.white], ws: [P.wetBlow, P.wetLook, P.wetC[0], P.wetC[1]], fe: [P.fish, 0, 0, 0] }, tex: { tScene: sceneTex, tBloom: m[0].tex, tDepth: depthTex, tVis: visTex, tRay: rayA }, count: 3 });
     gfx.endPass();
   };
   return P;
 })();
 
 const COMPOSITE_FS = `
+// helmet fisheye (Post.fish, first person only). The scene, its glow and the beams are a wide perspective. A pixel reads that picture
+// closer to the middle the further it sits from it, so the middle grows and a straight horizon bows into the dome a helmet lens makes;
+// the corner of the glass still reads the corner of the picture, which is where that wide field was drawn. a = 0 (every other lens): exactly
+// the picture as rendered. Keep in step with Post.fishUV / Post.fishFwd.
+fn fishUV(uv: vec2f) -> vec2f {
+  let a: f32 = M.fe.x;
+  if (a < 1e-4) { return uv; }
+  let asp: f32 = U.camUp.w;
+  var d: vec2f = (uv - vec2f(0.5)) * vec2f(asp, 1.0);
+  let rc2: f32 = 0.25 * (asp * asp + 1.0);
+  let r2: f32 = dot(d, d);
+  d = d * ((1.0 + a * r2 / rc2) / (1.0 + a));
+  return vec2f(0.5) + d / vec2f(asp, 1.0);
+}
+fn fishFwd(uv: vec2f) -> vec2f {
+  let a: f32 = M.fe.x;
+  if (a < 1e-4) { return uv; }
+  let asp: f32 = U.camUp.w;
+  let d: vec2f = (uv - vec2f(0.5)) * vec2f(asp, 1.0);
+  let rc: f32 = 0.5 * sqrt(asp * asp + 1.0);
+  let rs: f32 = length(d) / max(rc, 1e-4);
+  if (rs < 1e-5) { return uv; }
+  let b: f32 = rs * (1.0 + a);
+  var r: f32 = rs;
+  for (var i: i32 = 0; i < 3; i++) { let r2: f32 = r * r; r = r - (a * r2 * r + r - b) / (3.0 * a * r2 + 1.0); }
+  let s: f32 = max(r, 0.0) / rs;
+  return vec2f(0.5) + d * s / vec2f(asp, 1.0);
+}
 // a ghost: light the lens throws back and forth between its own surfaces, the sun's image so far out of focus that it fills the round of the
 // open iris. It lies on the line from the sun through the middle of the frame, at middle + k (sun - middle): a ghost past the middle
 // swings the other way as the sun moves. The glass does not bend every colour alike, so red lies a little toward the sun and blue away from it
@@ -236,7 +281,7 @@ fn ghost(p: vec2f, a: vec2f, k: f32, r: f32, dk: f32, soft: f32, cat: f32) -> ve
 // lens has them too, a small green one between the sun and the middle and a big faint magenta disc beyond the sun (with the sun high in the
 // chase view, those two stand in the sky). In the sun's own light, as a share of what a sunlit white shows (sunCol x exposure)
 fn lensGhosts(uv: vec2f) -> vec3f {
-  let asp: f32 = U.camUp.w; let p: vec2f = (uv - vec2f(0.5)) * vec2f(asp, 1.0); let a: vec2f = (U.sunScr.xy - vec2f(0.5)) * vec2f(asp, 1.0);
+  let asp: f32 = U.camUp.w; let p: vec2f = (uv - vec2f(0.5)) * vec2f(asp, 1.0); let a: vec2f = (fishFwd(U.sunScr.xy) - vec2f(0.5)) * vec2f(asp, 1.0);
   var g: vec3f = vec3f(1.0, 0.86, 0.38) * ghost(p, a, 0.12, 0.04, 0.06, 0.7, 0.3) * 0.15;
   g += vec3f(0.95, 0.62, 1.0) * ghost(p, a, -0.34, 0.1, 0.02, 0.5, 0.3) * 0.08;
   g += vec3f(1.0, 0.95, 0.8) * ghost(p, a, -0.95, 0.04, 0.055, 0.8, 1.2) * 0.15;
@@ -248,7 +293,7 @@ fn lensGhosts(uv: vec2f) -> vec3f {
 // what the sun does inside the lens: a veil of glare, a starburst from the iris, and a few faint reflections strung across the frame
 fn lensFlare(uv: vec2f, vv: vec2f) -> vec3f {
   let vis: f32 = vv.x;
-  let asp: f32 = U.camUp.w; let s: vec2f = U.sunScr.xy;
+  let asp: f32 = U.camUp.w; let s: vec2f = fishFwd(U.sunScr.xy);
   let d: vec2f = (uv - s) * vec2f(asp, 1.0); let r: f32 = length(d);
   var f: vec3f = U.sunCol.rgb * (1.7 * exp(-r * 30.0) + 0.11 * exp(-r * 6.5) + 0.030 * exp(-r * 2.4));
   // starburst: thin rays, each with its own length
@@ -274,7 +319,7 @@ fn lensFlare(uv: vec2f, vv: vec2f) -> vec3f {
   f += U.sunCol.rgb * vec3f(0.40, 0.66, 1.0) * ((exp(-abs(d.y) * 150.0) + 0.3 * exp(-abs(d.y) * 36.0)) * exp(-abs(d.x) * 3.2) * 0.2 * M.r.z * vis);
   // beams: the glare the air throws back, cut into streaks by whatever stands in front of the sun. They show most when the disc itself is
   // half hidden (less glare in the lens, and the eye opens up)
-  let rb: vec2f = texLod(tRay, uv, 0.0).xy; let beam: f32 = rb.x / max(rb.y, 1e-5);
+  let rb: vec2f = texLod(tRay, fishUV(uv), 0.0).xy; let beam: f32 = rb.x / max(rb.y, 1e-5);
   f += U.sunCol.rgb * vec3f(1.0, 0.94, 0.84) * (beam * exp(-r * M.q.w) * (M.p.z + M.p.w * smoothstep(0.0, 0.45, 1.0 - vv.y)) * U.sunScr.z);
   return f;
 }
@@ -342,7 +387,7 @@ fn wetRun(p: vec2f, seed: f32, dens: f32, sd: vec2f) -> Wet {
 }
 fn lensWet(uv: vec2f) -> Wet {
   let asp: f32 = U.camUp.w; let p: vec2f = uv * vec2f(asp, 1.0);
-  let sd: vec2f = normalize((U.sunScr.xy - uv) * vec2f(asp, 1.0) + vec2f(1e-4, 0.0));
+  let sd: vec2f = normalize((fishFwd(U.sunScr.xy) - uv) * vec2f(asp, 1.0) + vec2f(1e-4, 0.0));
   // (where the snow stays snow, the water is only what is left of it as it goes: a few small beads, no runs)
   let k: f32 = mix(1.0, 0.3, M.ws.y);
   let a: Wet = wetBeads(p, 4.5, M.w.z, 0.22 * k, vec2f(0.02, 0.60), sd);                            // the beads
@@ -420,14 +465,16 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     if (M.ws.y > 0.0) { sn = lensSnow(v.uv); let wk: f32 = 1.0 - M.wb.z; wt.d *= wk; wt.f *= wk; wt.m *= wk; wt.e *= wk; wt.gl *= wk; }
     uv += wt.d; uvb = clamp(uvb + wt.f, vec2f(0.0), vec2f(1.0));
   }
-  var col: vec3f = texLod(tScene, uv, 0.0).rgb;
+  // the glass (the shake, a bead, the lens's colour faults) has already shifted where the picture is read. The helmet fisheye bends that
+  // ray into the wide perspective the scene was drawn with. Snow on the glass, the flare and the dark corners stay on v.uv: they are the glass.
+  var col: vec3f = texLod(tScene, fishUV(uv), 0.0).rgb;
   // at speed the glass shows its faults: toward the sides of the frame red and blue part company. (Two more looks at the scene, and only
   // then; the middle of the picture and the skier are not touched)
   if (M.r.w > 0.004) {
     let cp: vec2f = c * vec2f(asp, 1.0); let off: vec2f = c * (dot(cp, cp) / (0.25 * (asp * asp + 1.0)) * M.w.w * M.r.w);
-    col = vec3f(texLod(tScene, uv - off, 0.0).r, col.g, texLod(tScene, uv + off, 0.0).b);
+    col = vec3f(texLod(tScene, fishUV(uv - off), 0.0).r, col.g, texLod(tScene, fishUV(uv + off), 0.0).b);
   }
-  let bloom: vec3f = texLod(tBloom, uvb, 0.0).rgb * M.p.y;
+  let bloom: vec3f = texLod(tBloom, fishUV(uvb), 0.0).rgb * M.p.y;
   // (slow motion blooms a touch more; water on the glass is far out of focus, and what it shows is mostly glow)
   // (a bead shows nothing sharp: the scene here is already streaked by the shutter, and a hard tree edge refracted through it read as a
   // speckled dark shard. Its whole inside is the glow, only its rim reads the picture behind it)
@@ -435,17 +482,17 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   if (wt.m > 0.0) {
     // snow that has only just landed is still white (lit through from in front when the lens looks at the sun); melted, it holds the sun's
     // light. (It only ever adds light: against anything brighter than itself, the nebula say, a crumb does not show)
-    let rs: f32 = length((U.sunScr.xy - v.uv) * vec2f(asp, 1.0));
+    let rs: f32 = length((fishFwd(U.sunScr.xy) - v.uv) * vec2f(asp, 1.0));
     col = mix(col, max(col, U.ambSky.rgb * 1.2 + U.sunCol.rgb * (0.35 * vv.x)), M.wb.z * wt.m);
     // (water gathers light, it does not stand in front of it: a bead is never darker than the picture it sits on)
-    let lo: f32 = luma(texLod(tScene, v.uv + sk, 0.0).rgb); col *= mix(1.0, max(1.0, lo / max(luma(col), 1e-5)), wt.m);
+    let lo: f32 = luma(texLod(tScene, fishUV(v.uv + sk), 0.0).rgb); col *= mix(1.0, max(1.0, lo / max(luma(col), 1e-5)), wt.m);
     col = col * (1.0 + 0.45 * wt.e * (1.0 - M.wb.z) * (0.4 + 0.6 * vv.x)) + U.sunCol.rgb * (vv.x * M.q.z * (0.6 * wt.gl + wt.m * (0.015 + 0.14 * exp(-rs * 2.4))));
   }
   if (sn.m > 0.0) {
     // the snow on the glass is lit by all that is in front of the lens: the scene's own glow behind it (so it is a dim grey in the shade
     // and at night, never a white that shines on its own), the sky, and the sun from in front, which it scatters forward and glows with
     // when the lens looks toward it. Its grain varies that a little; a crystal that catches the sun is a point of its light
-    let rs: f32 = length((U.sunScr.xy - v.uv) * vec2f(asp, 1.0));
+    let rs: f32 = length((fishFwd(U.sunScr.xy) - v.uv) * vec2f(asp, 1.0));
     // (snow scatters every colour alike: what it takes from the glow behind it comes out whiter than it went in)
     let bl: f32 = luma(bloom);
     let sc: vec3f = max(mix(bloom, vec3f(bl), 0.6) * 1.35, U.ambSky.rgb * 1.3 + U.sunCol.rgb * (vv.x * (0.18 + 0.6 * exp(-rs * 1.6))));

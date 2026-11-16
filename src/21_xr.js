@@ -238,7 +238,7 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
     gfx.beginFrame();
     Render.renderShared();
     // (no lens in a headset: none of what a camera's glass does to the light)
-    Post.ghosts = 0; Post.burst = 0; Post.flare *= 0.6; Post.wet = 0; Post.wetNew = 0; Post.speed = 0; Post.radial = 0; Post.fringe = 0; Post.chat = [0, 0, 0];
+    Post.ghosts = 0; Post.burst = 0; Post.flare *= 0.6; Post.wet = 0; Post.wetNew = 0; Post.speed = 0; Post.radial = 0; Post.fringe = 0; Post.chat = [0, 0, 0]; Post.fish = 0;
     panel();
     for (const v of pose.views) {
       const s = sides(v.projectionMatrix);

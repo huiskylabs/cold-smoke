@@ -156,6 +156,8 @@ const Feel = (() => {
       // (the ski-tips view tears its edges harder, as the Steep reference: Game.viewEdge 1..1.6, eased by 07b_views.js: longer, and from further in)
       const ve = Math.max(1, (typeof Game !== 'undefined' && Game.viewEdge) || 1);
       Post.radial = F.radL[0] * ve * F.radK * F.timeK * smooth(0.5, 0.85, al) * smooth(0.35, 0.8, c.fovY); Post.radIn = F.radL[1] - 0.25 * (ve - 1); Post.radC[0] = F.radC[0]; Post.radC[1] = F.radC[1];
+      // (the streak is drawn into the perspective picture, and the fisheye bends that picture afterwards, so this centre stays the perspective
+      // one: mapping it here would aim the streak twice. Where the point sits on the glass is Post.fishFwd, used for the snow below)
     }
 
     // ---- each kind of run has its own air. It changes over a few seconds as the next run comes up (looked for a second ahead, so it is
@@ -197,7 +199,9 @@ const Feel = (() => {
     // how far the snow has been pushed out from the point the lens is heading for (the corners' blur aims at the same point). Standing it
     // creeps; at speed the crumbs a third of the way out are over the edge in about a second
     if (Post.wet > 0) Post.wetBlow += dt * (0.05 + 1.25 * air * air); else Post.wetBlow = 0;
-    Post.wetC[0] = lerp(0.5, Post.radC[0], 0.6); Post.wetC[1] = lerp(0.5, Post.radC[1], 0.6);
+    let wx = Post.radC[0], wy = Post.radC[1];
+    if (Post.fish >= 1e-4 && Post.fishFwd && Render.W > 0) { const u = Post.fishFwd(wx, wy, Post.fish, Render.W / Math.max(1, Render.H)); wx = u[0]; wy = u[1]; }
+    Post.wetC[0] = lerp(0.5, wx, 0.6); Post.wetC[1] = lerp(0.5, wy, 0.6);
 
     // ---- snow chatter. How hard the skis rub is read from the physics: what a skid brakes with (its force S.aSkid, the part of it that
     // lies along the way the skier is going) and what the edges hold in a carve (S.aCarve). Both carry the load on the legs; both grow
@@ -265,7 +269,8 @@ const Feel = (() => {
       // drawn turned, not a finished picture that is moved (which would soften it). A step in which no view set the camera starts from
       // what the last one set, not from what was turned (cam.fwd still being the one written here says so): nothing can add up.
       const rc = Render.cam; if (rc.fwd !== WD.f) WD.c0 = [rc.fwd, rc.right, rc.up];
-      const f0 = WD.c0[0], r0 = WD.c0[1], u0 = WD.c0[2], ka = 2 * Math.tan(rc.fovY / 2), ax = B[0] * ka, ay = B[1] * ka, cs = Math.cos(B[2]), sn = Math.sin(B[2]);
+      // (the fisheye magnifies the middle, so the same turn of the lens would shake the glass harder there: it is taken back by the barrel)
+      const f0 = WD.c0[0], r0 = WD.c0[1], u0 = WD.c0[2], ka = 2 * Math.tan(rc.fovY / 2) / (1 + (Post.fish > 0 ? Post.fish : 0)), ax = B[0] * ka, ay = B[1] * ka, cs = Math.cos(B[2]), sn = Math.sin(B[2]);
       const f = v3.norm([f0[0] + r0[0] * ax + u0[0] * ay, f0[1] + r0[1] * ax + u0[1] * ay, f0[2] + r0[2] * ax + u0[2] * ay]), r = v3.norm(v3.sub(r0, v3.mul(f, v3.dot(r0, f)))), u = v3.cross(r, f);
       rc.fwd = WD.f = f; rc.right = v3.add(v3.mul(r, cs), v3.mul(u, sn)); rc.up = v3.sub(v3.mul(u, cs), v3.mul(r, sn));
     }

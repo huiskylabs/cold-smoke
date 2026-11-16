@@ -43,7 +43,7 @@ const Photo = self.Photo = (() => {
     if (!el) build();
     const c = Render.cam, F = typeof Fpv !== 'undefined' ? Fpv : null;
     saved = { pos: c.pos.slice(), fwd: c.fwd.slice(), up: c.up.slice(), right: c.right.slice(), fovY: c.fovY, near: c.near, roll: c.roll,
-      scale: Render.scale, blur: Render.motionBlur, fpv: F ? [F.vis, F.hideFig] : null };
+      scale: Render.scale, blur: Render.motionBlur, fpv: F ? [F.vis, F.hideFig] : null, fish: Post.fish };
     // (from inside the helmet, first person and the ski tips, the figure is drawn without its head and its own arms: here it is seen whole)
     if (F) { F.vis = false; F.hideFig = false; }
     c.near = CAM_NEAR;
@@ -61,7 +61,7 @@ const Photo = self.Photo = (() => {
     P.on = false; App.photoFrame = null; closeShot();
     const c = Render.cam, s = saved; saved = null;
     if (s) {
-      c.pos = s.pos; c.fwd = s.fwd; c.up = s.up; c.right = s.right; c.fovY = s.fovY; c.near = s.near; c.roll = s.roll;
+      c.pos = s.pos; c.fwd = s.fwd; c.up = s.up; c.right = s.right; c.fovY = s.fovY; c.near = s.near; c.roll = s.roll; Post.fish = s.fish || 0;
       const F = typeof Fpv !== 'undefined' ? Fpv : null; if (F && s.fpv) { F.vis = s.fpv[0]; F.hideFig = s.fpv[1]; }
       if (Render.scale !== s.scale) { Render.scale = s.scale; if (App.fit) App.fit(); }
       Render.motionBlur = s.blur;
@@ -107,6 +107,7 @@ const Photo = self.Photo = (() => {
     if (typeof Gates !== 'undefined') Gates.update(c, o, Game.root.pos, 0, App.t);
   }
   function frame(dt) {
+    Post.fish = 0;          // (a free lens, not the helmet: the fisheye belongs to first person)
     steer(dt); place(); redraw();
     Render.motionBlur = false;
     Render.computeGlobals(App.t, 0, App.state);

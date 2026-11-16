@@ -21,8 +21,9 @@
     // the snow ahead the eyes rest; tips: where the ski tips are held at the lowest (0 = middle of the picture, 1 = its bottom edge); sky: where the horizon may
     // climb to at the most (1 = the top edge); fovK: how much the lens opens with speed; rollK: how much of the body's lean tips the horizon; follow: how far the eyes go
     // with the skis; near: how close it draws (m); arm: how much higher and further forward the hands are carried, so that it sees them (m: up, ahead;
-    // armT: that much more again in a full tuck, fists out in front of the chin); turn: how far the lens leaves the middle of the helmet as the head bows (m)
-    fp: { fov: 1.52, fovK: 0.10, tilt: -0.16, tips: 0.90, sky: 0.76, rollK: 0.34, follow: 0.8, up: 0.03, near: 0.10, arm: [0.14, 0.14], armT: [-0.14, -0.03], turn: 0.15 },
+    // armT: that much more again in a full tuck, fists out in front of the chin); turn: how far the lens leaves the middle of the helmet as the head bows (m);
+    // helm: a camera on the shell rather than in the eyes, metres above and forward, and only while the fisheye is the lens (Variants 'fpglass')
+    fp: { fov: 1.52, fovK: 0.10, tilt: -0.16, tips: 0.90, sky: 0.76, rollK: 0.34, follow: 0.8, up: 0.03, near: 0.10, arm: [0.14, 0.14], armT: [-0.14, -0.03], turn: 0.15, helm: [0.05, 0.06] },
     // the ski tips: the lens rides low over the skis, between the knees and the tips, behind a wide glass; nothing of the skier shows but the
     // two tips along the foot of the picture, and the snow they throw. The same numbers as first person, and: at: where it rides (m above the
     // snow under the skier, m ahead of the boots); side: how far it goes over with the body's lean (m for each radian: nothing now, see centre); edge: how much more than
@@ -45,7 +46,7 @@
   // (and where the hands are carried in a tuck from the helmet, Variants 'fptuck': a low, under the line of sight; b up in front of the chin, as a racer holds them)
   const TUCKV = G.tuckVersions = { a: [-0.14, -0.03], b: [-0.09, 0.01] };
   const hasV = typeof Variants !== 'undefined';
-  if (hasV) { Variants.def('tips', '雪板尖机位', [['a', '贴板'], ['b', '大腿'], ['c', '头盔']], 'a'); Variants.def('fptuck', '俯冲手位', [['a', '压低'], ['b', '面前']], 'a'); }
+  if (hasV) { Variants.def('tips', '雪板尖机位', [['a', '贴板'], ['b', '大腿'], ['c', '头盔']], 'a'); Variants.def('fptuck', '俯冲手位', [['a', '压低'], ['b', '面前']], 'a'); Variants.def('fpglass', '第一人称镜头', [['a', '原来'], ['b', '鱼眼']], 'b'); }
   const tipV = () => TIPV[hasV && Variants.val.tips] || TIPV.a, tuckV = () => TUCKV[hasV && Variants.val.fptuck] || TUCKV.a;
   Object.assign(VD.tips, tipV()); VD.fp.armT = tuckV().slice();
   G.views = [{ id: 'chase', name: '追尾' }, { id: 'fp', name: '第一人称' }, { id: 'tips', name: '雪板尖' }, { id: 'low', name: '贴雪' }, { id: 'high', name: '俯瞰' }, { id: 'left', name: '左侧' }, { id: 'right', name: '右侧' }, { id: 'front', name: '正面' }, { id: 'far', name: '远摄' }];
@@ -61,6 +62,28 @@
   // tw = seconds since the rig was sent back to the chase camera, fpc = how far the lens is into the helmet (0..1), tpc = how far it has gone on
   // from the helmet down to its place over the skis (0..1: the view of the ski tips is reached through the helmet, and left through it)
   let want = null, snap = false, tp = 'chase', rigOn = false, tw = 9, fpc = 0, fpOn = false, tpc = 0, tipOn = false;
+  // the helmet lens (fpglass b, the one a first person opens on). FISH_FOV is how wide the perspective is drawn, before the barrel in the
+  // composite pulls the middle back; FISH_A is that barrel (0 is the plain picture). ?fish= sets the barrel; with ?dev, Game.fishA is read
+  // every frame, so it can be turned from the console. Game.fish is the barrel actually on the glass this frame (0 in every other view).
+  const FISH_FOV = 2.12, FISH_A = 0.72;
+  let fishT = (!hasV || Variants.val.fpglass !== 'a') ? 1 : 0, fishLog = false;
+  function fishStrength() {
+    const dev = typeof DEV !== 'undefined' && DEV;
+    if (dev && G.fishA == null) { let s = FISH_A; try { const q = QS.get('fish'); if (q != null && q !== '' && isFinite(+q)) s = +q; } catch (e) { } G.fishA = s; }
+    let a = FISH_A;
+    try {
+      if (dev && typeof G.fishA === 'number' && isFinite(G.fishA)) a = G.fishA;
+      else if (!dev && typeof QS !== 'undefined') { const q = QS.get('fish'); if (q != null && q !== '' && isFinite(+q)) a = +q; }
+    } catch (e) { }
+    return clamp(a, 0, 1.6);
+  }
+  function fishSet(w) {
+    const a = w > 1e-3 ? fishStrength() * w : 0;
+    if (typeof Post !== 'undefined') Post.fish = a;
+    G.fish = a;
+    if (!fishLog && typeof DEV !== 'undefined' && DEV) { fishLog = true; console.log('fp fisheye', +fishStrength().toFixed(3), '(Game.fishA, or ?fish=)'); }
+    return a;
+  }
   const mk = () => ({ p: [0, 0, 0], f: [0, 0, -1], fov: 1, roll: 0 });
   const D = mk(), R = mk(), C = mk(), O = mk(), CH = mk(), rel = mk(); let relOK = false;
 
@@ -228,7 +251,10 @@
     const Y = v3.norm(root.nrm), X = v3.norm(v3.cross(Y, v3.mul(root.fwd, -1))), Z = v3.cross(X, Y);
     // (the place over the skis rides with the snow under the skier and goes a little way over with the body in a turn)
     const T = VD.tips, tq = tk * T.pk, tx = T.side * clamp(G.pose.lean || 0, -1.2, 1.2), jx = lerp(J[0], tx, tq), jy = lerp(J[1] + VD.fp.up, T.at0, tq), jz = lerp(J[2], -T.at1, tq);
-    const hx = p[0] + X[0] * jx + Y[0] * jy + Z[0] * jz, hy = p[1] + X[1] * jx + Y[1] * jy + Z[1] * jz, hz = p[2] + X[2] * jx + Y[2] * jy + Z[2] * jz;
+    let hx = p[0] + X[0] * jx + Y[0] * jy + Z[0] * jz, hy = p[1] + X[1] * jx + Y[1] * jy + Z[1] * jz, hz = p[2] + X[2] * jx + Y[2] * jy + Z[2] * jz;
+    // (the fisheye rides on the shell: a little above the eyes and forward of them. Nothing of it in the ski-tips view, nor with the plain lens)
+    const wC = fishT * (1 - tk);
+    if (wC > 1e-3) { const hm = VD.fp.helm, hf = hm[1] * wC, flh = Math.hypot(root.fwd[0], root.fwd[2]) || 1; hx += root.fwd[0] / flh * hf; hz += root.fwd[2] / flh * hf; hy += hm[0] * wC; }
     // the eyes look down the valley and go most of the way with the skis, a little late (the head stays quiet while the skis swing under it)
     const yT = B.cyaw + clamp((vyaw - B.cyaw) * v.follow, -1.0, 1.0);
     // ...and rest on the snow a few lengths ahead, further off the faster it goes: so they drop over a crest and into a landing, and lift at a rise
@@ -237,7 +263,7 @@
     // as long as that leaves a band of sky along the top
     // (how far below the level the tips lie is counted along the way the eyes face: with the head low and forward over them, or the skis swung
     // across, they are much further down the picture than their bare distance says)
-    let ta = 0, tn2 = 0; const fv = v.fov + v.fovK * k + B.kick, th = Math.tan(fv / 2), qs = Math.sin(qy), qc = Math.cos(qy), first = F.init || dt <= 0, mt = [0, 0, 0];       // (mt: half way between the two tips, from the lens)
+    let ta = 0, tn2 = 0; const fv = lerp(v.fov, FISH_FOV, wC) + v.fovK * k + B.kick, th = Math.tan(fv / 2), qs = Math.sin(qy), qc = Math.cos(qy), first = F.init || dt <= 0, mt = [0, 0, 0];       // (mt: half way between the two tips, from the lens)
     for (let i = 0; i < 2; i++) {
       const m = sv && sv.F && Skier.B && sv.F[i ? Skier.B.footR : Skier.B.footL]; if (!m) { ta += 0.52; continue; }
       const a = m[12] + m[4] * 0.125 - m[8] * 0.96, b = m[13] + m[5] * 0.125 - m[9] * 0.96, c = m[14] + m[6] * 0.125 - m[10] * 0.96;
@@ -246,7 +272,11 @@
       const ex = m[4] * 0.125, ey = m[5] * 0.125, ez = m[6] * 0.125;
       mt[0] += 0.5 * (dx - X[0] * ex - Y[0] * ey - Z[0] * ez); mt[1] += 0.5 * (dy - X[1] * ex - Y[1] * ey - Z[1] * ez); mt[2] += 0.5 * (dz - X[2] * ex - Y[2] * ey - Z[2] * ez); tn2++;
     }
-    const pT = clamp(Math.max(Math.min(Math.atan2(gq + 0.3 - hy, Lg) + v.tilt, Math.atan(v.tips * th) - ta), -Math.atan(v.sky * th)), -1.0, 0.3);
+    // (tips and sky are where those things sit on the glass. The barrel pushes the foot and the top of a wide perspective outward, so the
+    // aim is the perspective place that lands there once the picture is bent; with the plain lens it is the number itself)
+    const asp = Render.W > 0 ? Render.W / Math.max(1, Render.H) : 0, aGlass = fishStrength() * wC;
+    const glassN = t => { if (!(aGlass >= 1e-4) || !(asp > 0) || typeof Post === 'undefined' || !Post.fishUV) return t; const u = Post.fishUV(0.5, 0.5 + t * 0.5, aGlass, asp); return (u[1] - 0.5) * 2; };
+    const pT = clamp(Math.max(Math.min(Math.atan2(gq + 0.3 - hy, Lg) + v.tilt, Math.atan(glassN(v.tips) * th) - ta), -Math.atan(glassN(v.sky) * th)), -1.0, 0.3);
     if (F.init || dt <= 0) { F.yaw = yT; F.pit = pT; F.roll = -G.pose.lean * v.rollK; F.hy = hy; F.hv = 0; F.init = false; }
     else {
       F.yaw = damp(F.yaw, yT, 4.5, dt); F.pit = damp(F.pit, pT, 3.2, dt); F.roll = damp(F.roll, -G.pose.lean * v.rollK, 6, dt);
@@ -319,7 +349,10 @@
     const q = Skier.toWorld(J[n]), o = Render.origin || [0, 0, 0], d = [q[0] + o[0] - c.pos[0], q[1] + o[1] - c.pos[1], q[2] + o[2] - c.pos[2]];
     const z = d[0] * c.fwd[0] + d[1] * c.fwd[1] + d[2] * c.fwd[2]; if (!(z > 0.05)) return null;
     const t = Math.tan(c.fovY / 2), A = Render.W / Math.max(1, Render.H);
-    return [(d[0] * c.right[0] + d[1] * c.right[1] + d[2] * c.right[2]) / z / t / A, (d[0] * c.up[0] + d[1] * c.up[1] + d[2] * c.up[2]) / z / t, z];
+    let nx = (d[0] * c.right[0] + d[1] * c.right[1] + d[2] * c.right[2]) / z / t / A, ny = (d[0] * c.up[0] + d[1] * c.up[1] + d[2] * c.up[2]) / z / t;
+    // (where the joint sits on the glass, once the fisheye has bent the picture: the hands are kept inside that, not inside the perspective)
+    if (typeof Post !== 'undefined' && Post.fish >= 1e-4 && Post.fishFwd) { const u = Post.fishFwd(nx * 0.5 + 0.5, 0.5 - ny * 0.5, Post.fish, A); nx = (u[0] - 0.5) * 2; ny = (0.5 - u[1]) * 2; }
+    return [nx, ny, z];
   }
 
   function reinit() { B.init = true; B.cyaw = B.yaw = Course.yawAt(-S.p[2]); B.lean = S.lean; B.kick = G.fovKick; B.gInit = true; B.pInit = true; B.flOK = false; B.res[0] = B.res[1] = B.res[2] = 0; F.init = true; relOK = false; if (rigOn && tp !== 'chase') place(); else { rigOn = false; tw = 9; } }
@@ -357,7 +390,7 @@
     fpc = clamp(fpc + (fpOn || tpc > 0.35 ? rdt : -rdt) / 0.42, 0, 1);
     const tk = smooth(0, 1, tpc);
     // (a version chosen while it shows is gone over to in a third of a second, not jumped to)
-    { const tv = tipV(), T = VD.tips, e = 1 - Math.exp(-7 * rdt); for (const q in tv) T[q] += (tv[q] - T[q]) * e; const a = tuckV(), b = VD.fp.armT; b[0] += (a[0] - b[0]) * e; b[1] += (a[1] - b[1]) * e; }
+    { const tv = tipV(), T = VD.tips, e = 1 - Math.exp(-7 * rdt); for (const q in tv) T[q] += (tv[q] - T[q]) * e; const a = tuckV(), b = VD.fp.armT; b[0] += (a[0] - b[0]) * e; b[1] += (a[1] - b[1]) * e; fishT = damp(fishT, (!hasV || Variants.val.fpglass !== 'a') ? 1 : 0, 6, rdt); if (fishT < 1e-3) fishT = 0; else if (fishT > 1 - 1e-3) fishT = 1; }
     // how much more than elsewhere this view would have the picture's edges tear at speed (1 = as everywhere)
     G.viewEdge = 1 + (VD.tips.edge - 1) * tk * smooth(0.7, 1, fpc);
     // nothing of ours showing: the chase camera goes on as it was
@@ -370,7 +403,7 @@
     { const fq = G.flight && G.flight.q, yw = fq ? Math.abs(Math.atan2(Math.sin(fq.yaw || 0), Math.cos(fq.yaw || 0))) : 0, fp = fq ? Math.abs(Math.atan2(Math.sin(fq.flip || 0), Math.cos(fq.flip || 0))) : 0, sw = G.flight && G.flight.sw ? 1 : 0;
       const r = Math.max(yw / 0.6, fp / 0.35, sw); G.fpIn = fpc > 0 && (G.fpIn ? r > 0.65 : r > 1); }
     if (typeof Fpv !== 'undefined') Fpv.tick(dt, fpc, tk);       // (the arms, poles and skis made for these two views: 07d_fpv.js)
-    if (!rigOn && fpc <= 0 && !look.on) { if (typeof App !== 'undefined') App.state.focus = 0; B.focus = 7.5; relOK = false; rc.near = B.near0; return false; }
+    if (!rigOn && fpc <= 0 && !look.on) { if (typeof App !== 'undefined') App.state.focus = 0; B.focus = 7.5; relOK = false; rc.near = B.near0; fishSet(0); return false; }
     // ---- third person: the chase camera, the rig, or (on the way home) the rig handing over to the chase camera
     if (!rigOn) copy(D, CH);
     else {
@@ -422,6 +455,8 @@
     // is inside, or the top of the helmet would show for a moment on the way down)
     rc.near = B.near0 + (VD.fp.near - B.near0) * smooth(0.7, 1, fpc);
     // (a tree gone by close tips the lens a little: the flinch, 07c_feel.js)
+    // (the barrel follows the same blend as the lens: full only once the eyes are in the helmet, and gone again on the way down to the skis)
+    fishSet(fishT * (1 - tk) * (fpc >= 1 ? 1 : fpc > 0 ? smooth(0.15, 0.85, fpc) : 0));
     Render.setCamera(out.p, [out.p[0] + out.f[0], out.p[1] + out.f[1], out.p[2] + out.f[2]], [0, 1, 0], out.fov, out.roll + (typeof Feel !== 'undefined' && Feel.roll || 0));
     return true;
   };
