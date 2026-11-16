@@ -192,6 +192,7 @@
 				"$(SRCROOT)/../src",
 				"$(SRCROOT)/Runtime",
 				"$(SRCROOT)/Runtime/game-controls.js",
+				"$(SRCROOT)/Runtime/pause-settings.js",
 				"$(SRCROOT)/Runtime/metal-gfx.js",
 				"$(SRCROOT)/Runtime/metal-shaders.js",
 				"$(SRCROOT)/Runtime/window.css",

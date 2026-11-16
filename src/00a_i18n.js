@@ -6,6 +6,17 @@
 // any zh* is Chinese, everything else English.
 const I18N = (() => {
   const EN = {
+    '身体动作控制 开': 'Body controls on', '身体动作控制 关': 'Body controls off',
+    '按手柄 A 出发': 'Press A to start', '左摇杆转向和调整重心': 'Left stick to steer and shift weight',
+    'LB / RB 换视角 · X 拍照': 'LB / RB: change view · X: photo mode',
+    '转头取景 · 左摇杆移动': 'Look to frame · Move with left stick',
+    'X 拍摄 · B 返回滑行': 'X: take photo · B: resume skiing',
+    '正在保存': 'Saving…', '请允许添加照片': 'Allow adding photos in Settings',
+    '左摇杆移动 · 右摇杆取景 · X 拍摄 · B 返回': 'Left stick: move · Right stick: look · X: take photo · B: return',
+    '按住 A 蓄力，松开起跳 · RT 加速': 'Hold A to charge, release to jump · RT to tuck',
+    'Y 校准正前方 · 菜单键退出': 'Y to recenter · Menu to leave',
+    '手柄：左摇杆转向 · A 起跳 · RT 加速 · 菜单键退出': 'Stick: steer · A: jump · RT: tuck · Menu: exit',
+    '选择沉浸模式，或按手柄 Y 进入 · A 出发 / 起跳 · RT 加速': 'Choose Immersive or press Y · A: start / jump · RT: tuck',
     // ---- title and loading
     '一个人，一座山，一直往下': 'One skier, one mountain, all the way down',
     '沉浸模式': 'Immersive', '捏一下手指 出发': 'Pinch to start', '左右歪头转弯 · 头往前压板头，往后压板尾': 'Lean your head to turn · forward for the tips, back for the tails',

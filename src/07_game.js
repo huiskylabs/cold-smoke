@@ -71,6 +71,7 @@ const Input = (() => {
   // must be called from a tap (iOS asks for permission); resolves true if motion events may arrive.
   // (/*web{*/ … /*}web*/ is left out of the 小红书 小工具 build, where device orientation is switched off and the finger steers: tools/build-xhs.js)
   I.requestTilt = async function () {
+    if (self.COLD_SMOKE?.noTilt) return false;
     /*web{*/ try {
       if (typeof DeviceOrientationEvent === 'undefined') return false;
       if (DeviceOrientationEvent.requestPermission) { const r = await DeviceOrientationEvent.requestPermission(); if (r !== 'granted') return false; }
@@ -100,21 +101,21 @@ const Input = (() => {
     if (I.drag) { t = clamp((I.drag.x - I.drag.x0) / (Math.min(View.w || innerWidth, (View.h || innerHeight) * 1.4, 900) * 0.2), -1, 1); if (fb) t = sign(t) * Math.max(0, Math.abs(t) - 0.04) / 0.96; I.mode = 'touch'; }
     else if (I.xr) { t = I.xr.steer; I.mode = 'xr'; }                     // (in a headset: the head leaned or tipped to the side, 21_xr.js)
     else if (I.tiltLive()) { const d = I.gx - I.zero; t = clamp(sign(d) * Math.max(0, Math.abs(d) - 0.025) / 0.40, -1, 1); I.mode = 'tilt'; }
-    t = clamp(t + I.kb, -1, 1);
+    t = clamp(t + I.kb + (I.pad?.steer || 0), -1, 1);
     if (I.script != null) t = I.script;
     if (Math.abs(t) > 0.25) I.used = true;
     I.u = t;
     // the two moves besides steering, each one thing held down: jump (Space, or W / ArrowUp) and tuck-or-pole (ArrowDown or S).
     // On a touch screen the interface's buttons set I.btn; the physics reads I.jump and I.tuck
     const K = I.keys;
-    if (Variants.val.fa !== 'b') { I.jump = !!(K.Space || K.KeyW || K.ArrowUp || I.btn.jump); I.tuck = !!(K.ArrowDown || K.KeyS || I.btn.tuck); I.fa = I.faV = I.faT = 0; return; }
+    if (Variants.val.fa !== 'b') { I.jump = !!(K.Space || K.KeyW || K.ArrowUp || I.btn.jump || I.pad?.jump); I.tuck = !!(K.ArrowDown || K.KeyS || I.btn.tuck || I.pad?.tuck); I.fa = I.faV = I.faT = 0; return; }
     // (fore/aft b: up / W the shovels (+1), down / S the tails (-1); the jump is Space alone, the tuck Shift. A key comes on as a leg moves the
     // weight, not at a blow: the same critically damped spring as the steering keys, nine tenths of the way in about a third of a second.
     // The steering finger's height from where it came down does the same, at the same scale as across; a script, if set, overrides both)
-    I.jump = !!(K.Space || I.btn.jump); I.tuck = !!(K.ShiftLeft || K.ShiftRight || I.btn.tuck);
+    I.jump = !!(K.Space || I.btn.jump || I.pad?.jump); I.tuck = !!(K.ShiftLeft || K.ShiftRight || I.btn.tuck || I.pad?.tuck);
     const kf = (K.ArrowUp || K.KeyW ? 1 : 0) - (K.ArrowDown || K.KeyS ? 1 : 0);
     { const want = kf, w = Math.abs(want) >= Math.abs(I.fa) && want * I.fa >= 0 ? 11 : 15, x = I.fa - want, vv = I.faV, ee = Math.exp(-w * dt), bb = (vv + w * x) * dt; I.fa = want + (x + bb) * ee; I.faV = (vv - w * bb) * ee; }
-    let f = I.fa;
+    let f = I.fa + (I.pad?.fa || 0);
     if (I.xr) f += I.xr.fa;                                              // (in a headset: the head over the tips or back over the tails)
     if (I.drag && I.drag.y0 != null) { const L = Math.min(View.w || innerWidth, (View.h || innerHeight) * 1.4, 900) * 0.2, dy = clamp((I.drag.y0 - I.drag.y) / L, -1, 1); f += sign(dy) * Math.max(0, Math.abs(dy) - 0.08) / 0.92; }
     I.faT = clamp(I.faScript != null ? I.faScript : f, -1, 1);
@@ -1213,7 +1214,8 @@ const Game = (() => {
     // come and go without a corner, and the other viewpoints are handed the same lens)
     const fe = typeof Feel !== 'undefined' ? Feel : null, pos = [cam.pos[0] + rx * ox, cam.pos[1] + oy - (fe && fe.dip || 0), cam.pos[2] + rz * ox];
     // other viewpoints (07b_views.js) take the lens over here; the chase camera above keeps running underneath, so switching back is seamless
-    if (G.viewCam && G.viewCam(dt, cam, pos, f)) return;
+    G.hasViewOverride = G.viewCam && G.viewCam(dt, cam, pos, f);
+    if (G.hasViewOverride) return;
     Render.setCamera(pos, v3.add(pos, f), [0, 1, 0], cam.fov, cam.roll + vnoise1(t * 13, 3) * sh * 0.5 + (fe && fe.roll || 0));
   }
 

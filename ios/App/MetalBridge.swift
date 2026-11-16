@@ -1,6 +1,9 @@
 import Foundation
 import UIKit
 import WebKit
+#if os(visionOS)
+import Photos
+#endif
 
 final class MetalBridge: NSObject, WKScriptMessageHandlerWithReply {
     private let renderQueue = DispatchQueue(label: "ColdSmoke.Metal", qos: .userInteractive)
@@ -8,6 +11,10 @@ final class MetalBridge: NSObject, WKScriptMessageHandlerWithReply {
     private weak var presenter: UIViewController?
     private let url: URL
     private var failure: String? // accessed on renderQueue
+
+    #if os(visionOS)
+    var onPhotoPreview: ((CGImage) -> Void)?
+    #endif
 
     init(renderer: MetalRenderer, presenter: UIViewController, url: URL) {
         self.renderer = renderer
@@ -27,6 +34,30 @@ final class MetalBridge: NSObject, WKScriptMessageHandlerWithReply {
                           "maxTex": 16384, "hdr": true, "r32fTarget": true], nil)
             return
         }
+        #if os(visionOS)
+        let preview = packet["previewGamePhoto"] as? Bool == true
+        if let textureID = preview ? -1 : packet["saveGamePhoto"] as? Int {
+            renderQueue.async { [renderer] in
+                do {
+                    try renderer.gamePhoto(textureID: textureID) { photo, error in
+                        Task { @MainActor in
+                            guard let photo else { replyHandler(nil, error ?? "No photo"); return }
+                            if preview { self.onPhotoPreview?(photo); replyHandler(true, nil); return }
+                            let access = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+                            guard access == .authorized || access == .limited else { replyHandler("denied", nil); return }
+                            do {
+                                try await PHPhotoLibrary.shared().performChanges {
+                                    PHAssetChangeRequest.creationRequestForAsset(from: UIImage(cgImage: photo))
+                                }
+                                replyHandler("saved", nil)
+                            } catch { replyHandler(nil, error.localizedDescription) }
+                        }
+                    }
+                } catch { DispatchQueue.main.async { replyHandler(nil, error.localizedDescription) } }
+            }
+            return
+        }
+        #endif
         if packet["capture"] as? Bool == true {
             renderQueue.async { [renderer] in
                 do {

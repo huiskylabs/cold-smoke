@@ -6,7 +6,12 @@ cd "$(dirname "$0")/.."
 out=${1:?destination resource directory required}
 mkdir -p "$out/fonts"
 cp xhs/fonts/* "$out/fonts/"
-cp ios/Runtime/window.css "$out/window.css"
+platform=${2:-ios}
+if [ "$platform" = visionos ]; then
+  cp visionos/App/window.css "$out/window.css"
+else
+  cp ios/Runtime/window.css "$out/window.css"
+fi
 {
   cat <<'HTML'
 <!doctype html><html><head>
@@ -23,7 +28,11 @@ HTML
 } > "$out/index.html"
 {
   echo '(() => { "use strict";'
-  echo 'self.COLD_SMOKE = { nativeWindow: true, renderer: "Apple Metal", autoQualityKey: "cs.q.wk.metal.gpu" };'
+  if [ "$platform" = visionos ]; then
+    echo 'self.COLD_SMOKE = { nativeWindow: true, spatial: true, noTilt: true, renderer: "Apple Metal", autoQualityKey: "cs.q.vision" };'
+  else
+    echo 'self.COLD_SMOKE = { nativeWindow: true, renderer: "Apple Metal", autoQualityKey: "cs.q.wk.metal.gpu" };'
+  fi
   for src in src/*.js; do
     case "$src" in
       src/01_gfx.js) cat "$src" ios/Runtime/metal-shaders.js ios/Runtime/metal-gfx.js ;;
@@ -32,6 +41,7 @@ HTML
     esac
     echo
   done
-  cat ios/Runtime/game-controls.js
+  cat ios/Runtime/pause-settings.js
+  if [ "$platform" = visionos ]; then cat visionos/App/spatial.js visionos/App/interface.js; else cat ios/Runtime/game-controls.js; fi
   echo '})();'
 } > "$out/game.js"

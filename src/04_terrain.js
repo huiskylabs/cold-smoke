@@ -72,7 +72,8 @@ function makeSnowTexture(gfx, sunAz) {
       d[i * 4] = enc((H(x + 1, y) - H(x - 1, y)) * 0.5 * n); d[i * 4 + 1] = enc((H(x, y + 1) - H(x, y - 1)) * 0.5 * n);
       d[i * 4 + 2] = clamp(127.5 + h0 * 110, 0, 255); d[i * 4 + 3] = clamp(hz / 48 * 255, 0, 255);
     }
-    const t = gfx.texture({ w: n, h: n, format: 'rgba8', wrap: 'repeat', filter: 'linear', mips: true, data: d }); gfx.genMips(t); return t;
+    const t = gfx.texture({ w: n, h: n, format: 'rgba8', wrap: 'repeat', filter: 'linear', mips: true,
+      anisotropy: self.COLD_SMOKE?.spatial ? 2 : 1, data: d }); gfx.genMips(t); return t;
   };
   Tex.snow = build(false, 2100); Tex.snowFine = build(true, 2100);
 }
@@ -84,7 +85,7 @@ const PATCH = { m: 6, sub: 20 };
 const Terrain = (() => {
   const T = { lift: [0, 0], LEVELS: 8, N: 256, G: 128, BIAS: 24, levels: [], ready: false, sheen: 0.55 };
   const N = T.N, G = T.G;
-  let gfx, vb, ibFull, ibRing = {}, pipe, pipeShadow, cntFull, cntRing, vbP, ibP, cntP;
+  let gfx, vb, fullGrid, ibRing = {}, pipe, pipeShadow, vbP, ibP, cntP;
   const tmpH = new Float32Array(N * N), tmpN = new Uint16Array(N * N * 4), tmpS = new Uint16Array(N * N * 4);
   let sunX = 0, sunZ = -1;
   // the sun keeps its compass bearing all day (only its height changes), so the horizon toward it can be worked out once per texel
@@ -129,19 +130,30 @@ const Terrain = (() => {
     for (let j = 0; j <= G; j++) for (let i = 0; i <= G; i++) { v[k++] = i; v[k++] = j; }
     vb = gfx.buffer(v, 'vertex');
     const mk = (hx0, hx1, hz0, hz1) => {
-      const idx = [];
-      for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) {
-        if (i >= hx0 && i < hx1 && j >= hz0 && j < hz1) continue;
-        const a = j * (G + 1) + i; idx.push(a, a + G + 1, a + 1, a + 1, a + G + 1, a + G + 2);
+      const idx = [], tiles = [];
+      for (let z = 0; z < G; z += 32) for (let x = 0; x < G; x += 32) {
+        const first = idx.length;
+        for (let j = z; j < z + 32; j++) for (let i = x; i < x + 32; i++) {
+          if (i >= hx0 && i < hx1 && j >= hz0 && j < hz1) continue;
+          const a = j * (G + 1) + i; idx.push(a, a + G + 1, a + 1, a + 1, a + G + 1, a + G + 2);
+        }
+        if (idx.length > first) tiles.push({ x: x + 16 - G / 2, z: z + 16 - G / 2, first });
       }
-      return { ib: gfx.buffer(new Uint32Array(idx), 'index'), n: idx.length };
+      return { ib: gfx.buffer(new Uint32Array(idx), 'index'), n: idx.length, tiles };
     };
-    const f = mk(0, 0, 0, 0); ibFull = f.ib; cntFull = f.n;
+    fullGrid = mk(0, 0, 0, 0);
     for (let ox = 0; ox < 2; ox++) for (let oz = 0; oz < 2; oz++) { const r = mk(32 + ox, 96 + ox, 32 + 12 + oz, 96 + 12 + oz); ibRing[ox + ',' + oz] = r; }
     // the fine patch: the same two triangles to a quad as the cells above, so that it can lie exactly in the surface it takes the place of
     { const q = PATCH.m * 2 * PATCH.sub, n = q + 1, pv = new Float32Array(n * n * 2), pi = new Uint32Array(q * q * 6); let k = 0;
       for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { pv[k++] = i; pv[k++] = j; }
-      k = 0; for (let j = 0; j < q; j++) for (let i = 0; i < q; i++) { const a = j * n + i; pi[k++] = a; pi[k++] = a + n; pi[k++] = a + 1; pi[k++] = a + 1; pi[k++] = a + n; pi[k++] = a + n + 1; }
+      // Keep adjacent rows in the GPU's vertex cache on this 241-vertex-wide grid.
+      k = 0;
+      for (let y = 0; y < q; y += 8) for (let x = 0; x < q; x += 8) {
+        for (let j = y; j < Math.min(q, y + 8); j++) for (let i = x; i < Math.min(q, x + 8); i++) {
+          const a = j * n + i; pi[k++] = a; pi[k++] = a + n; pi[k++] = a + 1;
+          pi[k++] = a + 1; pi[k++] = a + n; pi[k++] = a + n + 1;
+        }
+      }
       vbP = gfx.buffer(pv, 'vertex'); ibP = gfx.buffer(pi, 'index'); cntP = pi.length; }
     const lib = [SL.common, SL.hash, SL.fog, SL.shadow, SL.sprayTau, TERRAIN_SSL];
     // (pt, pk: where the fine patch lies; tk, tb: the box the skier's trail lies in; sa*, sb*: the two skis; la*, lb*: the two legs. See Tracks.frame)
@@ -251,11 +263,39 @@ const Terrain = (() => {
     return Lc;
   }
   function ringFor(L) {
-    if (L.l === 0) return { ib: ibFull, n: cntFull };
+    if (L.l === 0) return fullGrid;
     const f = T.levels[L.l - 1], ox = f.cx / 2 - L.cx, oz = f.cz / 2 - L.cz - 12;
     return ibRing[clamp(ox, 0, 1) + ',' + clamp(oz, 0, 1)];
   }
-  T.draw = function (origin, shadowTex, skyTex, sunTau) {
+  // Project all four corner rays onto the ground. A vertical half-plane on
+  // each outer ray bounds every visible height, even on a steep gully wall.
+  function groundWedge(c, s) {
+    if (!s) return null;
+    let low = Infinity, high = -Infinity, left, right;
+    for (const u of [s.L, s.R]) for (const v of [s.B, s.T]) {
+      const x = c.fwd[0] + u * c.right[0] + v * c.up[0];
+      const z = c.fwd[2] + u * c.right[2] + v * c.up[2];
+      const angle = Math.atan2(c.fwd[0] * z - c.fwd[2] * x, c.fwd[0] * x + c.fwd[2] * z);
+      if (angle < low) { low = angle; left = [-z, x]; }
+      if (angle > high) { high = angle; right = [z, -x]; }
+    }
+    // Looking up or down can put the ground projection all around the eye.
+    if (high - low >= Math.PI - 0.001) return null;
+    return [left, right].map(([x, z]) => ({ x, z, eye: x * c.pos[0] + z * c.pos[2], radius: 16 * (Math.abs(x) + Math.abs(z)) }));
+  }
+  function drawGrid(L, r, binding, planes) {
+    if (!planes) { gfx.draw(pipe, { ...binding, count: r.n }); return; }
+    let first = -1;
+    for (const tile of r.tiles) {
+      const x = (L.cx + tile.x) * L.cell, z = (L.cz + tile.z) * L.cell;
+      const visible = planes.every(p => p.x * x + p.z * z + p.radius * L.cell >= p.eye - 0.01);
+      if (visible && first < 0) first = tile.first;
+      if (!visible && first >= 0) { gfx.draw(pipe, { ...binding, first, count: tile.first - first }); first = -1; }
+    }
+    if (first >= 0) gfx.draw(pipe, { ...binding, first, count: r.n - first });
+  }
+  T.draw = function (origin, shadowTex, skyTex, sunTau, eye, frustum) {
+    const planes = groundWedge(eye, frustum);
     const Tu = Tracks.frame(), L0 = T.levels[0], pc = PATCH.m * 2; let amp = 0, X0 = 0, Z0 = 0;
     // the fine patch is snapped to the cells of the finest level, which must lie whole and unblended under it: a free camera that has taken
     // the terrain far from the skier gets the tracks as light only (amp fades the relief out before that happens)
@@ -279,7 +319,7 @@ const Terrain = (() => {
     }
     for (const L of T.levels) {
       const Lc = setLevelUniforms(L, origin), r = ringFor(L);
-      gfx.draw(pipe, { u: uni, tex: tex(L, Lc), vb: [vb], ib: r.ib, count: r.n });
+      drawGrid(L, r, { u: uni, tex: tex(L, Lc), vb: [vb], ib: r.ib }, planes);
     }
   };
   T.drawShadow = function (origin, maxLevel) {
@@ -342,20 +382,22 @@ fn terrainVertex(ij: vec2f) -> TerrV {
   let c: f32 = M.lv.x; let rel: vec2f = ij - vec2f(64.0, 64.0);
   let tcf: vec2f = M.tc.xy + rel;
   let ti: vec2i = vec2i(tcf) & vec2i(255, 255);
-  let hf: f32 = texFetch(tH, ti, 0).x;
   let tcc: vec2f = M.tc.zw + rel * M.p.z;
-  let c0: vec2f = floor(tcc); let fr: vec2f = tcc - c0;
-  let i0: vec2i = vec2i(c0) & vec2i(255, 255); let i1: vec2i = (vec2i(c0) + vec2i(1, 1)) & vec2i(255, 255);
-  let h00: f32 = texFetch(tHc, i0, 0).x; let h10: f32 = texFetch(tHc, vec2i(i1.x, i0.y), 0).x;
-  let h01: f32 = texFetch(tHc, vec2i(i0.x, i1.y), 0).x; let h11: f32 = texFetch(tHc, i1, 0).x;
-  let hc: f32 = mix(mix(h00, h10, fr.x), mix(h01, h11, fr.x), fr.y);
   let d: f32 = max(abs(rel.x), abs(rel.y));
   let al: f32 = smoothstep(44.0, 62.0, d) * M.lv.w;
+  var height: f32 = texFetch(tH, ti, 0).x;
+  if (al > 0.0) {
+    let c0: vec2f = floor(tcc); let fr: vec2f = tcc - c0;
+    let i0: vec2i = vec2i(c0) & vec2i(255, 255); let i1: vec2i = (vec2i(c0) + vec2i(1, 1)) & vec2i(255, 255);
+    let h00: f32 = texFetch(tHc, i0, 0).x; let h10: f32 = texFetch(tHc, vec2i(i1.x, i0.y), 0).x;
+    let h01: f32 = texFetch(tHc, vec2i(i0.x, i1.y), 0).x; let h11: f32 = texFetch(tHc, i1, 0).x;
+    height = mix(height, mix(mix(h00, h10, fr.x), mix(h01, h11, fr.x), fr.y), al);
+  }
   let xz: vec2f = (M.lv.yz + rel) * c;
   // (where the fine patch round the skier is drawn in its place, the finest level is dropped out of sight; the cells on the rim keep their outer edge)
   let pq: vec2f = xz - M.pt.zw;
   let pit: f32 = select(0.0, 1.5, M.pk.w > 0.0 && M.p.y < 0.5 && min(pq.x, pq.y) > 0.1 && max(pq.x, pq.y) < ${(PATCH.m - 0.1).toFixed(1)});
-  t.wp = vec3f(xz.x, mix(hf, hc, al) + ${HREF_SLOPE.toFixed(4)} * xz.y + M.p.x - pit + snowLift(xz), xz.y);
+  t.wp = vec3f(xz.x, height + ${HREF_SLOPE.toFixed(4)} * xz.y + M.p.x - pit + snowLift(xz), xz.y);
   t.uvn = vec4f((tcf + 0.5) / 256.0, (tcc + 0.5) / 256.0);
   t.al = al; t.dy = 0.0;
   return t;
@@ -375,6 +417,7 @@ fn skiPress(wp: vec3f, C: vec4f, A: vec4f, B: vec4f) -> f32 {
   let Nn: vec3f = cross(B.xyz, A.xyz); let ny: f32 = max(Nn.y, 0.25);
   let yp: f32 = C.y - (Nn.x * (wp.x - C.x) + Nn.z * (wp.z - C.z)) / ny;                 // the plane of the base over (or under) this spot
   let r: vec3f = vec3f(wp.x, yp, wp.z) - C.xyz; let a: f32 = dot(r, A.xyz); let b: f32 = dot(r, B.xyz);
+  if (a <= -A.w - 0.02 || a >= min(B.w, M.tb.z) + 0.02 || abs(b) >= 0.12) { return wp.y; }
   let rise: f32 = 0.125 * pow(smoothstep(0.62, 0.96, a), 1.7) + 0.015 * sq(smoothstep(0.66, 0.80, -a)) + 0.5 * mix(0.008, 0.020, smoothstep(0.80, 0.25, abs(a - 0.05)));
   let wd: f32 = 0.049 + 0.009 * smoothstep(0.15, 0.78, -a) + 0.015 * smoothstep(0.15, 0.78, a);
   // (M.tb.z: how far ahead of the boot the snow is open over the ski. One riding deep runs under the snow from there to its shovel)
@@ -789,22 +832,26 @@ fn frag(v: VOut) -> FOut {
   let l0: f32 = floor(lvl); let lf: f32 = lvl - l0;
   let gcs: f32 = 0.004 * exp2(l0); let gcl: f32 = gcs * exp2(clamp(round(log2(max(fxz.x, fxz.y) / max(fsh, 1e-6))), 0.0, 5.0));
   let c0: vec2f = select(vec2f(gcl, gcs), vec2f(gcs, gcl), fxz.x < fxz.y);
-  var sp: vec4f;
+  var sp: vec4f = vec4f(0.0);
   let spFade: f32 = smoothstep(300.0, 20.0, dist);
   if (M.sf.y > 0.5) {
     // (snr2) soft glints, as many to a pixel at any distance (fewer on the groomed run: its crystals are rounded). Where the cells grow
     // too small to show they go over into their mean, a fine sheen, instead of being cut off
     let dens: f32 = mix(1.0, 0.6, groom);
     let gF: f32 = smoothstep(220.0, 22.0, dist);
-    sp = mix(sparkSoft(wxz, c0, N, Hh, ja, jb, idet, 380.0), sparkSoft(wxz + vec2f(3.7, 9.1), c0 * 2.0, N, Hh, ja, jb, idet, 380.0), lf);
-    if (loose > 0.05 && M.sg.w < 1.5) { sp += sparkSoft(wxz + vec2f(7.3, 1.9), c0 * 0.5, N, Hh, ja, jb, idet, 380.0) * (1.6 * loose); }
+    if (gF > 0.0 && sh > 0.0 && rock < 1.0) {
+      sp = mix(sparkSoft(wxz, c0, N, Hh, ja, jb, idet, 380.0), sparkSoft(wxz + vec2f(3.7, 9.1), c0 * 2.0, N, Hh, ja, jb, idet, 380.0), lf);
+      if (loose > 0.05 && M.sg.w < 1.5) { sp += sparkSoft(wxz + vec2f(7.3, 1.9), c0 * 0.5, N, Hh, ja, jb, idet, 380.0) * (1.6 * loose); }
+    }
     let gl: vec3f = min(sp.rgb * (30.0 * U.fx.y * gF * dens * (1.0 - 0.7 * pol) * (1.0 + 1.5 * loose)), vec3f(7.0));
     let sheen: f32 = 0.05 * U.fx.y * dens * (1.0 - gF) * smoothstep(600.0, 120.0, dist) * pow(saturate(dot(N, Hh)), 4.0);
     col += U.sunCol.rgb * sh * (vec3f(spec) + gl + sheen) * (1.0 - rock);
   } else {
-    sp = mix(sparkLayer(wxz, c0, N, Hh, ja, jb, idet), sparkLayer(wxz + vec2f(3.7, 9.1), c0 * 2.0, N, Hh, ja, jb, idet), lf);
-    // (loose snow, thrown or turned over, is all fresh faces: many more of its crystals flash, and smaller ones)
-    if (loose > 0.05) { sp += sparkLayer(wxz + vec2f(7.3, 1.9), c0 * 0.5, N, Hh, ja, jb, idet) * (1.6 * loose); }
+    if (spFade > 0.0 && sh > 0.0 && rock < 1.0) {
+      sp = mix(sparkLayer(wxz, c0, N, Hh, ja, jb, idet), sparkLayer(wxz + vec2f(3.7, 9.1), c0 * 2.0, N, Hh, ja, jb, idet), lf);
+      // Loose snow has more fresh faces, with smaller crystals.
+      if (loose > 0.05) { sp += sparkLayer(wxz + vec2f(7.3, 1.9), c0 * 0.5, N, Hh, ja, jb, idet) * (1.6 * loose); }
+    }
     col += U.sunCol.rgb * sh * (vec3f(spec) + sp.rgb * (30.0 * U.fx.y * spFade * (1.0 - 0.7 * pol) * (1.0 + 1.5 * loose))) * (1.0 - rock);
   }
   // the crust mirrors the sky it faces as well, the more so the lower the eye: far down the slope the snow takes the colour of the horizon

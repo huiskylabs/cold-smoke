@@ -1,5 +1,13 @@
 import Foundation
 import Metal
+#if os(visionOS)
+import CoreGraphics
+struct SpatialEye {
+    let color, depth: MTLTexture
+    let crop: SIMD4<Float>
+    let clip: SIMD2<Float>
+}
+#endif
 
 struct RenderError: LocalizedError {
     let message: String
@@ -125,6 +133,50 @@ final class MetalRenderer {
     private var globals = Data()
     private var size = (0, 0)
     private var surface: Surface?
+    #if os(visionOS)
+    // A completion may arrive while a space is closing. Capture its receiver
+    // when the command buffer is submitted and publish directly on completion.
+    private let receiverLock = NSLock()
+    private var receiver: (@Sendable (Int, [SpatialEye]) -> Void)?
+    var onStereoFrame: (@Sendable (Int, [SpatialEye]) -> Void)? {
+        get { receiverLock.withLock { receiver } }
+        set { receiverLock.withLock { receiver = newValue } }
+    }
+    // Immutable after submission: the compositor can reuse a completed pair
+    // while the next simulation frame renders on a separate command queue.
+    private var stereoEyes = [SpatialEye]()
+    private var sceneRaster: SlopeSceneRaster?
+    private var sceneColorID: Int?
+    private var sceneResolve: (color: MTLTexture, depth: MTLTexture)?
+    private var spatialViewport = SIMD2<Float>.zero
+    private lazy var rasterResolvePipeline = try? SlopeSceneRaster.pipeline(device)
+    private lazy var rasterResolveDepth: MTLDepthStencilState? = {
+        let desc = MTLDepthStencilDescriptor()
+        desc.depthCompareFunction = .always; desc.isDepthWriteEnabled = true
+        return device.makeDepthStencilState(descriptor: desc)
+    }()
+    private var stereoID = 0
+    private func beginStereoEye(frame: Int, eye: Int, width: Int, height: Int, packet: [Any]) throws {
+        if eye == 0 { stereoEyes.removeAll(keepingCapacity: true); stereoID = frame }
+        guard eye == stereoEyes.count, eye < 2, frame == stereoID,
+              (1...8192).contains(width), (1...8192).contains(height) else { throw RenderError("Invalid stereo view") }
+        let td = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .rgba8Unorm, width: width, height: height, mipmapped: false)
+        td.usage = [.renderTarget, .shaderRead]; td.storageMode = .private
+        guard let eyeTexture = device.makeTexture(descriptor: td) else { throw RenderError("Cannot allocate stereo view") }
+        let depthID = packet[5] as! Int, depth = try texture(depthID), crop = (packet[6] as! [NSNumber]).map { $0.floatValue }
+        // Transfer this eye's finished depth texture to the compositor. The next
+        // eye clears a fresh attachment; no GPU readback or depth copy is needed.
+        guard crop.count == 4 else { throw RenderError("Invalid stereo crop") }
+        try createTexture(depthID, ["w": depth.width, "h": depth.height, "format": "depth", "filter": "nearest"])
+        stereoEyes.append(SpatialEye(color: eyeTexture, depth: depth, crop: SIMD4(crop[0],crop[1],crop[2],crop[3]),
+                                     clip: SIMD2((packet[7] as! NSNumber).floatValue, (packet[8] as! NSNumber).floatValue)))
+        let pass = MTLRenderPassDescriptor()
+        pass.colorAttachments[0].texture = eyeTexture
+        pass.colorAttachments[0].loadAction = .dontCare
+        pass.colorAttachments[0].storeAction = .store
+        activePass = pass; try startEncoding(pass)
+    }
+    #endif
     private var composite: MTLTexture?
     private var finishedScene = false
     private let upscale: MTLRenderPipelineState
@@ -192,7 +244,8 @@ final class MetalRenderer {
         let wrap = spec["wrap"] as? String ?? "clamp"
         let wrapY = spec["wrapY"] as? String ?? wrap
         let compare = spec["compare"] as? Bool == true
-        let key = [filter, wrap, wrapY, String(mip), String(compare)].joined(separator: "/")
+        let anisotropy = min(16, max(1, spec["anisotropy"] as? Int ?? 1))
+        let key = [filter, wrap, wrapY, String(mip), String(compare), String(anisotropy)].joined(separator: "/")
         if let cached = samplerCache[key] { samplers[id] = cached; return }
         let s = MTLSamplerDescriptor()
         let modes: [String: MTLSamplerAddressMode] = ["repeat": .repeat, "mirror": .mirrorRepeat]
@@ -201,6 +254,7 @@ final class MetalRenderer {
         s.minFilter = filter == "linear" ? .linear : .nearest
         s.magFilter = s.minFilter
         s.mipFilter = mip ? (filter == "linear" ? .linear : .nearest) : .notMipmapped
+        s.maxAnisotropy = anisotropy
         if compare { s.compareFunction = .lessEqual }
         guard let sampler = device.makeSamplerState(descriptor: s) else { throw RenderError("Invalid sampler") }
         samplers[id] = sampler
@@ -262,6 +316,23 @@ final class MetalRenderer {
             depth.loadAction = clear < 0 ? .load : .clear
             depth.storeAction = .store
         }
+        #if os(visionOS)
+        spatialViewport = .zero
+        if a.count > 6, a[6] as? Bool == true, device.supportsRasterizationRateMap(layerCount: 1),
+           rasterResolvePipeline != nil, rasterResolveDepth != nil,
+           let color = desc.colorAttachments[0].texture, let depth = desc.depthAttachment.texture {
+            if sceneRaster?.width != color.width || sceneRaster?.height != color.height {
+                sceneRaster = SlopeSceneRaster(device, color.width, color.height)
+            }
+            if let raster = sceneRaster {
+                sceneColorID = colorID
+                sceneResolve = (color, depth)
+                desc.colorAttachments[0].texture = raster.color; desc.depthAttachment.texture = raster.depth
+                desc.rasterizationRateMap = raster.map
+                spatialViewport = SIMD2(Float(color.width), Float(color.height))
+            }
+        }
+        #endif
         activePass = desc
         try startEncoding(desc)
     }
@@ -269,6 +340,12 @@ final class MetalRenderer {
     private func startEncoding(_ desc: MTLRenderPassDescriptor) throws {
         guard let enc = try commands().makeRenderCommandEncoder(descriptor: desc) else { throw RenderError("Metal render pass unavailable") }
         encoder = enc
+        #if os(visionOS)
+        enc.setFragmentBytes(&spatialViewport, length: MemoryLayout<SIMD2<Float>>.stride, index: 2)
+        if spatialViewport.x > 0 {
+            enc.setViewport(MTLViewport(originX: 0, originY: 0, width: Double(spatialViewport.x), height: Double(spatialViewport.y), znear: 0, zfar: 1))
+        }
+        #endif
         enc.setFrontFacing(.counterClockwise)
         globals.withUnsafeBytes { bytes in
             guard let ptr = bytes.baseAddress, !bytes.isEmpty else { return }
@@ -331,6 +408,31 @@ final class MetalRenderer {
     // On the render queue, immediately after the shutter frame and before the next frame.
     func capture(completion: @escaping ([String: Any]?, String?) -> Void) throws {
         guard finishedScene, let scene = composite else { throw RenderError("No completed scene to photograph") }
+        try readPixels(scene) { pixels, error in
+            completion(pixels.map { ["w": scene.width, "h": scene.height, "bgra": $0.base64EncodedString()] }, error)
+        }
+    }
+
+    #if os(visionOS)
+    func gamePhoto(textureID: Int, completion: @escaping (CGImage?, String?) -> Void) throws {
+        let scene: MTLTexture
+        if textureID == -1, finishedScene, let composite { scene = composite }
+        else { scene = try texture(textureID) }
+        guard [.rgba8Unorm, .bgra8Unorm].contains(scene.pixelFormat) else { throw RenderError("Invalid photo format") }
+        try readPixels(scene) { data, error in
+            guard let data, let provider = CGDataProvider(data: data as CFData) else { completion(nil, error); return }
+            let order: CGBitmapInfo = scene.pixelFormat == .bgra8Unorm ? .byteOrder32Little : .byteOrder32Big
+            let alpha: CGImageAlphaInfo = scene.pixelFormat == .bgra8Unorm ? .noneSkipFirst : .noneSkipLast
+            let image = CGImage(width: scene.width, height: scene.height, bitsPerComponent: 8, bitsPerPixel: 32,
+                                bytesPerRow: scene.width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                bitmapInfo: order.union(CGBitmapInfo(rawValue: alpha.rawValue)), provider: provider,
+                                decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+            completion(image, image == nil ? "Cannot encode photo" : nil)
+        }
+    }
+    #endif
+
+    private func readPixels(_ scene: MTLTexture, completion: @escaping (Data?, String?) -> Void) throws {
         let width = scene.width, height = scene.height, row = width * 4
         let pitch = (row + 255) / 256 * 256
         guard let staging = device.makeBuffer(length: pitch * height, options: .storageModeShared),
@@ -346,7 +448,7 @@ final class MetalRenderer {
             var pixels = Data(capacity: row * height)
             let src = staging.contents().assumingMemoryBound(to: UInt8.self)
             for y in 0..<height { pixels.append(src + y * pitch, count: row) }
-            completion(["w": width, "h": height, "bgra": pixels.base64EncodedString()], nil)
+            completion(pixels, nil)
         }
         command.commit()
     }
@@ -367,10 +469,17 @@ final class MetalRenderer {
                     guard let blit = try commands().makeBlitCommandEncoder() else { throw RenderError("Metal blit unavailable") }
                     blit.generateMipmaps(for: try texture(id))
                     blit.endEncoding()
-                case "dropTexture": textures[id] = nil; samplers[id] = nil
-                case "buffer":
+                case "dropTexture":
+                    textures[id] = nil; samplers[id] = nil
+                    #if os(visionOS)
+                    if id == sceneColorID { sceneRaster = nil; sceneColorID = nil }
+                    #endif
+                case "buffer", "replace":
                     let bytes = try slice(2)
-                    guard let b = device.makeBuffer(length: max(4, bytes.count), options: .storageModeShared) else { throw RenderError("Buffer allocation failed") }
+                    // An instance stream only draws its live prefix. Give it fresh
+                    // storage so earlier draws can finish without a blit or pass break.
+                    let capacity = a[0] as? String == "replace" ? try buffer(id).length : max(4, bytes.count)
+                    guard bytes.count <= capacity, let b = device.makeBuffer(length: capacity, options: .storageModeShared) else { throw RenderError("Buffer allocation failed") }
                     if let ptr = bytes.baseAddress { memcpy(b.contents(), ptr, bytes.count) }
                     buffers[id] = b
                 case "write":
@@ -385,10 +494,21 @@ final class MetalRenderer {
                 case "dropBuffer": buffers[id] = nil
                 case "pipeline": pipelines[id] = try Pipeline(a[2] as! [String: Any], device: device)
                 case "globals": globals = Data(try slice(1))
+                #if os(visionOS)
+                case "stereoEye": try beginStereoEye(frame: id, eye: a[2] as! Int, width: a[3] as! Int, height: a[4] as! Int, packet: a)
+                #endif
                 case "frame": size = (id, a[2] as! Int); finishedScene = false
                 case "pass": try beginPass(a)
                 case "draw": try draw(a, slice(9))
-                case "endPass": encoder?.endEncoding(); encoder = nil; skippingPass = false; activePass = nil
+                case "endPass":
+                    encoder?.endEncoding(); encoder = nil; skippingPass = false; activePass = nil
+                    #if os(visionOS)
+                    if let targets = sceneResolve, let raster = sceneRaster,
+                       let pipeline = rasterResolvePipeline, let depthState = rasterResolveDepth {
+                        sceneResolve = nil; spatialViewport = .zero
+                        try raster.resolve(into: targets.color, depth: targets.depth, using: commands(), pipeline: pipeline, depthState: depthState)
+                    }
+                    #endif
                 case "present":
                     if let surface, let drawable = surface.drawable {
                         let command = try commands()
@@ -408,6 +528,13 @@ final class MetalRenderer {
             }
         }
         if let cb = commandBuffer {
+            #if os(visionOS)
+            if !stereoEyes.isEmpty {
+                let eyes = stereoEyes, frameID = stereoID, publish = onStereoFrame
+                cb.addCompletedHandler { done in publish?(frameID, done.status == .completed ? eyes : []) }
+                stereoEyes.removeAll()
+            }
+            #endif
             cb.addCompletedHandler { cb in completion(cb.error?.localizedDescription, max(0, cb.gpuEndTime - cb.gpuStartTime)) }
             cb.commit()
             commandBuffer = nil

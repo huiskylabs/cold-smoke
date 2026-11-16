@@ -67,7 +67,14 @@ self.COLD_SMOKE.createGraphics = async function (canvas) {
     const b = { id: nextID++, kind, size: data.byteLength };
     push('buffer', b.id, ...append(data)); checkpoint(); return b;
   };
-  gfx.updateBuffer = (b,offset,data) => { push('write', b.id, offset, ...append(data)); checkpoint(); };
+  gfx.updateBuffer = (b,offset,data,discardTail = false) => {
+    if (offset === 0 && (discardTail || data.byteLength === b.size)) {
+      push('replace', b.id, ...append(data));
+    } else {
+      push('write', b.id, offset, ...append(data));
+    }
+    checkpoint();
+  };
   gfx.destroyBuffer = b => { if (b) push('dropBuffer', b.id); };
   gfx.pipeline = desc => {
     const { lib, vs, fs, buffers = [], textures = {}, uniforms, varyings, ...state } = desc;
@@ -87,9 +94,13 @@ self.COLD_SMOKE.createGraphics = async function (canvas) {
   gfx.setGlobals = data => push('globals', ...append(data));
   gfx.beginFrame = () => { frame = true; push('frame', canvas.width, canvas.height); };
   gfx.beginPass = (t, o = {}) => {
+    t = t || gfx.screen;
     gfx.passW = t ? t.w : canvas.width; gfx.passH = t ? t.h : canvas.height;
-    push('pass', t ? t.color?.id || 0 : -1, t?.depth?.id || 0, t?.level || 0, o.color || [], o.depth ?? -1);
+    push('pass', t ? t.color?.id || 0 : -1, t?.depth?.id || 0, t?.level || 0, o.color || [], o.depth ?? -1, !!o.spatialScene);
   };
+  if (self.COLD_SMOKE.spatial) {
+    gfx.beginStereoEye = (frameID, eye, w, h, depth, crop, near, far) => push('stereoEye', frameID, eye, w, h, depth.id, crop, near, far);
+  }
   gfx.endPass = () => push('endPass');
   gfx.draw = (p, d) => {
     if (!d.count || d.instances === 0) return;

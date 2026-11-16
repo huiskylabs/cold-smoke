@@ -27,6 +27,9 @@ function metalShader(desc) {
       constants.push('constant ' + declaration + ';');
       return '';
     });
+  // Fragment position is physical in a rate-mapped pass. Reconstruct logical
+  // screen pixels for effects that index the scene by position.
+  const logicalPosition = self.COLD_SMOKE?.spatial && /v\.clip\.(?:x|y)/.test(desc.fs || '');
   const common = [
     '#include <metal_stdlib>', 'using namespace metal;',
     '#define tex(t,p) t.sample(t##_s,(p))',
@@ -42,19 +45,23 @@ function metalShader(desc) {
     'struct Globals {' + fields(GLOBALS) + '};',
     'struct MatU {' + fields(uniforms) + '};',
     'struct VIn {' + fields(attrs) + ' uint vid; uint iid; };',
-    'struct VOut { float4 clip [[position]]; ' + fields(vary) + '};',
+    'struct VOut { float4 clip [[position]]; ' + fields(vary) + (logicalPosition ? ' float3 csLogicalClip;' : '') + '};',
     'struct FOut { float4 color; };',
     attrs.length ? 'struct Attributes {' + attrs.map(([n,t],i) => types[t] + ' ' + n + ' [[attribute(' + i + ')]];').join('\n') + '};' : '',
     ...constants, 'struct Shader {', ...resources.map(([t,n]) => t + ' ' + n + ';'),
     body, '};',
     'vertex VOut vsMain(' + (attrs.length ? 'Attributes a [[stage_in]], ' : '') +
       'uint vid [[vertex_id]], uint iid [[instance_id]], ' + params + ') { Shader shader{' + args +
-      '}; return shader.vert(VIn{' + [...attrs.map(([n]) => 'a.' + n), 'vid', 'iid'].join(', ') + '}); }',
+      '}; VOut result = shader.vert(VIn{' + [...attrs.map(([n]) => 'a.' + n), 'vid', 'iid'].join(', ') + '}); ' +
+      (logicalPosition ? 'result.csLogicalClip = result.clip.xyw; ' : '') + 'return result; }',
   ];
   if (desc.fs) {
     const depthOnly = desc.colorFormat === null;
-    common.push('fragment ' + (depthOnly ? 'void' : 'float4') + ' fsMain(VOut v [[stage_in]], ' + params + ') { Shader shader{' +
-      args + '}; ' + (depthOnly ? 'shader.frag(v);' : 'return shader.frag(v).color;') + ' }');
+    common.push('fragment ' + (depthOnly ? 'void' : 'float4') + ' fsMain(VOut v [[stage_in]], ' + params +
+      (logicalPosition ? ', constant float2 &logicalSize [[buffer(2)]]' : '') + ') { Shader shader{' +
+      args + '}; ' +
+      (logicalPosition ? 'if (logicalSize.x > 0.0f) { v.clip.xy = (0.5f + float2(0.5f, -0.5f) * v.csLogicalClip.xy / v.csLogicalClip.z) * logicalSize; } ' : '') +
+      (depthOnly ? 'shader.frag(v);' : 'return shader.frag(v).color;') + ' }');
   }
   return common.join('\n');
 }

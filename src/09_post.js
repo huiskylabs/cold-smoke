@@ -118,8 +118,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
       name: 'motionBlur', lib: [SL.common, SL.depth, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f', d0: 'vec4f', d1: 'vec4f', rd: 'vec4f', k0: 'vec4f', k1: 'vec4f', k2: 'vec4f', k3: 'vec4f', k4: 'vec4f', k5: 'vec4f', k6: 'vec4f', k7: 'vec4f' }, textures: { tA: '2d', tDepth: 'depth' },
       depth: false, depthTest: false, cull: 'none', vs: VS_FULLSCREEN, fs: `
 fn relAt(uv: vec2f, z: f32) -> vec3f {
-  let ty: f32 = U.camRight.w; let tx: f32 = ty * U.camUp.w;
-  return (U.camFwd.xyz + U.camRight.xyz * ((uv.x * 2.0 - 1.0) * tx) + U.camUp.xyz * ((1.0 - uv.y * 2.0) * ty)) * z;
+  return screenRay(vec2f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0)) * z;
 }
 // anything else that keeps pace with the lens (a deer running alongside): 0 on it, 1 away from it
 fn rider(wp: vec3f, c: vec4f) -> f32 { if (c.w <= 0.0) { return 1.0; } return smoothstep(1.35 * c.w, 2.0 * c.w, length((wp - c.xyz) * vec3f(1.0, 0.8, 1.0))); }
@@ -252,13 +251,15 @@ fn lensFlare(uv: vec2f, vv: vec2f) -> vec3f {
   let d: vec2f = (uv - s) * vec2f(asp, 1.0); let r: f32 = length(d);
   var f: vec3f = U.sunCol.rgb * (1.7 * exp(-r * 30.0) + 0.11 * exp(-r * 6.5) + 0.030 * exp(-r * 2.4));
   // starburst: thin rays, each with its own length
-  let NR: f32 = 14.0;
-  let a: f32 = atan2(d.y, d.x) / 6.2832 * NR + 0.31;
-  var k: f32 = floor(a + 0.5); let da: f32 = (a - k) * 6.2832 / NR; k = k - NR * floor(k / NR);
-  let h: f32 = fract(sin(k * 91.7 + 3.1) * 43758.5);
-  let len: f32 = 0.018 + 0.055 * h * h + 0.008 * sin(U.camPos.w * (0.7 + h) + k);
-  let ray: f32 = exp(-sq(r * sin(da) / (0.0014 + 0.013 * r))) * exp(-r / max(len, 0.01));
-  f += U.sunCol.rgb * ray * (1.15 * M.r.x);
+  if (M.r.x != 0.0) {
+    let NR: f32 = 14.0;
+    let a: f32 = atan2(d.y, d.x) / 6.2832 * NR + 0.31;
+    var k: f32 = floor(a + 0.5); let da: f32 = (a - k) * 6.2832 / NR; k = k - NR * floor(k / NR);
+    let h: f32 = fract(sin(k * 91.7 + 3.1) * 43758.5);
+    let len: f32 = 0.018 + 0.055 * h * h + 0.008 * sin(U.camPos.w * (0.7 + h) + k);
+    let ray: f32 = exp(-sq(r * sin(da) / (0.0014 + 0.013 * r))) * exp(-r / max(len, 0.01));
+    f += U.sunCol.rgb * ray * (1.15 * M.r.x);
+  }
   // the ghosts as delivered (P.ghostV.a; M.r.y is 0 for the other versions): four faint discs of one colour each
   if (M.r.y > 0.0005) {
     let ax: vec2f = (vec2f(0.5) - s) * vec2f(asp, 1.0);

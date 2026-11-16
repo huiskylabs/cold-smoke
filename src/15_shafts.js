@@ -51,7 +51,7 @@ fn frag(v: VOut) -> FOut {
   let fp: vec2i = clamp(vec2i(v.uv * U.res.xy), vec2i(0, 0), vec2i(U.res.xy) - vec2i(1, 1));
   let zf: f32 = linDepth(texFetchD(tDepth, fp, 0));
   let ndc: vec2f = vec2f(v.uv.x * 2.0 - 1.0, 1.0 - v.uv.y * 2.0);
-  let dv: vec3f = U.camFwd.xyz + U.camRight.xyz * (ndc.x * U.camRight.w * U.camUp.w) + U.camUp.xyz * (ndc.y * U.camRight.w);
+  let dv: vec3f = screenRay(ndc);
   let len: f32 = length(dv); let d: vec3f = dv / len;
   var tmax: f32 = min(zf * len, M.p.x);
   let mu: f32 = dot(d, U.sunDir.xyz);

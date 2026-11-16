@@ -35,6 +35,7 @@ const Photo = self.Photo = (() => {
     const h = Course.height(p[0], p[2], 0.5) + GROUND; if (p[1] < h) p[1] = h;
     return p;
   }
+  P.constrainPosition = keepIn;
 
   // ---- in and out
   P.can = () => !P.on && typeof UI !== 'undefined' && (UI.open || UI.state === 'run') && !UI.gone && !App.swapping && App.ready && !(App.gfx && App.gfx.lost) && !(typeof XR !== 'undefined' && XR.active);
@@ -60,7 +61,8 @@ const Photo = self.Photo = (() => {
   };
   P.exit = function () {
     if (!P.on) return;
-    P.on = false; App.photoFrame = null; closeShot();
+    P.on = false; P.pad = null; App.photoFrame = null; closeShot();
+    if (want) { want = false; busy = false; }
     const c = Render.cam, s = saved; saved = null;
     if (s) {
       c.pos = s.pos; c.fwd = s.fwd; c.up = s.up; c.right = s.right; c.fovY = s.fovY; c.near = s.near; c.roll = s.roll;
@@ -81,9 +83,10 @@ const Photo = self.Photo = (() => {
     const c = cam;
     // looking: eased a little, so a flick of the mouse is a turn of the head and not a jump
     const kl = 1 - Math.exp(-dt * 22); c.yaw += c.ty * kl; c.pit += c.tp * kl; c.ty -= c.ty * kl; c.tp -= c.tp * kl;
+    if (P.pad) { c.yaw += P.pad.lookX * dt * 1.6; c.pit += P.pad.lookY * dt * 1.3; }
     c.pit = clamp(c.pit, -1.45, 1.45);
     // moving: across the map in the direction the lens faces (a level move, so looking down does not drive it into the snow), and up or down
-    let mf = 0, mr = 0, mu = 0;
+    let mf = P.pad?.y || 0, mr = P.pad?.x || 0, mu = 0;
     if (keys.KeyW || keys.ArrowUp) mf += 1; if (keys.KeyS || keys.ArrowDown) mf -= 1;
     if (keys.KeyD || keys.ArrowRight) mr += 1; if (keys.KeyA || keys.ArrowLeft) mr -= 1;
     if (keys.KeyE || keys.Space || keys.PageUp) mu += 1; if (keys.KeyQ || keys.PageDown) mu -= 1;
@@ -109,13 +112,16 @@ const Photo = self.Photo = (() => {
     Trees.update(c, o, Render.W / Render.H, Game.root.pos, 0);
     if (typeof Gates !== 'undefined') Gates.update(c, o, Game.root.pos, 0, App.t);
   }
-  function frame(dt) {
-    steer(dt); place(); redraw();
+  P.drawFrozen = function () {
+    redraw();
     Render.motionBlur = false;
     Render.computeGlobals(App.t, 0, App.state);
     for (const f of App.onTick) f(0, true);
     (App.renderHook || Render.render)();
-    if (want) { want = false; grab(); }
+  };
+  function frame(dt) {
+    steer(dt); place(); P.drawFrozen();
+    if (want) { const request = want; want = false; grab(request); }
     if (toastT > 0 && (toastT -= dt) <= 0) el.toast.classList.remove('on');
     lens();
   }
@@ -124,9 +130,21 @@ const Photo = self.Photo = (() => {
   function lens() { const mm = Math.round(12 / Math.tan(cam.fov / 2)); if (mm !== lastMM) { lastMM = mm; el.mm.textContent = mm + ' mm'; } }
 
   // ---- the picture: the canvas read in the frame it was drawn in (WebGL keeps no buffer once the frame is shown, WebGPU hands it on)
-  P.snap = function () { if (!P.on || busy) return; busy = true; want = true; };
-  async function grab() {
+  P.snap = function (library = false) { if (!P.on || busy) return; busy = true; want = library === true ? 'library' : 'preview'; };
+  async function grab(request) {
     const session = saved;
+    if (request === 'preview' && self.COLD_SMOKE?.previewGamePhoto) {
+      try { await self.COLD_SMOKE.previewGamePhoto(); P.shots++; }
+      catch { if (saved === session) tell('没能拍下来'); }
+      finally { busy = false; }
+      return;
+    }
+    if (request === 'library') {
+      const message = await self.COLD_SMOKE.saveGamePhoto(-1);
+      busy = false;
+      if (saved === session) tell(message);
+      return;
+    }
     let url = null, cv = null;
     try {
       if (App.gfx.capturePhoto) cv = await App.gfx.capturePhoto();
@@ -186,7 +204,10 @@ const Photo = self.Photo = (() => {
 
   // ---- the words and buttons over the scene: shown, or put away (H, or the button) for an empty frame to look through; a tap brings them back
   function showWords(on) { hideW = !on; el.root.classList.toggle('bare', hideW); }
-  function hint() { el.hint.textContent = T(hand() ? '右边拖动转视角 · 左边摇杆移动 · 双指缩放' : '拖动鼠标转视角 · WASD 移动 · Q E 升降 · 滚轮缩放 · Z C 歪斜 · R 复位 · H 隐藏文字'); }
+  function hint() {
+    if (self.COLD_SMOKE?.spatial && P.pad) { el.hint.textContent = T('左摇杆移动 · 右摇杆取景 · X 拍摄 · B 返回'); return; }
+    el.hint.textContent = T(hand() ? '右边拖动转视角 · 左边摇杆移动 · 双指缩放' : '拖动鼠标转视角 · WASD 移动 · Q E 升降 · 滚轮缩放 · Z C 歪斜 · R 复位 · H 隐藏文字');
+  }
 
   // ---- the hands
   function onKey(e) {

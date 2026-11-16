@@ -16,6 +16,7 @@ struct PauseSettings: Decodable, Equatable {
     let sections, times, weather, views, terrain, encounters: [Choice]
     let active, seed, record, quality, tier, snowfall: String
     let running, direct, english, sound, daily: Bool
+    var bodyControls: Bool?
     let versions: [Versions]
     let help: [Gesture]
 }
@@ -25,6 +26,32 @@ final class PauseMenuModel: ObservableObject {
     @Published var bar: CGRect = .null
     let send: (String) -> Void
     init(_ state: PauseSettings, send: @escaping (String) -> Void) { self.state = state; self.send = send }
+}
+
+private struct SettingsChoiceStyle: ButtonStyle {
+    let selected: Bool
+    let radius: CGFloat
+
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        #if os(visionOS)
+        // Gaze, press and selection change the ink of one surface, never its geometry.
+        let pressed = configuration.isPressed
+        configuration.label
+            .background {
+                shape.fill(.primary).hoverEffect { effect, gazed, _ in
+                    effect.opacity(pressed ? 0.32 : gazed ? (selected ? 0.25 : 0.11) : (selected ? 0.15 : 0))
+                }
+            }
+            .contentShape([.interaction, .hoverEffect], shape)
+            .hoverEffectGroup()
+        #else
+        configuration.label
+            .background(selected ? Color.primary.opacity(0.13) : .clear, in: shape)
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.7 : 1)
+        #endif
+    }
 }
 
 struct PauseMenu: View {
@@ -85,6 +112,11 @@ struct PauseMenu: View {
                     }
                     if wide || detailVisible { detail(wide: wide, rail: rail) }
                 }
+                #if os(visionOS)
+                .safeAreaInset(edge: .bottom, spacing: 12) {
+                    Button { send("space") } label: { Label(t("沉浸模式", "Immersive"), systemImage: "vision.pro") }
+                }
+                #endif
                 .padding(inset)
                 .onAppear { if wide { detailVisible = true } }
                 .onChange(of: wide) { isWide in if isWide { detailVisible = true } }
@@ -115,7 +147,9 @@ struct PauseMenu: View {
         } message: { id in Text(id == "m-top" ? t("这一趟滑行会结束，你将回到山顶的出发页。","This run will end and you’ll return to the start screen.") : t("这一趟滑行会结束，你将从新雪山的山顶出发。", "This run will end. You’ll start at the summit of the new mountain.")) }
     }
     private func division(in geometry: GeometryProxy) -> CGRect {
+        #if os(iOS)
         if #available(iOS 27.1, *) { return geometry.reservedRegions(kind: .division).first(where: \.isActive)?.frame ?? .null }
+        #endif
         return .null
     }
     private func back() {
@@ -124,9 +158,13 @@ struct PauseMenu: View {
     @ViewBuilder private func railButton(_ icon: String, _ label: String, _ id: String, action: @escaping () -> Void) -> some View {
         let button = Button(action: action) { Image(systemName: icon).font(.body.weight(.semibold)).frame(width: 46, height: 46) }
             .accessibilityLabel(label).accessibilityIdentifier(id)
+        #if os(visionOS)
+        button.buttonStyle(.bordered).buttonBorderShape(.circle)
+        #else
         if #available(iOS 26, *) {
             button.buttonStyle(.plain).glassEffect(.regular.interactive(), in: Circle())
         } else { button.buttonStyle(.plain).background(.regularMaterial, in: Circle()) }
+        #endif
     }
     // The two panes sample the ski scene. Keep the header and all of a pane's
     // scrolling rows on the same glass surface, without nested glass cards.
@@ -140,12 +178,18 @@ struct PauseMenu: View {
                 // The weather page supplies opaque backing only under its controls.
                 content.background(hasPreview ? Color.clear : Color(uiColor: .secondarySystemBackground), in: shape)
                     .clipShape(shape)
-            } else if #available(iOS 26, *) {
-                content.clipShape(shape)
-                    .glassEffect(.clear, in: shape)
-                    .background(.black.opacity(contrast == .increased ? 0.55 : 0.40), in: shape)
             } else {
-                content.background(.thinMaterial, in: shape).clipShape(shape)
+                #if os(visionOS)
+                content.glassBackgroundEffect(in: shape)
+                #else
+                if #available(iOS 26, *) {
+                    content.clipShape(shape)
+                        .glassEffect(.clear, in: shape)
+                        .background(.black.opacity(contrast == .increased ? 0.55 : 0.40), in: shape)
+                } else {
+                    content.background(.thinMaterial, in: shape).clipShape(shape)
+                }
+                #endif
             }
         }
     }
@@ -157,8 +201,12 @@ struct PauseMenu: View {
     }
     private struct PrimaryAction: ViewModifier {
         @ViewBuilder func body(content: Content) -> some View {
+            #if os(visionOS)
+            content.buttonStyle(.borderedProminent).controlSize(.large)
+            #else
             if #available(iOS 26.0, *) { content.buttonStyle(.glass).controlSize(.large) }
             else { content.buttonStyle(.bordered).controlSize(.large) }
+            #endif
         }
     }
     private func smallButton(_ icon: String, _ label: String, _ id: String, perform: @escaping () -> Void) -> some View {
@@ -194,9 +242,8 @@ struct PauseMenu: View {
                         Spacer(minLength: 0)
                         if !wide { Image(systemName: "chevron.forward").font(.caption.bold()).foregroundStyle(.tertiary) }
                     }.padding(.horizontal, 12).frame(minHeight: 44)
-                        .background(active ? Color.primary.opacity(0.13) : .clear, in: RoundedRectangle(cornerRadius: 12))
-                        .contentShape(Rectangle())
-                }.buttonStyle(.plain).accessibilityAddTraits(active ? .isSelected : []).accessibilityIdentifier("settings-nav-" + id)
+                }.buttonStyle(SettingsChoiceStyle(selected: active, radius: 12))
+                    .accessibilityAddTraits(active ? .isSelected : []).accessibilityIdentifier("settings-nav-" + id)
             }
         }
     }
@@ -289,8 +336,8 @@ struct PauseMenu: View {
                                 HStack(spacing: 3) { if c.on { Image(systemName: "checkmark").font(.caption.bold()) }; Text(c.title).font(.subheadline) }
                             }.frame(maxWidth: .infinity, minHeight: 54)
                                 .foregroundStyle(.primary)
-                                .background(c.on ? Color.primary.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 10))
-                        }.buttonStyle(.plain).accessibilityAddTraits(c.on ? .isSelected : []).accessibilityIdentifier(c.id)
+                        }.buttonStyle(SettingsChoiceStyle(selected: c.on, radius: 10))
+                            .accessibilityAddTraits(c.on ? .isSelected : []).accessibilityIdentifier(c.id)
                     }
                 }
             }
@@ -313,7 +360,7 @@ struct PauseMenu: View {
         }.buttonStyle(.plain).accessibilityAddTraits(c.on ? .isSelected : []).accessibilityIdentifier(c.id) }
     }
     private func viewsPage() -> some View {
-        group(t("选择机位","Camera position"), footer: t("滑行时也可以左右滑动机位栏，或轻点名称切换。","While skiing, swipe the camera strip or tap a name to switch views.")) {
+        group(t("选择机位","Camera position"), footer: s.bodyControls != nil ? t("滑行时按 LB 或 RB 可切换机位。","Press LB or RB to switch cameras while skiing.") : t("滑行时也可以左右滑动机位栏，或轻点名称切换。","While skiing, swipe the camera strip or tap a name to switch views.")) {
             rows(s.views) { c in Button { send(c.id) } label: {
                 row(c.title, icon: symbol(String(c.id.dropFirst(5))), trailing: c.on ? "checkmark" : nil)
             }.buttonStyle(.plain).accessibilityAddTraits(c.on ? .isSelected : []).accessibilityIdentifier(c.id) }
@@ -369,7 +416,7 @@ struct PauseMenu: View {
                 }
             }
             group(t("拍照","Photography")) {
-                row(t("打开相机","Open the camera"), detail: t("轻点相机取景，按快门拍照。轻点返回继续滑行。","Tap the camera to frame a shot, then tap the shutter. Tap Back to keep skiing."), icon:"camera")
+                row(t("打开相机","Open the camera"), detail: s.bodyControls != nil ? t("按 X 取景，再按 X 保存。按 B 返回滑行。","Press X to frame, X again to save, and B to return.") : t("轻点相机取景，按快门拍照。轻点返回继续滑行。","Tap the camera to frame a shot, then tap the shutter. Tap Back to keep skiing."), icon:"camera")
             }
         }
     }
@@ -398,6 +445,11 @@ struct PauseMenu: View {
                     ForEach(qualityOptions, id: \.0) { item in Text(item.1).tag(item.0) }
                 }
                 if s.quality == "auto" { Text(t("当前画质：","Current quality: ") + s.tier).font(.footnote).foregroundStyle(captionInk) }
+            }
+            if let body = s.bodyControls {
+                group(t("控制","Controls")) {
+                    Toggle(t("身体动作控制","Body controls"), isOn: Binding(get: { body }, set: { if $0 != body { send("body") } }))
+                }
             }
             group(t("语言","Language")) {
                 valueRow(t("游戏语言","Game language"), value: s.english ? "English" : "简体中文", selection: Binding(get: { s.english }, set: { if s.english != $0 { send("o-lang") } }), id: "settings-language") {

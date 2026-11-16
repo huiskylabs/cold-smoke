@@ -54,7 +54,7 @@ const Sky = (() => {
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let uv: vec2f = vec2f(f32((a.vid << 1u) & 2u), f32(a.vid & 2u)); v.clip = vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, 1.0, 1.0); v.uv = uv; return v; }`,
       fs: `fn frag(v: VOut) -> FOut { var o: FOut;
         let ndc: vec2f = vec2f(v.uv.x * 2.0 - 1.0, 1.0 - v.uv.y * 2.0);
-        let d: vec3f = normalize(U.camFwd.xyz + U.camRight.xyz * (ndc.x * U.camRight.w * U.camUp.w) + U.camUp.xyz * (ndc.y * U.camRight.w));
+        let d: vec3f = normalize(screenRay(ndc));
         var col: vec3f = skyLut0(vec3f(d.x, max(d.y, 0.0), d.z));
         let mu: f32 = dot(d, U.sunDir.xyz);
         // the haze band at the horizon: milky and bright by day rather than yellow (at sunset it keeps all its colour)
@@ -90,7 +90,7 @@ const Sky = (() => {
         col = overcast(d, mu, col);
         // beyond the mountain, nearest last: ranges on the horizon, the cloud deck, the city standing in it
         col = farRanges(d, col);
-        col = mix(col, cloudSea(d, mu, col), smoothstep(0.0, -0.006, d.y));
+        if (d.y < 0.0) { col = mix(col, cloudSea(d, mu, col), smoothstep(0.0, -0.006, d.y)); }
         { let cb: vec3f = col; col = mix(cityLayer(d, col), cb, M.wf.w); }      // (behind heavy snow only a shape of it: 05b_weather.js)
         // ...and nearer than all of it, a bolt of lightning
         col += bolt(d);

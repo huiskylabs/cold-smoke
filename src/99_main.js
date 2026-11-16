@@ -28,7 +28,12 @@ async function boot(stage) {
   await step(0.08, '磨雪');
   makeNoiseTextures(gfx); makeSnowTexture(gfx, Sky.az); Terrain.setSun(Sky.az);
   await step(0.20, '远山与城市');
-  { const t0 = performance.now(); Vista.init(gfx, { farW: +QS.get('vistares') || (gfx.caps.maxTex >= 4096 ? 3072 : 2048), cityW: +QS.get('cityres') || 1024, keep: DEV && QS.has('vistadbg') }); if (DEV) console.log('vista', Math.round(performance.now() - t0) + 'ms', JSON.stringify(Vista.stats)); }
+  {
+    const t0 = performance.now(), spatial = self.COLD_SMOKE?.spatial && gfx.caps.maxTex >= 4096;
+    Vista.init(gfx, { farW: +QS.get('vistares') || (spatial ? 4096 : gfx.caps.maxTex >= 4096 ? 3072 : 2048),
+      cityW: +QS.get('cityres') || (spatial ? 1536 : 1024), keep: DEV && QS.has('vistadbg') });
+    if (DEV) console.log('vista', Math.round(performance.now() - t0) + 'ms', JSON.stringify(Vista.stats));
+  }
   await step(0.36, '立起天空');
   Render.init(gfx, canvas); Sky.init(gfx); Terrain.init(gfx); Post.init(gfx); Skier.init(gfx);
   await step(0.40, '林子里有鹿');

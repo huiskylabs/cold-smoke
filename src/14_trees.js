@@ -953,10 +953,10 @@ const Trees = (() => {
     }
     for (let v = 0; v < T.NV; v++) for (let l = 0; l < 2; l++) {
       const g = grp[v][l]; st.drawn += g.solid * meshes[v][l].count / 3; st.shadow += g.n * meshes[v][1].count / 3;
-      if (g.n) gfx.updateBuffer(g.buf, 0, g.cpu.subarray(0, g.n * 16));
-      if (g.gn) gfx.updateBuffer(g.gbuf, 0, g.gcpu.subarray(0, g.gn * 16));
+      if (g.n) gfx.updateBuffer(g.buf, 0, g.cpu.subarray(0, g.n * 16), true);
+      if (g.gn) gfx.updateBuffer(g.gbuf, 0, g.gcpu.subarray(0, g.gn * 16), true);
     }
-    if (nFar) gfx.updateBuffer(farBuf, 0, farCPU.subarray(0, nFar * 12));
+    if (nFar) gfx.updateBuffer(farBuf, 0, farCPU.subarray(0, nFar * 12), true);
     st.far = nFar; st.drawn += nFar * NSEG * 2; st.shadow += nFar * NSEG * 2;
     if (nDust) dustStep(dt, ox, oy, oz); else st.parts = 0;
   };

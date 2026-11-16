@@ -1,0 +1,41 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+		2433425F1BEE4A90BEB6362E /* ../ios/App/PauseMenu.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../ios/App/PauseMenu.swift"; sourceTree = SOURCE_ROOT; };
+		55B5C0B92BFA4B03BEED162F /* Compile ../ios/App/PauseMenu.swift */ = { isa = PBXBuildFile; fileRef = 2433425F1BEE4A90BEB6362E; };
+		AA79BEFB1FED49949E702A15 /* App/SlopeInterface.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/SlopeInterface.swift"; sourceTree = SOURCE_ROOT; };
+		A7BBADA14D324C3FB61ACE0C /* Compile App/SlopeInterface.swift */ = { isa = PBXBuildFile; fileRef = AA79BEFB1FED49949E702A15; };
+		A440EF3BBF591A8E083FA61F /* Assets.xcassets */ = { isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = App/Assets.xcassets; sourceTree = SOURCE_ROOT; };
+		0BE4275910C1311926F1C83C /* Assets.xcassets in Resources */ = { isa = PBXBuildFile; fileRef = A440EF3BBF591A8E083FA61F; };
+		D4B8C83F8146932890A57620 /* Resources */ = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (0BE4275910C1311926F1C83C, ); runOnlyForDeploymentPostprocessing = 0; };
+		C9CCB839F7F0E2114A7EFB7B /* App/SnowWindow.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/SnowWindow.swift"; sourceTree = SOURCE_ROOT; };
+		D7C2F6F83EF942AA87AABB33 /* Compile App/SnowWindow.swift */ = { isa = PBXBuildFile; fileRef = C9CCB839F7F0E2114A7EFB7B; };
+		835C05C2304044C19AA50BC4 /* App/SlopeSceneRaster.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/SlopeSceneRaster.swift"; sourceTree = SOURCE_ROOT; };
+		0BEF2C7FAA9E7A49D4EDF688 /* App/SpatialSlope.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/SpatialSlope.swift"; sourceTree = SOURCE_ROOT; };
+		4E7C751E4ACE4BCDB92C88F7 /* Compile App/SlopeSceneRaster.swift */ = { isa = PBXBuildFile; fileRef = 835C05C2304044C19AA50BC4; };
+		6E7F555EC0F52AF6B521E6E1 /* Compile App/SpatialSlope.swift */ = { isa = PBXBuildFile; fileRef = 0BEF2C7FAA9E7A49D4EDF688; };
+		CA67C1045C8EF9518B0819B1 /* App/SkiGamepad.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "App/SkiGamepad.swift"; sourceTree = SOURCE_ROOT; };
+		595AB26E2C22D7FADCFDC159 /* Compile App/SkiGamepad.swift */ = { isa = PBXBuildFile; fileRef = CA67C1045C8EF9518B0819B1; };
+		5EF88BEEC20627D385874D73 /* ../ios/App/MetalBridge.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../ios/App/MetalBridge.swift"; sourceTree = SOURCE_ROOT; };
+		81379CF8A2DE20DB7E44AEC8 /* Compile ../ios/App/MetalBridge.swift */ = { isa = PBXBuildFile; fileRef = 5EF88BEEC20627D385874D73; };
+		6508365850F171EFD6277B78 /* ../ios/App/MetalRenderer.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../ios/App/MetalRenderer.swift"; sourceTree = SOURCE_ROOT; };
+		EB63DB33E04A25FFBAA2B79C /* Compile ../ios/App/MetalRenderer.swift */ = { isa = PBXBuildFile; fileRef = 6508365850F171EFD6277B78; };
+		CFB33535F0EC544164255845 /* Product */ = { isa = PBXFileReference; explicitFileType = wrapper.application; path = ColdSmokeVision.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EE12972FFE84E92E38D027EC /* Products */ = { isa = PBXGroup; children = (CFB33535F0EC544164255845, ); name = Products; sourceTree = "<group>"; };
+		9FECA2E106331BFBD9BCEAC0 /* Files */ = { isa = PBXGroup; children = (2433425F1BEE4A90BEB6362E, AA79BEFB1FED49949E702A15, A440EF3BBF591A8E083FA61F, C9CCB839F7F0E2114A7EFB7B, 0BEF2C7FAA9E7A49D4EDF688, 835C05C2304044C19AA50BC4, CA67C1045C8EF9518B0819B1, 5EF88BEEC20627D385874D73, 6508365850F171EFD6277B78, EE12972FFE84E92E38D027EC, ); sourceTree = "<group>"; };
+		EE7C8769CB9B181B84239681 /* Sources */ = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (55B5C0B92BFA4B03BEED162F, A7BBADA14D324C3FB61ACE0C, D7C2F6F83EF942AA87AABB33, 6E7F555EC0F52AF6B521E6E1, 4E7C751E4ACE4BCDB92C88F7, 595AB26E2C22D7FADCFDC159, 81379CF8A2DE20DB7E44AEC8, EB63DB33E04A25FFBAA2B79C, ); runOnlyForDeploymentPostprocessing = 0; };
+		66965F17214BD5447AA8C195 /* Game bundle */ = { isa = PBXShellScriptBuildPhase; alwaysOutOfDate = 1; buildActionMask = 2147483647; files = (); inputPaths = (); outputPaths = (); name = "Bundle offline game"; runOnlyForDeploymentPostprocessing = 0; shellPath = /bin/sh; shellScript = "\"$SRCROOT/../ios/build-resources.sh\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Game\" visionos"; };
+		3E32BB3EC8B331F8CB50039D /* TargetDebug */ = { isa = XCBuildConfiguration; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; PRODUCT_BUNDLE_IDENTIFIER = com.coldsmoke.vision; PRODUCT_NAME = ColdSmokeVision; INFOPLIST_FILE = App/Info.plist; CODE_SIGN_STYLE = Automatic; }; name = Debug; };
+		6A0EB4B2F6ED76050ED12C99 /* TargetRelease */ = { isa = XCBuildConfiguration; buildSettings = { ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; PRODUCT_BUNDLE_IDENTIFIER = com.coldsmoke.vision; PRODUCT_NAME = ColdSmokeVision; INFOPLIST_FILE = App/Info.plist; CODE_SIGN_STYLE = Automatic; }; name = Release; };
+		B8F187C64BBD2AF82258D55C /* TargetConfigs */ = { isa = XCConfigurationList; buildConfigurations = (3E32BB3EC8B331F8CB50039D, 6A0EB4B2F6ED76050ED12C99, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		504A4613BFD1ADAF2DCCDAA3 /* ProjectDebug */ = { isa = XCBuildConfiguration; buildSettings = { SDKROOT = xros; SUPPORTED_PLATFORMS = "xros xrsimulator"; TARGETED_DEVICE_FAMILY = 7; XROS_DEPLOYMENT_TARGET = 2.0; SWIFT_VERSION = 5.0; ENABLE_USER_SCRIPT_SANDBOXING = NO; CLANG_ENABLE_MODULES = YES; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };
+		F5790149EE4F8B364B536185 /* ProjectRelease */ = { isa = XCBuildConfiguration; buildSettings = { SDKROOT = xros; SUPPORTED_PLATFORMS = "xros xrsimulator"; TARGETED_DEVICE_FAMILY = 7; XROS_DEPLOYMENT_TARGET = 2.0; SWIFT_VERSION = 5.0; ENABLE_USER_SCRIPT_SANDBOXING = NO; CLANG_ENABLE_MODULES = YES; SWIFT_OPTIMIZATION_LEVEL = "-O"; }; name = Release; };
+		A6B003246A8DEECBE3FF062D /* ProjectConfigs */ = { isa = XCConfigurationList; buildConfigurations = (504A4613BFD1ADAF2DCCDAA3, F5790149EE4F8B364B536185, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		5A3F8EFA440B9325CE64E3EA /* ColdSmokeVision */ = { isa = PBXNativeTarget; buildConfigurationList = B8F187C64BBD2AF82258D55C; buildPhases = (EE7C8769CB9B181B84239681, D4B8C83F8146932890A57620, 66965F17214BD5447AA8C195, ); buildRules = (); dependencies = (); name = ColdSmokeVision; productName = ColdSmokeVision; productReference = CFB33535F0EC544164255845; productType = "com.apple.product-type.application"; };
+		5FEC2FB94A133D366DB0397A /* Project */ = { isa = PBXProject; buildConfigurationList = A6B003246A8DEECBE3FF062D; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; knownRegions = (en, Base); mainGroup = 9FECA2E106331BFBD9BCEAC0; productRefGroup = EE12972FFE84E92E38D027EC; projectDirPath = ""; projectRoot = ""; targets = (5A3F8EFA440B9325CE64E3EA, ); };
+	};
+	rootObject = 5FEC2FB94A133D366DB0397A;
+}
