@@ -35,7 +35,8 @@ const I18N = (() => {
     // ---- the runs (Course: SEG_NAMES), the hours, the weather, the views, the animals
     '开阔大坡': 'Open Bowl', '陡坡': 'The Steeps', '树林': 'Glade', '起伏': 'Rollers', '雪槽': 'Gully', '跳台': 'Kickers', '深粉雪': 'Deep Powder', '山脊': 'Ridge', '蘑菇': 'Moguls',
     '自动': 'Auto', '白天': 'Day', '傍晚': 'Golden hour', '黄昏': 'Dusk', '夜晚': 'Night', '黎明': 'Dawn',
-    '小雪': 'Light snow', '中雪': 'Snow', '大雪': 'Heavy snow', '雷暴雪': 'Thundersnow',
+    '晴': 'Clear', '小雪': 'Light snow', '中雪': 'Snow', '大雪': 'Heavy snow', '雷暴雪': 'Thundersnow',
+    '上午': 'Morning', '中午': 'Midday', '下午': 'Afternoon', '固定': 'Held',
     '追尾': 'Chase', '第一人称': 'First person', '雪板尖': 'Ski tips', '贴雪': 'Low', '俯瞰': 'Overhead', '左侧': 'Left side', '右侧': 'Right side', '正面': 'Front', '远摄': 'Telephoto',
     '鹿': 'Deer', '雪兔': 'Snow hare', '狐狸': 'Fox', '北山羊': 'Ibex', '金雕': 'Golden eagle', '动物': 'Animal', '航班': 'Airliner',
     // ---- what a key changed, said for a moment
@@ -72,7 +73,9 @@ const I18N = (() => {
     '今日之山': 'Today\'s mountain', 'say:今日之山': 'TODAY\'S MOUNTAIN', '最远': 'Farthest', '你今天在这座山上：': 'Your best here today: ', '今天还没在这座山上滑过': 'Not skied here yet today', '今日之山：从山顶一口气滑完前三段的平均速度，北京时间零点换山。每人只留最好的一次。': 'Today\'s mountain: average speed over its first three stretches, skied in one go from the top. The mountain changes at midnight Beijing time. Each skier keeps only their best.', '前三段': 'First three', '滑雪时长只算总榜，一直累计。': 'Time skied is all time only, and keeps adding up.', '飞行': 'Air', '今日之山 · 前三段': 'TODAY\'S MOUNTAIN · FIRST THREE', '今日之山 · 平均速度': 'Today\'s mountain · average speed',
     '转弯（按久了会切雪）': 'Turn (hold longer to carve)', '空格': 'Space', '跳，按住蓄力': 'Jump, hold to load up', '压低加速，慢的时候撑杖': 'Tuck for speed, pole when slow',
     '右键拖　I J K L': 'Right-drag　I J K L', '环顾四周': 'Look around', '换时间 · 换天气': 'Time · weather', '下一种路段': 'Next run', '叫出动物 · 航班': 'Animal · airliner',
-    '静音 · 全屏': 'Mute · full screen', '菜单 · 这一页 · 版本对比': 'Menu · this page · versions',
+    '静音 · 全屏': 'Mute · full screen', '菜单 · 这一页': 'Menu · this page', '菜单 · 这一页 · 版本对比': 'Menu · this page · versions',
+    '随机天气': 'Random weather', '最短': 'Shortest', '最长': 'Longest', '过渡': 'Fade', '种子': 'Seed', '不连着同一种': 'Never twice in a row', '秒': 's',
+    '开场先是小雪，之后按这些数字自己换。改一个，当前这一刻就按新的重算。': 'The opening spell is light snow; after that these numbers take over. Change one and this moment is worked out again.',
     '按住拖动': 'Hold & drag', '左右拖动转弯，拖过刻度就切雪': 'Drag left or right to turn, past the mark to carve', '按住蓄力，松开起跳': 'Hold to load up, let go to fly',
     '按住压低，慢的时候自动撑杖': 'Hold to tuck; poles by itself when slow', '机位': 'Camera', '两指拖动': 'Two-finger drag', 'Shift + 字母 往回切换。': 'Shift + the letter steps back.',
     '声音 开': 'Sound on', '声音 关': 'Sound off', '画质 自动': 'Quality: auto', '画质 高': 'Quality: high', '画质 均衡': 'Quality: balanced', '画质 流畅': 'Quality: smooth', '语言': 'Language',

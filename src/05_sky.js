@@ -2,16 +2,16 @@
 // (nebula / clouds / city / cloud sea are layered in further down this file and in their own)
 const Sky = (() => {
   const S = { alt: 3200, E: 22, az: -0.2, sunElev: 0.20, elev: 0.20, moonElev: 0.27, moonK: 0.034, skyline: 0.027, lutSun: -99, lutMoon: -99,
-    clock: 0, cycle: 600, night: 0, lights: 0, stars: 0, moonVis: 0, milk: 1, isMoon: false, exposure: 0.145, hiAlt: 8600, lampK: 0 };
+    clock: 0, cycle: 1440, night: 0, lights: 0, stars: 0, moonVis: 0, milk: 1, isMoon: false, exposure: 0.145, hiAlt: 8600, lampK: 0 };
   let gfx, lutTex, lutTarget, pipeLut, pipeSky;
-  // the day, as [seconds, height of the sun (rad)]: a long afternoon, the hour of gold, sunset behind the far range, dusk, night, and the morning
-  // after. The sun keeps its compass bearing throughout (only its height changes), and comes up again where it went down.
+  // the day, as [minutes from midnight, height of the sun (rad)]. One unit of the clock is one in-game minute and one real second, so the
+  // cycle is a whole day: 24 real minutes. The shape is the old one, stretched so the day fills 06:00–18:30 and the night the rest: a long
+  // low afternoon, the hour of gold, the sun held on the far skyline, then dusk, the dark, and the morning. The sun keeps its compass bearing
+  // throughout (only its height changes), and comes up again where it went down.
   // (the afternoon sun stands low, 11 degrees up: it is in the picture, the thrown snow hangs close under it, and every ripple of the slope has a shadow)
   const DE = 0.20;
-  // (it lingers on the far skyline: for half a minute the disc sits in the notch of the valley before it goes)
-  // (the high afternoon holds for the first minute and a bit, then the light starts to move: a run of a few minutes sees it turn gold. The night is
-  // the shortest of the holds)
-  const DAY = [[0, DE], [70, DE], [185, 0.075], [240, 0.034], [258, 0.012], [320, -0.22], [430, -0.22], [463, -0.03], [483, 0.06], [525, DE], [600, DE]];
+  // (the run begins at `day`, 10:20, still that low afternoon sun. Sunrise and sunset below are 06:00 and 18:30)
+  const DAY = [[0, -0.22], [230.1, -0.22], [325.4, -0.03], [376.6, 0.06], [463.9, DE], [619.7, DE], [765.1, DE], [1004, 0.075], [1121.5, 0.034], [1173.5, 0.012], [1352.5, -0.22], [1440, -0.22]];
   S.elevAt = function (t) {
     t = ((t % S.cycle) + S.cycle) % S.cycle;
     for (let i = 1; i < DAY.length; i++) if (t <= DAY[i][0]) {
@@ -22,8 +22,9 @@ const Sky = (() => {
     }
     return DAY[0][1];
   };
-  S.times = { day: 0, golden: 168, sunset: 236, dusk: 274, night: 345, dawn: 454, sunrise: 475 };
+  S.times = { day: 619.7, golden: 968.7, sunset: 1110, dusk: 1219.7, night: 1424.7, dawn: 299.4, sunrise: 360 };
   S.setClock = function (t) { S.clock = t; S.sunElev = S.elevAt(t); };
+  S.setClock(S.times.day);                                          // the picture opens in the afternoon, as it always has
 
   S.init = function (g) {
     gfx = g;
@@ -104,22 +105,25 @@ const Sky = (() => {
   S.moonDir = function () { return dirOf(S.moonElev); };
   // ---- the moon's journey. It keeps the sun's bearing (everything the key light touches is built for that one bearing: the snow's own small
   // shadows, the far ranges, the city's shadows, the sky table that is mirrored about it), so it travels in height only: a young moon following
-  // the sun down, a moon's width and a half each minute, from high over the valley at dusk to low over the far range by dawn. Where it hangs
-  // the stars sink at the same pace (see stars() below), so the moon and the stars round it go down together.
+  // the sun down, from high over the valley at dusk to low over the far range by dawn. Where it hangs the stars sink at the same pace
+  // (see stars() below), so the moon and the stars round it go down together.
   // Its height is one smooth wave of a phase. The phase moves with the day's clock; while the clock is held (a time of day chosen and kept, a
   // test) it moves with game time instead, so the moon is never nailed to the sky: it sinks to the low end, turns round softly and climbs again.
   // By day, unseen, it goes back to where the evening will find it. Sky.moonRate 0 makes it stand still under a held clock.
-  const MW = S.moonWay = { lo: 0.105, hi: 0.42, v: 1.0e-3, k: 0.985, at: 0.27, drift: 0, t: null, clock: 0, lut: -9 };
+  // v is the old rate (a ten-minute day) scaled by 600/1440, so one of these longer days still carries the same fraction of the wave
+  const MW = S.moonWay = { lo: 0.105, hi: 0.42, v: 1.0e-3 * 600 / 1440, k: 0.985, at: 0.27, drift: 0, t: null, clock: 0, lut: -9 };
   S.moonRate = 1;
   S.moonStep = function () {
     const A = 0.5 * (MW.hi - MW.lo), ak = Math.asin(MW.k), t = Render.time, dC = MW.t === null ? 0 : S.clock - MW.clock, dT = MW.t === null ? 0 : t - MW.t;
     MW.t = t; MW.clock = S.clock;
     // (a clock wound by hand, far faster than time runs, takes the moon to where that hour has it: what the held hours added melts away with
     // the distance wound, the same at any frame rate, so the moon glides there with the hours and never jumps)
-    if (S.sunElev > 0.115) MW.drift = 0; else if (Math.abs(dC) > 3 * Math.abs(dT)) MW.drift *= Math.exp(-Math.abs(dC) / 30); else if (dC === 0) MW.drift += dT * S.moonRate;
-    // `at` is its height at nightfall (Sky.times.night), on the way down; in between the wave is all but a straight line of slope v
-    const ph0 = PI - Math.asin(Math.sin(ak * (MW.at - MW.lo - A) / A) / MW.k), c = ((S.clock % S.cycle) + S.cycle) % S.cycle;
-    S.moonElev = MW.lo + A + A * Math.asin(MW.k * Math.sin(ph0 + (c - S.times.night + MW.drift) * MW.v * ak / (A * MW.k))) / ak;
+    if (S.sunElev > 0.115) MW.drift = 0; else if (Math.abs(dC) > 3 * Math.abs(dT)) MW.drift *= Math.exp(-Math.abs(dC) / 30); else if (dC === 0) MW.drift += dT * S.moonRate * (S.cycle / 600);
+    // `at` is its height at nightfall (Sky.times.night), on the way down; in between the wave is all but a straight line of slope v.
+    // The wave is folded at the high afternoon (Sky.times.day), while the moon is lost in the glare, so that seam is never seen.
+    const ph0 = PI - Math.asin(Math.sin(ak * (MW.at - MW.lo - A) / A) / MW.k), cyc = S.cycle, seam = S.times.day;
+    const c = ((S.clock - seam) % cyc + cyc) % cyc, night0 = ((S.times.night - seam) % cyc + cyc) % cyc;
+    S.moonElev = MW.lo + A + A * Math.asin(MW.k * Math.sin(ph0 + (c - night0 + MW.drift) * MW.v * ak / (A * MW.k))) / ak;
     // what it lights follows: its direction every frame, the colours of its light in steps too small to see (as the sun's do), the sky's
     // table when it has gone a little further
     if (S.isMoon) S.elev = S.moonElev;
@@ -211,14 +215,14 @@ const Sky = (() => {
   Variants.def('moon', '夜里的月亮', [['a', '月牙'], ['b', '盈凸']], 'b');
   // the night's show (the owner: nebula and aurora together are too busy, "它们不能同时出现"): each night is a nebula night, an aurora night
   // or, now and then, a plain night of stars alone; never both. The pick is made per night (from the mountain's seed and which night it
-  // is), so it changes only at noon, when the nebula is a pale ghost and the aurora is out anyway; the nebula then fades with the dusk on
+  // is), so it changes only in the high afternoon, when the nebula is a pale ghost and the aurora is out anyway; the nebula then fades with the dusk on
   // an aurora night, and the aurora only comes up with the stars, so the two never share the sky even for a moment.
   // a = they take turns night by night, b = by chance (nebula 45%, aurora 35%, stars alone 20%), c = no aurora (the nebula every night)
   Variants.def('aurora', '极光', [['a', '和星云轮流'], ['b', '随机'], ['c', '关']], 'b');
   S.auroraK = 0.35;
   S.show = function () {
     const v = Variants.val.aurora; if (v === 'c') return 'nebula';
-    const n = Math.floor(S.clock / S.cycle), sd = typeof Course !== 'undefined' ? Course.seed % 9973 : 0;
+    const n = Math.floor((S.clock - S.times.day) / S.cycle), sd = typeof Course !== 'undefined' ? Course.seed % 9973 : 0;
     const h = (k) => { const q = Math.sin(k * 127.1 + 311.7) * 43758.5453; return q - Math.floor(q); };
     if (v === 'a') return ((n + sd) & 1) ? 'aurora' : 'nebula';
     const r = h(n * 1.618 + sd * 0.731);

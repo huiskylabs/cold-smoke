@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------- boot, main loop, test hooks
 const App = { state: { speed: 0, lean: 0 }, ready: false, t: 0, lookYaw: null, lampTilt: 0.07 };
 const QS = new URLSearchParams(location.search);
-const DEV = QS.has('dev');
+// ?dev, or a path ending in /dev, is the test harness and the developer menu. The 小红书 build sets COLD_SMOKE.noDev and never opens it.
+const DEV = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (QS.has('dev') || /(?:^|\/)dev\/?$/.test(location.pathname));
 
 // Start-up runs in stages with a breath between them, so the loading page can show where it has got to
 async function boot(stage) {
@@ -103,7 +104,7 @@ function tick(dt, draw) {
   // the day moves on while you ski (the title page stays in the afternoon)
   if (Game.mode === 'run' && Sky.rate !== 0) Sky.setClock(Sky.clock + dt * (Sky.rate || 1));
   Sky.updatePlane(App.t, dt, cp, Render.cam.fwd);
-  Weather.update(dt);                                                   // light or heavy snow: its clouds, wind, sun and lightning (05b_weather.js)
+  Weather.update(dt);                                                   // clear, light or heavy snow: its clouds, wind, sun and lightning (05b_weather.js)
   Feel.update(dt);                                                     // speed in the lens, snow on the glass, the air of this run (reads Game.events: keep above the loop that clears them)
   Render.computeGlobals(App.t, dt, st);
   for (const ev of Game.events) {
@@ -305,7 +306,7 @@ window.__ski = {
     };
   },
   reset(s0) { Game.reset(s0); Game.mode = 'title'; },
-  // set the time of day: seconds into the 10-minute day, or a name (day, golden, sunset, dusk, night, dawn, sunrise)
+  // set the time of day: minutes from midnight on the 24-minute day, or a name (day, golden, sunset, dusk, night, dawn, sunrise)
   tod(t) { Sky.setClock(typeof t === 'string' ? Sky.times[t] : t); Sky.update(); Clouds.baked = false; Vista.shadowElev = -9; Vista.updateShadow(true); return +Sky.sunElev.toFixed(4); },
   game: () => Game, input: () => Input, app: () => App, ui: () => UI, i18n: () => I18N,
   get m() { return { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Skier, Tex, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Atmo, Deer, View, Variants, Weather, Grains, Quality, SnowLook, XR, UI }; },

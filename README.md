@@ -33,10 +33,10 @@ What makes it unusual is what the repository **doesn't** contain:
 ### Features
 
 - An endless course built from a shuffled deck of run types: open bowls, steep pitches, woods, ridges, jumps and gates.
-- A full day and night cycle with sun, moon, stars, nebula, aurora, a cloud sea and a far city, plus weather from clear skies to heavy snow.
+- A full day and night cycle with sun, moon, stars, nebula, aurora, a cloud sea and a far city, plus weather from clear skies to heavy snow. One real second is one minute on the mountain (a full day is 24 minutes, sunrise at 06:00 and sunset at 18:30), and the corner shows the time and the weather.
 - Snow that reacts: carved tracks, powder plumes and spray lit by the sun, falling snow and wind.
 - Synthesised sound and music that follow your speed, turns and time in the air.
-- Several camera views, a photo-friendly menu, and English or Chinese UI picked from your browser.
+- Several camera views, a photo mode, and English or Chinese UI picked from your browser.
 - Every mountain grows from a seed: share the `#seed-…` in the address bar and a friend gets the same mountain.
 - **Today's mountain** (今日之山): one mountain a day, the same for everyone, changing at midnight Beijing time. One tap on the title page or in the menu, or open the game with `#today`. Ski its first three stretches in one go from the top and your time is kept.
 - A quality setting (auto, high, balanced, smooth) in Settings, so mid-range phones stay smooth.
@@ -70,6 +70,8 @@ npm start            # = node build.js && node tools/serve.js
 Then open <http://localhost:8080>. After editing anything in `src/` or `template.html`, run `node build.js` again and reload.
 
 Useful URL parameters: `?backend=webgl2` (force the fallback renderer), `?lang=en` or `?lang=zh`.
+
+Add `?dev` (or open a path ending in `/dev`; the local server serves that as the game) for developer mode: the time of day, the weather and its random-function settings, encounters, and the version comparison. None of that is in the menu otherwise. The Xiaohongshu build never opens developer mode.
 
 ### Project structure
 
@@ -124,10 +126,10 @@ If you like it, a ⭐ helps other people find it.
 ### 有什么
 
 - 无尽的赛道：开阔大坡、陡坡、树林、山脊、跳台、旗门随机组合。
-- 完整的昼夜：太阳、月亮、星空、星云、极光、云海和远处的城市，天气从晴天到大雪。
+- 完整的昼夜：太阳、月亮、星空、星云、极光、云海和远处的城市，天气从晴天到大雪。现实中的一秒是山上的一分钟（一整天 24 分钟，日出约 06:00，日落约 18:30），右上角显示时间和天气。
 - 会反应的雪：刻滑的雪痕、粉雪扬起的雪雾、逆光的雪花、飘雪和风。
 - 合成的音效和配乐，跟着速度、转弯和滞空变化。
-- 多个机位，菜单里能换时间和天气拍照，界面中英文按浏览器自动切换。
+- 多个机位，菜单里能拍照，界面中英文按浏览器自动切换。
 - 每座山由一个编号生成：把地址栏里的 `#seed-编号` 发给朋友，就是同一座山。
 - **今日之山**：每天一座，所有人同一座，北京时间零点换。标题页或菜单里点一下就到，也可以在网址后面加 `#today`。从山顶一口气滑完前三段，会记下你的用时。
 - 设置里可以选画质（自动、高、均衡、流畅），中端手机也能流畅地玩。
@@ -161,6 +163,8 @@ npm start            # 等于 node build.js && node tools/serve.js
 然后打开 <http://localhost:8080>。改了 `src/` 或 `template.html` 之后，再跑一次 `node build.js`，刷新页面即可。
 
 常用参数：`?backend=webgl2`（强制用 WebGL2），`?lang=zh` 或 `?lang=en`。
+
+加上 `?dev`（或者打开以 `/dev` 结尾的路径；本地服务器会把它当成游戏页面）进入开发模式：天色、天气和随机天气的参数、偶遇、版本对比。平常的菜单里没有这些。小红书的包不会打开开发模式。
 
 ### 小红书小工具
 

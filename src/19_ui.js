@@ -17,7 +17,13 @@ const UI = (() => {
       bar: $('bar'), mn: $('mn'), menu: $('menu'), nav: $('menu').querySelector('nav'), pane: $('mpane'), mk: $('m-k'), mGo: $('m-go'), mTop: $('m-top'), oSnd: $('o-snd'), oFs: $('o-fs'), oLang: $('o-lang'), oQ: $('o-q'),
       time: $('sw-time'), kinds: $('sw-seg'), ev: $('sw-ev'), view: $('sw-view'), seed: $('sw-seed'), more: $('more'), drop2: $('drop2'), vw: $('vw'),
       say: $('say'), sayK: $('say-k'), sayV: $('say-v'), cut: $('cut'), jump: $('jump'), tuck: $('tuck'),
-      pause: $('pause'), pauseS: $('pause-s'), pauseT: $('pause-t'), steer: $('steer'), steerV: $('steer-v') };
+      pause: $('pause'), pauseS: $('pause-s'), pauseT: $('pause-t'), steer: $('steer'), steerV: $('steer-v'),
+      clk: $('clock'), clkT: $('clk-t'), clkS: $('clk-s'), clkG: $('clk-g') };
+    // developer mode (?dev, or a path ending in /dev; never in the 小红书 build). The time, the weather, the encounters and the versions
+    // are only there. Taken out of the tree, not merely hidden, so a normal player cannot reach them.
+    U.dev = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (typeof DEV !== 'undefined' && DEV);
+    el.app.classList.toggle('dev', !!U.dev);
+    if (!U.dev) el.app.querySelectorAll('.dev-only').forEach(n => n.remove());
     el.moreView = el.more.querySelector('[data-sec="view"]'); el.moreDaily = el.more.querySelector('[data-daily]'); el.daily = $('sw-daily'); el.mtDaily = el.menu.querySelector('section[data-sec="mt"] [data-daily]');
     I18N.capture(el.app); I18N.on(relang);
     U.layout();
@@ -29,6 +35,7 @@ const UI = (() => {
     el.app.addEventListener('click', e => { if (U.state !== 'title' || U.open || el.bar.contains(e.target) || el.menu.contains(e.target) || el.more.contains(e.target)) return; U.go(); });
     addEventListener('keydown', e => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = e.target && e.target.tagName; if (tag === 'INPUT' || tag === 'TEXTAREA') return;     // (a number in the developer panel keeps its own keys)
       if (/^Arrow/.test(e.code) || e.code === 'Space') e.preventDefault();          // these would scroll a page; here they ski
       if (e.repeat) return;
       const on = sel => e.target && e.target.closest && e.target.closest(sel);      // (a control reached with the tab key takes its own Enter)
@@ -43,9 +50,9 @@ const UI = (() => {
       else if (e.code === 'KeyF') U.fullscreen();
       else if (U.state === 'title' || U.state === 'run') {
         const d = e.shiftKey ? -1 : 1;
-        if (e.code === 'KeyT') U.nextTime(d); else if (e.code === 'KeyN') U.nextKind(d); else if (e.code === 'KeyG') U.animal(); else if (e.code === 'KeyP') U.plane();
+        if (e.code === 'KeyT') { if (U.dev) U.nextTime(d); } else if (e.code === 'KeyN') U.nextKind(d); else if (e.code === 'KeyG') { if (U.dev) U.animal(); } else if (e.code === 'KeyP') { if (U.dev) U.plane(); }
         else if (e.code === 'KeyR') U.newMountain(); else if (e.code === 'Escape') U.menu(true);
-        else if (e.code === 'KeyH') U.menu('keys'); else if (e.code === 'Backquote') U.menu('vers');
+        else if (e.code === 'KeyH') U.menu('keys'); else if (e.code === 'Backquote') { if (U.dev) U.menu('vers'); }
       }
     });
     function muteKey(c) { try { if (typeof Input !== 'undefined' && Input.keys) { Input.mute = c; Input.keys[c] = false; } } catch (err) { } }
@@ -136,7 +143,7 @@ const UI = (() => {
   // per displayed frame
   U.frame = function (dt) {
     if (!el) return;
-    if (U.state !== 'load') switches(dt);
+    if (U.state !== 'load') { switches(dt); clockFrame(); }
     if (U.state !== 'run') return;
     const S = Game.s, since = (performance.now() - U.t0) / 1000;
     // which way of steering to teach: wait a moment to see whether the phone is reporting its tilt
@@ -170,6 +177,40 @@ const UI = (() => {
     if (bar !== U.shown.bar) { U.shown.bar = bar; el.tach.style.transform = 'scaleX(' + bar.toFixed(3) + ')'; }
     if (drop !== U.shown.drop) { U.shown.drop = drop; el.drop.textContent = drop.toLocaleString('en-US'); el.drop2.textContent = '· ' + T('落差') + ' ' + drop.toLocaleString('en-US') + ' M'; }
   };
+  // the corner clock. The digits change on the minute (one real second); the weather word can change between minutes, when the picture does.
+  const CLK_ICON = {
+    clear: '<circle cx="8" cy="8" r="2.4"/><path d="M8 1.6v1.5M8 12.9v1.5M1.6 8h1.5M12.9 8h1.5M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/>',
+    light: '<path d="M8 1.5v13M2.2 4.6l11.6 6.8M2.2 11.4L13.8 4.6"/>',
+    heavy: '<path d="M8 1.2v13.6M1.6 4.2l12.8 7.6M1.6 11.8L14.4 4.2"/>',
+    aurora: '<path d="M3.2 13.2c1.4-4.2 2.2-6.4 2.4-8.2M8 13.4c.7-5.2 1.3-7.6 1.5-9.4M12.6 13c.9-3.6 1.5-5.4 1.7-7.6"/>',
+  };
+  const WX_NAME = { clear: '晴', light: '小雪', heavy: '大雪', aurora: '极光' };
+  function periodOf(min) {
+    const m = ((min % 1440) + 1440) % 1440;
+    if (m < 270) return '夜晚';          // 00:00–04:29
+    if (m < 420) return '黎明';          // 04:30–06:59, sunrise at 06:00
+    if (m < 690) return '上午';          // 07:00–11:29, the run opens at 10:20
+    if (m < 810) return '中午';          // 11:30–13:29
+    if (m < 960) return '下午';          // 13:30–15:59
+    if (m < 1020) return '傍晚';         // 16:00–16:59, the golden hour
+    if (m < 1230) return '黄昏';         // 17:00–20:29, sunset at 18:30
+    return '夜晚';
+  }
+  let clkSig = '';
+  function clockFrame() {
+    if (!el || !el.clkT || typeof Sky === 'undefined') return;
+    const C = Sky.cycle || 1440, min = Math.floor(((Sky.clock % C) + C) % C);
+    const W = wxMod(); let wid = 'light';
+    try { wid = W && W.shown ? W.shown() : (W && W.level) || 'light'; } catch (e) { }
+    const per = periodOf(min), sig = min + '|' + wid + '|' + per + '|' + (EN() ? 'e' : 'z');
+    if (sig === clkSig) { if (U.open) paintTune(); return; }
+    clkSig = sig;
+    const hh = Math.floor(min / 60), mm = min % 60;
+    el.clkT.textContent = (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
+    el.clkS.textContent = T(WX_NAME[wid] || '小雪') + ' · ' + T(per);
+    if (el.clkG) el.clkG.innerHTML = CLK_ICON[wid] || CLK_ICON.light;
+    if (U.open) paintTune();
+  }
 
   // ================================================================ splits, and the day card
   // A run is given a shape. Each stretch of the mountain, once skied, leaves one quiet line under the name of the next: the time it took, the
@@ -192,7 +233,7 @@ const UI = (() => {
   // 出发: a new run (the bests of each kind stay)
   function newRun() {
     Object.assign(SP, { run: freshRun(), cur: null, res: null, segT: -1, day: null, dayQ: null, days: 1, clock: null });
-    el.day.classList.remove('on', 'held'); el.seg.classList.remove('res'); el.app.classList.remove('res', 'daycard');
+    el.day.classList.remove('on', 'held'); el.seg.classList.remove('res'); el.app.classList.remove('res', 'daycard', 'dayright');
   }
   // the skier has been put somewhere else: what was being measured goes, and so does a result not yet shown
   function spSettle() { SP.cur = null; SP.res = null; el.seg.classList.remove('res'); el.app.classList.remove('res'); }
@@ -205,7 +246,7 @@ const UI = (() => {
     const S = Game.s, p = S.p, run = Game.mode === 'run';
     // sunset and sunrise, as the day reaches them by itself. A clock turned or held by a switch is not the day going by: a mark counts only
     // once the clock has run on its own for a second before it (so neither a switch nor letting the clock go again on the mark brings a card)
-    { const ck = Sky.clock, C = Sky.cycle || 600, own = run && Sky.rate !== 0 && U.tod === 'auto' && !ease;
+      { const ck = Sky.clock, C = Sky.cycle || 1440, own = run && Sky.rate !== 0 && U.tod === 'auto' && !ease;
       if (!own || SP.clock == null || ck < SP.clock || ck - SP.clock > 2) SP.nat = ck;
       else for (const rise of [false, true]) {
         const m0 = rise ? Sky.times.sunrise : Sky.times.sunset, m = m0 + C * Math.floor((ck - m0) / C);
@@ -299,14 +340,14 @@ const UI = (() => {
     for (const f of d.f) f.el.textContent = fmt(0, f.dp);
     // (held in the hands it stands high, out from under the thumbs: on the left, or mirrored on the right while the sun is in the left half)
     let r = false; if (U.hh) try { const g = Render.G, o = GOFF.sunScr; r = g[o + 2] > 0 && g[o] < 0.5; } catch (e) { }
-    el.day.classList.toggle('r', r);
+    el.day.classList.toggle('r', r); el.app.classList.toggle('dayright', r);
     el.day.classList.remove('on', 'held'); void el.day.offsetWidth; el.day.classList.add('on'); el.app.classList.add('daycard');
     if (typeof Rank !== 'undefined' && Rank.on) Rank.onDay(); else if (el.dayR) el.dayR.textContent = '';
   }
   function dayFrame(dt) {
     const d = SP.day; d.t += dt;
     for (let i = 0; i < d.f.length; i++) { const f = d.f[i], k = sat((d.t - 0.95 - 0.12 * i) / 0.85); if (k !== f.k) { f.k = k; f.el.textContent = fmt(f.v * (1 - Math.pow(1 - k, 3)), f.dp); } }
-    if (d.t >= 5 && el.day.classList.contains('on')) { el.day.classList.remove('on'); el.app.classList.remove('daycard'); }
+    if (d.t >= 5 && el.day.classList.contains('on')) { el.day.classList.remove('on'); el.app.classList.remove('daycard', 'dayright'); }
     if (d.t >= 6.4) SP.day = null;
   }
 
@@ -314,9 +355,10 @@ const UI = (() => {
   // What the mountain otherwise shows only to those who ski long enough can be asked for: the hour of the day, the weather, each kind of run,
   // the animals and the airliner, the views, another mountain. All of it lives in one menu. In a run the menu is the pause: the world holds
   // still where it is (Game.mode 'hold': nothing steps, but the picture is still drawn, so whatever is picked shows at once behind the shade).
-  // On the title page the same menu opens from the three buttons beside 出发. While skiing the keys T X N G P R V do the same without it.
+  // On the title page the same menu opens from the buttons beside 出发. While skiing the keys N R V do the same without it;
+  // T X G P and ` (the hour, the weather, an encounter, the versions) only in developer mode.
   // Everything the other modules own is reached through what they already expose, and read defensively: a part that is missing has no control.
-  let ease = null, cut = null, back = null, pausedAt = 0, sayT = 0, swAcc = 0, faunaI = 0, evSig = null, hold = null, sec = 'sky';
+  let ease = null, cut = null, back = null, pausedAt = 0, sayT = 0, swAcc = 0, faunaI = 0, evSig = null, hold = null, sec = 'view';
   const held = [], gy = { id: null, y: 0, on: false, over: false, neg: false };
   const live = () => U.state === 'title' || U.state === 'run';
   const fauna = () => { try { return typeof Fauna !== 'undefined' && Fauna && Fauna.spawn ? Fauna : null; } catch (e) { return null; } };
@@ -340,6 +382,7 @@ const UI = (() => {
     dawn: '<path d="M3 20h24"/><path d="M10 20a5 5 0 0 1 10 0"/><path d="M15 6v6M12.5 8.5L15 6l2.5 2.5"/>' };
   const WX_ICON = {
     auto: AUTO_ICON + '<path d="M15 9v6M12.4 10.5l5.2 3M12.4 13.5l5.2-3"/>',
+    clear: '<circle cx="15" cy="11" r="3.2"/><path d="M15 3.4v1.8M15 16.8v1.8M6.6 11h1.8M21.6 11h1.8M9 5l1.3 1.3M19.7 15.7l1.3 1.3M9 17l1.3-1.3M19.7 6.3l1.3-1.3"/>',
     light: '<path d="M9 7v5M6.8 8.2l4.4 2.6M6.8 10.8l4.4-2.6M21 10v5M18.8 11.2l4.4 2.6M18.8 13.8l4.4-2.6M15 16v4M13.3 17l3.4 2M13.3 19l3.4-2"/>',
     heavy: '<path d="M3 6h9M5 10h6"/><path d="M17 3.5v4M15.3 4.5l3.4 2M15.3 6.5l3.4-2M24 8v4M22.3 9l3.4 2M22.3 11l3.4-2M12 13v4M10.3 14l3.4 2M10.3 16l3.4-2M20 16v4M18.3 17l3.4 2M18.3 19l3.4-2M6 17v3M4.7 17.8l2.6 1.4M4.7 19.2l2.6-1.4"/>' };
   // a tile: the drawing over its name (the name is the last child, so it can be written again in another language)
@@ -395,7 +438,8 @@ const UI = (() => {
   }
   // which part of the menu is open
   function show(s) {
-    if (!el.pane.querySelector('section[data-sec="' + s + '"]')) s = 'sky'; sec = s;
+    if (!U.dev && (s === 'sky' || s === 'ev' || s === 'vers')) s = 'view';
+    if (!el.pane.querySelector('section[data-sec="' + s + '"]')) s = 'view'; sec = s;
     for (const b of el.nav.querySelectorAll('button[data-sec]')) b.classList.toggle('on', b.dataset.sec === s);
     for (const x of el.pane.children) x.classList.toggle('on', x.dataset.sec === s);
     el.pane.scrollTop = 0; paint();
@@ -468,7 +512,9 @@ const UI = (() => {
     const run = U.state === 'run'; el.mk.textContent = T(run ? 'PAUSED · 暂停' : 'MENU · 菜单'); el.mGo.textContent = T(run ? '继续滑' : '出发');
     if (U.hintKind && el.hint.classList.contains('on') && !/gap|done/.test(U.hintKind)) showHint(U.hintKind);
     if (U.state === 'run' && U.segIdx >= 0) { try { const sg = Course.segs[U.segIdx]; if (sg) segCard({ idx: U.segIdx, type: sg.type }); } catch (e) { } }
+    if (el.tune) for (const n of el.tune.querySelectorAll('[data-zh]')) n.textContent = T(n.dataset.zh);
     paint();
+    clkSig = ''; clockFrame();
   }
 
   // ---- the hour. It is turned to, not cut to: the clock is run the short way round to the hour asked for in a second or two (the sun
@@ -506,33 +552,77 @@ const UI = (() => {
     if (!VGROUP[VGROUP.length - 1][1].includes('feel')) VGROUP[VGROUP.length - 1][1].unshift('feel', 'fa');       // (滑行手感, 07_game.js, first under 手感)
     el.vrows = $('sw-vrows'); el.vreset = $('sw-vreset'); el.wx = $('sw-wx'); el.wxc = $('sw-wxc');
     const V = varMod(); if (V && V.on) V.on(() => { if (U.open) paint(); });          // (a choice registered or changed elsewhere: shown at once)
-    addEventListener('keydown', e => { if (e.code !== 'KeyX' || e.repeat || e.metaKey || e.ctrlKey || e.altKey || U.gone || !live()) return; U.nextWeather(e.shiftKey ? -1 : 1); });
+    addEventListener('keydown', e => { if (!U.dev || e.code !== 'KeyX' || e.repeat || e.metaKey || e.ctrlKey || e.altKey || U.gone || !live()) return; const tag = e.target && e.target.tagName; if (tag === 'INPUT' || tag === 'TEXTAREA') return; U.nextWeather(e.shiftKey ? -1 : 1); });
+    initTune();
   }
   function paintVariants() {
     const V = varMod(), defs = V ? V.defs : [];
-    const sig = defs.map(d => [d.name, d.label, d.def].concat(d.opts.map(o => o[0] + ':' + o[1])).join('|')).join(';');
-    if (sig !== vSig) {
-      vSig = sig; el.vrows.textContent = '';
-      const known = new Set(VGROUP.flatMap(g => g[1])), groups = VGROUP.map(([n, ids]) => [n, ids.map(id => defs.find(d => d.name === id)).filter(Boolean)]);
-      groups.push(['新加的', defs.filter(d => !known.has(d.name))]);
-      for (const [gn, ds] of groups) {
-        if (!ds.length) continue;
-        const g = document.createElement('div'), h = document.createElement('i'); g.className = 'vgrp'; h.textContent = T(gn); g.appendChild(h);
-        for (const d of ds) {
-          const row = document.createElement('div'), lab = document.createElement('span'); row.className = 'vrow'; lab.textContent = T(d.label); row.appendChild(lab);
-          for (const [id, name] of d.opts) { const b = mkBtn(T(name), 'vn', d.name); b.dataset.vid = id; if (id === d.def) { b.classList.add('rec'); b.title = T('推荐'); } row.appendChild(b); }
-          g.appendChild(row);
+    if (el.vrows) {
+      const sig = defs.map(d => [d.name, d.label, d.def].concat(d.opts.map(o => o[0] + ':' + o[1])).join('|')).join(';');
+      if (sig !== vSig) {
+        vSig = sig; el.vrows.textContent = '';
+        const known = new Set(VGROUP.flatMap(g => g[1])), groups = VGROUP.map(([n, ids]) => [n, ids.map(id => defs.find(d => d.name === id)).filter(Boolean)]);
+        groups.push(['新加的', defs.filter(d => !known.has(d.name))]);
+        for (const [gn, ds] of groups) {
+          if (!ds.length) continue;
+          const g = document.createElement('div'), h = document.createElement('i'); g.className = 'vgrp'; h.textContent = T(gn); g.appendChild(h);
+          for (const d of ds) {
+            const row = document.createElement('div'), lab = document.createElement('span'); row.className = 'vrow'; lab.textContent = T(d.label); row.appendChild(lab);
+            for (const [id, name] of d.opts) { const b = mkBtn(T(name), 'vn', d.name); b.dataset.vid = id; if (id === d.def) { b.classList.add('rec'); b.title = T('推荐'); } row.appendChild(b); }
+            g.appendChild(row);
+          }
+          el.vrows.appendChild(g);
         }
-        el.vrows.appendChild(g);
+        const versBtn = el.nav.querySelector('[data-sec="vers"]'); if (versBtn) versBtn.hidden = !defs.length;
       }
-      el.nav.querySelector('[data-sec="vers"]').hidden = !defs.length;
+      let all = true;
+      for (const b of el.vrows.querySelectorAll('button')) { const on = !!V && V.val[b.dataset.vn] === b.dataset.vid; b.classList.toggle('on', on); if (on && !b.classList.contains('rec')) all = false; }
+      if (el.vreset) el.vreset.classList.toggle('idle', all);
     }
-    let all = true;
-    for (const b of el.vrows.querySelectorAll('button')) { const on = !!V && V.val[b.dataset.vn] === b.dataset.vid; b.classList.toggle('on', on); if (on && !b.classList.contains('rec')) all = false; }
-    el.vreset.classList.toggle('idle', all);
+    if (!el.wxc) return;
     const W = wxMod(), ls = W ? W.levels : [], ws = ls.map(l => l[0] + ':' + l[1]).join();
     if (ws !== wxSig) { wxSig = ws; el.wxc.textContent = ''; if (W && W.setAuto) el.wxc.appendChild(iconBtn('wx', 'auto', WX_ICON.auto, T('自动'))); for (const [id, name] of ls) el.wxc.appendChild(iconBtn('wx', id, WX_ICON[id] || WX_ICON.light, T(name))); el.wx.hidden = !W; }
     if (W) for (const b of el.wxc.children) b.classList.toggle('on', W.auto ? b.dataset.wx === 'auto' : b.dataset.wx === W.level);
+    paintTune();
+  }
+  // the seeded weather, edited only in developer mode. The fields are built once; painting them again would throw away a number being typed.
+  function initTune() {
+    el.tune = $('sw-tune'); if (!el.tune || !U.dev) return;
+    const W = wxMod(); if (!W || !W.tune || !W.configure) return;
+    const t = W.tune, lab = zh => { const s = document.createElement('span'); s.dataset.zh = zh; s.textContent = T(zh); return s; };
+    const num = (key, val) => { const i = document.createElement('input'); i.type = 'number'; i.step = '1'; i.value = val; i.dataset.k = key; return i; };
+    const row = (...nodes) => { const p = document.createElement('p'); p.className = 'trow'; for (const n of nodes) p.appendChild(n); el.tune.appendChild(p); };
+    const h = document.createElement('h4'); h.dataset.zh = '随机天气'; h.textContent = T('随机天气'); el.tune.appendChild(h);
+    row(lab('晴'), num('p.clear', Math.round(t.p.clear * 100)), lab('%'), lab('小雪'), num('p.light', Math.round(t.p.light * 100)), lab('%'), lab('大雪'), num('p.heavy', Math.round(t.p.heavy * 100)), lab('%'));
+    for (const [id, name] of [['clear', '晴'], ['light', '小雪'], ['heavy', '大雪']]) row(lab(name), lab('最短'), num('dur.' + id + '.0', t.dur[id][0]), lab('最长'), num('dur.' + id + '.1', t.dur[id][1]), lab('秒'));
+    row(lab('过渡'), num('ramp', t.ramp), lab('秒'), lab('种子'), num('seed', t.seed >>> 0));
+    const ck = document.createElement('input'); ck.type = 'checkbox'; ck.checked = !!t.noRepeat; ck.dataset.k = 'noRepeat';
+    row(ck, lab('不连着同一种'));
+    const now = document.createElement('p'); now.className = 'now'; now.id = 'sw-now'; el.tune.appendChild(now);
+    const note = document.createElement('p'); note.className = 'note'; note.dataset.zh = '开场先是小雪，之后按这些数字自己换。改一个，当前这一刻就按新的重算。'; note.textContent = T(note.dataset.zh); el.tune.appendChild(note);
+    const onTune = () => {
+      const g = k => el.tune.querySelector('[data-k="' + k + '"]'), val = k => { const i = g(k); if (!i || i.value === '') return null; const v = +i.value; return v === v ? v : null; };
+      const o = { p: {}, dur: {} };
+      for (const id of ['clear', 'light', 'heavy']) {
+        const p = val('p.' + id); if (p != null) o.p[id] = p / 100;
+        const a = val('dur.' + id + '.0'), b = val('dur.' + id + '.1');
+        if (a != null || b != null) o.dur[id] = [a == null ? W.tune.dur[id][0] : a, b == null ? W.tune.dur[id][1] : b];
+      }
+      const ramp = val('ramp'); if (ramp != null) o.ramp = ramp;
+      const seed = val('seed'); if (seed != null) o.seed = seed;
+      const box = g('noRepeat'); if (box) o.noRepeat = box.checked;
+      try { W.configure(o); } catch (e) { console.warn(e); }
+      paint();
+    };
+    el.tune.addEventListener('input', onTune); el.tune.addEventListener('change', onTune);
+  }
+  function paintTune() {
+    const n = $('sw-now'); if (!n || typeof Sky === 'undefined') return;
+    const W = wxMod(); if (!W || !W.spellAt) return;
+    let s; try { s = W.spellAt(Sky.clock); } catch (e) { return; }
+    const name = (W.levels.find(l => l[0] === s.id) || [, s.id])[1];
+    const line = (W.auto ? T('自动') + ' · ' : T('固定') + ' · ') + T(name) + ' · ' + Math.max(0, Math.round(s.left)) + T('秒');
+    if (n.textContent !== line) n.textContent = line;
   }
 
   // ---- a change of place is a cut, and is shown as one: the picture dips to black, the skier is put there, the picture comes back.

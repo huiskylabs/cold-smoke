@@ -1,15 +1,17 @@
-// ---------------------------------------------------------------- weather: the fine snow of a clear day (小雪, as it always was) or a heavy snowfall (大雪)
-// Heavy snow comes under a broken overcast. The clouds roll in first and the snowfall thickens after them (seven seconds from one weather to the
-// other, and back the same way), the wind rises and gusts, the light goes flat and soft while the sun is in, and now and then a break drifts
-// across the sun and lets it out for a while. The far city and ranges fade to shapes behind the falling snow; the run ahead stays readable.
-// Every so often lightning flickers inside the cloud (two or three strokes within a third of a second; sometimes a bolt is seen far off): its
-// light is what lights the slope, and its thunder rolls in later by its distance, muffled by the snow. All of it runs on the game's clock.
-//   Weather.levels, .level, .auto / .setAuto(on) (turns by itself, the default), .set(id) (eases there and holds it), .set(id, true) (there at once), .flash(opt) (lightning now), .sun(v) (tests: hold the sun
-//   out 0 / in 1, null to let it go)
-//   For others to read: .k (0 light .. 1 heavy), .kc (cloud), .ks (snowfall), .v (how hidden the sun is under the cloud), .wind (a factor for
-//   the wind that grows with speed: 1 in light snow), .hush (0..1: how much of the high end of far sounds the falling snow swallows)
+// ---------------------------------------------------------------- weather: a clear sky (晴), the fine snow of a clear day (小雪, as it always was) or a heavy snowfall (大雪)
+// Heavy snow comes under a broken overcast. The clouds roll in first and the snowfall thickens after them (seven seconds when a weather is
+// chosen by hand, about half a minute when the day chooses it), the wind rises and gusts, the light goes flat and soft while the sun is in,
+// and now and then a break drifts across the sun and lets it out for a while. The far city and ranges fade to shapes behind the falling snow;
+// the run ahead stays readable. Every so often lightning flickers inside the cloud (two or three strokes within a third of a second; sometimes
+// a bolt is seen far off): its light is what lights the slope, and its thunder rolls in later by its distance, muffled by the snow.
+// Which weather it is comes from the day's clock (one real second is one minute), a seeded run of spells. Lightning and the breaks in the
+// cloud still run on the game's own clock.
+//   Weather.levels (clear / light / heavy), .level, .auto / .setAuto(on) (the day's own weather, the default), .set(id) (eases there and holds it), .set(id, true) (there at once), .flash(opt), .sun(v)
+//   .tune / .configure(o) / .spellAt(t): the probabilities, the lengths, the fade and the seed (developer mode edits these)
+//   .shown(): what the corner should say (clear, light, heavy, or aurora once that is the sky)
+//   For others to read: .k (0 clear or light .. 1 heavy), .dust (0 a bare sky .. 1 the diamond dust of 小雪), .kc (cloud), .ks (snowfall), .v, .wind, .hush
 const Weather = (() => {
-  const W = { levels: [['light', '小雪'], ['heavy', '大雪']], level: 'light', k: 0, kc: 0, ks: 0, v: 1, hold: null, wind: 1, hush: 0, gust: 0, ramp: 7,
+  const W = { levels: [['clear', '晴'], ['light', '小雪'], ['heavy', '大雪']], level: 'light', k: 0, dust: 1, kc: 0, ks: 0, v: 1, hold: null, wind: 1, hush: 0, gust: 0, ramp: 7,
     off: [0, 0, 0], cloud: [0, 0], windNow: [1.2, 0, 0.4], F: 0, fl: null, flashes: 0, flashAt: -1, ex: null, hole: [0.6, 0, 0, 0], cityK: 1, cityOut: 0 };
   // the two kinds of heavy snow the owner can pick between (Variants 'snow'). a: snow showers under a broken sky, the sun out for a while now and
   // then (the owner's own words); b: a blizzard, thicker and windier, the sun seldom out (and then mostly as a pale disc), lightning more often.
@@ -51,22 +53,82 @@ const Weather = (() => {
   // (the break is a tear stretched along the drift, ST times longer than it is wide: H[2] is its half length, the sky draws it the same way)
   const ST = 3, sunIn = H => 1 - H[3] * smooth(H[2] + E, H[2] - E, Math.hypot(H[0], H[1] * ST));
 
-  // ---- 自动 (the default): the weather turns by itself, as the hour and the meetings do. A long spell of the fine snow (2.5-5 min), then the
-  // cloud rolls in over half a minute and it snows hard for a minute or two, then it clears the same slow way. Picking 小雪 or 大雪 holds it.
-  W.auto = true; W.next = 150; W.rampAuto = 30;
-  const AR = RNG(40961);
-  W.setAuto = function (on) { W.auto = on !== false; if (W.auto) W.next = (typeof App !== 'undefined' ? App.t : 0) + (W.level === 'heavy' ? 60 + 60 * AR() : 90 + 120 * AR()); return W.auto; };
-  function autoStep(t) {
-    if (W.next - t > 400) W.next = t + 150;             // (the clock was started again: a new mountain)
-    if (!W.auto || t < W.next) return;
-    W.level = W.level === 'heavy' ? 'light' : 'heavy';
-    W.next = t + (W.level === 'heavy' ? 60 + 90 * AR() : 150 + 150 * AR());
+  // ---- 自动 (the default): the weather is a function of the day's clock. The run opens on 小雪, as it always has (two and a half to five
+  // minutes of it, from the afternoon the picture starts in), and after that each spell is drawn from the seed: mostly light or heavy, now
+  // and then a clear sky, a spell never the same as the one before it. Picking 晴, 小雪 or 大雪 holds that one. There is no fog.
+  W.auto = true;
+  W.tune = { seed: 40961, ramp: 30, noRepeat: true, p: { clear: 0.12, light: 0.40, heavy: 0.48 }, dur: { clear: [90, 180], light: [150, 300], heavy: [60, 150] } };
+  const IDS = ['clear', 'light', 'heavy'];
+  let cache = { key: '', spells: [], lo: 0, hi: 0, t0: 0, t1: 0 };
+  function probs() {
+    const p = W.tune.p; let c = Math.max(0, +p.clear || 0), l = Math.max(0, +p.light || 0), h = Math.max(0, +p.heavy || 0);
+    if (c + l + h <= 0) { c = 0.12; l = 0.40; h = 0.48; }
+    const s = c + l + h; return { clear: c / s, light: l / s, heavy: h / s };
   }
+  function span(id, u) { const d = W.tune.dur[id] || W.tune.dur.light, lo = Math.max(8, Math.min(d[0], d[1])), hi = Math.max(lo, d[0], d[1]); return lo + (hi - lo) * u; }
+  function roll(i, avoid) {
+    const seed = W.tune.seed >>> 0;
+    if (i === 0) return { id: 'light', dur: span('light', hash2(19, seed)) };     // the opening spell is always the fine snow
+    const u = hash2(i * 2 + 3, seed), p = probs();
+    let id = u < p.clear ? 'clear' : u < p.clear + p.light ? 'light' : 'heavy';
+    if (W.tune.noRepeat && avoid && id === avoid) {
+      const rest = IDS.filter(x => x !== avoid), w0 = p[rest[0]], w1 = p[rest[1]], s = w0 + w1 || 1;
+      id = hash2(i * 2 + 7, seed) < w0 / s ? rest[0] : rest[1];     // the other two, in proportion, so the weights still mean what they say
+    }
+    return { id, dur: span(id, hash2(i * 2 + 5, seed)) };
+  }
+  function tuneKey() {
+    const t = W.tune, p = t.p, d = t.dur;
+    return [t.seed >>> 0, t.noRepeat ? 1 : 0, p.clear, p.light, p.heavy, d.clear.join(','), d.light.join(','), d.heavy.join(',')].join('|');
+  }
+  // spells laid end to end from the afternoon the day opens on (Sky.times.day). Built out only as far as a clock asks.
+  function atRel(x) {
+    const key = tuneKey();
+    if (key !== cache.key) cache = { key, spells: [], lo: 0, hi: 0, t0: 0, t1: 0 };
+    if (!cache.spells.length) { const s = roll(0, null); cache.spells.push(s); cache.t1 = s.dur; cache.hi = 1; }     // spell 0 is the opening 小雪, so the one before it can avoid it
+    let guard = 0;
+    while (x >= cache.t1 && guard++ < 100000) { const prev = cache.spells.length ? cache.spells[cache.spells.length - 1].id : null; const s = roll(cache.hi, cache.hi ? prev : null); cache.spells.push(s); cache.t1 += s.dur; cache.hi++; }
+    while (x < cache.t0 && guard++ < 100000) { const avoid = cache.spells.length ? cache.spells[0].id : null; const s = roll(cache.lo - 1, avoid); cache.spells.unshift(s); cache.t0 -= s.dur; cache.lo--; }
+    let t = cache.t0;
+    for (let i = 0; i < cache.spells.length; i++) { const s = cache.spells[i]; if (x < t + s.dur) return { id: s.id, dur: s.dur, left: t + s.dur - x }; t += s.dur; }
+    const s = cache.spells[cache.spells.length - 1] || { id: 'light', dur: 1 }; return { id: s.id, dur: s.dur, left: 0 };
+  }
+  W.spellAt = function (t) { const origin = (typeof Sky !== 'undefined' && Sky.times) ? Sky.times.day : 0; return atRel((t == null ? Sky.clock : t) - origin); };
+  W.configure = function (o) {
+    if (!o) return W.tune;
+    const t = W.tune;
+    if (o.seed != null && o.seed === o.seed) t.seed = o.seed >>> 0;
+    if (o.ramp != null && o.ramp === o.ramp) t.ramp = clamp(+o.ramp, 0.5, 120);
+    if (o.noRepeat != null) t.noRepeat = !!o.noRepeat;
+    if (o.p) for (const k of IDS) if (o.p[k] != null && o.p[k] === o.p[k]) t.p[k] = clamp(+o.p[k], 0, 1);
+    if (o.dur) for (const k of IDS) if (o.dur[k]) {
+      let lo = +o.dur[k][0], hi = +o.dur[k][1];
+      if (!(lo >= 5)) lo = t.dur[k][0]; if (!(hi >= lo)) hi = Math.max(lo, t.dur[k][1]); t.dur[k] = [lo, hi];
+    }
+    cache.key = '';
+    if (W.auto && typeof Sky !== 'undefined') { const s = W.spellAt(Sky.clock); if (s) W.level = s.id; }
+    return W.tune;
+  };
+  let primed = false;
+  function autoStep() {
+    if (!W.auto || typeof Sky === 'undefined') return;
+    const id = W.spellAt(Sky.clock).id;
+    if (!primed) { primed = true; if (id !== W.level) { W.level = id; W.k = id === 'heavy' ? 1 : 0; W.dust = id === 'clear' ? 0 : 1; } return; }
+    if (id !== W.level) W.level = id;
+  }
+  const mixOf = id => id === 'heavy' ? [1, 1] : id === 'clear' ? [0, 0] : [0, 1];     // [k, dust]
+  W.setAuto = function (on) { W.auto = on !== false; if (W.auto && typeof Sky !== 'undefined') { const s = W.spellAt(Sky.clock); if (s) W.level = s.id; } return W.auto; };
   W.set = function (id, now) {
     if (!W.levels.some(l => l[0] === id)) return W.level;
     W.level = id; W.auto = false;
-    if (now) { W.k = id === 'heavy' ? 1 : 0; W.ex = null; W.mix(); }
+    if (now) { const m = mixOf(id); W.k = m[0]; W.dust = m[1]; W.ex = null; W.mix(); }
     return W.level;
+  };
+  // what the corner says: the picture, not the spell it is on its way toward. Aurora only once the snow is not hiding it.
+  W.shown = function () {
+    let id = W.k >= 0.45 ? 'heavy' : (W.dust < 0.35 && W.k < 0.25) ? 'clear' : 'light';
+    if (id !== 'heavy' && typeof Sky !== 'undefined' && (Sky.stars || 0) > 0.45 && Sky.show && Sky.show() === 'aurora') id = 'aurora';
+    return id;
   };
   W.sun = function (v) { W.hold = v == null ? null : +v; W.hole = holeAt(App.t); W.v = sunIn(W.hole); W.ex = null; };
   W.mix = function () { W.kc = smoother(0, 0.75, W.k); W.ks = smoother(0.2, 1, W.k); };
@@ -99,9 +161,13 @@ const Weather = (() => {
     const t = App.t, P = W.P, KP = KIND[kind()], kp = 1 - Math.exp(-dt / 1.5);
     for (const n of NUM) P[n] += (KP[n] - P[n]) * kp;
     // toward the chosen weather, at an even pace: the cloud leads, the snowfall follows (and on the way back the snow eases before the sky clears)
-    autoStep(t);
-    const tgt = W.level === 'heavy' ? 1 : 0, rp = W.auto ? W.rampAuto : W.ramp;
-    if (W.k !== tgt) W.k = tgt > W.k ? Math.min(tgt, W.k + dt / rp) : Math.max(tgt, W.k - dt / rp);
+    const prev = W._ck; W._ck = typeof Sky !== 'undefined' ? Sky.clock : 0;
+    autoStep();
+    const m = mixOf(W.level), rp = Math.max(0.05, W.auto ? W.tune.ramp : W.ramp);
+    // a clock wound by hand (a time of day chosen) shows the weather of that hour at once; a clock that runs by itself eases there
+    const jumped = primed && prev != null && Math.abs(W._ck - prev) > Math.max(0.05, dt) * 3;
+    const step = (cur, tgt) => cur === tgt ? cur : tgt > cur ? Math.min(tgt, cur + dt / rp) : Math.max(tgt, cur - dt / rp);
+    if (jumped && W.auto) { W.k = m[0]; W.dust = m[1]; } else { W.k = step(W.k, m[0]); W.dust = step(W.dust, m[1]); }
     W.mix();
     // the break nearest the sun: carried along smoothly (and so also when the kind of snow is changed)
     const H = holeAt(t), kh = 1 - Math.exp(-dt / 0.6); for (let i = 0; i < 4; i++) W.hole[i] += (H[i] - W.hole[i]) * kh;

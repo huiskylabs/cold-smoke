@@ -17,4 +17,5 @@
 //   noTilt   device orientation is switched off there, so a phone steers by drag and the title page says so
 //   maxDpr, maxPx   the first drawing buffer: at most 1.5 device pixels per CSS pixel and about 2 million pixels (the container's
 //            guidance for WebGL on phones); the frame-rate governor still lowers it further on a phone that cannot hold the frame rate
-self.COLD_SMOKE = { noTilt: true, maxDpr: 1.5, maxPx: 2.0e6 };
+//   noDev    developer mode (?dev, or a path ending in /dev) stays closed in this package, whatever the address is
+self.COLD_SMOKE = { noTilt: true, maxDpr: 1.5, maxPx: 2.0e6, noDev: true };
