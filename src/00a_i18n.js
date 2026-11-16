@@ -104,7 +104,7 @@ const I18N = (() => {
     '雪面颤动': 'Snow chatter', '风压抖动': 'Wind buffet', '人物模型': 'Skier model', '衣服': 'Clothing', '持杖': 'Pole carry', '人物动作': 'Skier motion', '动作·时序': 'Motion · timing', '板刃时序': 'Edge timing', '动作·雪杖': 'Motion · poles', '动作·头和上身': 'Motion · head and trunk', '动作·起跳和落地': 'Motion · take-off and landing', '电脑上的蓄力圈': 'Jump charge ring (keyboard)', '不显示': 'Hidden', '显示': 'Shown',
     '逆光光斑': 'Lens ghosts', '高光': 'Highlights', '夜间雪雾': 'Spray at night', '夜空颜色': 'Night sky colour', '小云': 'Small clouds',
     '雪幕高度': 'Spray height', '闪光': 'Sparkle', '雪团': 'Snow clumps', '镜头上的雪': 'Snow on the lens', '粉雪深度': 'Powder depth', '风吹雪': 'Blowing snow',
-    '岩壁': 'Rock walls', '夜里的月亮': 'Moon at night', '极光': 'Aurora', '和星云轮流': 'Takes turns with nebula', '随机': 'Random', '大雪样式': 'Heavy snow style', '山脊树': 'Ridge trees', '跳台旗': 'Jump flags', '入雪深浅': 'Ski sink', '风声': 'Wind sound',
+    '岩壁': 'Rock walls', '夜里的月亮': 'Moon at night', '山下的世界': 'World below', '云海浮城': 'City in the cloud sea', '不夜城': 'Endless night city', '极光': 'Aurora', '和星云轮流': 'Takes turns with nebula', '随机': 'Random', '大雪样式': 'Heavy snow style', '山脊树': 'Ridge trees', '跳台旗': 'Jump flags', '入雪深浅': 'Ski sink', '风声': 'Wind sound',
     '键盘转弯': 'Keyboard turns',
     '现在的': 'Current', '修正': 'Corrected', '身体先走': 'Body first', '和身体同步': 'With the body', '原来': 'Original', '原样': 'As was', '新的': 'New', '低机位': 'Low', '折中': 'Middle', '贴近': 'Closer', '原位淡树': 'Fade trees', '树会淡出': 'Trees fade out', '树留着': 'Trees stay', '原来（逐帧颗粒）': 'Original (grain every frame)', '稳定': 'Steady',
     '不变': 'Fixed', '按路段大变': 'Big', '轻微变化': 'Subtle', '贴板': 'On the ski', '大腿': 'Thigh', '头盔': 'Helmet', '压低': 'Low', '面前': 'In front',
