@@ -59,7 +59,7 @@ In the Web version, the **Immersive** button on the title page only appears in a
 
 ### Apple Vision Pro
 
-Open `visionos/ColdSmokeVision.xcodeproj`, select **ColdSmokeVision** and run on Apple Vision Pro. Choose **Immersive** and press **A** on the controller to start. You can look around freely while skiing. To steer by leaning and use pinch gestures, enable **Body controls** in the game window’s **Settings**.
+Open `visionos/ColdSmokeVision.xcodeproj`, select **ColdSmokeVision** and run on Apple Vision Pro. The build draws the app icon with `node tools/generate-icons.js` before it compiles the asset catalog. Node.js 18 or newer needs to be on `PATH`. Choose **Immersive** and press **A** on the controller to start. You can look around freely while skiing. To steer by leaning and use pinch gestures, enable **Body controls** in the game window’s **Settings**.
 
 An Xbox Series X|S Wireless Controller paired in visionOS Settings → Bluetooth works in the window and the immersive space. **Left stick:** steer and shift weight. **A:** start, then hold to load a jump and release to launch. **RT:** pole or tuck. **Y:** enter Immersive or recenter while inside. **Menu:** return to the paused window. Reenter to continue the same run.
 
@@ -67,7 +67,7 @@ During a run, **LB** selects the previous camera and **RB** selects the next. Pr
 
 ### iPhone Duo
 
-Open `ios/ColdSmoke.xcodeproj` with Xcode and the iOS 27.1 SDK or newer. Run the **ColdSmoke** scheme on an iPhone Duo simulator or signed device. The build bundles the local Web game and fonts for offline play.
+Open `ios/ColdSmoke.xcodeproj` with Xcode and the iOS 27.1 SDK or newer. Run the **ColdSmoke** scheme on an iPhone Duo simulator or signed device. The build bundles the local Web game and fonts for offline play. App icons and the jump and tuck symbols are drawn by `node tools/generate-icons.js` during that build and are not stored in the repo. Node.js 18 or newer needs to be on `PATH`.
 
 WKWebView runs the shared simulation and audio. The iOS graphics adapter sends the shared scene to Metal, and UIKit presents the game buttons with Liquid Glass on iOS 26 and later. The camera follows the native window as the phone folds. While skiing, tap the camera icon on the right to frame a shot. The shutter captures the Metal scene, **Save** opens the system share sheet, and **Back** resumes the run.
 
@@ -168,7 +168,7 @@ Web 版标题页的「沉浸模式」按钮只在能打开头显的浏览器里�
 
 ### 在 Apple Vision Pro 上运行
 
-用 Xcode 打开 `visionos/ColdSmokeVision.xcodeproj`，选择 **ColdSmokeVision** 并在 Apple Vision Pro 上运行。点「沉浸模式」，按手柄 **A** 出发。滑行时可以自由转头环视。想用倾身转向和捏合起跳时，在游戏窗口的「设置」里打开「身体动作控制」。
+用 Xcode 打开 `visionos/ColdSmokeVision.xcodeproj`，选择 **ColdSmokeVision** 并在 Apple Vision Pro 上运行。构建会在编译素材目录之前用 `node tools/generate-icons.js` 画出应用图标，`PATH` 里需要 Node.js 18 或更新版本。点「沉浸模式」，按手柄 **A** 出发。滑行时可以自由转头环视。想用倾身转向和捏合起跳时，在游戏窗口的「设置」里打开「身体动作控制」。
 
 Xbox Series X|S 手柄可在头显的「设置 → 蓝牙」配对。左摇杆转向和调整重心，**A** 出发或蓄力起跳，**RT** 加速，**Y** 进入沉浸或在沉浸中重新校准正前方。按**菜单键**回到暂停窗口，再进入会从原处续滑。
 
@@ -176,7 +176,7 @@ Xbox Series X|S 手柄可在头显的「设置 → 蓝牙」配对。左摇杆�
 
 ### 在 iPhone Duo 上运行
 
-用带 iOS 27.1 或更新 SDK 的 Xcode 打开 `ios/ColdSmoke.xcodeproj`，选择 **ColdSmoke** 和 Duo 模拟器或已签名的真机，点运行。Xcode 会将当前 `src/`、界面和字体打进应用，可离线游玩。
+用带 iOS 27.1 或更新 SDK 的 Xcode 打开 `ios/ColdSmoke.xcodeproj`，选择 **ColdSmoke** 和 Duo 模拟器或已签名的真机，点运行。Xcode 会将当前 `src/`、界面和字体打进应用，可离线游玩。应用图标和起跳、加速符号由构建时的 `node tools/generate-icons.js` 绘制，不放进仓库。`PATH` 里需要 Node.js 18 或更新版本。
 
 WKWebView 运行与 Web 版共用的滑行逻辑和声音，Metal 绘制雪场，UIKit 提供原生 Liquid Glass 游戏按钮。折叠时相机按窗口尺寸更新。滑行时点右侧的相机图标取景，按快门拍下雪场。点「保存」打开系统分享面板，点「返回」继续滑行。
 

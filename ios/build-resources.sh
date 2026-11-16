@@ -3,6 +3,13 @@
 set -eu
 export LC_ALL=C
 cd "$(dirname "$0")/.."
+# Homebrew's node is not on the default Xcode PATH. The icons have to exist before the asset catalog compiles.
+export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH:-/usr/bin:/bin}"
+if ! command -v node >/dev/null 2>&1; then
+  echo "Node.js 18 or newer must be on PATH so tools/generate-icons.js can draw the app icons." >&2
+  exit 1
+fi
+node tools/generate-icons.js
 out=${1:?destination resource directory required}
 mkdir -p "$out/fonts"
 cp xhs/fonts/* "$out/fonts/"

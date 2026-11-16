@@ -7,3 +7,8 @@ node_modules/
 *.log
 xcuserdata/
 DerivedData/
+# drawn by tools/generate-icons.js at build time
+ios/App/AppIcon.icon/Assets/*.svg
+ios/App/Assets.xcassets/SkiJump.imageset/*.svg
+ios/App/Assets.xcassets/SkiTuck.imageset/*.svg
+visionos/App/Assets.xcassets/**/*.png

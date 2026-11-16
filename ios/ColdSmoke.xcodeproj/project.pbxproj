@@ -119,10 +119,10 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 00A5478124703B83E7483423 /* Build configuration list for PBXNativeTarget "ColdSmoke" */;
 			buildPhases = (
+				A370C4C31728EE9DD8E85E74 /* Bundle offline game */,
 				8BA335E088C2F47138DD27B0 /* Sources */,
 				2EF88178DA1F47ED07A350D3 /* Frameworks */,
 				C790B40E2DEE6A511CBA74D5 /* Resources */,
-				A370C4C31728EE9DD8E85E74 /* Bundle offline game */,
 			);
 			buildRules = (
 			);
@@ -197,6 +197,7 @@
 				"$(SRCROOT)/Runtime/metal-shaders.js",
 				"$(SRCROOT)/Runtime/window.css",
 				"$(SRCROOT)/../xhs/fonts",
+				"$(SRCROOT)/../tools/generate-icons.js",
 			);
 			name = "Bundle offline game";
 			outputFileListPaths = (
@@ -296,7 +297,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "雪迹";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "将拍摄的雪场照片存入相册。 Save your ski photos to your library.";
@@ -324,7 +325,7 @@
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "雪迹";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "将拍摄的雪场照片存入相册。 Save your ski photos to your library.";
