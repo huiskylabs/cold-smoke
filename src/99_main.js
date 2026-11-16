@@ -14,11 +14,10 @@ async function boot(stage) {
   if (DEV) console.log('quality', Quality.tier, Quality.why, Quality.gpu);
   // a browser that can open a headset's immersive mode (Safari on Apple Vision Pro) is drawn with WebGL2 from the start: WebXR hands its
   // framebuffer to WebGL only, so that is the context that can later be taken into the headset without starting over (21_xr.js)
-  const hostGraphics = self.COLD_SMOKE?.createGraphics;
-  const xrOK = !hostGraphics && await XR.probe();
+  const xrOK = /*native{*/!self.COLD_SMOKE?.createGraphics && /*}native*/await XR.probe();
   let gfx = null; const want = QS.get('backend') || (gpuFellBack() || xrOK ? 'webgl2' : null);
-  if (hostGraphics) gfx = await hostGraphics(canvas);
-  else if (want !== 'webgl2') { try { gfx = await createGPU(canvas, { offscreen: QS.has('offscreen') }); } catch (e) { console.warn('WebGPU init failed', e); gfx = null; } }
+  /*native{*/if (self.COLD_SMOKE?.createGraphics) gfx = await self.COLD_SMOKE.createGraphics(canvas);
+  else /*}native*/if (want !== 'webgl2') { try { gfx = await createGPU(canvas, { offscreen: QS.has('offscreen') }); } catch (e) { console.warn('WebGPU init failed', e); gfx = null; } }
   if (!gfx) gfx = createGL(canvas, { xr: xrOK });
   if (!gfx) throw new Error('这台设备的浏览器不支持 WebGL2，画面无法启动。');
   App.gfx = gfx;
@@ -29,9 +28,9 @@ async function boot(stage) {
   makeNoiseTextures(gfx); makeSnowTexture(gfx, Sky.az); Terrain.setSun(Sky.az);
   await step(0.20, '远山与城市');
   {
-    const t0 = performance.now(), spatial = self.COLD_SMOKE?.spatial && gfx.caps.maxTex >= 4096;
-    Vista.init(gfx, { farW: +QS.get('vistares') || (spatial ? 4096 : gfx.caps.maxTex >= 4096 ? 3072 : 2048),
-      cityW: +QS.get('cityres') || (spatial ? 1536 : 1024), keep: DEV && QS.has('vistadbg') });
+    const t0 = performance.now()/*native{*/, spatial = !!(self.COLD_SMOKE?.spatial && gfx.caps.maxTex >= 4096)/*}native*/;
+    Vista.init(gfx, { farW: +QS.get('vistares') || (/*native{*/spatial ? 4096 : /*}native*/gfx.caps.maxTex >= 4096 ? 3072 : 2048),
+      cityW: +QS.get('cityres') || (/*native{*/spatial ? 1536 : /*}native*/1024), keep: DEV && QS.has('vistadbg') });
     if (DEV) console.log('vista', Math.round(performance.now() - t0) + 'ms', JSON.stringify(Vista.stats));
   }
   await step(0.36, '立起天空');
@@ -140,10 +139,11 @@ function loop(now) {
   requestAnimationFrame(loop);
   if (App.gfx && App.gfx.lost) { UI.lost(); return; }                    // the graphics device was taken away: the interface says so, and offers to start over
   if (!App.ready || App.paused || XR.active) { lastT = now; return; }       // (in the headset its own frames drive the game: 21_xr.js)
-  if (App.gfx.busy?.()) { lastT = now; return; }
+  /*native{*/if (App.gfx.busy?.()) { lastT = now; return; }
+  /*}native*/
   const raw = (now - lastT) / 1000, dt = clamp(raw, 1 / 240, 1 / 20); lastT = now;
   if (App.photoFrame) { try { App.photoFrame(dt); } catch (e) { console.warn('photo', e); if (typeof Photo !== 'undefined') Photo.exit(); } return; }      // 拍照: the world stands still, only the lens moves (19d_photo.js)
-  try { tick(dt * App.resumeK, true); UI.frame(dt); govern(now, raw, App.gfx.gpuSeconds); } catch (e) { App.ready = false; reportError(e); }
+  try { tick(dt * App.resumeK, true); UI.frame(dt); govern(now, raw/*native{*/, App.gfx.gpuSeconds/*}native*/); } catch (e) { App.ready = false; reportError(e); }
 }
 function fit() {
   if (XR.active) return;                                                // (the headset sets the size of what is drawn while it is on)
@@ -157,10 +157,25 @@ function fit() {
 // 60 frames a second come first. If this machine cannot hold them at full sharpness the picture is drawn a little smaller and stretched,
 // and it goes back up when there is room again. If even that is not enough, the Quality level steps down (00c_quality.js; only while it is
 // on 自动) and the picture starts again at full size for that level; after a long while with room to spare it may step back up, once
-const Gov = { on: QS.get('gov') !== '0' && !QS.get('w'), acc: 0, work: 0, n: 0, slow: 0, fast: 0, last: 0, downs: 0, t0: 0, calm: 0 };
-function govern(now, raw, gpu) {
+const Gov = { on: QS.get('gov') !== '0' && !QS.get('w'), acc: 0, /*native{*/work: 0, /*}native*/n: 0, slow: 0, fast: 0, last: 0, downs: 0, t0: 0, calm: 0 };
+function govern(now, raw) {
   if (!Gov.on || raw > 1) return;                                         // (a tab coming back to the front is not a slow frame)
   if (!Gov.t0) Gov.t0 = now; if (now - Gov.t0 < 3000) return;             // the first seconds are still compiling and warming up
+  Gov.acc += raw; Gov.n++; if (Gov.acc < 1) return;
+  const avg = Gov.acc / Gov.n; Gov.acc = 0; Gov.n = 0;
+  if (avg > 1 / 50) { Gov.slow++; Gov.fast = 0; } else if (avg < 1 / 57) { Gov.fast++; Gov.slow = 0; } else { Gov.slow = 0; Gov.fast = 0; }
+  const floor = Quality.L.floor;
+  if (Gov.slow >= 2 && Render.scale > floor) { Render.scale = Math.max(floor, Render.scale * (avg > 1 / 36 ? 0.8 : 0.9)); Gov.slow = 0; Gov.downs++; Gov.last = now; fit(); }
+  else if (Gov.slow >= 2 && Quality.step(1)) { Render.scale = 1; Gov.slow = 0; Gov.fast = 0; Gov.downs = 0; Gov.calm = 0; Gov.last = now; App.applyQuality(); }
+  else if (Gov.fast >= 12 && Render.scale < 1 && Gov.downs < 5 && now - Gov.last > 20000) { Render.scale = Math.min(1, Render.scale * 1.08); Gov.fast = 0; Gov.last = now; fit(); }
+  // (a level back up: a full minute at full size, every second of it with room to spare, and only once a visit)
+  if (avg < 1 / 57 && Render.scale >= 1) Gov.calm++; else Gov.calm = 0;
+  if (Gov.calm >= 60 && Quality.ups < 1 && Quality.tier > 0 && now - Gov.last > 60000 && Quality.step(-1)) { Gov.calm = 0; Gov.fast = 0; Gov.last = now; App.applyQuality(); }
+}
+/*native{*/
+govern = function (now, raw, gpu) {
+  if (!Gov.on || raw > 1) return;
+  if (!Gov.t0) Gov.t0 = now; if (now - Gov.t0 < 3000) return;
   const metal = gpu !== undefined;
   if (metal && !(gpu > 0)) return; // no completed frame for this display yet
   Gov.work += metal ? gpu : raw; Gov.acc += raw; Gov.n++; if (Gov.acc < 1) return;
@@ -172,10 +187,10 @@ function govern(now, raw, gpu) {
   if (Gov.slow >= 2 && Render.scale > floor) { Render.scale = Math.max(floor, Render.scale * (work > 1 / 36 ? 0.8 : 0.9)); Gov.slow = 0; Gov.downs++; Gov.last = now; fit(); }
   else if (Gov.slow >= 2 && Quality.step(1)) { Render.scale = 1; Gov.slow = 0; Gov.fast = 0; Gov.downs = 0; Gov.calm = 0; Gov.last = now; App.applyQuality(); }
   else if (Gov.fast >= 12 && Render.scale < 1 && (metal || Gov.downs < 5) && now - Gov.last > 20000) { Render.scale = Math.min(1, Render.scale * 1.08); Gov.fast = 0; Gov.last = now; fit(); }
-  // (a level back up: a full minute at full size, every second of it with room to spare, and only once a visit)
   if (fast && Render.scale >= 1) Gov.calm++; else Gov.calm = 0;
   if (Gov.calm >= 60 && Quality.ups < 1 && Quality.tier > 0 && now - Gov.last > 60000 && Quality.step(-1)) { Gov.calm = 0; Gov.fast = 0; Gov.last = now; App.applyQuality(); }
-}
+};
+/*}native*/
 // a Quality level into the modules that read it once (the rest read Quality.L as they draw). first: before anything is built
 App.applyQuality = function (first) {
   const L = Quality.L;
@@ -238,7 +253,7 @@ App.swap = function (place, now = QS.has('manual')) {
 Variants.on((n, id, first) => { if (n === 'mogf' && !first) { const s0 = -Game.s.p[2]; App.swap(() => Game.reset(s0)); } });
 App.onTick.push(() => {
   const sw = App.swapping, t = performance.now(); if (!sw) return;
-  Gov.acc = Gov.n = Gov.slow = 0;                // (these frames say nothing about how fast this machine draws)
+  Gov.acc = /*native{*/Gov.work = /*}native*/Gov.n = Gov.slow = 0;                // (these frames say nothing about how fast this machine draws)
   if (!sw.lift) { if (Terrain.rebuildStep(24) && t - sw.t0 >= 230) sw.lift = 1; }      // drawn again from this frame on: the new place is on the screen before the veil thins
   else if (sw.lift === 1) { sw.lift = 2; sw.t0 = t; const veil = document.getElementById('veil'); if (veil) { veil.style.transition = 'opacity .65s ease-out'; veil.classList.add('lift'); } }
   else if (t - sw.t0 > 260) { App.swapping = null; if (sw.run && Game.mode === 'title') Game.start(); }      // the push-off is seen: it waits for the veil to thin

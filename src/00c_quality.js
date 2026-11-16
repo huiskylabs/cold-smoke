@@ -14,7 +14,7 @@ const Quality = (() => {
     { name: '均衡', maxDpr: 1.25, maxPx: 1.2e6, floor: 0.75, shadow: 1536, blur: true, dust: 0.75, glitter: 0.7, far: 460, bloom: 6 },
     { name: '流畅', maxDpr: 1, maxPx: 0.7e6, floor: 0.6, shadow: 1024, blur: false, dust: 0.5, glitter: 0.45, far: 380, bloom: 5 },
   ];
-  const KP = 'cs.q.pick', KA = self.COLD_SMOKE?.autoQualityKey || 'cs.q.auto';
+  const KP = 'cs.q.pick', KA = /*native{*/self.COLD_SMOKE?.autoQualityKey || /*}native*/'cs.q.auto';
   const Q = { LEVELS, pick: 'auto', tier: 0, guess: 0, gpu: '', why: '', L: LEVELS[0], subs: [], downs: 0, ups: 0 };
   const get = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const put = k => v => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { } if (Q.keep) Q.keep(k, v == null ? '' : v); };
@@ -22,8 +22,8 @@ const Quality = (() => {
 
   // the GPU's own name (the page can usually read it), sorted into a first guess. Only phones are guessed down: a computer starts at 高
   function gpuName() {
-    if (self.COLD_SMOKE?.renderer) return self.COLD_SMOKE.renderer;
-    try {
+    /*native{*/if (self.COLD_SMOKE?.renderer) return self.COLD_SMOKE.renderer;
+    /*}native*/try {
       const c = document.createElement('canvas'), gl = c.getContext('webgl2') || c.getContext('webgl'); if (!gl) return '';
       const x = gl.getExtension('WEBGL_debug_renderer_info'), s = x ? gl.getParameter(x.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
       const lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext();

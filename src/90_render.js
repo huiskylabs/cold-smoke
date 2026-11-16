@@ -47,8 +47,8 @@ const Render = (() => {
   function viewMatrix(c, o) { const e = v3.sub(c.pos, o), r = c.right, u = c.up, f = c.fwd; return [r[0], u[0], -f[0], 0, r[1], u[1], -f[1], 0, r[2], u[2], -f[2], 0, -v3.dot(r, e), -v3.dot(u, e), v3.dot(f, e), 1]; }
 
   R.computeGlobals = function (time, dt, state) {
-    G[GOFF.eyeCenter] = G[GOFF.eyeCenter + 1] = 0;
-    const c = R.cam, o = R.origin, aspect = R.W / R.H; R.time = time; R.dt = dt;
+    /*native{*/G[GOFF.eyeCenter] = G[GOFF.eyeCenter + 1] = 0;
+    /*}native*/const c = R.cam, o = R.origin, aspect = R.W / R.H; R.time = time; R.dt = dt;
     const proj = m4.perspective(c.fovY, aspect, c.near, c.far), view = viewMatrix(c, o), vp = m4.mul(proj, view);
     R.vp = vp; R.view = view; R.proj = proj;
     // previous frame's view-projection expressed in this frame's render space (origin shifts cancel out)
@@ -114,12 +114,14 @@ const Render = (() => {
   // at the size the targets have. The rest of the frame (sun, shadows, weather) was set once for the head by computeGlobals and stays.
   // There is no previous frame for an eye: the streaks of the snow in the air come from its own motion only, never from the head's
   R.eyeGlobals = function (c, frustum) {
-    const o = R.origin, aspect = frustum ? (frustum.R - frustum.L) / (frustum.T - frustum.B) : R.W / R.H;
+    const o = R.origin, aspect = /*native{*/frustum ? (frustum.R - frustum.L) / (frustum.T - frustum.B) : /*}native*/R.W / R.H;
     const proj = m4.perspective(c.fovY, aspect, c.near, c.far);
+    /*native{*/
     const cx = frustum ? (frustum.R + frustum.L) * 0.5 : 0;
     const cy = frustum ? (frustum.T + frustum.B) * 0.5 : 0;
     proj[8] = cx * proj[0]; proj[9] = cy * proj[5];
     G[GOFF.eyeCenter] = cx; G[GOFF.eyeCenter + 1] = cy;
+    /*}native*/
     const view = viewMatrix(c, o), vp = m4.mul(proj, view);
     R.vp = vp; R.view = view; R.proj = proj;
     G.set(vp, GOFF.viewProj); G.set(m4.invert(vp), GOFF.invViewProj); G.set(vp, GOFF.prevViewProj);
@@ -144,7 +146,7 @@ const Render = (() => {
     for (const f of R.passes.pre) f(R);
   };
   R.renderView = function (eye, frustum) {
-    gfx.beginPass(scene, { color: [0, 0, 0, 0], depth: 1, spatialScene: !!frustum && !XR.photoMode });
+    gfx.beginPass(scene, { color: [0, 0, 0, 0], depth: 1/*native{*/, spatialScene: !!frustum && !XR.photoMode/*}native*/ });
     for (const f of R.passes.opaque) f(R);
     Terrain.draw(R.origin, smap, Sky.lut, Spray.sunTex, eye, frustum);
     Sky.draw();

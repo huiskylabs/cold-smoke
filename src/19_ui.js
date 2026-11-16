@@ -93,13 +93,13 @@ const UI = (() => {
   const faOn = () => typeof Variants !== 'undefined' && Variants.val.fa === 'b';
   function howText() {
     const hh = U.hh, framed = U.framed, fa = faOn(); el.app.classList.toggle('fa', fa);
-    if (self.COLD_SMOKE?.spatial) { el.how.textContent = T('选择沉浸模式，或按手柄 Y 进入 · A 出发 / 起跳 · RT 加速') + ' · ' + T('LB / RB 换视角 · X 拍照'); return; }
-    if (!hh) {
+    /*native{*/if (self.COLD_SMOKE?.spatial) { el.how.textContent = T('选择沉浸模式，或按手柄 Y 进入 · A 出发 / 起跳 · RT 加速') + ' · ' + T('LB / RB 换视角 · X 拍照'); return; }
+    /*}native*/if (!hh) {
       el.how.textContent = T(fa ? '← → 转弯 · ↑ ↓ 压板头 / 板尾 · 空格 跳 · Shift 加速' : '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速');
       return;
     }
     const steering = fa ? '按住屏幕，左右拖转弯，上下拖压板头 / 板尾' : framed ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
-    const actions = self.COLD_SMOKE?.nativeWindow ? '下方按钮起跳和加速' : '右下角 跳 / 加速';
+    const actions = /*native{*/self.COLD_SMOKE?.nativeWindow ? '下方按钮起跳和加速' : /*}native*/'右下角 跳 / 加速';
     el.how.textContent = T(steering) + ' · ' + T(actions);
   }
   if (typeof Variants !== 'undefined') Variants.on(n => { if (n === 'fa' && el) howText(); });

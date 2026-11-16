@@ -29,11 +29,11 @@ const XR = (() => {
     scale: clamp(+qs.get('xrscale') || 0.62, 0.25, 1.5), minScale: 0.32, maxScale: clamp(+qs.get('xrscale') || 0.8, 0.25, 1.5),
     maxPx: 2.2e6, fbScale: clamp(+qs.get('xrfb') || 1, 0.3, 1.5), vignette: qs.get('xrvig') !== '0',
     yaw: null, yawRate: 1.4, turn: 0, vig: 0, steer: 0, fa: 0, tx: 1, ty: 1, recenter: true, hidden: false,
-    bodyControls: !self.COLD_SMOKE?.spatial,
+    bodyControls: true/*native{*/ && !self.COLD_SMOKE?.spatial/*}native*/,
     refPos: [0, 0, 0], refYaw: 0, rig: [0, 0, 0], stats: { frames: 0, avg: 0 },
   };
   let pPanel = null, pVig = null, pPresent = null, eyeTex = null, eyeT = null, panelTex = null, panelCv = null, panelKey = '', panelT = 0, saved = null;
-  const gov = { acc: 0, gpu: 0, n: 0, slow: 0, fast: 0, min: 1 };
+  const gov = { acc: 0, /*native{*/gpu: 0, /*}native*/n: 0, /*native{*/slow: 0, /*}native*/fast: 0, min: 1 };
 
   // can this browser open a headset? (asked once at start-up; ?xr=0 says no whatever the browser says)
   X.probe = async function () {
@@ -74,8 +74,8 @@ const XR = (() => {
   // ---- in and out
   X.enter = async function () {
     if (X.active || X.starting || !X.ok) return;
-    if (self.COLD_SMOKE?.openSpace) { Sound.unlock(); self.COLD_SMOKE.openSpace(); return; }
-    const gfx = App.gfx;
+    /*native{*/if (self.COLD_SMOKE?.openSpace) { Sound.unlock(); self.COLD_SMOKE.openSpace(); return; }
+    /*}native*/const gfx = App.gfx;
     // (drawn with WebGPU after all, the start-up question having been too slow to answer: start again on WebGL2; the player taps again)
     if (!gfx || gfx.caps.backend !== 'webgl2') { const u = new URL(location.href); u.searchParams.set('backend', 'webgl2'); location.replace(u.href); return; }
     X.starting = true;
@@ -108,7 +108,7 @@ const XR = (() => {
     saved = { L: Quality.L, view: Game.view, fringe: Post.fringe };
     Quality.L = Object.assign({}, Quality.L, LEVEL);
     Render.motionBlur = false; Render.setShadowRes(LEVEL.shadow); Trees.far = LEVEL.far; Post.bloomLevels = LEVEL.bloom;
-    if (!self.COLD_SMOKE?.spatial) Game.setView('chase', true);
+    /*native{*/if (!self.COLD_SMOKE?.spatial) /*}native*/Game.setView('chase', true);
     if (!pPresent) build(gfx);
     App.camHook = camHook; App.renderHook = render;
     Input.xr = { steer: 0, fa: 0 };
@@ -116,13 +116,13 @@ const XR = (() => {
   }
   function end() {
     if (!X.active) return;
-    X.leavePhoto();
-    X.active = false; Render.xr = false; X.session = null; X.layer = null; X.pose = null; X.frameObj = null;
+    /*native{*/X.leavePhoto();
+    /*}native*/X.active = false; Render.xr = false; X.session = null; X.layer = null; X.pose = null; X.frameObj = null;
     App.camHook = null; App.renderHook = null; Input.xr = null; Input.btn.jump = Input.btn.tuck = false;
     if (App.gfx) App.gfx.screen = null;
     if (saved) {
       Quality.L = saved.L; Post.fringe = saved.fringe;
-      if (!self.COLD_SMOKE?.spatial) Game.setView(saved.view, true);
+      /*native{*/if (!self.COLD_SMOKE?.spatial) /*}native*/Game.setView(saved.view, true);
       saved = null;
     }
     Render.W = 0; App.applyQuality();                                   // (the window's own size, shadow map and bloom again)
@@ -131,15 +131,15 @@ const XR = (() => {
 
   // ---- the pipelines of this file: the finished eye handed to the headset, the panel of words in the air, the darkening at the edges
   function build(gfx) {
-    const base = { buffers: [], varyings: { uv: 'vec2f' }, depth: false, depthTest: false, cull: 'none', colorFormat: gfx.beginStereoEye ? 'canvas' : 'rgba8' };
-    pPresent = gfx.pipeline(Object.assign({}, base, { name: 'xrPresent', colorFormat: 'rgba8', uniforms: { p: 'vec4f' }, textures: { tA: '2d' }, vs: VS_FULLSCREEN, fs: self.COLD_SMOKE?.spatialPresentFragment || `
+    const base = { buffers: [], varyings: { uv: 'vec2f' }, depth: false, depthTest: false, cull: 'none', colorFormat: /*native{*/gfx.beginStereoEye ? 'canvas' : /*}native*/'rgba8' };
+    pPresent = gfx.pipeline(Object.assign({}, base, { name: 'xrPresent', colorFormat: 'rgba8', uniforms: { p: 'vec4f' }, textures: { tA: '2d' }, vs: VS_FULLSCREEN, fs: /*native{*/self.COLD_SMOKE?.spatialPresentFragment || /*}native*/`
 fn frag(v: VOut) -> FOut { var o: FOut; let uv: vec2f = mix(M.p.xy, M.p.zw, v.uv); o.color = vec4f(texLod(tA, uv, 0.0).rgb, 1.0); return o; }` }));
     // (p: strength, the centred lens's half widths as tangents (x, y), and where the darkening begins, as a tangent off the axis)
     pVig = gfx.pipeline(Object.assign({}, base, { name: 'xrVignette', blend: 'alpha', uniforms: { p: 'vec4f' }, vs: VS_FULLSCREEN, fs: `
 fn frag(v: VOut) -> FOut { var o: FOut; let q: vec2f = (v.uv - vec2f(0.5)) * 2.0 * M.p.yz + vec2f(U.eyeCenter.x, -U.eyeCenter.y); let r: f32 = length(q);
   o.color = vec4f(0.0, 0.0, 0.0, M.p.x * smoothstep(M.p.w, M.p.w + 0.55, r)); return o; }` }));
-    if (self.COLD_SMOKE?.nativeSpatialUI) return;
-    // (a quad in the world: p0 its top left corner (render space; w: how much it shows), ex across it, ey down it)
+    /*native{*/if (self.COLD_SMOKE?.nativeSpatialUI) return;
+    /*}native*/// (a quad in the world: p0 its top left corner (render space; w: how much it shows), ex across it, ey down it)
     pPanel = gfx.pipeline(Object.assign({}, base, { name: 'xrPanel', blend: 'premul', topology: 'strip', uniforms: { p0: 'vec4f', ex: 'vec4f', ey: 'vec4f' }, textures: { tP: '2d' }, vs: `
 fn vert(a: VIn) -> VOut {
   var v: VOut;
@@ -155,30 +155,31 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
 
   // ---- size: the centred lens that holds both eyes' frusta, and how many pixels it is drawn at
   function size(pose) {
-    let tx = 0, ty = 0, H = 0, viewportW = 0, viewportH = 0;
+    let tx = 0, ty = 0, H = 0/*native{*/, viewportW = 0, viewportH = 0/*}native*/;
     const S = pose.views.map(v => { const s = sides(v.projectionMatrix); tx = Math.max(tx, -s.L, s.R); ty = Math.max(ty, -s.B, s.T); return s; });
     pose.views.forEach((v, i) => {
       const vp = X.layer.getViewport(v), s = S[i];
       H = Math.max(H, vp.height * 2 * ty / (s.T - s.B));
-      viewportW = Math.max(viewportW, vp.width); viewportH = Math.max(viewportH, vp.height);
+      /*native{*/viewportW = Math.max(viewportW, vp.width); viewportH = Math.max(viewportH, vp.height);/*}native*/
     });
     X.tx = tx; X.ty = ty;
     H *= X.scale; let W = H * tx / ty;
     if (W * H > X.maxPx) { const k = Math.sqrt(X.maxPx / (W * H)); W *= k; H *= k; }
+    /*native{*/
     if (App.gfx.beginStereoEye) {
-      // A foveated drawable describes a large *logical* viewport. The scene is
+      // A foveated drawable describes a large logical viewport. The scene is
       // shaded into an ordinary rectangular texture before that rate map is used.
-      // Scale its own pixel budget so the governor still works on either layout.
       const visiblePixels = viewportW * viewportH;
       const budget = Math.min(visiblePixels, X.maxPx, 5.2e6 * X.scale * X.scale);
       const density = Math.sqrt(budget / visiblePixels);
       W = viewportW * density; H = viewportH * density;
     }
+    /*}native*/
     W = Math.max(64, Math.round(W)); H = Math.max(64, Math.round(H));
     const gfx = App.gfx;
     if (!eyeTex || eyeTex.w !== W || eyeTex.h !== H) {
       if (eyeTex) { gfx.destroyTarget(eyeT); gfx.destroyTexture(eyeTex); }
-      eyeTex = gfx.texture({ w: W, h: H, format: gfx.beginStereoEye ? 'canvas' : 'rgba8', filter: 'linear' }); eyeT = gfx.target({ color: eyeTex });
+      eyeTex = gfx.texture({ w: W, h: H, format: /*native{*/gfx.beginStereoEye ? 'canvas' : /*}native*/'rgba8', filter: 'linear' }); eyeT = gfx.target({ color: eyeTex });
     }
     if (Render.W !== W || Render.H !== H) Render.resize(W, H); else Post.resize(W, H);
     X.sized = true; X.stats.W = W; X.stats.H = H;
@@ -189,13 +190,13 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
     const pose = X.pose; if (!pose) return;
     // Game.update has just placed the selected camera. Take its position and
     // horizontal heading before applying the wearer's pose to either eye.
-    const selectable = self.COLD_SMOKE?.spatial && Game.hasViewOverride;
-    const c = selectable ? Render.cam : Game.cam;
-    const dx = selectable ? c.fwd[0] : c.anchor[0] - c.pos[0];
-    const dz = selectable ? c.fwd[2] : c.anchor[2] - c.pos[2];
+    const selectable = false/*native{*/ || !!(self.COLD_SMOKE?.spatial && Game.hasViewOverride)/*}native*/;
+    const c = /*native{*/selectable ? Render.cam : /*}native*/Game.cam;
+    const dx = /*native{*/selectable ? c.fwd[0] : /*}native*/c.anchor[0] - c.pos[0];
+    const dz = /*native{*/selectable ? c.fwd[2] : /*}native*/c.anchor[2] - c.pos[2];
     // the rig turns to face the skier, slowly, and about the vertical only (the game's own pitch, roll, shake and kicks stay out)
     const prev = X.yaw;
-    if (Math.hypot(dx, dz) > (selectable ? 0.01 : 0.5) || X.yaw == null) {
+    if (Math.hypot(dx, dz) > (/*native{*/selectable ? 0.01 : /*}native*/0.5) || X.yaw == null) {
       const tgt = Math.atan2(dx, -dz);
       if (X.yaw == null) X.yaw = tgt; else { const d = Math.atan2(Math.sin(tgt - X.yaw), Math.cos(tgt - X.yaw)); X.yaw += d * (1 - Math.exp(-X.yawRate * dt)); }
     }
@@ -244,6 +245,7 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
     const pose = f.getViewerPose(X.ref); if (!pose || !X.layer) return;
     advance(t, pose, f);
   }
+  /*native{*/
   // The compositor supplies the same local-space poses and off-axis projections as WebXR.
   // Neither transport owns a second simulation or asks the window's RAF to tick it.
   X.beginSpatial = function () {
@@ -284,21 +286,32 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
     advance(packet.time, packet, null);
     return X.active && !X.error;
   };
+  /*}native*/
   function advance(t, pose, f) {
     X.pose = pose; X.frameObj = f;
     const raw = X.lastT ? (t - X.lastT) / 1000 : 1 / 90; X.lastT = t;
     const dt = clamp(raw, 1 / 240, 1 / 20);
     if (!X.sized) size(pose);
     try {
-      if (X.photoMode) framePhoto(pose, dt);
-      else { tick(X.hidden ? 1e-4 : dt * App.resumeK, true); UI.frame(dt); }
-      govern(raw, pose.frameInterval, pose.sceneInterval); X.stats.frames++;
+      /*native{*/if (X.photoMode) framePhoto(pose, dt);
+      else /*}native*/{ tick(X.hidden ? 1e-4 : dt * App.resumeK, true); UI.frame(dt); }
+      govern(raw/*native{*/, pose.frameInterval, pose.sceneInterval/*}native*/); X.stats.frames++;
     }
-    catch (e) { console.error(e); X.error = String(e && e.stack || e); if (self.COLD_SMOKE?.closeSpace) self.COLD_SMOKE.closeSpace(); else X.exit(); }
+    catch (e) { console.error(e); X.error = String(e && e.stack || e); /*native{*/if (self.COLD_SMOKE?.closeSpace) self.COLD_SMOKE.closeSpace(); else /*}native*/X.exit(); }
   }
   // the sharpness steps down while the frames come late, and back up a little after a long while with room. 'Late' is against the
   // headset's own rate (Vision Pro shows 90 a second; others 72, 60...): the session's frameRate where it says, else the quickest second seen
-  function govern(raw, frameInterval, sceneInterval) {
+  function govern(raw) {
+    if (raw > 0.5) return;
+    gov.acc += raw; gov.n++; if (gov.acc < 1) return;
+    const avg = gov.acc / gov.n; gov.acc = 0; gov.n = 0; X.stats.avg = avg; gov.min = Math.min(gov.min, avg);
+    const fr = X.session && X.session.frameRate, frame = fr > 20 ? 1 / fr : Math.max(gov.min, 1 / 120); X.stats.target = frame;
+    if (avg > frame * 1.12 && X.scale > X.minScale) { X.scale = Math.max(X.minScale, X.scale * 0.88); X.sized = false; gov.fast = 0; }
+    else if (avg < frame * 1.04) { if (++gov.fast >= 15 && X.scale < X.maxScale) { X.scale = Math.min(X.maxScale, X.scale * 1.06); X.sized = false; gov.fast = 0; } }
+    else gov.fast = 0;
+  }
+  /*native{*/
+  govern = function (raw, frameInterval, sceneInterval) {
     if (raw > 0.5) return;
     const metal = !!App.gfx.beginStereoEye;
     if (metal) {
@@ -319,29 +332,31 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
     if (gov.slow >= (metal ? 2 : 1) && X.scale > X.minScale) { X.scale = Math.max(X.minScale, X.scale * (metal && cadence < frame * 1.16 ? 0.96 : 0.88)); X.sized = false; gov.slow = gov.fast = 0; }
     else if (fast) { if (++gov.fast >= 15 && X.scale < X.maxScale) { X.scale = Math.min(X.maxScale, X.scale * 1.06); X.sized = false; gov.fast = 0; } }
     else gov.fast = 0;
-  }
+  };
+  /*}native*/
 
   // ---- drawing: shared maps once, then each eye into its own picture, words and edges on top, and that handed to the headset
   function render() {
     const gfx = App.gfx, pose = X.pose, layer = X.layer;
+    /*native{*/
     const photo = X.photoMode;
     let shot = null;
+    /*}native*/
     gfx.beginFrame();
     Render.renderShared();
     // (no lens in a headset: none of what a camera's glass does to the light)
     Post.ghosts = 0; Post.burst = 0; Post.flare *= 0.6; Post.wet = 0; Post.wetNew = 0; Post.speed = 0; Post.radial = 0; Post.fringe = 0; Post.chat = [0, 0, 0];
-    if (!self.COLD_SMOKE?.nativeSpatialUI) panel();
+    /*native{*/if (!self.COLD_SMOKE?.nativeSpatialUI) /*}native*/panel();
     for (const [index, v] of pose.views.entries()) {
       const s = sides(v.projectionMatrix);
       if (-s.L > X.tx * 1.001 || s.R > X.tx * 1.001 || -s.B > X.ty * 1.001 || s.T > X.ty * 1.001) X.sized = false;      // (it changed: sized again next frame)
-      const direct = !!gfx.beginStereoEye;
-      const halfY = direct ? (s.T - s.B) * 0.5 : X.ty;
-      const halfX = direct ? (s.R - s.L) * 0.5 : X.tx;
-      const eye = camOf(v.transform, 2 * Math.atan(halfY));
-      Render.eyeGlobals(eye, direct ? s : null);
-      gfx.screen = eyeT; Render.renderView(eye, direct ? s : null); gfx.screen = null;
+      /*native{*/const direct = !!gfx.beginStereoEye;/*}native*/
+      const eye = camOf(v.transform, 2 * Math.atan(/*native{*/direct ? (s.T - s.B) * 0.5 : /*}native*/X.ty));
+      Render.eyeGlobals(eye, /*native{*/direct ? s : /*}native*/null);
+      gfx.screen = eyeT; Render.renderView(eye, /*native{*/direct ? s : /*}native*/null); gfx.screen = null;
       const vp = layer.getViewport(v), tx = X.tx, ty = X.ty;
-      const crop = direct ? [0, 0, 1, 1] : [(s.L + tx) / (2 * tx), (ty - s.T) / (2 * ty), (s.R + tx) / (2 * tx), (ty - s.B) / (2 * ty)];
+      const crop = /*native{*/direct ? [0, 0, 1, 1] : /*}native*/[(s.L + tx) / (2 * tx), (ty - s.T) / (2 * ty), (s.R + tx) / (2 * tx), (ty - s.B) / (2 * ty)];
+      /*native{*/
       const w = Math.max(1, Math.round(eyeTex.w * (crop[2] - crop[0])));
       const h = Math.max(1, Math.round(eyeTex.h * (crop[3] - crop[1])));
       if (photo?.shutter && index === 0) {
@@ -352,36 +367,40 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
         gfx.draw(pPresent, { u: { p: crop }, tex: { tA: eyeTex }, count: 3 });
         gfx.endPass();
       }
+      /*}native*/
       if (panelTex || X.vig > 0.01) {
         gfx.beginPass(eyeT, {});
         if (panelTex) drawPanel();
-        if (X.vig > 0.01) gfx.draw(pVig, { u: { p: [X.vig, halfX, halfY, lerp(1.1, 0.42, X.vig)] }, count: 3 });
+        if (X.vig > 0.01) gfx.draw(pVig, { u: { p: [X.vig, /*native{*/direct ? (s.R - s.L) * 0.5 : /*}native*/X.tx, /*native{*/direct ? (s.T - s.B) * 0.5 : /*}native*/X.ty, lerp(1.1, 0.42, X.vig)] }, count: 3 });
         gfx.endPass();
       }
-      if (gfx.beginStereoEye) {
-        gfx.beginStereoEye(X.frameID, index, w, h, Render.depth, crop, CAM_NEAR, CAM_FAR);
-      } else gfx.beginRaw(layer.framebuffer, vp.x, vp.y, vp.width, vp.height);
+      /*native{*/if (direct) gfx.beginStereoEye(X.frameID, index, w, h, Render.depth, crop, CAM_NEAR, CAM_FAR);
+      else /*}native*/gfx.beginRaw(layer.framebuffer, vp.x, vp.y, vp.width, vp.height);
       gfx.draw(pPresent, { u: { p: crop }, tex: { tA: eyeTex }, count: 3 });
-      if (gfx.beginStereoEye) gfx.endPass();
+      /*native{*/if (direct) gfx.endPass();/*}native*/
     }
     gfx.endFrame();
+    /*native{*/
     if (shot) {
       photo.message = '正在保存';
       self.COLD_SMOKE.saveGamePhoto(shot.id).then(message => { photo.message = message; })
         .finally(() => gfx.destroyTexture(shot));
     }
+    /*}native*/
     Render.frame++;
   }
 
   // ---- the words in the air: on the title page what to do, in a run the speed. They stand in the rig, ahead and below, like a dashboard
   function panelContent() {
     const t = s => I18N.t(s);
+    /*native{*/
     if (X.photoMode) return { kind: 'photo', lines: [t(X.photoMode.message || '转头取景 · 左摇杆移动'), t('X 拍摄 · B 返回滑行')] };
     if (!X.bodyControls && (UI.state === 'title' || UI.state === 'starting')) {
       return { kind: 'title', lines: [t('按手柄 A 出发'), t('左摇杆转向和调整重心'),
         t('按住 A 蓄力，松开起跳 · RT 加速'), t('LB / RB 换视角 · X 拍照'), t('Y 校准正前方 · 菜单键退出')] };
     }
-    if (UI.state === 'title' || UI.state === 'starting') return { kind: 'title', lines: [t('捏一下手指 出发'), t('左右歪头转弯 · 头往前压板头，往后压板尾'), t('右手捏住 蹲低加速 · 左手捏住 蓄力，松开起跳'), (self.COLD_SMOKE?.spatial ? t('手柄：左摇杆转向 · A 起跳 · RT 加速 · 菜单键退出') : t('按数码表冠退出'))] };
+    /*}native*/
+    if (UI.state === 'title' || UI.state === 'starting') return { kind: 'title', lines: [t('捏一下手指 出发'), t('左右歪头转弯 · 头往前压板头，往后压板尾'), t('右手捏住 蹲低加速 · 左手捏住 蓄力，松开起跳'), /*native{*/self.COLD_SMOKE?.spatial ? t('手柄：左摇杆转向 · A 起跳 · RT 加速 · 菜单键退出') : /*}native*/t('按数码表冠退出')] };
     if (UI.state === 'run') return { kind: 'run', lines: [String(Math.round((Game.s.speed || 0) * 3.6))] };
     return null;
   }
@@ -400,12 +419,12 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
     if (c.kind === 'title') {
       g.font = '600 64px ' + sans; g.fillStyle = '#f7d6a2'; g.fillText(c.lines[0], W / 2, 120);
       g.fillStyle = '#f4ecdf'; g.font = '400 36px ' + sans; g.fillText(c.lines[1], W / 2, 240); g.fillText(c.lines[2], W / 2, 305);
-      g.fillStyle = 'rgba(244,236,223,0.8)'; g.font = '400 30px ' + sans; g.fillText(c.lines[3], W / 2, c.lines[4] ? 372 : 410);
-      if (c.lines[4]) g.fillText(c.lines[4], W / 2, 423);
-    } else if (c.kind === 'photo') {
+      g.fillStyle = 'rgba(244,236,223,0.8)'; g.font = '400 30px ' + sans; g.fillText(c.lines[3], W / 2, /*native{*/c.lines[4] ? 372 : /*}native*/410);
+      /*native{*/if (c.lines[4]) g.fillText(c.lines[4], W / 2, 423);/*}native*/
+    }/*native{*/ else if (c.kind === 'photo') {
       g.font = '500 62px ' + sans; g.fillText(c.lines[0], W / 2, 196, W - 50);
       g.font = '400 56px ' + sans; g.fillText(c.lines[1], W / 2, 314, W - 50);
-    } else {
+    }/*}native*/ else {
       g.font = '300 260px ' + sans; g.fillText(c.lines[0], W / 2 - 60, H / 2 + 10);
       g.font = '500 56px ' + sans; g.fillStyle = 'rgba(244,236,223,0.7)'; g.textAlign = 'left'; g.fillText('KM/H', W / 2 + 160, H / 2 + 70);
     }
@@ -414,7 +433,7 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
   }
   function drawPanel() {
     const c = X.panel; if (!c) return;
-    const big = c.kind === 'title', w = big ? 1.5 : c.kind === 'photo' ? 0.64 : 0.34, h = w / 2, at = big ? [0, -0.05, -2.3] : [0, -0.62, -1.5], f = phi(), o = Render.origin;
+    const big = c.kind === 'title', w = big ? 1.5 : /*native{*/c.kind === 'photo' ? 0.64 : /*}native*/0.34, h = w / 2, at = big ? [0, -0.05, -2.3] : [0, -0.62, -1.5], f = phi(), o = Render.origin;
     const ctr = X.rig.map((r, i) => r + rotY(f, at)[i] - o[i]), right = rotY(f, [w, 0, 0]);
     const p0 = [ctr[0] - right[0] / 2, ctr[1] + h / 2, ctr[2] - right[2] / 2, big ? 1 : 0.85];
     App.gfx.draw(pPanel, { u: { p0, ex: [right[0], 0, right[2], 0], ey: [0, -h, 0, 0] }, tex: { tP: panelTex }, count: 4 });

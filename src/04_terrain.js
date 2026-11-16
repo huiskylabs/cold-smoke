@@ -73,7 +73,7 @@ function makeSnowTexture(gfx, sunAz) {
       d[i * 4 + 2] = clamp(127.5 + h0 * 110, 0, 255); d[i * 4 + 3] = clamp(hz / 48 * 255, 0, 255);
     }
     const t = gfx.texture({ w: n, h: n, format: 'rgba8', wrap: 'repeat', filter: 'linear', mips: true,
-      anisotropy: self.COLD_SMOKE?.spatial ? 2 : 1, data: d }); gfx.genMips(t); return t;
+      anisotropy: /*native{*/self.COLD_SMOKE?.spatial ? 2 : /*}native*/1, data: d }); gfx.genMips(t); return t;
   };
   Tex.snow = build(false, 2100); Tex.snowFine = build(true, 2100);
 }
@@ -271,6 +271,7 @@ const Terrain = (() => {
   // each outer ray bounds every visible height, even on a steep gully wall.
   function groundWedge(c, s) {
     if (!s) return null;
+    /*native{*/
     let low = Infinity, high = -Infinity, left, right;
     for (const u of [s.L, s.R]) for (const v of [s.B, s.T]) {
       const x = c.fwd[0] + u * c.right[0] + v * c.up[0];
@@ -282,9 +283,12 @@ const Terrain = (() => {
     // Looking up or down can put the ground projection all around the eye.
     if (high - low >= Math.PI - 0.001) return null;
     return [left, right].map(([x, z]) => ({ x, z, eye: x * c.pos[0] + z * c.pos[2], radius: 16 * (Math.abs(x) + Math.abs(z)) }));
+    /*}native*/
+    return null;
   }
   function drawGrid(L, r, binding, planes) {
     if (!planes) { gfx.draw(pipe, { ...binding, count: r.n }); return; }
+    /*native{*/
     let first = -1;
     for (const tile of r.tiles) {
       const x = (L.cx + tile.x) * L.cell, z = (L.cz + tile.z) * L.cell;
@@ -293,6 +297,7 @@ const Terrain = (() => {
       if (!visible && first >= 0) { gfx.draw(pipe, { ...binding, first, count: tile.first - first }); first = -1; }
     }
     if (first >= 0) gfx.draw(pipe, { ...binding, first, count: r.n - first });
+    /*}native*/
   }
   T.draw = function (origin, shadowTex, skyTex, sunTau, eye, frustum) {
     const planes = groundWedge(eye, frustum);

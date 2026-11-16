@@ -103,9 +103,8 @@ const View = (() => {
   const handheld = () => !!(window.matchMedia && matchMedia('(pointer: coarse) and (hover: none)').matches);
   V.measure = function () {
     // UIKit reports the Metal surface in points when a window moves between displays.
-    const viewport = self.COLD_SMOKE?.viewport;
-    const iw = viewport?.width ?? innerWidth, ih = viewport?.height ?? innerHeight;
-    V.forced = V.force != null ? V.force : !(self.COLD_SMOKE && self.COLD_SMOKE.nativeWindow) && handheld() && ih > iw * 1.04;
+    const iw = /*native{*/self.COLD_SMOKE?.viewport?.width ?? /*}native*/innerWidth, ih = /*native{*/self.COLD_SMOKE?.viewport?.height ?? /*}native*/innerHeight;
+    V.forced = V.force != null ? V.force : /*native{*/!(self.COLD_SMOKE && self.COLD_SMOKE.nativeWindow) && /*}native*/handheld() && ih > iw * 1.04;
     V.rot = V.forced ? (V.flip ? -90 : 90) : 0;
     V.w = V.forced ? ih : iw; V.h = V.forced ? iw : ih;
     V.wide = V.w >= V.h * 1.12; V.short = V.h < 520;

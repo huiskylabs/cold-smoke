@@ -24,6 +24,8 @@ script = script.slice(0, fontStart) + script.slice(fontEnd);
 script = script.replace('/*__JS__*/', () => js);
 // code marked /*web{*/ … /*}web*/ in src/ (device orientation, asking for the whole screen) is left out: the container forbids it
 { const n = (script.match(/\/\*web\{\*\//g) || []).length; script = script.replace(/\/\*web\{\*\/[\s\S]*?\/\*\}web\*\//g, ''); if (/web\{|\}web/.test(script)) throw new Error('unbalanced /*web{*/ markers'); console.log('left out', n, 'web-only blocks'); }
+// the same native blocks build.js strips: the container is a web page
+{ const n = (script.match(/\/\*native\{\*\//g) || []).length; script = script.replace(/\/\*native\{\*\/[\s\S]*?\/\*\}native\*\//g, ''); if (script.includes('/*native{*/') || script.includes('/*}native*/')) throw new Error('unbalanced /*native{*/ markers'); console.log('left out', n, 'native blocks'); }
 const polyfills = fs.readFileSync(path.join(root, 'xhs', 'polyfills.js'), 'utf8');
 
 // ---- markup and style: the template without its script, its claude.ai meta, inside a whole document

@@ -6,6 +6,7 @@
 // any zh* is Chinese, everything else English.
 const I18N = (() => {
   const EN = {
+    /*native{*/
     '身体动作控制 开': 'Body controls on', '身体动作控制 关': 'Body controls off',
     '按手柄 A 出发': 'Press A to start', '左摇杆转向和调整重心': 'Left stick to steer and shift weight',
     'LB / RB 换视角 · X 拍照': 'LB / RB: change view · X: photo mode',
@@ -17,6 +18,8 @@ const I18N = (() => {
     'Y 校准正前方 · 菜单键退出': 'Y to recenter · Menu to leave',
     '手柄：左摇杆转向 · A 起跳 · RT 加速 · 菜单键退出': 'Stick: steer · A: jump · RT: tuck · Menu: exit',
     '选择沉浸模式，或按手柄 Y 进入 · A 出发 / 起跳 · RT 加速': 'Choose Immersive or press Y · A: start / jump · RT: tuck',
+    '下方按钮起跳和加速': 'Jump and Tuck near the bottom',
+    /*}native*/
     // ---- title and loading
     '一个人，一座山，一直往下': 'One skier, one mountain, all the way down',
     '沉浸模式': 'Immersive', '捏一下手指 出发': 'Pinch to start', '左右歪头转弯 · 头往前压板头，往后压板尾': 'Lean your head to turn · forward for the tips, back for the tails',
@@ -27,7 +30,7 @@ const I18N = (() => {
     '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速': '← → or A D to turn · Space to jump · ↓ or S to tuck',
     '按住屏幕左右拖动转弯': 'Hold and drag left or right to turn',
     '倾斜手机或按住屏幕左右拖动转弯': 'Tilt the phone, or hold and drag, to turn',
-    '下方按钮起跳和加速': 'Jump and Tuck near the bottom', '右下角 跳 / 加速': 'Jump and Tuck at bottom right',
+    '右下角 跳 / 加速': 'Jump and Tuck at bottom right',
     '倾斜手机转弯，或按住屏幕左右拖动': 'Tilt the phone to turn, or hold and drag',
     '醒来': 'waking', '磨雪': 'grinding snow', '远山与城市': 'far ranges and the city', '立起天空': 'raising the sky', '林子里有鹿': 'deer in the woods',
     '种树': 'planting trees', '点亮星云': 'lighting the nebula', '调音': 'tuning', '调光': 'setting the light', '铺雪': 'laying the snow', '第一缕光': 'first light',
