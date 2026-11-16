@@ -90,7 +90,7 @@ const Sky = (() => {
         col = overcast(d, mu, col);
         // beyond the mountain, nearest last: ranges on the horizon, the cloud deck, the city standing in it
         if (U.world.x < 0.5) { col = farRanges(d, col); }
-        if (U.world.x > 0.5) { col += metroDome(d); col = mix(col, metroPlain(d, mu, col), smoothstep(0.02, 0.0, d.y)); }   // (不夜城: 16b_metro.js)
+        if (U.world.x > 0.5) { col += metroDome(d); col = metroPlain(d, mu, col); }   // (不夜城: 16b_metro.js)
         else { col = mix(col, cloudSea(d, mu, col), smoothstep(0.0, -0.006, d.y)); }
         if (U.world.x < 0.5) { let cb: vec3f = col; col = mix(cityLayer(d, col), cb, M.wf.w); }      // (behind heavy snow only a shape of it: 05b_weather.js)
         // ...and nearer than all of it, a bolt of lightning
