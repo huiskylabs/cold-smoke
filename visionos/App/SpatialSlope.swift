@@ -4,7 +4,7 @@ import SwiftUI
 import simd
 import os
 
-let slopeLog = Logger(subsystem: "com.coldsmoke.vision", category: "Slope")
+let slopeLog = Logger(subsystem: "xyz.huisky.coldsmoke.vision", category: "Slope")
 
 func reportSlopeMilestone(_ message: String) {
     slopeLog.notice("\(message, privacy: .public)")
