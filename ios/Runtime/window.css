@@ -113,6 +113,16 @@ html, body, #app, #view { background: transparent; }
   pointer-events: none;
 }
 .native-controls #app #pad #shoot { top: 50%; transform: translateY(-50%); width: 48px; height: 48px; }
+/* In the left Split View pane, keep the buttons at the device edge and the readout by the divider. */
+.native-controls[data-left-split] #app.run :is(#bar, #shoot) { left: var(--bar-offset); right: auto; }
+.native-controls[data-left-split] #app.run #pad {
+  --thumb-inset: max(20px, var(--sl), var(--xl));
+}
+.native-controls[data-left-split] #app.run #jump { left: calc(var(--thumb-inset) + 8px); right: auto; }
+.native-controls[data-left-split] #app.run #tuck { left: calc(var(--thumb-inset) + 94px); right: auto; }
+.native-controls[data-left-split] #app.run #hud .spd {
+  left: auto; right: var(--gr); align-items: flex-end; text-align: right;
+}
 @media (max-width: 560px), (max-height: 560px) {
   .native-controls #app #pad #shoot { width: 44px; height: 44px; }
 }

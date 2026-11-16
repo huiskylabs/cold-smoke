@@ -142,7 +142,7 @@
   };
   // Scope observations to UI state. Speed, steering and the charge ring update every frame.
   const observer = new MutationObserver(schedule);
-  for (const el of [root, app, hud, pause, title, menu, photo, preview]) observer.observe(el, { attributes: true, attributeFilter: ['class', 'style', 'data-fold', 'data-bar-edge', 'data-control-layout'] });
+  for (const el of [root, app, hud, pause, title, menu, photo, preview]) observer.observe(el, { attributes: true, attributeFilter: ['class', 'style', 'data-fold', 'data-bar-edge', 'data-control-layout', 'data-left-split'] });
   for (const el of [bar, cta, nav, pane, pad]) observer.observe(el, { subtree: true, childList: true, characterData: true,
     attributes: true, attributeFilter: ['class', 'hidden', 'aria-label', 'aria-pressed', 'aria-expanded'] });
   const resize = new ResizeObserver(schedule);
@@ -154,8 +154,8 @@
     byID('ph-again').setAttribute('aria-label', I18N.en() ? 'Back to camera' : '返回取景');
     if (help) help.textContent = I18N.en() ? 'Swipe the camera strip or tap a name to switch views. Drag with two fingers to look around.'
                                           : '左右滑动机位栏，或轻点名称切换视角。双指拖动可环顾四周。';
-    if (photoHelp) photoHelp.textContent = I18N.en() ? 'Tap the camera icon on the right to frame a shot. Tap the shutter to take it, or Back to keep skiing.'
-                                                    : '点右侧的相机图标取景，按快门拍照，点「返回」继续滑行。';
+    if (photoHelp) photoHelp.textContent = I18N.en() ? 'Tap the camera icon to frame a shot. Tap the shutter to take it, or Back to keep skiing.'
+                                                    : '点相机图标取景，按快门拍照，点「返回」继续滑行。';
   }
   controlHelp();
   I18N.on(controlHelp);

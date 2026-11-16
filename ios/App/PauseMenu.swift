@@ -67,8 +67,9 @@ struct PauseMenu: View {
     }
     var body: some View {
         GeometryReader { geo in
-            let wide = widthClass != .compact && geo.size.width >= 620 && !typeSize.isAccessibilitySize
-            let inset: CGFloat = wide ? 16 : 8
+            // Two panes need 588 points of content width plus the outer margins.
+            let wide = widthClass != .compact && geo.size.width >= 652 && !typeSize.isAccessibilitySize
+            let inset: CGFloat = wide ? 32 : 16
             let fold = division(in: geo)
             let stacked = !fold.isNull && fold.width > fold.height
             let gap = fold.isNull ? 12 : (stacked ? fold.height : fold.width) + 2 * inset
@@ -84,7 +85,7 @@ struct PauseMenu: View {
                     }
                     if wide || detailVisible { detail(wide: wide, rail: rail) }
                 }
-                .padding(.horizontal, inset).padding(.vertical, inset)
+                .padding(inset)
                 .onAppear { if wide { detailVisible = true } }
                 .onChange(of: wide) { isWide in if isWide { detailVisible = true } }
             }.overlay(alignment: .topLeading) {
@@ -368,7 +369,7 @@ struct PauseMenu: View {
                 }
             }
             group(t("拍照","Photography")) {
-                row(t("打开相机","Open the camera"), detail: t("轻点右侧的相机取景，按快门拍照。轻点返回继续滑行。","Tap the camera on the right to frame a shot, then tap the shutter. Tap Back to keep skiing."), icon:"camera")
+                row(t("打开相机","Open the camera"), detail: t("轻点相机取景，按快门拍照。轻点返回继续滑行。","Tap the camera to frame a shot, then tap the shutter. Tap Back to keep skiing."), icon:"camera")
             }
         }
     }

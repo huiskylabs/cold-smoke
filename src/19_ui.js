@@ -93,8 +93,13 @@ const UI = (() => {
   const faOn = () => typeof Variants !== 'undefined' && Variants.val.fa === 'b';
   function howText() {
     const hh = U.hh, framed = U.framed, fa = faOn(); el.app.classList.toggle('fa', fa);
-    el.how.textContent = T(!hh ? (fa ? '← → 转弯 · ↑ ↓ 压板头 / 板尾 · 空格 跳 · Shift 加速' : '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速')
-      : fa ? '按住屏幕，左右拖转弯，上下拖压板头 / 板尾 · 右下角 跳 / 加速' : framed ? '按住屏幕左右拖动转弯 · 右下角 跳 / 加速' : '倾斜手机或按住屏幕左右拖动转弯 · 右下角 跳 / 加速');
+    if (!hh) {
+      el.how.textContent = T(fa ? '← → 转弯 · ↑ ↓ 压板头 / 板尾 · 空格 跳 · Shift 加速' : '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速');
+      return;
+    }
+    const steering = fa ? '按住屏幕，左右拖转弯，上下拖压板头 / 板尾' : framed ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
+    const actions = self.COLD_SMOKE?.nativeWindow ? '下方按钮起跳和加速' : '右下角 跳 / 加速';
+    el.how.textContent = T(steering) + ' · ' + T(actions);
   }
   if (typeof Variants !== 'undefined') Variants.on(n => { if (n === 'fa' && el) howText(); });
   U.stage = function (f, name) { if (!el) return; el.fill.style.transform = 'scaleX(' + f.toFixed(3) + ')'; if (name) el.stage.textContent = T(name); };

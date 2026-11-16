@@ -21,6 +21,7 @@ final class GameController: UIViewController, WKNavigationDelegate {
     private weak var controls: GameControls?
     private struct ControlLayout: Equatable {
         var edge = ""
+        var leftSplit = false
         var barTop: CGFloat = 0
         var barInset: CGFloat = 0
         var compactControls = false
@@ -171,6 +172,13 @@ final class GameController: UIViewController, WKNavigationDelegate {
             // UIKit reserves room along this strip for the camera, system UI and curved corners.
             let insets = web.edgeInsets(for: .bar(onEdge: physicalEdge, extent: 52))
             layout.edge = left ? "left" : "right"
+            if left, web.traitCollection.userInterfaceIdiom == .phone, let scene = web.window?.windowScene {
+                // The cover can also have a left bar. Only mirror the HUD in a half-width scene.
+                let sceneSpace = scene.effectiveGeometry.coordinateSpace
+                let screenSpace = scene.screen.coordinateSpace
+                let display = sceneSpace.convert(screenSpace.bounds, from: screenSpace)
+                layout.leftSplit = sceneSpace.bounds.width > 0 && sceneSpace.bounds.width <= display.width / 2 + 1
+            }
             layout.barTop = insets.top
             layout.barInset = left ? insets.left : insets.right
             // The cover uses compact width in either orientation; the open viewfinder
@@ -203,6 +211,7 @@ final class GameController: UIViewController, WKNavigationDelegate {
         web.callAsyncJavaScript("""
             const root = document.documentElement;
             root.dataset.barEdge = edge;
+            root.toggleAttribute('data-left-split', leftSplit);
             root.dataset.controlLayout = compactControls ? 'compact' : 'expanded';
             root.style.setProperty('--bar-top', barTop + 'px');
             root.style.setProperty('--bar-inset', barInset + 'px');
@@ -213,7 +222,7 @@ final class GameController: UIViewController, WKNavigationDelegate {
             root.style.setProperty('--fold-start', start + 'px');
             root.style.setProperty('--fold-gap', gap + 'px');
             """, arguments: ["edge": layout.edge, "barTop": layout.barTop, "barInset": layout.barInset,
-                             "compactControls": layout.compactControls,
+                             "compactControls": layout.compactControls, "leftSplit": layout.leftSplit,
                              "photoAxis": layout.photoAxis, "photoTop": layout.photoTop, "photoBottom": layout.photoBottom,
                              "axis": fold.isNull ? "" : vertical ? "vertical" : "horizontal",
                              "start": start, "gap": gap], in: nil, in: .page, completionHandler: nil)
