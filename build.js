@@ -16,7 +16,16 @@ let js = '';
 for (const f of files) js += '\n// ===== ' + f + ' =====\n' + fs.readFileSync(path.join(srcDir, f), 'utf8');
 const stripped = stripNative(js);
 js = stripped.out;
-const tpl = fs.readFileSync(path.join(root, 'template.html'), 'utf8');
+let tpl = fs.readFileSync(path.join(root, 'template.html'), 'utf8');
+// the three faces ride inside the page (the same subsets the 小红书 package carries, xhs/fonts/, made by tools/fetch-xhs-fonts.js), so the
+// title is set in its own Song wherever Google Fonts cannot be reached. The template's loader sees #faces and fetches nothing
+{
+  const fd = path.join(root, 'xhs', 'fonts');
+  const css = fs.readFileSync(path.join(fd, 'fonts.css'), 'utf8').replace(/\/\*[\s\S]*?\*\/\s*/g, '')
+    .replace(/url\(\.\/([\w.-]+\.woff2)\)/g, (_, f) => 'url(data:font/woff2;base64,' + fs.readFileSync(path.join(fd, f)).toString('base64') + ')');
+  if (!tpl.includes('<style>')) throw new Error('template.html: no <style> to put the faces before');
+  tpl = tpl.replace('<style>', () => '<style id="faces">' + css.trim() + '</style>\n<style>');
+}
 const out = tpl.replace('/*__JS__*/', () => js);
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(root, 'dist', 'index.html'), out);
