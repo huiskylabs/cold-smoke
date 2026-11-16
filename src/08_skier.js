@@ -936,11 +936,15 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     const axis = (i, local) => mapDir(Q.rot(R[i], local));
     const orth = (x, y) => { let o = v3.sub(x, v3.mul(y, v3.dot(x, y))); if (v3.len(o) < 1e-4) o = v3.cross(y, [0, 0, 1]); return v3.norm(o); };
     const dir = (a, b, fb) => { const d = v3.sub(b, a); return v3.len(d) > 1e-4 ? v3.norm(d) : fb; };
-    const pY = axis(I.pelvis, [0, 1, 0]), pX = orth(axis(I.pelvis, [-1, 0, 0]), pY), pZ = v3.cross(pX, pY);
+    const pY = axis(I.pelvis, [0, 1, 0]);
+    // the clip yaws the pelvis against the skis (feetYaw, up to about 43°) and the kit's own leg solver cancels that in the
+    // femurs so the skis stay parallel. The hip sockets here stay square to the game's skis; the chest, taken from the kit, keeps the counter-rotation.
+    const footRight = Ffoot => [Ffoot[0], Ffoot[1], Ffoot[2]];
+    const hipX = orth(v3.add(footRight(F[B.footL]), footRight(F[B.footR])), pY), pZ = v3.cross(hipX, pY);
     let pel = map(at('pelvis'));
     const reach = (LEN.thigh + LEN.shin) * 0.96;
     for (let it = 0; it < 4; it++) {
-      const hL = v3.add(v3.mad(pel, pX, -LEN.hipW), v3.mul(pY, -LEN.hipD)), hR = v3.add(v3.mad(pel, pX, LEN.hipW), v3.mul(pY, -LEN.hipD));
+      const hL = v3.add(v3.mad(pel, hipX, -LEN.hipW), v3.mul(pY, -LEN.hipD)), hR = v3.add(v3.mad(pel, hipX, LEN.hipW), v3.mul(pY, -LEN.hipD));
       const over = Math.max(v3.len(v3.sub(hL, gL)), v3.len(v3.sub(hR, gR))) - reach;
       if (over <= 0) break;
       const d = v3.sub(midG, pel), l = v3.len(d) || 1;
@@ -952,8 +956,8 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
       if (L < min) return v3.mad(ankle, L < 1e-4 ? [0, 1, 0] : d, min / (L || 1));
       return hip;
     };
-    const hipL = fit(v3.add(v3.mad(pel, pX, -LEN.hipW), v3.mul(pY, -LEN.hipD)), gL);
-    const hipR = fit(v3.add(v3.mad(pel, pX, LEN.hipW), v3.mul(pY, -LEN.hipD)), gR);
+    const hipL = fit(v3.add(v3.mad(pel, hipX, -LEN.hipW), v3.mul(pY, -LEN.hipD)), gL);
+    const hipR = fit(v3.add(v3.mad(pel, hipX, LEN.hipW), v3.mul(pY, -LEN.hipD)), gR);
     const dSpine = dir(map(at('pelvis')), map(at('thorax_lo')), pY);
     const chest = v3.mad(pel, dSpine, LEN.spine);
     const cY = dir(map(at('thorax_lo')), map(at('neck_lo')), dSpine), cX = orth(axis(I.thorax_hi, [-1, 0, 0]), cY), cZ = v3.cross(cX, cY);
@@ -970,15 +974,18 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
       return { elbow, wrist, grip: v3.mad(wrist, f, LEN.grip) };
     };
     const aL = arm(shL, 'L'), aR = arm(shR, 'R');
-    const kneeL = ik2(hipL, gL, LEN.thigh, LEN.shin, map(at('shin_L')));
-    const kneeR = ik2(hipR, gR, LEN.thigh, LEN.shin, map(at('shin_R')));
+    // bend the knee over the game's ski, not toward the kit knee: that knee tracked a foot the clip had walked
+    // fore and aft of its partner, and aiming at it with both boots back side by side turned the legs out into a plough
+    const overSki = (ankle, foot) => v3.add(ankle, v3.add(v3.mul(v3.norm([-foot[8], -foot[9], -foot[10]]), 1), v3.mul([foot[4], foot[5], foot[6]], 0.2)));
+    const kneeL = ik2(hipL, gL, LEN.thigh, LEN.shin, overSki(gL, F[B.footL]));
+    const kneeR = ik2(hipR, gR, LEN.thigh, LEN.shin, overSki(gR, F[B.footR]));
     J.pelvis = pel; J.hipL = hipL; J.hipR = hipR; J.chest = chest; J.neck = neck; J.skull = skull;
     J.head = v3.add(v3.mad(skull, hY, LEN.head), v3.mul(hZ, -0.015));
     J.shL = shL; J.shR = shR; J.elbowL = aL.elbow; J.elbowR = aR.elbow; J.wristL = aL.wrist; J.wristR = aR.wrist; J.gripL = aL.grip; J.gripR = aR.grip;
     J.kneeL = kneeL; J.kneeR = kneeR;
     const limb = (i0, a, b, c) => { const ax = v3.cross(v3.sub(b, a), v3.sub(c, b)), hx = v3.len(ax) > 1e-4 ? v3.norm(ax) : [1, 0, 0]; F[i0] = frameXY(a, v3.sub(b, a), hx); F[i0 + 1] = frameXY(b, v3.sub(c, b), hx); };
-    F[B.pelvis] = m4.fromBasis(pX, pY, pZ, pel);
-    F[B.spine] = frameXY(pel, v3.sub(chest, pel), pX);
+    F[B.pelvis] = m4.fromBasis(hipX, pY, pZ, pel);
+    F[B.spine] = frameXY(pel, v3.sub(chest, pel), hipX);
     F[B.chest] = frameXY(chest, v3.sub(neck, chest), cX);
     F[B.neck] = frameXY(neck, v3.sub(skull, neck), v3.add(cX, hX));
     F[B.head] = m4.fromBasis(hX, hY, hZ, skull);

@@ -45,6 +45,37 @@ function finiteM(M, tag) {
   ok(true, tag + ' matrices finite');
 }
 function len(a, b) { const d = [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; return Math.hypot(d[0], d[1], d[2]); }
+function vdot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+function vsub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+function vnrm(a) { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
+function skiFwd(F) { return vnrm([-F[8], -F[9], -F[10]]); }
+function deg(a, b) { return Math.acos(Math.max(-1, Math.min(1, vdot(vnrm(a), vnrm(b))))) * 180 / Math.PI; }
+function kneeSki(J, F, side) {
+  const foot = F[B['foot' + side]], right = vnrm([foot[0], foot[1], foot[2]]), fwd = skiFwd(foot);
+  const v = vsub(J['knee' + side], J['ankle' + side]);
+  const lat = vdot(v, right), fore = vdot(v, fwd);
+  return { lat, fore, yaw: Math.atan2(lat, fore) * 180 / Math.PI };
+}
+// skis parallel and on the game's heading; knees over the boots, not turned out into a plough; ankle stance matches the procedural pose
+const legWorst = { yaw: 0, lat: 0, where: '' };
+function alignLegs(r, plain, tag) {
+  const sep = deg(skiFwd(r.F[B.footL]), skiFwd(r.F[B.footR]));
+  ok(sep < 5, tag + ' skis parallel (' + sep.toFixed(1) + '°)');
+  ok(deg(skiFwd(r.F[B.footL]), skiFwd(plain.s.F[B.footL])) < 5 && deg(skiFwd(r.F[B.footR]), skiFwd(plain.s.F[B.footR])) < 5, tag + ' skis on the game heading');
+  const sw = len(r.J.ankleL, r.J.ankleR), pw = len(plain.s.J.ankleL, plain.s.J.ankleR);
+  ok(Math.abs(sw - pw) < 0.04, tag + ' ankle stance ' + sw.toFixed(3) + ' vs procedural ' + pw.toFixed(3));
+  for (const side of ['L', 'R']) {
+    const k = kneeSki(r.J, r.F, side), q = kneeSki(plain.s.J, plain.s.F, side);
+    // the plough was each knee 0.2 m or more outside its own ski, yaw past 90°. A carve may shift both knees to the inside together.
+    ok(k.fore > 0.02, tag + ' ' + side + ' knee in front of the boot (' + k.fore.toFixed(3) + ' m)');
+    ok(Math.abs(k.lat) < 0.16, tag + ' ' + side + ' knee lateral ' + k.lat.toFixed(3) + ' (procedural ' + q.lat.toFixed(3) + ')');
+    ok(Math.abs(k.yaw) < 45, tag + ' ' + side + ' knee along the ski (' + k.yaw.toFixed(1) + '°, procedural ' + q.yaw.toFixed(1) + '°)');
+    if (Math.abs(k.yaw) > Math.abs(legWorst.yaw)) legWorst.yaw = k.yaw, legWorst.where = tag + ' ' + side;
+    if (Math.abs(k.lat) > Math.abs(legWorst.lat)) legWorst.lat = k.lat;
+  }
+  const L = kneeSki(r.J, r.F, 'L'), R = kneeSki(r.J, r.F, 'R');
+  ok(!(L.lat < -0.10 && R.lat > 0.10), tag + ' knees not turned out into a V (' + L.lat.toFixed(3) + ', ' + R.lat.toFixed(3) + ')');
+}
 function footCheck(r, tag) {
   for (const side of ['L', 'R']) {
     const F = r.F[B['foot' + side]], ankle = r.J['ankle' + side];
@@ -70,18 +101,42 @@ for (let i = 0; i <= 24; i++) {
   const plain = Skier.skin(pose);
   ok(r.F[B.footL].every((v, k) => v === plain.s.F[B.footL][k]), 'carve u=' + u.toFixed(3) + ' left ski unchanged');
   ok(r.F[B.footR].every((v, k) => v === plain.s.F[B.footR][k]), 'carve u=' + u.toFixed(3) + ' right ski unchanged');
+  alignLegs(r, plain, 'carve u=' + u.toFixed(3));
   const mid = (r.J.ankleL[0] + r.J.ankleR[0]) * 0.5;
   if (Math.abs(u - 0.125) < 1e-6) xRight = r.J.pelvis[0] - mid;
   if (Math.abs(u - 0.65625) < 0.03) xLeft = r.J.pelvis[0] - mid;
 }
 ok(xRight > xLeft, 'right apex leans right of the left apex (' + xRight.toFixed(3) + ' > ' + xLeft.toFixed(3) + ')');
 
-const tuck = Skier.kitAt(0.3, { tuck: 1, edge: 0.1, lean: 0.1, crouch: 0.5 });
+// a held edge: the same phase the game locks to, compared with the procedural pose at that edge
+function heldPhase(edge) {
+  const mag = Math.max(0, Math.min(1, Math.abs(edge) / 0.75));
+  const wrap = (a, b, t) => { let d = b - a; if (d > 0.5) d -= 1; if (d < -0.5) d += 1; return (a + d * t + 1) % 1; };
+  return edge >= 0 ? wrap(0.92, 0.125, mag) : wrap(0.42, 0.656, mag);
+}
+for (const edge of [-0.7, -0.35, 0, 0.35, 0.7]) {
+  const p = { edge, lean: edge * 0.9, stance: 0.34, crouch: 0.35 };
+  const lab = Skier.kitAt(heldPhase(edge), p), proc = Skier.skin(p);
+  alignLegs(lab, proc, 'edge ' + edge);
+  const bits = [];
+  for (const side of ['L', 'R']) {
+    const k = kneeSki(lab.J, lab.F, side), q = kneeSki(proc.s.J, proc.s.F, side);
+    ok(Math.abs(k.yaw) < Math.abs(q.yaw) + 40, 'edge ' + edge + ' ' + side + ' knee yaw ' + k.yaw.toFixed(1) + '° vs procedural ' + q.yaw.toFixed(1) + '°');
+    bits.push(side + ' ' + k.yaw.toFixed(0) + '°/' + q.yaw.toFixed(0) + '° lat ' + k.lat.toFixed(3) + '/' + q.lat.toFixed(3));
+  }
+  console.log('edge ' + edge + ' knee lab/proc ' + bits.join('  '));
+}
+
+const tuckPose = { tuck: 1, edge: 0.1, lean: 0.1, crouch: 0.5 };
+const tuck = Skier.kitAt(0.3, tuckPose);
 finiteM(tuck.M, 'tuck');
 footCheck(tuck, 'tuck');
-const jump = Skier.kitAt(0.4, { air: 1, edge: 0, lean: 0, crouch: 0.4 });
+alignLegs(tuck, Skier.skin(tuckPose), 'tuck');
+const jumpPose = { air: 1, edge: 0, lean: 0, crouch: 0.4 };
+const jump = Skier.kitAt(0.4, jumpPose);
 finiteM(jump.M, 'jump');
 footCheck(jump, 'jump');
+alignLegs(jump, Skier.skin(jumpPose), 'jump');
 const plain = Skier.skin({ lean: 0.2, edge: 0.2, crouch: 0.3 });
 finiteM(plain.M, 'procedural');
 
@@ -110,4 +165,4 @@ ctx.DEV = false;
 ok(Skier.labOn() === false, 'off again outside dev');
 
 if (process.exitCode) console.error('kit pose test failed');
-else console.log('kit pose test ok (' + n + ' checks)');
+else console.log('kit pose test ok (' + n + ' checks); max knee yaw ' + legWorst.yaw.toFixed(1) + '° at ' + legWorst.where + ', max knee lateral ' + legWorst.lat.toFixed(3) + ' m');
