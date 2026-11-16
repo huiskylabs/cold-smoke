@@ -84,6 +84,7 @@ const I18N = (() => {
     '镜头': 'Camera', '人物与动作': 'Skier & motion', '画面': 'Picture', '雪': 'Snow', '场景与天气': 'Scene & weather', '手感': 'Feel', '新加的': 'New',
     '追身镜头': 'Chase camera', '林间镜头': 'Camera in trees', '穿林': 'Through the trees', '树林闪烁': 'Woods flicker', '分段机位': 'Camera per run', '雪板尖机位': 'Ski-tips camera', '俯冲手位': 'Hands in a tuck', '四角模糊': 'Corner blur',
     '雪面颤动': 'Snow chatter', '风压抖动': 'Wind buffet', '人物模型': 'Skier model', '衣服': 'Clothing', '持杖': 'Pole carry', '人物动作': 'Skier motion',
+    '动作': 'Motion', '现版': 'Current', '实验室新版': 'Lab',
     '逆光光斑': 'Lens ghosts', '高光': 'Highlights', '夜间雪雾': 'Spray at night', '夜空颜色': 'Night sky colour', '小云': 'Small clouds',
     '雪幕高度': 'Spray height', '闪光': 'Sparkle', '雪团': 'Snow clumps', '镜头上的雪': 'Snow on the lens', '粉雪深度': 'Powder depth', '风吹雪': 'Blowing snow',
     '岩壁': 'Rock walls', '夜里的月亮': 'Moon at night', '极光': 'Aurora', '和星云轮流': 'Takes turns with nebula', '随机': 'Random', '大雪样式': 'Heavy snow style', '山脊树': 'Ridge trees', '跳台旗': 'Jump flags', '入雪深浅': 'Ski sink', '风声': 'Wind sound',

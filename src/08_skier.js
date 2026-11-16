@@ -857,6 +857,153 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   const CLOTH = { a: [0, 0, 0], b: [1, 1, 1], c: [1.7, 1, 0.7] }, clo = { p: [0, 0, 0, 0], q: [0, 0, 1, 1], h: 1, t: -1 }, HEMP = [0, 0.08, 0.05];
   Variants.def('body', '人物模型', [['a', '原来'], ['b', '新的']], 'b');
   Variants.def('cloth', '衣服', [['a', '平整'], ['b', '自然'], ['c', '厚实']], 'b');
+  // lab pose (dev only): the kit's carve / tuck / ski-jump, retargeted onto these bones. Default stays the procedural pose.
+  // The row lives on the versions page, which is itself dev-only. ?motion=kit selects it without opening that page; COLD_SMOKE.noDev never does.
+  Variants.def('labmo', '动作', [['a', '现版'], ['b', '实验室新版']], 'a');
+  const kitSt = { airT: 0, landT: 0, peak: 0, tuckT: 0 }, kitBlend = { name: '', from: null, last: null, t: 1 };
+  // a clip change (carve into the jump, jump into the landing) eases across about a seventh of a second instead of popping
+  function blendTo(name, anat, dt, cut) {
+    if (!anat) return null;
+    if (cut || !kitBlend.from) { kitBlend.name = name; kitBlend.from = kitBlend.last = anat; kitBlend.t = 1; return anat; }
+    if (kitBlend.name !== name) { kitBlend.from = kitBlend.last; kitBlend.t = dt > 0 ? 0 : 1; kitBlend.name = name; }
+    else if (kitBlend.t < 1 && dt > 0) kitBlend.t = Math.min(1, kitBlend.t + dt / 0.14);
+    const out = kitBlend.t < 1 ? Human.lerpPose(kitBlend.from, anat, smooth(0, 1, kitBlend.t)) : anat;
+    kitBlend.last = anat;
+    return out;
+  }
+  function labOn() {
+    if (typeof self !== 'undefined' && self.COLD_SMOKE && self.COLD_SMOKE.noDev) return false;
+    let q = '';
+    try { q = (new URLSearchParams(location.search).get('motion') || '').toLowerCase(); } catch (e) {}
+    if (q === 'kit' || q === 'lab') return true;
+    if (q === 'game' || q === 'now' || q === 'a') return false;
+    const dev = (typeof DEV !== 'undefined' && DEV) || (typeof UI !== 'undefined' && UI.dev);
+    return !!(dev && typeof Variants !== 'undefined' && Variants.val.labmo === 'b');
+  }
+  // shortest step around the carve loop, so a release on one side meets the start of the other
+  function lerpWrap(a, b, t) { let d = b - a; if (d > 0.5) d -= 1; if (d < -0.5) d += 1; return (a + d * t + 1) % 1; }
+  // edge sign picks the side (right apex u=0.125, left u=0.656); how hard, and whether the edge is being let go, picks where on that side
+  function kitPhase(edge, dt) {
+    const e = edge || 0, mag = clamp(Math.abs(e) / 0.75, 0, 1), falling = Math.abs(e) < kitSt.peak - 0.04;
+    if (dt > 0) kitSt.peak = Math.max(Math.abs(e), kitSt.peak * Math.exp(-dt * 1.5));
+    else if (Math.abs(e) > kitSt.peak) kitSt.peak = Math.abs(e);
+    if (e >= 0) return falling ? lerpWrap(0.125, 0.42, 1 - mag) : lerpWrap(0.92, 0.125, mag);
+    return falling ? lerpWrap(0.656, 0.92, 1 - mag) : lerpWrap(0.42, 0.656, mag);
+  }
+  function samplePhase(name, u) {
+    const clip = Human.skiClip(name); if (!clip) return null;
+    return Human.Motion.sample(Human.skier(), clip, (((u % 1) + 1) % 1) * clip.dur);
+  }
+  function sampleSec(name, t) {
+    const clip = Human.skiClip(name); if (!clip) return null;
+    return Human.Motion.sample(Human.skier(), clip, t);
+  }
+  function chooseAnat(pose, dt, cut) {
+    if (cut) { kitSt.airT = 0; kitSt.landT = 0; kitSt.tuckT = 0; kitSt.peak = Math.abs(pose.edge || pose.lean || 0); }
+    if (pose.kitClip) return samplePhase(pose.kitClip, pose.kitU || 0);
+    const air = pose.air || 0;
+    if (air > 0.08) {
+      if (dt > 0) kitSt.airT += dt;
+      kitSt.landT = 0;
+      const t = kitSt.airT < 0.18 ? lerp(0.55, 0.85, sat(kitSt.airT / 0.18)) : lerp(0.9, 1.5, sat((kitSt.airT - 0.18) / 1.1));
+      return blendTo('skijump', sampleSec('skijump', t), dt, cut);
+    }
+    if (kitSt.airT > 0.05 && pose.kitU == null) {
+      if (dt > 0) kitSt.landT += dt;
+      if (kitSt.landT < 0.45) return blendTo('skijump', sampleSec('skijump', lerp(1.55, 2.55, sat(kitSt.landT / 0.45))), dt, cut);
+      kitSt.airT = 0; kitSt.landT = 0;
+    }
+    const u = pose.kitU != null ? ((pose.kitU % 1) + 1) % 1 : kitPhase(pose.edge != null ? pose.edge : (pose.lean || 0), dt);
+    let anat = samplePhase('carve', u);
+    const tuck = pose.tuck || 0;
+    if (anat && tuck > 0.25) {
+      if (dt > 0) kitSt.tuckT += dt;
+      anat = Human.lerpPose(anat, samplePhase('tuckhold', (kitSt.tuckT / 3) % 1), smooth(0.25, 0.8, tuck));
+    }
+    return blendTo('carve', anat, dt, cut);
+  }
+  // kit joint directions onto this skeleton. Feet, skis and bone lengths stay the game's; the clip only aims the joints.
+  function applyLab(s, pose, dt, cut) {
+    const anat = chooseAnat(pose, dt, cut); if (!anat) return;
+    const sk = Human.skier(), xf = Human.Skeleton.pose(sk, anat), I = sk.idx, P = xf.P, R = xf.R, Q = Human.q, J = s.J, F = s.F;
+    const at = n => P[I[n]];
+    const gL = J.ankleL, gR = J.ankleR, midG = v3.mul(v3.add(gL, gR), 0.5);
+    const midK = v3.mul(v3.add(at('talus_L'), at('talus_R')), 0.5);
+    const kitLeg = v3.len(v3.sub(at('shin_L'), at('thigh_L'))) + v3.len(v3.sub(at('talus_L'), at('shin_L'))) || 0.82;
+    const sc = (LEN.thigh + LEN.shin) / kitLeg;
+    const map = p => { const d = v3.sub(p, midK); return [midG[0] - d[0] * sc, midG[1] + d[1] * sc, midG[2] - d[2] * sc]; };
+    const mapDir = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [-v[0] / l, v[1] / l, -v[2] / l]; };
+    const axis = (i, local) => mapDir(Q.rot(R[i], local));
+    const orth = (x, y) => { let o = v3.sub(x, v3.mul(y, v3.dot(x, y))); if (v3.len(o) < 1e-4) o = v3.cross(y, [0, 0, 1]); return v3.norm(o); };
+    const dir = (a, b, fb) => { const d = v3.sub(b, a); return v3.len(d) > 1e-4 ? v3.norm(d) : fb; };
+    const pY = axis(I.pelvis, [0, 1, 0]), pX = orth(axis(I.pelvis, [-1, 0, 0]), pY), pZ = v3.cross(pX, pY);
+    let pel = map(at('pelvis'));
+    const reach = (LEN.thigh + LEN.shin) * 0.96;
+    for (let it = 0; it < 4; it++) {
+      const hL = v3.add(v3.mad(pel, pX, -LEN.hipW), v3.mul(pY, -LEN.hipD)), hR = v3.add(v3.mad(pel, pX, LEN.hipW), v3.mul(pY, -LEN.hipD));
+      const over = Math.max(v3.len(v3.sub(hL, gL)), v3.len(v3.sub(hR, gR))) - reach;
+      if (over <= 0) break;
+      const d = v3.sub(midG, pel), l = v3.len(d) || 1;
+      pel = v3.mad(pel, d, Math.min(over + 0.01, l * 0.5) / l);
+    }
+    const fit = (hip, ankle) => {
+      const d = v3.sub(hip, ankle), L = v3.len(d), max = (LEN.thigh + LEN.shin) * 0.975, min = 0.12;
+      if (L > max) return v3.mad(ankle, d, max / L);
+      if (L < min) return v3.mad(ankle, L < 1e-4 ? [0, 1, 0] : d, min / (L || 1));
+      return hip;
+    };
+    const hipL = fit(v3.add(v3.mad(pel, pX, -LEN.hipW), v3.mul(pY, -LEN.hipD)), gL);
+    const hipR = fit(v3.add(v3.mad(pel, pX, LEN.hipW), v3.mul(pY, -LEN.hipD)), gR);
+    const dSpine = dir(map(at('pelvis')), map(at('thorax_lo')), pY);
+    const chest = v3.mad(pel, dSpine, LEN.spine);
+    const cY = dir(map(at('thorax_lo')), map(at('neck_lo')), dSpine), cX = orth(axis(I.thorax_hi, [-1, 0, 0]), cY), cZ = v3.cross(cX, cY);
+    const neck = v3.mad(chest, cY, LEN.chest);
+    const dNeck = dir(map(at('neck_lo')), map(at('head')), cY);
+    const hY = axis(I.head, [0, 1, 0]), hX = orth(axis(I.head, [-1, 0, 0]), hY), hZ = v3.cross(hX, hY);
+    const skull = v3.mad(neck, dNeck, LEN.neck);
+    const shL = v3.add(v3.mad(neck, cX, -LEN.shW), v3.add(v3.mul(cY, -LEN.shD), v3.mul(cZ, -0.02)));
+    const shR = v3.add(v3.mad(neck, cX, LEN.shW), v3.add(v3.mul(cY, -LEN.shD), v3.mul(cZ, -0.02)));
+    const arm = (sh, sd) => {
+      const u = dir(map(at('upperarm_' + sd)), map(at('forearm_' + sd)), cY);
+      const f = dir(map(at('forearm_' + sd)), map(at('hand_' + sd)), u);
+      const elbow = v3.mad(sh, u, LEN.uarm), wrist = v3.mad(elbow, f, LEN.farm);
+      return { elbow, wrist, grip: v3.mad(wrist, f, LEN.grip) };
+    };
+    const aL = arm(shL, 'L'), aR = arm(shR, 'R');
+    const kneeL = ik2(hipL, gL, LEN.thigh, LEN.shin, map(at('shin_L')));
+    const kneeR = ik2(hipR, gR, LEN.thigh, LEN.shin, map(at('shin_R')));
+    J.pelvis = pel; J.hipL = hipL; J.hipR = hipR; J.chest = chest; J.neck = neck; J.skull = skull;
+    J.head = v3.add(v3.mad(skull, hY, LEN.head), v3.mul(hZ, -0.015));
+    J.shL = shL; J.shR = shR; J.elbowL = aL.elbow; J.elbowR = aR.elbow; J.wristL = aL.wrist; J.wristR = aR.wrist; J.gripL = aL.grip; J.gripR = aR.grip;
+    J.kneeL = kneeL; J.kneeR = kneeR;
+    const limb = (i0, a, b, c) => { const ax = v3.cross(v3.sub(b, a), v3.sub(c, b)), hx = v3.len(ax) > 1e-4 ? v3.norm(ax) : [1, 0, 0]; F[i0] = frameXY(a, v3.sub(b, a), hx); F[i0 + 1] = frameXY(b, v3.sub(c, b), hx); };
+    F[B.pelvis] = m4.fromBasis(pX, pY, pZ, pel);
+    F[B.spine] = frameXY(pel, v3.sub(chest, pel), pX);
+    F[B.chest] = frameXY(chest, v3.sub(neck, chest), cX);
+    F[B.neck] = frameXY(neck, v3.sub(skull, neck), v3.add(cX, hX));
+    F[B.head] = m4.fromBasis(hX, hY, hZ, skull);
+    limb(B.uarmL, shL, aL.elbow, aL.grip); limb(B.uarmR, shR, aR.elbow, aR.grip);
+    F[B.handL] = frameXY(aL.wrist, v3.sub(aL.grip, aL.elbow), v3.cross(v3.sub(aL.grip, aL.elbow), J.poleDL));
+    F[B.handR] = frameXY(aR.wrist, v3.sub(aR.grip, aR.elbow), v3.cross(v3.sub(aR.grip, aR.elbow), J.poleDR));
+    limb(B.thighL, hipL, kneeL, gL); limb(B.thighR, hipR, kneeR, gR);
+    J.tipL = v3.mad(aL.grip, J.poleDL, LEN.pole); J.tipR = v3.mad(aR.grip, J.poleDR, LEN.pole);
+    F[B.poleL] = frameXY(aL.grip, v3.mul(J.poleDL, -1), [1, 0, 0]); F[B.poleR] = frameXY(aR.grip, v3.mul(J.poleDR, -1), [1, 0, 0]);
+    s.hb = { X: hX, Y: hY, Z: hZ };
+  }
+  function ensureBind() {
+    if (bind) return;
+    bind = solve(P0); invBind = bind.F.map(m => m ? m4.invert(m) : null); K.bind = bind; bind.seatC = m4.tp(bind.F[B.pelvis], SEATC);
+  }
+  K.labOn = labOn;
+  K.kitAt = function (u, pose) {
+    ensureBind();
+    const p = Object.assign({}, P0, pose, { kitU: u });
+    if (!(p.air > 0)) { kitSt.airT = 0; kitSt.landT = 0; }
+    const s = solve(p, SEC0);
+    applyLab(s, p, 0, false);
+    s.hem = [0, 0];
+    return { M: skinMats(s), J: s.J, F: s.F, s };
+  };
   function cloth(J) {
     const bd = (a, b, c) => sat(0.8 * (1 - v3.dot(v3.norm(v3.sub(b, a)), v3.norm(v3.sub(c, b))))), up = v3.norm(v3.sub(J.chest, J.pelvis)), hf = (h, k) => sat(0.5 + 0.5 * v3.dot(up, v3.norm(v3.sub(k, h))));
     clo.p = [bd(J.shL, J.elbowL, J.gripL), bd(J.shR, J.elbowR, J.gripR), bd(J.hipL, J.kneeL, J.ankleL), bd(J.hipR, J.kneeR, J.ankleR)];
@@ -915,6 +1062,11 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
           D.u = s.dp.u; D.d = [s.J.poleDL[0], s.J.poleDL[1], s.J.poleDL[2], s.J.poleDR[0], s.J.poleDR[1], s.J.poleDR[2]]; if (s.dp.out) D.rel = f; } }
     }
     st.f0 = f;
+    // lab motion, when the dev row (or ?motion=kit) asks for it: the feet and the pole plants are already the game's; only the pose above them changes.
+    // A grab or a double-pole stroke keeps the procedural pose, which is what those actions are drawn from.
+    if (labOn() && !(cur.dp > 0.05) && !((cur.grabL || 0) > 0.2) && !((cur.grabR || 0) > 0.2)) {
+      try { applyLab(s, cur, cut ? 0 : dt, cut); } catch (e) { if (typeof console !== 'undefined') console.warn(e); }
+    }
     // the breath shows: as the air is let go, a few small puffs of vapour from the mouth, one after the other, pushed forward and a little down
     if (sec.idle && idle.fl > 0.02 && dt > 0 && typeof Spray !== 'undefined' && Spray.breath && (idle.puff -= dt) <= 0) {
       const hb = s.hb, r = idle.rnd, m = v3.add(s.J.head, fr(hb, 0, -0.07, -0.13)), a = toW(m), b = toW(v3.add(m, fr(hb, 0.3 * (r() - 0.5), -0.15 + 0.2 * (r() - 0.5), -1))), sp = 0.5 + 0.3 * r();
