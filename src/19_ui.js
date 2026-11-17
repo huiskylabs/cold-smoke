@@ -109,7 +109,7 @@ const UI = (() => {
   // the gold of the interface: a, the start button and the picked chip filled amber (as delivered); b, a hairline of gold round dark glass, the
   // way the rest of the interface wears it (the clock's rule, the view cards). The owner: the identity is the thin gold line, filled gold looked bad
   if (typeof Variants !== 'undefined') Variants.def('gold', '金色按钮', [['a', '实心'], ['b', '细描边']], 'b');
-  if (typeof Variants !== 'undefined') Variants.def('tbtn', '标题按钮', [['a', '横排胶囊'], ['b', '竖排方块']], 'a');
+  if (typeof Variants !== 'undefined') Variants.def('tbtn', '标题按钮', [['a', '横排胶囊'], ['b', '竖排方块']], 'b');
   function goldLine() { if (el && typeof Variants !== 'undefined') { el.app.classList.toggle('line', Variants.val.gold !== 'a'); el.app.classList.toggle('vbtn', Variants.val.tbtn === 'b'); } }
   if (typeof Variants !== 'undefined') Variants.on(n => { if (n === 'gold' || n === 'tbtn') goldLine(); });
   U.stage = function (f, name) { if (!el) return; el.fill.style.transform = 'scaleX(' + f.toFixed(3) + ')'; if (name) el.stage.textContent = T(name); };
