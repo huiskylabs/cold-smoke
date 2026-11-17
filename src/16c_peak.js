@@ -55,7 +55,7 @@ ${isC ? `  let ln: f32 = pN(p / 5600.0 + vec2f(2.7, 6.1));
   flr = min(flr, 130.0 + 40.0 * vnoise2(p / 1300.0));
   let opn: f32 = 1.0;`
     : `  let lq: vec2f = (p - vec2f(${f(P.LC[0])}, ${f(P.LC[1])})) / vec2f(${f(P.LR[0])}, ${f(P.LR[1])});
-  let ell: f32 = length(lq) + 0.30 * (pN(p / 3600.0 + vec2f(1.0, 5.0)) - 0.5);
+  let ell: f32 = length(lq) + 0.30 * (pN(p / 3600.0 + vec2f(1.0, 5.0)) - 0.5) + 0.34 * (pN(p / 8500.0 + vec2f(4.0, 2.0)) - 0.5) + 0.09 * (pN(p / 1300.0 + vec2f(7.0, 3.0)) - 0.5);
   let flr: f32 = -260.0 + 700.0 * smoothstep(0.86, 1.7, ell) + 150.0 * smoothstep(0.86, 1.05, ell) * vnoise2(p / 1500.0 + vec2f(8.0, 3.0));
   let opn: f32 = smoothstep(1.0, 1.7, ell);`}
   // the lesser ranges: to either side, and far off
@@ -271,6 +271,7 @@ fn peakBelt(a: f32, th: f32, ca: f32, ct: f32, w: f32) -> vec2f {
   return vec2f(k * 0.94, saturate(v / thick));
 }
 // ---- shadows. The land as the shadows need it (bake metres): the great peak and the ranges either side, without their small forms
+fn pkN(p: vec2f) -> f32 { return 0.65 * vnoise2(p) + 0.35 * vnoise2(p * 2.3 + vec2f(5.3, 1.7)); }
 fn pkRidgeS(p: vec2f) -> f32 {
   var r: f32 = 1.0 - abs(2.0 * vnoise2(p) - 1.0); r = r * r; let w: f32 = saturate(r * 1.6 + 0.25);
   let q: vec2f = vec2f(p.x * 1.6 + p.y * 1.2, -p.x * 1.2 + p.y * 1.6) + vec2f(13.7, 7.1);
@@ -281,7 +282,7 @@ fn pkTerrS(p: vec2f) -> f32 {
   let r: f32 = length(p); let az: f32 = atan2(p.x, max(p.y, 1.0));
   let rg: f32 = pkRidgeS(p / 5200.0 + vec2f(3.1, 8.2));
   let lq: vec2f = (p - vec2f(${f(P.LC[0])}, ${f(P.LC[1])})) / vec2f(${f(P.LR[0])}, ${f(P.LR[1])});
-  let opn: f32 = smoothstep(1.0, 1.7, length(lq));
+  let opn: f32 = smoothstep(1.0, 1.7, length(lq) + 0.30 * (pkN(p / 3600.0 + vec2f(1.0, 5.0)) - 0.5) + 0.34 * (pkN(p / 8500.0 + vec2f(4.0, 2.0)) - 0.5));
   let env: f32 = saturate(0.80 * smoothstep(11000.0, 30000.0, r) + 1.0 * smoothstep(0.50, 1.05, abs(az)) * smoothstep(4500.0, 13000.0, r));
   let rng: f32 = 3900.0 * rg * rg * env * opn;
   let q: vec2f = p - vec2f(${f(P.PC[0])}, ${f(P.PC[1])}); let rp: f32 = length(q); let pa: f32 = atan2(q.x, q.y);
@@ -427,8 +428,11 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     // (how deep: the lake's own bowl, 0 out in the middle .. 1 at the shore. A glacier lake is not one paint: the deep middle is a strong
     // blue-green, it pales toward the shallows and the shore is rimmed almost white where the bed shows through, as at Maligne and Peyto)
     let lq2: vec2f = (wp / ${f(P.K)} - vec2f(${f(P.LC[0])}, ${f(P.LC[1])})) / vec2f(${f(P.LR[0])}, ${f(P.LR[1])});
-    let shoal: f32 = smoothstep(0.50, 1.12, length(lq2) + 0.22 * (pat - 0.5) + 0.10 * (fbm2(wp / ${f(900 * P.K)} + vec2f(3.0, 1.0)) - 0.5));
-    var milky: vec3f = mix(vec3f(0.02, 0.44, 0.50), vec3f(0.05, 0.70, 0.71), smoothstep(0.0, 0.60, shoal));
+    // (the same bays and headlands as the land's (pTerr0), so the shallows follow the shore)
+    let pb: vec2f = wp / ${f(P.K)};
+    let ellS: f32 = length(lq2) + 0.30 * (pkN(pb / 3600.0 + vec2f(1.0, 5.0)) - 0.5) + 0.34 * (pkN(pb / 8500.0 + vec2f(4.0, 2.0)) - 0.5) + 0.09 * (pkN(pb / 1300.0 + vec2f(7.0, 3.0)) - 0.5);
+    let shoal: f32 = smoothstep(0.50, 1.12, ellS + 0.12 * (pat - 0.5) + 0.06 * (fbm2(wp / ${f(900 * P.K)} + vec2f(3.0, 1.0)) - 0.5));
+    var milky: vec3f = mix(vec3f(0.07, 0.47, 0.52), vec3f(0.13, 0.72, 0.73), smoothstep(0.0, 0.60, shoal));
     milky = mix(milky, vec3f(0.36, 0.88, 0.84), 0.60 * smoothstep(0.86, 1.02, shoal));
     milky = mix(milky, vec3f(0.10, 0.78, 0.76), 0.30 * smoothstep(0.45, 0.75, pat) * (1.0 - shoal));       // drifts of rock flour
     var jade: vec3f = mix(mix(vec3f(0.02, 0.36, 0.30), vec3f(0.05, 0.50, 0.62), smoothstep(0.35, 0.65, pat)), vec3f(0.42, 0.80, 0.62), smoothstep(0.62, 0.80, fbm2(wp / ${f(1300 * P.K)} + vec2f(1.0, 9.0))) * 0.7);
@@ -439,7 +443,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     // (in the shadow of the peak or of a cloud only the sky's light goes in: the colour stays, darker and bluer)
     let sunIn: f32 = (1.0 - shS) * (1.0 - 0.50 * shC);
     let skyN: vec3f = vec3f(luma(U.ambSky.rgb)) * vec3f(0.92, 1.0, 1.04);
-    let body: vec3f = 1.65 * mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * (0.80 * sunIn) + skyN * 0.95) * (1.0 - 0.34 * wind);
+    let body: vec3f = 1.85 * mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * (0.80 * sunIn) + skyN * 0.95) * (1.0 - 0.34 * wind);
     // what the eye gets from the water is the mirror weighed by Fresnel (a few per cent looking down into it, nearly all of it at a graze)
     // and the light coming up out of the water with the rest. So from a height the colour is the water's own and the mirror lies on it
     // only where what it mirrors is bright, cloud and snow, as at Peyto; far off, at a graze, the lake turns to sky and mountain
