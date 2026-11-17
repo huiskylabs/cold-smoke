@@ -239,6 +239,10 @@ fn frag(v: VOut) -> FOut { var o: FOut;
 function peakSSL() {
   const V = Vista, f = metroF, P = peakP(Metro.kind());
   const sa = Math.atan2(P.PC[0], P.PC[1]), bt0 = Math.atan((P.H - 2900) / (Math.hypot(P.PC[0], P.PC[1]) - 0.52 * P.PR)) + P.lift;      // the peak's bearing; where the cloud about its waist lies
+  // (and where the same cloud lies in the lake: an object h m up and D m off is seen in the water atan((H + h) / D) under the horizon)
+  const bt1 = Math.atan((P.H + 2900) / (Math.hypot(P.PC[0], P.PC[1]) - 0.52 * P.PR)) + P.lift;
+  // the sun's bearing as the land is lit by it (peakBakeFS: la), so that the shadows fall the way the faces are shaded
+  const la = Sky.az - V.cityAz - 0.75;
   return `
 // a sheet of cloud lying h m over the lake, where the line of sight (bearing dl, slope s, the eye PH up) goes down through it:
 // x = how much of what lies behind it hides, y = how thick it is there (0 its edge .. 1), z = how far off. cov: the share of sky it covers
@@ -266,6 +270,55 @@ fn peakBelt(a: f32, th: f32, ca: f32, ct: f32, w: f32) -> vec2f {
   let k: f32 = smoothstep(-0.006, 0.006, v) * (1.0 - smoothstep(0.55 * thick, thick, v + 0.006 * (vnoise2(vec2f(a * 160.0, th * 160.0)) - 0.5)));
   return vec2f(k * 0.94, saturate(v / thick));
 }
+// ---- shadows. The land as the shadows need it (bake metres): the great peak and the ranges either side, without their small forms
+fn pkRidgeS(p: vec2f) -> f32 {
+  var r: f32 = 1.0 - abs(2.0 * vnoise2(p) - 1.0); r = r * r; let w: f32 = saturate(r * 1.6 + 0.25);
+  let q: vec2f = vec2f(p.x * 1.6 + p.y * 1.2, -p.x * 1.2 + p.y * 1.6) + vec2f(13.7, 7.1);
+  var r2: f32 = 1.0 - abs(2.0 * vnoise2(q) - 1.0); r2 = r2 * r2 * w;
+  return 0.5 * r + 0.25 * r2;
+}
+fn pkTerrS(p: vec2f) -> f32 {
+  let r: f32 = length(p); let az: f32 = atan2(p.x, max(p.y, 1.0));
+  let rg: f32 = pkRidgeS(p / 5200.0 + vec2f(3.1, 8.2));
+  let lq: vec2f = (p - vec2f(${f(P.LC[0])}, ${f(P.LC[1])})) / vec2f(${f(P.LR[0])}, ${f(P.LR[1])});
+  let opn: f32 = smoothstep(1.0, 1.7, length(lq));
+  let env: f32 = saturate(0.80 * smoothstep(11000.0, 30000.0, r) + 1.0 * smoothstep(0.50, 1.05, abs(az)) * smoothstep(4500.0, 13000.0, r));
+  let rng: f32 = 3900.0 * rg * rg * env * opn;
+  let q: vec2f = p - vec2f(${f(P.PC[0])}, ${f(P.PC[1])}); let rp: f32 = length(q); let pa: f32 = atan2(q.x, q.y);
+  let R: f32 = ${f(P.PR)} * (1.0 + 0.20 * cos(3.0 * pa + 0.6) + 0.09 * cos(7.0 * pa + 2.0));
+  let fk: f32 = saturate(1.0 - rp / R);
+  let pk: f32 = min(${f(P.HP)} * (0.10 * fk + 0.90 * pow(fk, 1.7)), ${f(0.8 * P.HP)});
+  return max(rng, pk);
+}
+// how much of the sun the land hides from the point p (bake metres) h0 m over the lake: 0 in the sun .. 1 in shadow. The march takes
+// longer steps the farther it goes, and the shadow's edge grows softer with the distance from what throws it (the sun is not a point)
+fn pkShadow(p0: vec2f, h0: f32, t0: f32, bias: f32) -> f32 {
+  let el: f32 = U.sunDir.y;
+  if (el < 0.0) { return 1.0; }
+  let te: f32 = el / max(sqrt(1.0 - el * el), 0.02);
+  let s2: vec2f = vec2f(${f(Math.sin(la))}, ${f(Math.cos(la))});
+  var t: f32 = t0; var occ: f32 = 0.0;
+  for (var i: i32 = 0; i < 16; i++) {
+    let hh: f32 = pkTerrS(p0 + s2 * t) - h0 - t * te - bias;
+    occ = max(occ, smoothstep(0.0, 40.0 + 0.010 * t, hh));
+    t *= 1.30;
+  }
+  return occ;
+}
+// the shadows of cloud: the fair-weather heaps over the lake (out of sight overhead, seen only by the shade they lay on the water and
+// the land, as at Peyto), and the sheets of low cloud that are drawn. pw: where on the lake (world metres)
+fn pkCloudShade(pw: vec2f) -> f32 {
+  let el: f32 = max(U.sunDir.y, 0.05); let te: f32 = el / sqrt(1.0 - el * el);
+  let s2: vec2f = vec2f(${f(Math.sin(la))}, ${f(Math.cos(la))});
+  let tm: f32 = U.camPos.w;
+  let pc: vec2f = pw + s2 * (${f(1800 * P.K)} / te);
+  let cu: f32 = fbm2(pc / ${f(2400 * P.K)} + vec2f(tm * 0.0030, tm * 0.0012) + vec2f(5.0, 11.0));
+  var k: f32 = smoothstep(0.56, 0.66, cu + 0.10 * (vnoise2(pc / ${f(600 * P.K)}) - 0.5));
+  let pd: vec2f = pw + s2 * (${f(520 * P.K)} / te);
+  let n: f32 = fbm2(pd / ${f(5200 * P.K)} + vec2f(tm * 0.0040, tm * 0.0015) + vec2f(${f(520 * P.K)} * 0.01, 3.0));
+  k = max(k, smoothstep(0.79, 1.01, n * 1.25) * smoothstep(${f(6500 * P.K)}, ${f(10000 * P.K)}, length(pd)));
+  return k;
+}
 // the land, the cloud and the lake below, over the sky that is already there. kind: 2 云下之城, 3 金色雪旗
 fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   let az0: f32 = atan2(d.x, -d.z) - ${f(V.cityAz)}; let a: f32 = atan2(sin(az0), cos(az0));
@@ -289,12 +342,13 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   // (the sky's own light is given the land's form too: there is nothing else to model it by under a flat sky)
   let form: f32 = 0.62 + 0.9 * mix(mix(max(E.x, 0.0), E.y, 0.5), E.y, water);
   let amb: vec3f = (U.ambSky.rgb * 1.35 + U.twi.rgb * 0.45) * form;
-  let lit: vec3f = (U.sunCol.rgb * (1.25 * (0.12 + 0.88 * ndl)) + amb) * (1.0 - 0.80 * dark) + vec3f(0.040, 0.050, 0.090) * (dark * (0.55 + 2.6 * ndl));
+  let sunL: vec3f = U.sunCol.rgb * (1.25 * (0.12 + 0.88 * ndl)) * (1.0 - 0.80 * dark);
+  let lit: vec3f = sunL + amb * (1.0 - 0.80 * dark) + vec3f(0.040, 0.050, 0.090) * (dark * (0.55 + 2.6 * ndl));
   // lamps: each shimmers a little in the air; and their glow, spread wide, warms the cloud and the land about them
   let tw: f32 = 0.80 + 0.75 * texLod(tDetail, uv * vec2f(37.0, 19.0) + vec2f(U.camPos.w * 0.021, U.camPos.w * 0.013), 0.0).a * texLod(tDetail, uv * vec2f(23.0, 41.0) - vec2f(U.camPos.w * 0.017, 0.0), 0.0).a;
   let glow: f32 = max(texLod(tSeaA, uv, lod + 4.5).z, 0.0);
   let lamps: vec3f = (vec3f(1.0, 0.66, 0.30) * (max(E.z, 0.0) * tw * 1.5) + vec3f(1.0, 0.55, 0.22) * (glow * 0.45)) * lampK;
-  let land: vec3f = alb * lit + lamps;
+  var land: vec3f = alb * lit + lamps;
   // the lake: a mirror for the sky (its aurora, its moon), for the land that stands over it, and for the lamps on its shore;
   // drawn out in long streaks by the ripples
   // (where on the water: so that the wind can lie on it in patches. Where it is calm the mirror is clean; where the wind ruffles it the
@@ -311,6 +365,21 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   let rp2: f32 = (vnoise2(vec2f(wp.x / 520.0 - U.camPos.w * 0.07, wp.y / 150.0)) - 0.5) * near;
   let rough: f32 = 0.10 + 0.90 * wind;
   let el0: f32 = max(th - ${f(P.lift)}, 0.004);
+  // 金色雪旗 by day: the shadows. The peak and the ranges throw theirs across the lake and the shore; the clouds lay theirs in patches.
+  // Where the sun is hidden only the sky lights the land, and the water no longer glows from inside: it goes a deep blue-green and
+  // shows more of what it mirrors (as the shaded side of Peyto and Maligne)
+  var shS: f32 = 0.0; var shC: f32 = 0.0;
+  if (U.world.x > 2.5 && U.sunDir.y > 0.0 && dark < 0.95) {
+    let onW: f32 = step(0.5, water);
+    // (on the land: where the line of sight meets it, from how much air lies between)
+    let xl: f32 = -${f(P.haze)} * log(max(1.0 - saturate(E.w), 0.002));
+    let pL: vec2f = vec2f(sin(a), cos(a)) * xl; let hL: f32 = max(${f(P.H)} - xl * tan(clamp(th, 0.0, 1.4)), 0.0);
+    let p0: vec2f = mix(pL, wp / ${f(P.K)}, onW);
+    shS = pkShadow(p0, mix(hL, 0.0, onW), mix(1200.0, 300.0, onW), mix(220.0, 0.0, onW)) * smoothstep(0.0, 0.04, U.sunDir.y);
+    shC = pkCloudShade(p0 * ${f(P.K)}) * smoothstep(0.02, 0.15, U.sunDir.y);
+    let gone: f32 = saturate(max(shS, 0.72 * shC));
+    land -= alb * sunL * gone * step(0.5, A.a);
+  }
   let hl: f32 = max(length(d.xz), 1e-4);
   var ws: vec3f = vec3f(0.0);
   for (var i: i32 = 0; i < 3; i++) {
@@ -324,9 +393,31 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     w1 += moonDisc(normalize(dr + vec3f(0.05 * rp2 * rough, 0.03 * rp * rough, 0.0))) * (0.7 + 0.6 * rough);
     ws += w1 / 3.0;
   }
+  // the cloud is mirrored too: the high ice over the lake, the low sheets (their undersides), the belt about the peak's waist
+  let elc: f32 = el0 * (1.0 + rough * 0.9 * rp) + 0.004; let cec: f32 = cos(elc);
+  let drc: vec3f = vec3f(d.x / hl * cec, sin(elc), d.z / hl * cec);
+  let cir: vec4f = cirrus(drc, dot(drc, U.sunDir.xyz));
+  ws = ws * (1.0 - cir.a) + cir.rgb;
   ws *= (1.0 - 0.22 * wind) * (1.0 + 1.1 * fine * wind * wk);
   let fres: f32 = 0.42 + 0.68 * pow(1.0 - saturate(sin(max(th - ${f(P.lift)}, 0.0))), 5.0);
-  let wcol: vec3f = mix(ws, mix(alb * lit * 0.85, ws * 0.6 + alb * lit * 0.35, 0.6 * wind * (0.5 + rp)) + lamps, mirrorLand) * fres + vec3f(0.004, 0.011, 0.024) * (0.3 + luma(amb));
+  // (the land in the mirror, a little softened and drawn down by the ripples: never crisper than the land itself)
+  let lodM: f32 = lod + 0.8 + 1.6 * rough;
+  let uvM: vec2f = uv + vec2f(0.0, 0.0025 * rough * (rp + 0.5 * rp2));
+  let AM: vec4f = texLod(tSeaB, uvM, lodM);
+  let albM: vec3f = mix(alb, AM.rgb / max(AM.a, 0.004), 0.75);
+  var landM: vec3f = mix(albM * lit * 0.85, ws * 0.6 + albM * lit * 0.35, 0.6 * wind * (0.5 + rp)) + lamps;
+  var refl: vec3f = mix(ws, landM, mirrorLand);
+  if (U.world.x > 2.5) {
+    let btM: vec2f = peakBelt(a, ${f(bt0)} - (th - ${f(bt1)}), ${f(sa)}, ${f(bt0)}, 0.24);
+    let cl0: vec3f = U.sunCol.rgb * (0.80 * (1.0 - 0.80 * dark)) + (U.ambSky.rgb * 0.95 + U.twi.rgb * 0.45);
+    refl = mix(refl, vec3f(0.97, 0.98, 1.0) * cl0 * (0.45 + 0.40 * btM.y), btM.x * 0.85);
+    // (a low sheet: the line climbing back from the water meets it this far beyond the point on the water)
+    let pd: vec2f = wp + vec2f(sin(a), cos(a)) * (${f(520 * P.K)} / max(tan(elc), 0.01));
+    let nd: f32 = fbm2(pd / ${f(5200 * P.K)} + vec2f(U.camPos.w * 0.0040, U.camPos.w * 0.0015) + vec2f(${f(520 * P.K)} * 0.01, 3.0));
+    let kd: f32 = smoothstep(0.79, 1.01, nd * 1.25) * smoothstep(${f(6500 * P.K)}, ${f(10000 * P.K)}, length(pd)) * (1.0 - mirrorLand);
+    refl = mix(refl, vec3f(0.97, 0.98, 1.0) * cl0 * 0.62, kd * 0.85);
+  }
+  let wcol: vec3f = refl * fres + vec3f(0.004, 0.011, 0.024) * (0.3 + luma(amb));
   // the water's own colour by day (U.world.z: 0 a plain mirror; 1 a glacier lake, milky turquoise from rock flour, as Peyto and the
   // lakes about Jasper; 2 clear jade and peacock blue in patches, shoals pale, as 九寨沟). Seen from a height the water shows more of
   // itself than of the sky; a gust darkens it and breaks the mirror
@@ -345,14 +436,21 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     // the light inside the water: the sun goes down into it and comes back coloured, so by day the lake glows brighter than the land about
     // it; with the sun low little goes in, and the water is a mirror for the sky again (no day-green lake under a gold sky)
     let sunK: f32 = smoothstep(0.03, 0.34, U.sunDir.y) * (1.0 - dark);
-    let body: vec3f = mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * 0.80 + U.ambSky.rgb * 0.95) * (1.0 - 0.34 * wind);
+    // (in the shadow of the peak or of a cloud only the sky's light goes in: the colour stays, darker and bluer)
+    let sunIn: f32 = (1.0 - shS) * (1.0 - 0.75 * shC);
+    let body: vec3f = mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * (0.80 * sunIn) + U.ambSky.rgb * 0.95) * (1.0 - 0.34 * wind);
+    // what the eye gets from the water is the mirror weighed by Fresnel (a few per cent looking down into it, nearly all of it at a graze)
+    // and the light coming up out of the water with the rest. So from a height the colour is the water's own and the mirror lies on it
+    // only where what it mirrors is bright, cloud and snow, as at Peyto; far off, at a graze, the lake turns to sky and mountain
     let gz: f32 = pow(1.0 - saturate(sin(max(th - ${f(P.lift)}, 0.0))), 5.0);
-    let own: f32 = mix(0.74, 0.64, step(1.5, U.world.z)) * (1.0 - 0.55 * gz) * sunK;
-    // (the mirror stays on top of the colour: cloud, snow and the dark of the far shore still lie on the water)
-    wc2 = wcol * (1.0 - 0.62 * own) + body * own * (1.0 + 0.9 * fine * wind * wk);
-    // the sun's glitter, where the water throws it back at the eye
+    let F: f32 = saturate(0.025 + 0.975 * gz + 0.05 * rough);
+    let own: f32 = mix(0.92, 0.80, step(1.5, U.world.z));
+    let wDay: vec3f = refl * F + body * (own * (1.0 - F) * (1.0 + 0.9 * fine * wind * wk));
+    // (with the sun low little goes in and the lake is a mirror for the gold sky again: no day-green lake under a gold sky)
+    wc2 = mix(wcol, wDay, sunK);
+    // the sun's glitter, where the water throws it back at the eye (none in shadow)
     let rd: vec3f = normalize(vec3f(d.x, abs(d.y) + 0.02 * rp, d.z));
-    wc2 += U.sunCol.rgb * (pow(saturate(dot(rd, U.sunDir.xyz)), 90.0) * (0.25 + 1.6 * saturate(fine + 0.35) * (0.3 + wind)) * 0.55 * sunK);
+    wc2 += U.sunCol.rgb * (pow(saturate(dot(rd, U.sunDir.xyz)), 90.0) * (0.25 + 1.6 * saturate(fine + 0.35) * (0.3 + wind)) * 0.55 * sunK * sunIn);
   }
   var c: vec3f = mix(land, wc2, water);
   // 金色雪旗: boats on the lake (U.world.y of them). Far too small to see at their true size, so each is drawn some hundreds of metres

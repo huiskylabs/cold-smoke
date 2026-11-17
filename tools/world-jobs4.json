@@ -1,0 +1,13 @@
+[{"q": "&v-world=d&v-lake=b&v-boats=b", "shots": [
+ {"name": "w4_day", "tod": "day", "variants": {"wcol": "b", "wrip": "b"}},
+ {"name": "w4_day_high", "tod": "day", "cam": {"kind": "drone", "from": [0, 30, -25], "look": [0, -6, 60], "fov": 0.9}, "variants": {"wcol": "b", "wrip": "b"}},
+ {"name": "w4_day_calm", "tod": "day", "variants": {"wcol": "b", "wrip": "a"}},
+ {"name": "w4_golden", "tod": "golden", "variants": {"wcol": "b", "wrip": "b"}},
+ {"name": "w4_golden_high", "tod": "golden", "cam": {"kind": "drone", "from": [0, 30, -25], "look": [0, -6, 60], "fov": 0.9}, "variants": {"wcol": "b", "wrip": "b"}},
+ {"name": "w4_sunset", "tod": "sunset", "variants": {"wcol": "b", "wrip": "b"}},
+ {"name": "w4_dawn", "tod": "sunrise", "variants": {"wcol": "b", "wrip": "b"}},
+ {"name": "w4_night", "tod": "night", "variants": {"wcol": "b", "wrip": "b"}},
+ {"name": "w4_colc_day", "tod": "day", "variants": {"wcol": "c", "wrip": "b"}}]},
+ {"q": "&v-world=d&v-lake=b&v-boats=b&v-shape=c", "shots": [
+ {"name": "w4_open_day_high", "tod": "day", "cam": {"kind": "drone", "from": [0, 30, -25], "look": [0, -6, 60], "fov": 0.9}, "variants": {"wcol": "b"}},
+ {"name": "w4_open_s2200_hi", "s": 2200, "tod": "day", "cam": {"kind": "drone", "from": [0, 70, -90], "look": [0, -45, 120], "fov": 1.0}, "variants": {"wcol": "b"}}]}]
