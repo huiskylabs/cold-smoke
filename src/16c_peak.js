@@ -9,7 +9,7 @@
 //   E = x: how it faces a low sun (or, under 0: water; -1 mirroring the sky, -2 mirroring land), y: how it faces a high sun (on water:
 //       how the mirrored land faces the light), z: lamps, w: how much air lies before it
 // (K: the land is this many times bigger and farther than its numbers below say; streets and windows keep their true size)
-const Peak = { K: 2.2, H: 3000, AZ: 1.3, t0: -0.30, ta: 0.60, tb: 0.95, ak: 0.42, lift: 0.08, PC: [1800, 24000], HP: 6500, LC: [-600, 12600], LR: [9500, 4300], far: 75000, haze: 46000 };
+const Peak = { K: 2.2, H: 3000, AZ: 1.3, t0: -0.30, ta: 0.60, tb: 0.95, ak: 0.42, lift: 0.08, PC: [1800, 24000], HP: 6500, LC: [-600, 12800], LR: [11500, 5200], far: 75000, haze: 46000 };
 function peakBakeFS(kind) {
   const f = metroF, P = Peak, isC = kind === 'c';
   // (the light keeps one bearing all day; the land is drawn as if it came more from the left than it does, so that the faces turned to
@@ -64,16 +64,16 @@ fn pCloudTop0(p: vec2f) -> f32 {
   let r: f32 = length(p);
   let b: f32 = pN(p / 820.0 + vec2f(4.0, 1.0)); let b2: f32 = vnoise2(p / 290.0 + vec2f(2.0, 7.0));
   // the low cloud: heaps that swell from their edges to their middles, billows on them (never a flat top, never a wall)
-  let c1: f32 = pN(p / ${f(isC ? 6800 : 5200)} + vec2f(7.3, 2.9));
-  let d1: f32 = (c1 - ${f(isC ? 0.40 : 0.60)}) * smoothstep(${f(isC ? 5200 : 7000)}, ${f(isC ? 8200 : 10000)}, r);
+  let c1: f32 = pN(p / ${f(isC ? 4300 : 5200)} + vec2f(7.3, 2.9));
+  let d1: f32 = (c1 - ${f(isC ? 0.47 : 0.74)}) * smoothstep(${f(isC ? 5200 : 7000)}, ${f(isC ? 8200 : 10000)}, r);
   var t1: f32 = -400.0;
-  if (d1 > 0.0) { let k: f32 = saturate(d1 * 9.0); t1 = ${f(isC ? 1150 : 520)} * pow(d1 * 2.4, 0.62) + k * (${f(isC ? 330 : 170)} * (b - 0.35) + 90.0 * (b2 - 0.5)); }
+  if (d1 > 0.0) { let k: f32 = saturate(d1 * 9.0); t1 = ${f(isC ? 900 : 420)} * pow(d1 * 2.4, 0.62) + k * (${f(isC ? 520 : 200)} * (b - 0.35) + 170.0 * (b2 - 0.5)); }
   // the band about the peak's waist
   let q: vec2f = p - vec2f(${f(P.PC[0])}, ${f(P.PC[1])}); let rp: f32 = length(q);
   let c2: f32 = pN(p / 4300.0 + vec2f(1.9, 9.4));
   let d2: f32 = (c2 - 0.42) * exp(-sq((rp - 6300.0) / 2400.0));
   var t2: f32 = -400.0;
-  if (d2 > 0.0) { let k: f32 = saturate(d2 * 9.0); t2 = 1500.0 * k + 2300.0 * pow(d2 * 2.4, 0.62) + k * (480.0 * (b - 0.35) + 120.0 * (b2 - 0.5)); }
+  if (d2 > 0.0) { let k: f32 = saturate(d2 * 9.0); t2 = 1500.0 * k + 2300.0 * pow(d2 * 2.4, 0.62) + k * (640.0 * (b - 0.35) + 190.0 * (b2 - 0.5)); }
   return max(t1, t2);
 }
 fn pCloudTop(p: vec2f) -> f32 { return PK * pCloudTop0(p / PK); }
@@ -126,8 +126,8 @@ fn pShade(p: vec2f, x: f32, mode: f32, fa: f32, fr: f32) -> vec4f {
     var lamps: f32 = 0.0;
     if (cl > 0.5) {
       // cloud: soft in the light, and lit from inside by the town under it
-      n0 = 0.30 + 0.70 * n0; n1 = 0.40 + 0.60 * n1;
-      lamps = ${f(isC ? 0.45 : 0.12)} * town * (1.0 - smoothstep(150.0, 900.0, tH)) * step(1.0, tH);
+      n0 = 0.16 + 0.84 * n0; n1 = 0.22 + 0.78 * n1;
+      lamps = ${f(isC ? 0.55 : 0.12)} * town * sq(pN(p / (1700.0 * PK) + vec2f(5.0, 5.0)) * 1.5) * (1.0 - smoothstep(150.0, 900.0, tH)) * step(1.0, tH);
     } else {
       let level: f32 = smoothstep(0.90, 0.985, N.y) * (1.0 - smoothstep(120.0, 420.0, tH)) * step(1.0, tH);
 ${isC ? `      // streets: a grid, its avenues brighter, every great block its own share of light
@@ -201,7 +201,7 @@ function peakSSL() {
 // the banner of blown snow streaming from the summit (金色雪旗): rgb its light, a how much of the sky it hides.
 // a: bearing from the map's axis, th: the drop below level, both as the panorama has them
 fn peakBanner(a: f32, th: f32) -> vec4f {
-  let t: f32 = (a - ${f(sa)}) / 0.46;
+  let t: f32 = (${f(sa)} - a) / 0.46;
   if (t < 0.0 || t > 1.0) { return vec4f(0.0); }
   let tm: f32 = U.camPos.w;
   let thc: f32 = ${f(st)} + 0.006 - 0.050 * t + 0.010 * sin(t * 8.0 - tm * 0.22) * t;
@@ -234,8 +234,10 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   // the light of the hour on it
   let hi: f32 = smoothstep(0.06, 0.50, U.sunDir.y);
   let ndl: f32 = mix(mix(max(E.x, 0.0), E.y, hi), E.y, water);
-  let amb: vec3f = U.ambSky.rgb * 0.85 + U.twi.rgb * 0.35;
-  let lit: vec3f = (U.sunCol.rgb * (1.25 * ndl) + amb) * (1.0 - 0.80 * dark) + vec3f(0.014, 0.022, 0.060) * (dark * (0.35 + 3.2 * ndl));
+  // (the sky's own light is given the land's form too: there is nothing else to model it by under a flat sky)
+  let form: f32 = 0.38 + 1.0 * mix(mix(max(E.x, 0.0), E.y, 0.5), E.y, water);
+  let amb: vec3f = (U.ambSky.rgb * 0.85 + U.twi.rgb * 0.35) * form;
+  let lit: vec3f = (U.sunCol.rgb * (1.25 * ndl) + amb) * (1.0 - 0.80 * dark) + vec3f(0.014, 0.022, 0.060) * (dark * (0.20 + 3.6 * ndl));
   // lamps: each shimmers a little in the air; and their glow, spread wide, warms the cloud and the land about them
   let tw: f32 = 0.80 + 0.75 * texLod(tDetail, uv * vec2f(37.0, 19.0) + vec2f(U.camPos.w * 0.021, U.camPos.w * 0.013), 0.0).a * texLod(tDetail, uv * vec2f(23.0, 41.0) - vec2f(U.camPos.w * 0.017, 0.0), 0.0).a;
   let glow: f32 = max(texLod(tSeaA, uv, lod + 4.5).z, 0.0);
