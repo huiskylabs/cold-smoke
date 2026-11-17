@@ -162,9 +162,14 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   let dn: f32 = vnoise2(p / 240.0 + vec2f(3.0, 1.0));
   // (snow lies on all but the steepest rock, and the more the higher: the gullies and ledges hold it, the crags between stand bare)
   let rock: f32 = 1.0 - smoothstep(0.26, 0.46, N.y + 0.16 * (dn - 0.5) + 0.14 * smoothstep(0.25, 0.75, tH / PHP));
+${isE ? `  // (the volcano: white from the crater down to a ragged line about its middle, from which tongues of snow run on down the gullies; below
+  // it the dark lava stands bare between them)
+  let qv: vec2f = p / PK - vec2f(${f(P.PC[0])}, ${f(P.PC[1])}); let qn: vec2f = qv / max(length(qv), 1.0);
+  let tong: f32 = pRidge(qn * 11.0 + vec2f(3.0, 1.0), 3) + 0.5 * (dn - 0.5);
+  let bare: f32 = (1.0 - smoothstep(-0.05, 0.05, tH / PHP - 0.50 + 0.34 * (tong - 0.35))) * smoothstep(0.02, 0.10, tH / PHP) * step(length(qv), 16000.0);` : `  let bare: f32 = 0.0;`}
   let wood: f32 = (1.0 - smoothstep(650.0, 1500.0, tH + 500.0 * (pN(p / (1900.0 * PK)) - 0.5))) * smoothstep(0.60, 0.85, N.y) * step(2.0, tH);
   var alb: vec3f = mix(vec3f(0.90, 0.93, 1.0), vec3f(0.11, 0.15, 0.15), wood * (0.55 + 0.35 * dn));
-  alb = mix(alb, ${isE ? 'vec3f(0.17, 0.12, 0.11)' : 'vec3f(0.19, 0.18, 0.19)'} * (0.6 + 0.5 * dn + 0.5 * vnoise2(vec2f(tH / 45.0, dot(p, vec2f(0.0007, 0.0004))))), rock * 0.92);
+  alb = mix(alb, ${isE ? 'vec3f(0.17, 0.12, 0.11)' : 'vec3f(0.19, 0.18, 0.19)'} * (0.6 + 0.5 * dn + 0.5 * vnoise2(vec2f(tH / 45.0, dot(p, vec2f(0.0007, 0.0004))))), max(rock, bare * 0.9) * 0.92);
   alb = mix(alb, vec3f(0.96, 0.97, 1.0) * (0.84 + 0.16 * pN(p / 300.0)), cl);
   return vec4f(alb, 1.0);
 }
@@ -249,10 +254,10 @@ fn peakBelt(a: f32, th: f32, ca: f32, ct: f32, w: f32) -> vec2f {
   if (abs(u) > 1.6) { return vec2f(0.0); }
   let tm: f32 = U.camPos.w;
   let hp: f32 = fbm2(vec2f(a * 26.0 + tm * 0.010, 2.0)); let hp2: f32 = vnoise2(vec2f(a * 90.0 + tm * 0.02, 5.0));
-  let thick: f32 = (0.010 + 0.034 * hp + 0.008 * hp2) * exp(-u * u * 1.3) * smoothstep(0.30, 0.50, fbm2(vec2f(a * 7.0 + tm * 0.004, 9.0)) + 0.25 * exp(-u * u * 3.0));
-  let v: f32 = ct - th;                                   // up from its underside (rad)
+  let thick: f32 = (0.018 + 0.070 * hp + 0.012 * hp2) * exp(-u * u * 1.3) * smoothstep(0.30, 0.50, fbm2(vec2f(a * 7.0 + tm * 0.004, 9.0)) + 0.25 * exp(-u * u * 3.0));
+  let v: f32 = ct + 0.020 * (fbm2(vec2f(a * 17.0 - tm * 0.006, 7.0)) - 0.5) - th;                                   // up from its underside (rad)
   if (thick < 0.002) { return vec2f(0.0); }
-  let k: f32 = smoothstep(-0.004, 0.003, v) * (1.0 - smoothstep(0.55 * thick, thick, v + 0.006 * (vnoise2(vec2f(a * 160.0, th * 160.0)) - 0.5)));
+  let k: f32 = smoothstep(-0.006, 0.006, v) * (1.0 - smoothstep(0.55 * thick, thick, v + 0.006 * (vnoise2(vec2f(a * 160.0, th * 160.0)) - 0.5)));
   return vec2f(k * 0.94, saturate(v / thick));
 }
 // 异星: a great ringed planet standing low over the far ranges. rgb its light, a how much of the sky behind it it hides
@@ -263,11 +268,11 @@ fn peakPlanet(d: vec3f) -> vec4f {
   let R: f32 = 0.125;
   let x: f32 = dot(d, T1) / R; let y: f32 = dot(d, T2) / R; let r2: f32 = x * x + y * y;
   let Ld: vec3f = normalize(U.sunDir.xyz + vec3f(0.0, 0.25, 0.0));
-  let lightK: vec3f = U.sunCol.rgb * (0.55 * (1.0 - 0.6 * U.skyP.z)) + vec3f(0.30, 0.34, 0.42) * U.skyP.z;
+  let lightK: vec3f = U.sunCol.rgb * (0.55 * (1.0 - 0.6 * U.skyP.z)) + vec3f(0.42, 0.46, 0.55) * U.skyP.z;
   var col: vec3f = vec3f(0.0); var al: f32 = 0.0;
   if (r2 < 1.0) {
     let z: f32 = sqrt(1.0 - r2); let nw: vec3f = T1 * x + T2 * y - C * z;
-    let ndl: f32 = saturate(dot(nw, Ld) * 1.15 + 0.08);
+    let ndl: f32 = max(saturate(dot(nw, Ld) * 1.15 + 0.08), U.skyP.z * saturate(0.30 - 0.55 * x + 0.50 * y));
     // bands of cloud round it, swirled a little
     let lat: f32 = y + 0.05 * sin(x * 5.0 + y * 3.0) + 0.06 * (vnoise2(vec2f(x * 3.0, y * 9.0)) - 0.5);
     let bd: f32 = 0.5 + 0.5 * sin(lat * 17.0 + 2.0 * vnoise2(vec2f(lat * 6.0, 1.0)));
@@ -309,9 +314,9 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   let hi: f32 = smoothstep(0.06, 0.50, U.sunDir.y);
   let ndl: f32 = mix(mix(max(E.x, 0.0), E.y, hi), E.y, water);
   // (the sky's own light is given the land's form too: there is nothing else to model it by under a flat sky)
-  let form: f32 = 0.38 + 1.0 * mix(mix(max(E.x, 0.0), E.y, 0.5), E.y, water);
+  let form: f32 = 0.62 + 0.9 * mix(mix(max(E.x, 0.0), E.y, 0.5), E.y, water);
   let amb: vec3f = (U.ambSky.rgb * 0.85 + U.twi.rgb * 0.35) * form;
-  let lit: vec3f = (U.sunCol.rgb * (1.25 * ndl) + amb) * (1.0 - 0.80 * dark) + vec3f(0.014, 0.022, 0.060) * (dark * (0.20 + 3.6 * ndl));
+  let lit: vec3f = (U.sunCol.rgb * (1.25 * ndl) + amb) * (1.0 - 0.80 * dark) + vec3f(0.014, 0.022, 0.060) * (dark * (0.55 + 3.4 * ndl));
   // lamps: each shimmers a little in the air; and their glow, spread wide, warms the cloud and the land about them
   let tw: f32 = 0.80 + 0.75 * texLod(tDetail, uv * vec2f(37.0, 19.0) + vec2f(U.camPos.w * 0.021, U.camPos.w * 0.013), 0.0).a * texLod(tDetail, uv * vec2f(23.0, 41.0) - vec2f(U.camPos.w * 0.017, 0.0), 0.0).a;
   let glow: f32 = max(texLod(tSeaA, uv, lod + 4.5).z, 0.0);
@@ -323,8 +328,9 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   // picture is drawn out into long streaks, dimmer, and the moon breaks up into a path of glints)
   let wx: f32 = ${f(P.H * P.K)} / max(tan(clamp(th, 0.01, 1.4)), 0.01); let wp: vec2f = vec2f(sin(a), cos(a)) * wx;
   let wind: f32 = smoothstep(0.38, 0.62, fbm2(wp / ${f(2600 * P.K)} + vec2f(U.camPos.w * 0.003, 4.0)));
-  let rp: f32 = texLod(tDetail, vec2f(wp.x / 900.0, wp.y / 260.0 + U.camPos.w * 0.02), 0.0).a - 0.5;
-  let rp2: f32 = texLod(tDetail, vec2f(wp.x / 190.0 - U.camPos.w * 0.03, wp.y / 70.0), 0.0).a - 0.5;
+  let near: f32 = 1.0 / (1.0 + wx / ${f(9000 * P.K)});
+  let rp: f32 = (vnoise2(vec2f(wp.x / 1400.0, wp.y / 330.0 + U.camPos.w * 0.05)) - 0.5) * near;
+  let rp2: f32 = (vnoise2(vec2f(wp.x / 520.0 - U.camPos.w * 0.07, wp.y / 150.0)) - 0.5) * near;
   let rough: f32 = 0.10 + 0.90 * wind;
   let el0: f32 = max(th - ${f(P.lift)}, 0.004);
   let hl: f32 = max(length(d.xz), 1e-4);
@@ -358,7 +364,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   for (var i: i32 = 0; i < 2; i++) {
     let waist: f32 = step(1.5, f32(i)); let up: f32 = f32(i & 1);
     let hgt: f32 = mix(${f(520 * P.K)}, ${f(2250 * P.K)}, waist) + up * mix(${f(190 * P.K)}, ${f(260 * P.K)}, waist);
-    let dk: vec3f = peakDeck(dl, sl, hgt, mix(mix(0.30, 0.60, isC), 0.52, waist), mix(${f(5200 * P.K)}, ${f(2600 * P.K)}, waist));
+    let dk: vec3f = peakDeck(dl, sl, hgt, mix(mix(0.15, 0.60, isC), 0.52, waist), mix(${f(5200 * P.K)}, ${f(2600 * P.K)}, waist));
     if (dk.x > 0.002) {
       let pw: vec2f = dl * dk.z;
       // (the belt keeps to a ring about the peak; the sea keeps off our own mountain's foot)
@@ -375,7 +381,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   }
   if (U.world.x > 2.5) {
     let we: f32 = step(3.5, U.world.x);
-    let bt: vec2f = peakBelt(a, th, mix(0.0749, 0.0798, we), mix(0.0474, -0.0107, we), mix(0.30, 0.42, we));
+    let bt: vec2f = peakBelt(a, th, mix(0.0749, 0.0798, we), mix(0.0474, -0.0107, we), mix(0.22, 0.30, we));
     if (bt.x > 0.002) {
       var bc: vec3f = vec3f(0.97, 0.98, 1.0) * cloudLit * (0.50 + 0.50 * bt.y);
       bc = mix(bc, vistaHaze(d), 0.28);
