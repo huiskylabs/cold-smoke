@@ -1,4 +1,4 @@
-// 一条命令跑完整轮：构建 → 录制 17 个场景 → 分析 → 过门槛。退出码就是门槛的退出码（有一条变差就是 1）。
+// 一条命令跑完整轮：构建 → 录制 17 个场景 → 分析 → 过门槛 → 打印幅度尺。退出码就是门槛的退出码（有一条变差就是 1）。
 //   npm run motion                                            量现在的代码（开关都是默认值），和 baseline.json 比
 //   Q='v-mo1=b&v-medge=b&v-mo2=b&v-mo3=b' npm run motion      带上地址参数再量（比如打开某几个开关）
 //   npm run motion -- --baseline                              量完把结果存成新的基线（改动确认合并之后才做）
@@ -11,10 +11,12 @@ fs.rmSync(rec, { recursive: true, force: true });
 process.stdout.write(run(path.join(__dirname, 'record.js'), [rec]));
 fs.writeFileSync(path.join(out, 'cand_report.txt'), run(path.join(__dirname, 'analyze.js'), [rec, '--json', sum]));
 console.log('完整报告：tools/motion/out/cand_report.txt\n');
+// 第二把尺（幅度）：只打印，不影响退出码。它管的是“动得够不够大”，和真人的测量范围比
+const rom = () => { console.log('\n幅度尺（动作做得够不够大，和真人测量比；只打印，不算门槛）：\n'); console.log(run(path.join(__dirname, 'rom.js'), [rec]).trim()); };
 if (process.argv.includes('--baseline')) {
   fs.writeFileSync(path.join(__dirname, 'baseline.json'), run(path.join(__dirname, 'gate.js'), ['--slim', sum]));
-  console.log('已把这一轮存成新的基线 tools/motion/baseline.json');
+  console.log('已把这一轮存成新的基线 tools/motion/baseline.json'); rom();
 } else {
   const r = cp.spawnSync('node', [path.join(__dirname, 'gate.js'), sum], { cwd: root, stdio: 'inherit' });
-  process.exit(r.status == null ? 2 : r.status);
+  rom(); process.exit(r.status == null ? 2 : r.status);
 }

@@ -2,7 +2,8 @@
 
 A ruler and a gate for how the skier moves. `npm run motion` plays 17 scripted runs headless, counts the moves no human body could make
 ("jolts"), the places the figure passes through itself, and how the shins sit in the boots, then compares with `baseline.json` and exits 1
-if anything got worse. Run it before merging any change to the figure's motion. The rest of this page is in Chinese.
+if anything got worse. It then prints a second ruler (`rom.js`): how far the joints move in landings, take-offs, moguls and turns, against
+ranges measured on people. Run it before merging any change to the figure's motion. The rest of this page is in Chinese.
 
 ## 为什么有这个
 
@@ -25,6 +26,8 @@ npm run motion -- --baseline                              # 改动确认合并�
   任何一条比基线差出容差，退出码就是 1。
 - **目标**：评审定下的数字，只打印达没达到。
 
+之后还会打印**幅度尺**的表（见下面“第二把尺”），只打印，不影响退出码。
+
 ## 量的是什么
 
 `record.js` 用无头浏览器跑真实的游戏（`dist/dev.html`，不出图），按脚本操作，每秒 60 帧记下 25 个关节、姿态参数和物理状态。
@@ -41,6 +44,30 @@ npm run motion -- --baseline                              # 改动确认合并�
 `gate.js` 把这一轮和 `baseline.json` 比。其余几个脚本是拆开细看用的：`land.js` 每一次落地，`poleclip.js` 雪杖穿腿，`upper.js` 上身和头，
 `bob.js` 雪包上的起伏，`compare.js` 几个版本并排。它们读 `tools/motion/out/<名字>/` 下的录制。
 
+## 第二把尺：幅度（rom.js）
+
+上面那把尺只管“动得太猛”。落地只蹲一点、起跳腿没蹬直、腿从来伸不开，在它那里都是满分，而且越僵分数越好。
+2026-11-17 试玩时发现落地蹲得太浅，就是这样漏过去的。`rom.js` 管另一头：动作做得够不够大。
+
+```
+node tools/motion/rom.js tools/motion/out/cand                      # 量一份录制
+node tools/motion/rom.js <录制目录 A> <录制目录 B>                    # 两份并排（比如改之前和改之后）
+```
+
+它量 19 个量，分五类，每个都和真人的测量范围对照，报平均值、偏小还是偏大、有多少次落在范围里：
+
+- **跳跃落地**：触雪那一刻的膝和髋、落地后膝最弯到多少、一共多弯了多少、髋降了多少、用了多久到最弯。另外按冲进雪面的速度分三档各报一行。
+- **起跳**：按了跳之后，雪板离地那一刻的膝。
+- **空中**：不做动作时的膝。
+- **蘑菇**：膝最伸、最弯、幅度，髋屈最大，髋的高低幅度。
+- **转弯**：外腿最伸、弯中内外腿、换刃时和弯中髋到脚的距离、内外腿的长度差。
+
+真人范围抄自人体实验室的目标表（`code-only-game-kit/research/human/data/targets/`，每条的文献在那边），起跳那一条是这次新查的。
+括号里 M 表示在滑雪或相近动作上测过，L 表示从文献推出来的估计。角度都是屈曲角，0 是伸直。
+
+它不是门槛：真人范围有的只是估计，有的量（比如换刃时的站姿）取决于想要哪种滑法。它的用处是让“太小”和“太猛”一样能被看见。
+改落地、起跳、蘑菇、转弯姿态的时候，两把尺都要看。
+
 ## 这把尺的局限
 
 - 它只管“突然一下”，不管“慢慢地错”。上身早倒、杖穿过腿，在突变数上都是流畅的，所以才同时量穿模、早晚和靴子里的角度。
@@ -53,6 +80,9 @@ npm run motion -- --baseline                              # 改动确认合并�
 2. **一个钟。** 同一个身体上的量，要么取自同一时刻，要么延迟相同。修延迟用提前量，不再加一层滤波。
 3. **约束最后做一遍。** 谁最后动了关节，谁负责把靠它的规矩重查一遍：杖不穿腿、杖尖不进雪、板尖不进雪、腿不拉直、头保持水平。
 4. **有尺有门槛，不叠弹簧。** 不新增平滑器；确实要加，先证明能删掉另一个。
+5. **髋的高度只有一本账。** 髋 = 物理算的身体高度，减去一串“压低”（倾斜、团身、高速站姿、起跳准备、落地前伸腿、转弯下沉……）。
+   新加一项之前先看别的项已经压了多少，要的是“最后腿多长”，不是“再压多少”；它放开的时机跟物理走，不能自己另起一个钟。
+   2026-11-17 的落地太浅就是这本账没人管：各项叠在一起，触雪时腿已经弯了 62°；落地前那一项又在触雪后七分之一秒内自己放掉，正好抵消了一半下沉。
 
 ## 现在的基线
 

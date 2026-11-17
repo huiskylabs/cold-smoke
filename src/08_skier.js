@@ -140,7 +140,9 @@ const Skier = (() => {
     // (fore/aft, pose.fa: forward the hips go over the toes and the chest folds a little over them; back the hips sit behind the heels, lower)
     const faF = Math.max(p.fa || 0, 0), faA = Math.max(-(p.fa || 0), 0);
     let H = 1.085 - 0.38 * c - 0.06 * smooth(0.7, 1, c) - 0.11 * tuck - 0.05 * gM - 0.06 * faF - 0.085 * faA;
-    const hinge0 = 0.36 + 0.46 * cT + 0.70 * tuck - 0.14 * air * (1 - gM) + 0.42 * gM * (1 - tuck) + (dpw > 0 ? dpw * spl(DP_H, f) : 0) + (id ? id.up : 0) + 0.24 * faF + 0.08 * faA;
+    // (p.reach, mo4 b: the legs reached out long for a landing. On legs that long the trunk's own rule stands it nearly upright, and the hips open to
+    // 50 degrees where a skier touches down at 55 to 65: the chest is kept forward by a hand, as a skier meeting a landing has it)
+    const hinge0 = 0.36 + 0.46 * cT + 0.70 * tuck - 0.14 * air * (1 - gM) + 0.42 * gM * (1 - tuck) + (dpw > 0 ? dpw * spl(DP_H, f) : 0) + (id ? id.up : 0) + 0.24 * faF + 0.08 * faA + 0.17 * (p.reach || 0) * (1 - tuck);
     // (the trunk folds no lower than the thighs it comes to lie on: pressed deeper while it is folded right over, the hips sink and the back comes up, as
     // when a compression is soaked up in a tuck; reaching for a ski in the air, the knees part and let the chest down between them)
     const hmax = PI / 2 + Math.asin(clamp((1.085 - 0.38 * cF - 0.06 * smooth(0.7, 1, cF) - 0.11 * tuck - 0.05 * gM - 0.58) / LEN.thigh, -1, 1)) - 0.66 + 0.45 * gM;
