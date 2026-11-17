@@ -214,10 +214,14 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   // Aokigahara on Fuji's flank) and gives out in scattered trees before the bare lava; pale avalanche tracks run down through it)
   let onPk: f32 = 1.0 - smoothstep(0.70, 1.0, length(qv) / ${f(P.PR)});
   let tl: f32 = mix(650.0, 1900.0, onPk) + 220.0 * (pN(pq / 1100.0 + vec2f(2.0, 8.0)) - 0.5) + 90.0 * (vnoise2(pq / 260.0 + vec2f(5.0, 1.0)) - 0.5) + 260.0 * onPk * (tong - 0.35);
-  let fzT: f32 = 1.0 - smoothstep(tl - 260.0, tl, tH);
+  // (and on our own mountain, the walls either side of the run: the forest that stands about the run goes on over them, up to a ragged
+  // line a little over the run's own height, as the spruce climbs a Rockies valley; never bare walls a few hundred metres off)
+  let ownW: f32 = 1.0 - smoothstep(6500.0, 9000.0, length(pq));
+  let tlO: f32 = mix(tl, PH0 * 0.92 + 300.0 * (pN(pq / 900.0 + vec2f(5.0, 5.0)) - 0.5), ownW);
+  let fzT: f32 = 1.0 - smoothstep(tlO - 260.0, tlO, tH);
   let aval: f32 = smoothstep(0.80, 0.90, vnoise2(vec2f(atan2(lqW.x, lqW.y) * 38.0, tH / 1600.0) + vec2f(3.0, 7.0))) * smoothstep(60.0, 200.0, tH);
   let dens: f32 = saturate(0.80 + 0.45 * (vnoise2(pq / 90.0 + vec2f(1.0, 2.0)) - 0.5) + 0.25 * (vnoise2(pq / 30.0 + vec2f(4.0, 6.0)) - 0.5));
-  let shoreW: f32 = fzT * smoothstep(0.40, 0.58, N.y + 0.10 * (dn - 0.5)) * dens * (1.0 - 0.85 * aval) * smoothstep(${f(9000 / 2.2)}, ${f(11000 / 2.2)}, length(pq)) * (1.0 - 0.35 * onPk * smoothstep(tl - 600.0, tl, tH)) * step(0.2, tH);
+  let shoreW: f32 = fzT * smoothstep(mix(0.40, 0.30, ownW), mix(0.58, 0.48, ownW), N.y + 0.10 * (dn - 0.5)) * dens * (1.0 - 0.85 * aval) * (1.0 - 0.35 * onPk * smoothstep(tl - 600.0, tl, tH)) * step(0.2, tH);
   // (the beach: a narrow strip of pale gravel and sand at the water's edge, wider on the flats and the deltas, darker where it is wet)
   let bw: f32 = 6.0 + 24.0 * smoothstep(0.58, 0.78, pN(pq / 2300.0 + vec2f(8.0, 8.0)));
   let beach: f32 = (1.0 - smoothstep(bw * 0.6, bw, tH + 3.0 * (vnoise2(pq / 60.0) - 0.5))) * step(0.2, tH);
@@ -226,7 +230,9 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   alb = mix(alb, vec3f(0.19, 0.17, 0.17) * (0.6 + 0.5 * dn + 0.5 * vnoise2(vec2f(tH / 45.0, dot(p, vec2f(0.0007, 0.0004))))), max(max(max(rock, bare * 0.9), band * 0.6), ribs) * 0.92);
 ${isC ? '' : `  // (over the rock too: spruce clings to the steep lake shore, as round Peyto)
   // (on it the forest, over the bare lava too; under the trees a little snow shows through)
-  alb = mix(alb, vec3f(0.040, 0.072, 0.055) * (0.70 + 0.6 * dn), saturate(shoreW * 1.1));
+  // (up by the run the trees carry snow, as the near ones do: dark crowns flecked white)
+  let fcol: vec3f = mix(vec3f(0.040, 0.072, 0.055) * (0.70 + 0.6 * dn), vec3f(0.78, 0.82, 0.88), ownW * 0.32 * smoothstep(0.40, 0.75, vnoise2(pq / 14.0 + vec2f(2.0, 2.0))));
+  alb = mix(alb, fcol, saturate(shoreW * 1.1));
   alb = mix(alb, mix(vec3f(0.56, 0.53, 0.47), vec3f(0.30, 0.28, 0.25), wet) * (0.82 + 0.36 * vnoise2(pq / 35.0)), beach);
 `}  alb = mix(alb, vec3f(0.96, 0.97, 1.0) * (0.84 + 0.16 * pN(p / 300.0)), cl);
   return vec4f(alb, 1.0);
