@@ -1008,15 +1008,17 @@ fn frag(v: VOut) -> FOut {
   // height that drift slowly and let the forest through in holes; it climbs with distance, so it clings to the walls and never lies on the run)
   if (U.world.x > 2.5) {
     let mv: vec3f = wp - U.camPos.xyz; let md: f32 = length(mv);
-    let hc: f32 = 30.0 + 0.16 * md; let hw: f32 = 35.0 + 0.05 * md;
+    let hc: f32 = 40.0 + 0.16 * md; let hw: f32 = 14.0 + 0.012 * md;
     let mdr: vec2f = vec2f(U.camPos.w * 0.9, U.camPos.w * 0.35);
     let mn: f32 = tex(tNoise, (wxz + mdr) / 520.0 + vec2f(0.13, 0.41)).z * 0.6 + tex(tNoise, (wxz - mdr) / 170.0 + vec2f(0.57, 0.22)).z * 0.4;
     let vb: f32 = (mv.y - hc - 60.0 * (mn - 0.5)) / hw;
-    let mk: f32 = exp(-vb * vb * 1.4) * smoothstep(0.42, 0.68, mn) * smoothstep(320.0, 600.0, md) * smoothstep(0.02, 0.12, mnt);
+    let mk: f32 = exp(-vb * vb * 1.4) * smoothstep(0.56, 0.76, mn) * smoothstep(320.0, 600.0, md) * smoothstep(0.02, 0.12, mnt);
     let mc: vec3f = vec3f(0.92, 0.94, 0.98) * (U.sunCol.rgb * 0.50 + amb * 1.1);
-    col = mix(col, mc, saturate(mk) * 0.75);
+    col = mix(col, mc, saturate(mk) * 0.6);
   }
-  col = applyFog(col, wp);
+  // (金色雪旗: the air of a Rockies valley in winter is clear: forest across it two or three kilometres off is still dark green, only a little
+  // blued, never the pale grey of a hazy summer; so the haze over this world's own land is lighter)
+  if (U.world.x > 2.5) { col = mix(col, applyFog(col, wp), 0.55); } else { col = applyFog(col, wp); }
   ${typeof location !== 'undefined' && /dbgw/.test(location.search) ? 'col = mix(col, vec3f(1.0, 0.0, 1.0), 0.6 * saturate(carpet * 3.0)); if (carpet < 0.01) { col = mix(col, vec3f(0.0, 1.0, 0.0), 0.5 * smoothstep(400.0, 500.0, dist)); }' : ''}
   o.color = vec4f(col, 1.0);
   return o;
