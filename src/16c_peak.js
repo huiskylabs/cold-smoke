@@ -333,11 +333,26 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   var wc2: vec3f = wcol;
   if (U.world.z > 0.5) {
     let pat: f32 = fbm2(wp / ${f(3400 * P.K)} + vec2f(7.0, 2.0));
-    let milky: vec3f = mix(vec3f(0.10, 0.56, 0.60), vec3f(0.22, 0.74, 0.72), pat);
-    let jade: vec3f = mix(mix(vec3f(0.02, 0.36, 0.30), vec3f(0.05, 0.50, 0.62), smoothstep(0.35, 0.65, pat)), vec3f(0.42, 0.80, 0.62), smoothstep(0.62, 0.80, fbm2(wp / ${f(1300 * P.K)} + vec2f(1.0, 9.0))) * 0.7);
-    let body: vec3f = mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * (0.55 * (1.0 - dark)) + (U.ambSky.rgb * 0.75 + U.twi.rgb * 0.3) * (1.0 - 0.85 * dark));
-    let own: f32 = mix(0.80, 0.62, step(1.5, U.world.z)) * (1.0 - 0.45 * pow(1.0 - saturate(sin(max(th - ${f(P.lift)}, 0.0))), 5.0));
-    wc2 = wcol * (1.0 - own * (1.0 - dark)) * (1.0 + 0.0) + body * own * (1.0 - 0.30 * wind) * (1.0 + 0.9 * fine * wind * wk);
+    // (how deep: the lake's own bowl, 0 out in the middle .. 1 at the shore. A glacier lake is not one paint: the deep middle is a strong
+    // blue-green, it pales toward the shallows and the shore is rimmed almost white where the bed shows through, as at Maligne and Peyto)
+    let lq2: vec2f = (wp / ${f(P.K)} - vec2f(${f(P.LC[0])}, ${f(P.LC[1])})) / vec2f(${f(P.LR[0])}, ${f(P.LR[1])});
+    let shoal: f32 = smoothstep(0.50, 1.12, length(lq2) + 0.22 * (pat - 0.5) + 0.10 * (fbm2(wp / ${f(900 * P.K)} + vec2f(3.0, 1.0)) - 0.5));
+    var milky: vec3f = mix(vec3f(0.012, 0.30, 0.45), vec3f(0.06, 0.60, 0.66), smoothstep(0.0, 0.60, shoal));
+    milky = mix(milky, vec3f(0.52, 0.92, 0.86), 0.85 * smoothstep(0.62, 1.0, shoal));
+    milky = mix(milky, vec3f(0.10, 0.70, 0.74), 0.30 * smoothstep(0.45, 0.75, pat) * (1.0 - shoal));       // drifts of rock flour
+    var jade: vec3f = mix(mix(vec3f(0.02, 0.36, 0.30), vec3f(0.05, 0.50, 0.62), smoothstep(0.35, 0.65, pat)), vec3f(0.42, 0.80, 0.62), smoothstep(0.62, 0.80, fbm2(wp / ${f(1300 * P.K)} + vec2f(1.0, 9.0))) * 0.7);
+    jade = mix(jade, vec3f(0.62, 0.92, 0.78), 0.80 * smoothstep(0.70, 1.0, shoal));
+    // the light inside the water: the sun goes down into it and comes back coloured, so by day the lake glows brighter than the land about
+    // it; with the sun low little goes in, and the water is a mirror for the sky again (no day-green lake under a gold sky)
+    let sunK: f32 = smoothstep(0.03, 0.34, U.sunDir.y) * (1.0 - dark);
+    let body: vec3f = mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * 0.80 + U.ambSky.rgb * 0.95) * (1.0 - 0.34 * wind);
+    let gz: f32 = pow(1.0 - saturate(sin(max(th - ${f(P.lift)}, 0.0))), 5.0);
+    let own: f32 = mix(0.74, 0.64, step(1.5, U.world.z)) * (1.0 - 0.55 * gz) * sunK;
+    // (the mirror stays on top of the colour: cloud, snow and the dark of the far shore still lie on the water)
+    wc2 = wcol * (1.0 - 0.62 * own) + body * own * (1.0 + 0.9 * fine * wind * wk);
+    // the sun's glitter, where the water throws it back at the eye
+    let rd: vec3f = normalize(vec3f(d.x, abs(d.y) + 0.02 * rp, d.z));
+    wc2 += U.sunCol.rgb * (pow(saturate(dot(rd, U.sunDir.xyz)), 90.0) * (0.25 + 1.6 * saturate(fine + 0.35) * (0.3 + wind)) * 0.55 * sunK);
   }
   var c: vec3f = mix(land, wc2, water);
   // 金色雪旗: boats on the lake (U.world.y of them). Far too small to see at their true size, so each is drawn some hundreds of metres
