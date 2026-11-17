@@ -159,7 +159,7 @@ const Rings = (() => {
     drawList = [];
     for (const r of RG.rings) {
       const dist = Math.hypot(r.x - cam[0], r.y - cam[1], -r.s - cam[2]), ord = r.pass >= 0 ? 0 : ahead.indexOf(r);
-      const sz = Math.sqrt(r.r / 4.5), near = Math.pow(cl(1 - (dist - 25) / 220, 0.1, 1), 1.4);          // (用户 20:39 UTC: 有时候还是比较淡，亮一点、点多一点: far ones still fainter, but not lost)
+      const sz = Math.sqrt(r.r / 4.5), near = Math.pow(cl(1 - (dist - 25) / 280, 0.16, 1), 1.2);          // (用户 20:39 UTC: 有时候还是比较淡，亮一点、点多一点: far ones still fainter, but not lost)
       if (r.fin && r.grow < 0) r.grow = r.born - 1;          // (the finish is a whole white ring from the moment it is there, never a flame)
       const grown = r.grow >= 0 ? cl((T - r.grow) / 0.9, 0, 1) : 0;
       const dis = r.splash >= 0 ? cl((T - r.splash) / 2.2, 0, 1) : 0;
@@ -178,7 +178,7 @@ const Rings = (() => {
   }
 
   // ---- the GPU side
-  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, 0], e: [Math.round(7200 * d.sz), Math.round(650 * d.sz), 0, 0] });
+  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, 0], e: [Math.round(9600 * d.sz), Math.round(800 * d.sz), 0, 0] });
   const ringLive = d => d.grown > 0.3 && d.dis < 1 && d.open > 0.01;
   RG.init = function (g) {
     gfx = g;
@@ -571,7 +571,7 @@ fn dustGrain(i: u32) -> DG {
     let blink: f32 = 0.45 + 0.55 * pow(0.5 + 0.5 * sin(T * (4.0 + 6.0 * h2.x) + h.y * 30.0), 3.0);
     let qn: f32 = saturate((grown - (0.3 + 0.45 * h2.y)) / 0.25);
     b = fade * blink * qn * (1.0 - 0.5 * h.y);
-    wsz = 0.032 * sz * (0.6 + 0.9 * h2.z); minPx = 1.4;
+    wsz = 0.032 * sz * (0.6 + 0.9 * h2.z); minPx = 1.8;
     col = mix(ringHue(ang, 0.0, n), vec3f(0.9, 1.0, 0.97), 0.4 * h2.x * h2.x);
   } else if (kind == 1u) {
     let ou: f32 = 0.15 + 0.85 * h2.x;
@@ -620,7 +620,7 @@ fn vert(a: VIn) -> VOut { var v: VOut;
   let fog: f32 = 1.0 - fogAmount(g.p);
   let bright: f32 = g.b * M.b.w * mix(1.0, 1.2, M.d.x) * fog;
   v.clip = q.clip; v.uv = q.uv; v.sh = vec4f(q.hl, 0.0, 0.0, 0.0);
-  v.col = vec4f(g.col * (bright * sqrt(q.k) * 8.0 * ringE()), mix(0.18, 0.0, M.d.x) * saturate(bright) * sqrt(q.k));
+  v.col = vec4f(g.col * (bright * sqrt(q.k) * 11.0 * ringE()), mix(0.18, 0.0, M.d.x) * saturate(bright) * sqrt(q.k));
   return v; }
 `;
 // the grains' own shadow (用户 05:23 UTC: 影子也要由点投下、跟着点一起动): each grain that is lit enough is a small disc in the sun's shadow
