@@ -31,7 +31,7 @@
   copy.onclick = async () => { out.select(); let ok = false; try { await navigator.clipboard.writeText(out.value); ok = true; } catch (e) { try { ok = document.execCommand('copy'); } catch (x) { } } copy.textContent = ok ? '已复制' : '复制失败，请长按文本框全选复制'; };
 
   async function run() {
-    btn.disabled = true; btn.style.opacity = .4; const R = window.__benchR = { v: 4, when: new Date().toISOString() }, L = [];
+    btn.disabled = true; btn.style.opacity = .4; const R = window.__benchR = { v: 5, when: new Date().toISOString() }, L = [];
     try {
       // ---------- 环境
       R.ua = navigator.userAgent; R.dpr = devicePixelRatio; R.screen = [screen.width, screen.height]; R.inner = [innerWidth, innerHeight];
@@ -54,6 +54,11 @@
         R.caps = { backend: I.App.gfx.caps.backend, renderer: I.Quality.gpu }; R.cold = COLD; R.quality = { tier: I.Quality.tier, why: I.Quality.why, gpu: I.Quality.gpu };
         const fr = []; for (let i = 0; i < 5; i++) { const a = performance.now(); window.__ski.frame(); await new Promise(r => requestAnimationFrame(r)); fr.push(Math.round(performance.now() - a)); }
         R.firstFrames = fr;
+        const gp = (P.gpuPipes || []).filter(e => e.tDone); if (gp.length) { const first = Math.min(...gp.map(e => e.t0)), done = gp.map(e => e.tDone).sort((x, y) => x - y);
+          // 按编译好的先后排：每条和前一条编译好的时间差，近似它自己花的时间（浏览器一条一条编时成立）
+          const order = gp.slice().sort((x, y) => x.tDone - y.tDone); let prev = Math.max(first, order[0].t0);
+          R.gpuPipes = order.map(e => { const own = e.tDone - Math.max(prev, e.t0); prev = e.tDone; return [e.name, Math.round(own), Math.round(e.tDone - first), e.len]; });
+          R.gpuPipeSpan = Math.round(done[done.length - 1] - first); }
       } else {
       const gl = P.gl, g = P.gfx, dbg = gl.getExtension('WEBGL_debug_renderer_info');
       R.caps = { backend: g.caps.backend, hdr: g.caps.hdr, r32fTarget: g.caps.r32fTarget, maxTex: g.caps.maxTex, renderer: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : '?', timerExt: !!gl.getExtension('EXT_disjoint_timer_query_webgl2'), parallelCompile: !!gl.getExtension('KHR_parallel_shader_compile'), aniso: !!gl.getExtension('EXT_texture_filter_anisotropic'), maxTexUnits: gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS), maxVertTexUnits: gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) };
@@ -106,7 +111,7 @@
       }
     } catch (e) { R.error = String(e && e.message ? e.message : e).slice(0, 2000); }
     // ---------- 结果
-    L.push('=== 雪迹性能测量 v4 ' + R.when + ' ===');
+    L.push('=== 雪迹性能测量 v5 ' + R.when + ' ===');
     L.push('浏览器: ' + R.ua); L.push(`屏幕 ${R.screen} 窗口 ${R.inner} 像素比 ${R.dpr} 内存 ${R.mem} GB 核 ${R.cores}`);
     L.push('WebGPU: ' + (R.webgpu ? '有（' + R.gpuAdapter + '）' : '没有'));
     if (R.caps) { L.push('显卡: ' + R.caps.renderer); L.push(`WebGL2 能力: 浮点渲染目标 ${R.caps.hdr ? '有' : '没有'}，GPU 计时 ${R.caps.timerExt ? '有' : '没有'}，并行编译 ${R.caps.parallelCompile ? '有' : '没有'}，各向异性 ${R.caps.aniso ? '有' : '没有'}，最大贴图 ${R.caps.maxTex}，贴图单元 ${R.caps.maxTexUnits}/顶点 ${R.caps.maxVertTexUnits}`); }
@@ -114,6 +119,7 @@
     if (R.sw) L.push('优化开关（b = 新做法，a = 旧做法）: ' + SW.map(n => n + '=' + R.sw[n]).join(' '));
     if (BOOT && R.quality) L.push(`画质档 ${R.quality.tier}（${R.quality.why}）`);
     if (BOOT) L.push(`开机测试：${R.caps ? R.caps.backend : '?'}，${COLD ? '冷启动（假装第一次打开）' : '热启动（着色器已缓存）'}；页面加载到开机开始 ${R.loadMs} ms；开机后前 5 帧 ${R.firstFrames ? R.firstFrames.join(' / ') : '?'} ms`);
+    if (R.gpuPipes) { L.push(`WebGPU 管线 ${R.gpuPipes.length} 条，从建第一条到最后一条编好 ${R.gpuPipeSpan} ms。最慢的（ms，着色器字数）:`); L.push('   ' + R.gpuPipes.slice().sort((x, y) => y[1] - x[1]).slice(0, 25).map(x => x[0] + ' ' + x[1] + '（' + Math.round(x[3] / 1000) + 'k）').join(' | ')); }
     if (R.boot) L.push(`A 开机 ${R.boot.total} ms: ` + R.boot.stages.map(s => s[0] + ' ' + s[1]).join(' | '));
     if (R.inits && R.inits.length) L.push('   各模块 init（ms，括号里是建的管线数）: ' + R.inits.map(x => x[0] + ' ' + x[1] + '（' + x[2] + '）').join(' | '));
     if (R.js) L.push(`B 每帧 JS（${R.js.n} 帧）: 中位 ${R.js.p50} p95 ${R.js.p95} p99 ${R.js.p99} 最大 ${R.js.max} 平均 ${R.js.mean} ms；>8ms ${R.js.over8} 帧，>16.7ms ${R.js.over16} 帧，>33ms ${R.js.over33} 帧；有地形滚动的帧 ${R.js.terrainFrames} 个（中位 ${R.js.terrainFrameMed} ms），没有的中位 ${R.js.plainFrameMed} ms`);

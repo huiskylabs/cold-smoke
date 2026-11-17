@@ -57,6 +57,11 @@
     return g;
   }
   { const cg = createGL; createGL = function (c, o) { return wrap(cg(c, o)); }; }
+  // WebGPU：只记每条管线什么时候建、什么时候编译好（开机测试看第一次打开时哪几条最慢）
+  P.gpuPipes = [];
+  { const cgp = createGPU; createGPU = async function (c, o) { const g = await cgp(c, o); if (!g) return g; const op = g.pipeline;
+    g.pipeline = desc => { const t0 = performance.now(), p = op(desc), e = { name: desc.name, t0, tDone: 0, len: p.src && p.src.code ? p.src.code.length : 0 }; P.gpuPipes.push(e);
+      if (p.promise) p.promise.then(() => { e.tDone = performance.now(); }); return p; }; return g; }; }
   // 地址带 cold：每条着色器末尾加一段这次打开独有的注释，浏览器的着色器缓存就认不出来（等于第一次打开）
   if (/[?&]cold\b/.test(location.search)) { const b0 = buildShader, tag = '\n// cold ' + Date.now().toString(36) + Math.random().toString(36).slice(2) + '\n';
     buildShader = function (d, l) { const r = b0(d, l); if (r.code) r.code += tag; if (r.vs) r.vs += tag; if (r.fs) r.fs += tag; return r; }; }
