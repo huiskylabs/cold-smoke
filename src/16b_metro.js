@@ -8,7 +8,7 @@
 // fragment shader (metroBakeFS), into two panoramas round the eye (the world below never comes nearer, it only turns, as the cloud sea
 // did): E = the light it gives off at night, A = what it is made of, for the sun or the moon to light (a: water). Every frame the sky
 // shader fetches them (metroPlain), adds the air between, and makes the lights shimmer a little.
-Variants.def('world', '山下的世界', [['a', '云海浮城'], ['b', '不夜城']], 'b');
+Variants.def('world', '山下的世界', [['a', '云海浮城'], ['b', '不夜城'], ['c', '云下之城'], ['d', '金色雪旗']], 'b');
 const Metro = (() => {
   // H: how far below the eye the city lies (m); RE: the radius of its little planet (the horizon dips, and curves, far more than the earth's);
   // AZ: the panorama covers bearings +-AZ about the city's; ta, tb: its rows, packed toward the horizon (drop = ta v + tb v^4);
@@ -17,14 +17,16 @@ const Metro = (() => {
   // (K: the whole world below is this many times bigger and farther than the first 不夜城's, the eye 8000 m over it; the city's own
   // streets and blocks keep their true size, so from here they are a fine grain of lights)
   const M = { K: K0, H: 8000, RE: 9.0e5 * K0, AZ: 1.3, t0: -0.11, ta: 0.44, tb: 0.97, bend: 0.34, lift: 0.17, ak: 0.42, W: 2048, Hh: 1024, R1: 9600 * K0, DC: [-2315 * K0, 14041 * K0], lamp: 0.42, seed: 20261115, cloud: false, samples: 4, done: false, E: null, A: null, pipes: [] };
-  M.on = () => Variants.val.world === 'b';
-  let gfx, pipe, tE, tA;
+  // (c 云下之城 and d 金色雪旗 are baked here too, by their own ray caster: 16c_peak.js)
+  M.kind = () => Variants.val.world; M.on = () => M.kind() !== 'a'; M.index = () => 'abcd'.indexOf(M.kind());
+  let gfx, pipe, tE, tA; const pipesBy = {};
+  const pipeFor = k => pipesBy[k] || (pipesBy[k] = gfx.pipeline({ name: 'metroBake' + k, lib: [SL.common, SL.hash, SL.noise], topology: 'strip', buffers: [], varyings: { uv: 'vec2f' }, uniforms: { r: 'vec4f', t: 'vec4f', m: 'vec4f' },
+    textures: {}, colorFormat: 'rgba16f', depth: false, depthTest: false, cull: 'none', vs: CLOUD_RECT_VS, fs: k === 'b' ? metroBakeFS() : peakBakeFS(k) }));
   M.init = function (g, res) {
     gfx = g; if (res) { M.W = res; M.Hh = res >> 1; }
     M.E = gfx.texture({ w: M.W, h: M.Hh, format: 'rgba16f', filter: 'linear', wrap: 'clamp', mips: true }); tE = gfx.target({ color: M.E });
     M.A = gfx.texture({ w: M.W, h: M.Hh, format: 'rgba16f', filter: 'linear', wrap: 'clamp', mips: true }); tA = gfx.target({ color: M.A });
-    pipe = gfx.pipeline({ name: 'metroBake', lib: [SL.common, SL.hash, SL.noise], topology: 'strip', buffers: [], varyings: { uv: 'vec2f' }, uniforms: { r: 'vec4f', t: 'vec4f', m: 'vec4f' },
-      textures: {}, colorFormat: 'rgba16f', depth: false, depthTest: false, cull: 'none', vs: CLOUD_RECT_VS, fs: metroBakeFS() });
+    pipe = pipeFor(M.on() ? M.kind() : 'b');
     M.pipes = [pipe];
   };
   // once, before the first frame that shows it: in narrow bands, ONE a frame, so that no frame carries a long draw (all sixteen wide
@@ -32,17 +34,18 @@ const Metro = (() => {
   M.step = 0; M.bands = 32;
   M.update = function () {
     if (M.done || !gfx || !M.on()) return;
+    pipe = pipeFor(M.kind());
     const N = M.bands, whole = typeof QS !== 'undefined' && QS.has('director');
     do {
       const k = M.step % N, mode = M.step < N ? 0 : 1;
       gfx.beginPass(mode ? tA : tE, k === 0 ? { color: [0, 0, 0, 0] } : {});
-      gfx.draw(pipe, { u: { r: [0, k / N, 1, (k + 1) / N], t: [0, k / N, 1, (k + 1) / N], m: [mode, M.samples, M.W, M.Hh] }, tex: {}, count: 4 });
+      gfx.draw(pipe, { u: { r: [0, k / N, 1, (k + 1) / N], t: [0, k / N, 1, (k + 1) / N], m: [mode, M.kind() === 'b' ? M.samples : Math.min(M.samples, 2), M.W, M.Hh] }, tex: {}, count: 4 });
       gfx.endPass();
       M.step++;
     } while (whole && M.step < 2 * N && M.step % 8 !== 0);      // (the director: eight bands a frame)
     if (M.step >= 2 * N) { gfx.genMips(M.E); gfx.genMips(M.A); M.done = true; }
   };
-  Variants.on((n, v, init) => { if (n === 'world' && !init && typeof Clouds !== 'undefined') Clouds.baked = false; });
+  Variants.on((n, v, init) => { if (n === 'world' && !init) { M.done = false; M.step = 0; if (typeof Clouds !== 'undefined') Clouds.baked = false; } });
   return M;
 })();
 const metroF = x => { const t = String(+(+x).toFixed(7)); return /[.e]/.test(t) ? t : t + '.0'; };

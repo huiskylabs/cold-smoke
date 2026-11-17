@@ -22,7 +22,7 @@ async function boot(stage) {
   App.gfx = gfx;
   Course.forceType = QS.get('seg') || null; Course.classic = QS.has('classic');      // dev: a mountain made of one kind of run; the runs in the order the first mountain had them
   Course.setSeed(DEV ? (seedInHash() || Math.floor(+QS.get('seed')) || (Metro.on() ? Metro.seed : Course.seed)) : (Metro.on() ? Metro.seed : Course.seed));      // outside dev: always the home mountain (寒烟山)
-  if (Metro.on()) Sky.setClock(Sky.times.night);                    // (不夜城 opens at night, and stays there: see the clock below)
+  if (Metro.on()) Sky.setClock(Metro.kind() === 'c' ? Sky.times.dusk : Sky.times.night);                    // (不夜城 opens at night, and stays there: see the clock below)
   if (QS.get('tod')) { const q = QS.get('tod'); Sky.setClock(q in Sky.times ? Sky.times[q] : +q || 0); }
   await step(0.08, '磨雪');
   makeNoiseTextures(gfx); makeSnowTexture(gfx, Sky.az); Terrain.setSun(Sky.az);

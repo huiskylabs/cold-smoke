@@ -11,7 +11,7 @@ const [out = 'metro-shots', tods = 'night', W = '1920', Hh = '1080'] = process.a
   const page = await browser.newPage({ viewport: { width: +W, height: +Hh } });
   const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 600))); page.on('console', m => { if (m.type() === 'error') errs.push(m.text().slice(0, 600)); });
   const t0 = Date.now();
-  await page.goto('file://' + path.resolve(__dirname, '..', 'dist', 'dev.html') + `?director=1&w=${W}&h=${Hh}&gov=0&offscreen=1&v-world=b&metrosamples=4` + (process.env.METRO_Q || ''));
+  await page.goto('file://' + path.resolve(__dirname, '..', 'dist', 'dev.html') + `?director=1&w=${W}&h=${Hh}&gov=0&offscreen=1&v-world=${process.env.METRO_WORLD || 'b'}&metrosamples=4` + (process.env.METRO_Q || ''));
   await page.waitForFunction(() => window.Director && Director.ready, null, { timeout: 180000, polling: 250 });
   const info = await page.evaluate(() => ({ backend: (window.__ski && __ski.app && __ski.app().gfx && __ski.app().gfx.backend) || '?', ua: navigator.userAgent }));
   for (const t of tods.split(',')) {
@@ -20,7 +20,7 @@ const [out = 'metro-shots', tods = 'night', W = '1920', Hh = '1080'] = process.a
     for (let n = 0; n < 1; n++) {
       for (let k = 0; k < (n ? 9 : 0); k++) await page.evaluate(() => { Director.step(); });
       const d = await page.evaluate(() => { Director.step(); return Director.frame(); });
-      fs.writeFileSync(path.join(out, `metro_${t}_${n}.png`), Buffer.from(d.split(',')[1], 'base64'));
+      fs.writeFileSync(path.join(out, `${process.env.METRO_WORLD && process.env.METRO_WORLD !== 'b' ? 'world_' + process.env.METRO_WORLD : 'metro'}_${t}_${n}.png`), Buffer.from(d.split(',')[1], 'base64'));
     }
   }
   console.log(JSON.stringify({ ok: true, ms: Date.now() - t0, info, errs: errs.slice(0, 6) }));
