@@ -50,7 +50,7 @@
   o.color = vec4f(col, 1.0); return o; }` });
     comp = gfx.pipeline({ name: 'labOut', lib: [SL.common, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f' }, textures: { tA: '2d' }, colorFormat: 'canvas', depth: false, depthTest: false, cull: 'none', vs: VS_FULLSCREEN,
       fs: `fn frag(v: VOut) -> FOut { var o: FOut;
-  let d: vec2f = M.p.xy * 0.25;
+  let d: vec2f = M.p.xy * M.p.w;
   let c: vec3f = (texLod(tA, v.uv + vec2f(-d.x, -d.y), 0.0).rgb + texLod(tA, v.uv + vec2f(d.x, -d.y), 0.0).rgb + texLod(tA, v.uv + vec2f(-d.x, d.y), 0.0).rgb + texLod(tA, v.uv + vec2f(d.x, d.y), 0.0).rgb) * 0.25;
   o.color = vec4f(toSRGB(filmCurve(c * M.p.z)), 1.0); return o; }` });
   }
@@ -101,7 +101,7 @@
   function frame(now) {
     const t = (now - t0) / 1000; App.t = t;
     const dpr = Math.min(window.devicePixelRatio || 1, 2), cw = Math.round(cv.clientWidth * dpr), ch = Math.round(cv.clientHeight * dpr);
-    if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; SS = cw * ch > 2.4e6 ? 1.4 : 2; makeTargets(); }
+    if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; SS = dpr >= 1.75 ? 1 : 1.5; makeTargets(); }
     for (const k in pose) delete pose[k]; Object.assign(pose, (POSES[st.pose] || POSES.stand)(t));
     Skier.update(root, pose, [0, 0, 0]);
     const jj = lastJ();
@@ -115,7 +115,7 @@
     gfx.draw(ground, { u: { p: [0, 0, 0, 0] }, tex: { tShadow: shadowTex }, vb: [gvb], ib: gib, count: 6 });
     Skier.draw(shadowTex, skyTex);
     gfx.endPass();
-    gfx.beginPass(null, {}); gfx.draw(comp, { u: { p: [1 / W, 1 / H, 0.22, 0] }, tex: { tA: hdr }, count: 3 }); gfx.endPass();
+    gfx.beginPass(null, {}); gfx.draw(comp, { u: { p: [1 / W, 1 / H, 0.22, SS > 1.2 ? 0.25 : 0.0] }, tex: { tA: hdr }, count: 3 }); gfx.endPass();
     if (gfx.endFrame) gfx.endFrame();
     requestAnimationFrame(frame);
   }
