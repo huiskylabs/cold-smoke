@@ -63,8 +63,12 @@ if (typeof Variants !== 'undefined') {
   // the lines the run is built round, so they stood on the gully's floor, in a jump's run-in and landing and in the mogul field's smooth
   // channel. b keeps those lines clear. a: as it was
   Variants.def('rclear', '雪道清障', [['a', '原来'], ['b', '雪道上无树']], 'b');
+  // 山体 (experiments for the worlds below: the same run in a different valley). a: as it is, a broad valley. b: a canyon, the walls close in
+  // and stand steeper. c: open country, the walls drawn far back and low under a big sky. d: a mountainside, a wall on the left and on the
+  // right the land falls away (a balcony above the lake)
+  Variants.def('shape', '山体', [['a', '现在的'], ['b', '峡谷'], ['c', '开阔'], ['d', '山腰临空']], 'a');
   // (a change lays the same mountain out again)
-  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'route' || n === 'rclear') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
+  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'route' || n === 'rclear' || n === 'shape') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
 }
 // slope scale and how much further a run of ~30 s then reaches (pace: the test pilot's distance over 30 s against a, 2026-11-14)
 const SLOPE_K = { a: { k: 1, pace: 1 }, b: { k: 0.75, pace: 0.89 }, c: { k: 0.6, pace: 0.69 } };
@@ -117,6 +121,7 @@ const Course = ((vn1, vn2, h2U) => {
     C.lv = TERR_LV[tv.tdiff] ? tv.tdiff : 'b'; LV = tv.terr === 'b' ? TERR_LV[C.lv] : null; C.rich = !!LV; C.isl = LV ? LV.isl : 1;
     trng = RNG((KEY ^ 0x7e4a11) + 131 * C.lv.charCodeAt(0));
     C.route = tv.route === 'b' || tv.route === 'c' || tv.route === 'd'; ROUTE = ROUTES[tv.route] || ROUTES.b; C.ROUTE = ROUTE; C.rclear = tv.rclear === 'b';
+    SH = SHAPES[tv.shape] || SHAPES.a;
     planTo(4000);
     return C.seed;
   };
@@ -573,6 +578,16 @@ const Course = ((vn1, vn2, h2U) => {
   }
   C.at = at;
 
+  // (Variants 'shape') per side [left, right]: kx how fast the land answers to the distance from the run (2 = the walls stand twice as near),
+  // wk the walls' own slope (negative: the land falls away), rk the height of the far ridges and peaks, sh the banks beside the run
+  const SHAPES = {
+    a: [{ kx: 1, wk: 1, rk: 1, sh: 1 }, { kx: 1, wk: 1, rk: 1, sh: 1 }],
+    b: [{ kx: 2.4, wk: 1.55, rk: 1.0, sh: 1.25 }, { kx: 2.4, wk: 1.55, rk: 1.0, sh: 1.25 }],
+    c: [{ kx: 0.45, wk: 0.6, rk: 0.8, sh: 0.7 }, { kx: 0.45, wk: 0.6, rk: 0.8, sh: 0.7 }],
+    d: [{ kx: 2.0, wk: 1.6, rk: 1.0, sh: 1.2 }, { kx: 1.0, wk: -0.9, rk: 0.1, sh: 0.25 }],
+  };
+  let SH = SHAPES.a;
+  C.shapeK = u => SH[u > 0 ? 1 : 0].kx;
   // the large shapes of the mountain away from the run: ridges, peaks and the walls of the valley (e = distance beyond the edge of the run)
   function relief(x, z, e, cell) {
     const m = smooth(30, 900, e), mx = x / 1400, mz = z / 1400;
@@ -629,7 +644,7 @@ const Course = ((vn1, vn2, h2U) => {
       // Whoever leaves the run keeps going down the mountain instead of traversing a bank that tips them back. Not along a ridge)
       const ap = LV ? APRON * (1 - rf) * (1 - c.enc) : 0, ea = e - ap > 0 ? e - ap : 0;
       if (ap > 0) h += 0.05 * (e < ap ? e : ap);
-      const t = ea / 55, rise = 55 * (t * t / (1 + t)), near = 150 * (1 - Math.exp(-rise / 150));
+      const S0 = SH[u > 0 ? 1 : 0], t = ea * S0.kx / 55, rise = 55 * (t * t / (1 + t)), near = 150 * (1 - Math.exp(-rise / 150));
       // a ridge: beside the crest the snow falls away steeply into hollows some twenty metres down, and rises again to a rim a hundred and
       // seventy metres out, still well below the crest (the view goes on over it); beyond the rim the mountainside falls away for good. The
       // hollows lie one below another down the mountain: each one's floor climbs, more slowly than the mountain falls, to a shoulder level
@@ -639,17 +654,17 @@ const Course = ((vn1, vn2, h2U) => {
       // (rh: the ridge, and for three hundred metres below it a fading memory of it; q: where in its hollow, 0 at the shoulder)
       const ph = (s / 240) % 1, q = ph < 0.8 ? 0.5 + 0.5 * Math.cos(PI * ph / 0.8) : 0.5 - 0.5 * Math.cos(PI * (ph - 0.8) / 0.2);
       const rh = Math.max(c.ridge, sat((c.rtail - 0.74) / 0.26)) * q, ef = Math.max(0, e - 170), tf = ef / 55, riseF = 55 * (tf * tf / (1 + tf));
-      h += near * c.shoulder * (1 - rf) - rh * (20 * (1 - Math.exp(-e * e / 1300)) - 9 * smooth(100, 170, e)) - rf * (0.62 * Math.exp(-ef / 260) * riseF + 11 * (1 - Math.exp(-ef * ef / 400))) + 0.36 * c.wall * (rise - near);
+      h += near * c.shoulder * S0.sh * (1 - rf) - rh * (20 * (1 - Math.exp(-e * e / 1300)) - 9 * smooth(100, 170, e)) - rf * (0.62 * Math.exp(-ef / 260) * riseF + 11 * (1 - Math.exp(-ef * ef / 400))) + 0.36 * c.wall * S0.wk * (rise - near);
     }
     // big mountain relief far from the run (side walls, peaks)
     if (e > 30) {
-      const m = smooth(30, 900, e);
-      let hm = relief(x, z, e, cell);
-      const w = smooth(70, 420, e);
+      const S1 = SH[u > 0 ? 1 : 0], ek = e * S1.kx, m = smooth(30, 900, ek) * Math.max(0.3, S1.rk);
+      let hm = relief(x, z, ek, cell) * S1.rk;
+      const w = smooth(70, 420, ek);
       // gullies and the ribs between them, cut straight down the fall line of the large shapes
       if (w > 0.01) {
         const sg = u > 0 ? 1 : -1, D = 24;
-        const gx = (relief(x + D, z, e + sg * D, cell) - hm) / D + sg * lerp(c.shoulder * (1 - rf), 0.36 * c.wall, smooth(60, 300, e)), gz = (relief(x, z + D, e, cell) - hm) / D + 0.36;
+        const gx = (relief(x + D, z, ek + sg * D * S1.kx, cell) * S1.rk - hm) / D + sg * lerp(c.shoulder * (1 - rf), 0.36 * c.wall * S1.wk, smooth(60, 300, ek)), gz = (relief(x, z + D, ek, cell) * S1.rk - hm) / D + 0.36;
         const sl = Math.hypot(gx, gz), K = 1.7 * Math.min(1, 1.4 / (sl + 1e-6)), dx = gz * K, dz = -gx * K;
         // four sizes, each bent by the ones before it: buttresses and the great couloirs between them, then gullies, then runnels
         gullies(x / 700 + 3.9, z / 700 + 8.2, dx, dz, 1213);
@@ -760,7 +775,7 @@ const Course = ((vn1, vn2, h2U) => {
     return u + 0.22 * Math.sin(1.9634954 * u + 1.7 + ph) + 0.035 * Math.sin(5.1050881 * u + 0.6 - 0.8 * ph);
   };
   // how far up into the mountain's own country a point lies (0 on the run and its shoulders, 1 high on the walls)
-  C.mountain = function (x, z) { const c = at(-z), u = x - c.cx, e = LV ? edgeE(-z, u, Math.abs(u) - c.hw, c.hw) : Math.abs(u) - c.hw; return smooth(30, 900, e); };
+  C.mountain = function (x, z) { const c = at(-z), u = x - c.cx, e = LV ? edgeE(-z, u, Math.abs(u) - c.hw, c.hw) : Math.abs(u) - c.hw; return smooth(30, 900, e * SH[u > 0 ? 1 : 0].kx); };
   const _g = [0, 0, 0];
   C.normal = function (x, z, d = 0.3) {
     const hx = C.height(x + d, z, 0.5) - C.height(x - d, z, 0.5), hz = C.height(x, z + d, 0.5) - C.height(x, z - d, 0.5);
@@ -783,7 +798,7 @@ const Course = ((vn1, vn2, h2U) => {
       }
       // (an island between the run and a lane is forest, thick enough that the two read as two ways)
       if (LV && _lb > 0) d = Math.max(d, c.forest * 0.9 * _lb * smooth(2, 5, e) * smooth(-0.35, 0.1, patch - 0.42));
-      d *= 1 - smooth(260, 620, e + 120 * vnoise2(x / 300, z / 300, 22));       // tree line: bare snow and rock higher up the walls
+      d *= 1 - smooth(260, 620, e * SH[u > 0 ? 1 : 0].kx + 120 * vnoise2(x / 300, z / 300, 22));       // tree line: bare snow and rock higher up the walls
       d *= 1 - c.ridge * smooth(0, 30, e);
     }
     // (经典编排) a lane through the forest: the trees stand close at its edges, a wall of trunks either side, deep and unbroken (enc)
