@@ -737,7 +737,8 @@ const Course = ((vn1, vn2, h2U) => {
     }
     // (经典编排) a lane through the forest: the trees stand close at its edges, a wall of trunks either side, deep and unbroken (enc)
     if (c.enc > 0.01 && e > 0.8) { const pt = 0.55 + 0.45 * vnoise2(x / 70, z / 70, 21); d = Math.max(d, c.enc * smooth(0.8, 4.5, e) * (0.8 + 0.2 * pt) * (1 - smooth(70, 140, e))); }
-    // (and the U gully: a row of trees along each rim, a little back from the top of the wall, that frames the sky from the floor)
+    // (and the U gully: a row of trees along each rim, back from the top of the wall, that frames the sky from the floor; out on the run's
+    // own snow the clearing below takes them off again, so the row stands where the run ends)
     if (c.gU > 0.01) { const a = Math.abs(u - c.goff), r = (UF + UW) * c.gw; d = Math.max(d, 0.6 * c.gU * smooth(r + 2, r + 5, a) * (1 - smooth(r + 12, r + 20, a)) * smooth(-0.3, 0.2, vnoise2(x / 17, z / 29, 30))); }
     if (c.glade > 0.01) {
       const lane = vnoise2(x / 19, z / 46, 23), cl = vnoise2(x / 55, z / 55, 24);
@@ -765,9 +766,12 @@ const Course = ((vn1, vn2, h2U) => {
   // (the same line mogField leaves free of bumps), and a jump's way in, its lip and its landing (from 60 m above a marked one to 35 m past
   // its end). The U gully is always kept clear, whatever rclear says
   function keepClear(s, u, c) {
-    let k = 1;
+    let k = 1; const au = Math.abs(u);
     if (c.gul > 0.3) { const a = Math.abs(u - c.goff), r = c.gU > 0.5 ? (UF + UW) * c.gw + 1 : c.gw * 1.3; k *= 1 - smooth(0.3, 1.5, c.gul) * (1 - smooth(r, r + 3, a)); }
     if (!C.rclear) return k;
+    // the run itself is bare snow from edge to edge: no lone groups out on it, nothing on a gully's banks between its two rim rows. Only the
+    // 树林 glade keeps its trees, because skiing between them is what that stretch is for
+    k *= lerp(smooth(c.hw - 1, c.hw + 1.5, au), 1, smooth(0.3, 0.7, c.glade));
     if (c.mog > 0.05) k *= lerp(1, smooth(4.5, 8, Math.abs(u - 0.5 * c.hw * vnoise1(s / 105 + 7.3, C.seed + 31))), smooth(0.05, 0.3, c.mog));
     const b0 = Math.floor(s / 32);
     for (let b = b0 - 1; b <= b0 + 2; b++) { const fb = C.feats.get(b); if (!fb) continue;
