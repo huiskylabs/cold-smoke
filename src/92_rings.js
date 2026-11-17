@@ -308,28 +308,39 @@ const Rings = (() => {
   function ui() {
     if (L.el) return L.el;
     const d = document.createElement('div'); d.id = 'rline';
-    d.innerHTML = '<style>#rline{position:fixed;inset:0;pointer-events:none;z-index:4;font-family:system-ui,-apple-system,sans-serif;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5)}'
-      + '#rline .tm{position:absolute;top:10px;left:50%;transform:translateX(-50%);font:600 30px/1 system-ui,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.02em;transition:transform .25s,color .25s}'
-      + '#rline .tm.fin{color:#ffe9a8;transform:translateX(-50%) scale(1.25)}'
-      + '#rline .sub{position:absolute;top:46px;left:50%;transform:translateX(-50%);font:500 12px/1 system-ui,sans-serif;letter-spacing:.12em;opacity:.85;white-space:nowrap}'
-      + '#rline .pop{position:absolute;top:12px;left:calc(50% + 74px);font:700 18px/1 system-ui,sans-serif;color:#ff6b6b;opacity:0;transition:opacity .2s,transform .8s}'
+    // (用户 20:58 UTC: 结束这些菜单的 UI 要跟现在整个 UI 的风格一样): the game's own type and colours (template.html: --snow, --dim, --faint,
+    // --hair, --sun; Jost light for figures, the Song serif for words that are names, small spaced Jost capitals for labels, a hairline of
+    // amber as the accent, dark glass for what has to sit on the picture). Inside #app, so its margins and the turned phone apply
+    d.innerHTML = '<style>#rline{position:absolute;inset:0;pointer-events:none;z-index:4;font-family:var(--f-ui);color:var(--snow);text-shadow:0 1px 16px rgba(5,8,13,.55)}'
+      + '#rline .tm{position:absolute;top:var(--gt);left:50%;transform:translateX(-50%);font-family:var(--f-lat);font-weight:300;font-size:clamp(26px,6.4vmin,42px);line-height:1;letter-spacing:.02em;font-variant-numeric:tabular-nums;transition:transform .5s cubic-bezier(.2,.6,.2,1),color .5s}'
+      + '#rline .tm.fin{color:var(--sun);transform:translateX(-50%) scale(1.12)}'
+      + '#rline .sub{position:absolute;top:calc(var(--gt) + clamp(34px,7.6vmin,50px));left:50%;transform:translateX(-50%);font-weight:500;font-size:11px;letter-spacing:.3em;margin-right:-.3em;color:var(--dim);white-space:nowrap}'
+      + '#rline .pop{position:absolute;top:var(--gt);left:calc(50% + clamp(62px,12vmin,90px));font-family:var(--f-lat);font-weight:400;font-size:clamp(16px,3.4vmin,22px);color:#ff9d8c;opacity:0;transition:opacity .25s,transform .9s cubic-bezier(.2,.6,.2,1)}'
       + '#rline .pop.on{opacity:1;transform:translateY(-6px)}'
-      + '#rline .spl{position:absolute;top:66px;left:50%;transform:translateX(-50%);font:600 13px/1 system-ui,sans-serif;letter-spacing:.06em;opacity:0;transition:opacity .3s;white-space:nowrap}'
-      + '#rline .spl.on{opacity:1}#rline .g{color:#7dffb0}#rline .r{color:#ff8a8a}'
-      + '#rline .cd{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);font:700 96px/1 system-ui,sans-serif;opacity:0;transition:opacity .15s}'
-      + '#rline .cd.on{opacity:1}'
-      + '#rline .ban{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);text-align:center;opacity:0;transition:opacity .4s}'
-      + '#rline .ban.on{opacity:1}#rline .ban b{display:block;font:700 56px/1.05 system-ui,sans-serif;font-variant-numeric:tabular-nums;color:#ffe9a8}#rline .ban i{display:block;font:500 15px/1.6 system-ui,sans-serif;font-style:normal;letter-spacing:.1em}'
-      + '#rline .card{position:absolute;top:50%;right:16px;width:min(320px,44vw);max-height:84vh;overflow:auto;transform:translate(120%,-50%);transition:transform .45s cubic-bezier(.2,.8,.2,1);background:rgba(14,20,32,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:14px;padding:14px 16px;pointer-events:auto;text-shadow:none;font-size:12px}'
-      + '#rline .card.on{transform:translate(0,-50%)}#rline .card h3{margin:0 0 2px;font:600 12px/1.4 system-ui,sans-serif;letter-spacing:.12em;opacity:.7}'
-      + '#rline .card .big{font:700 34px/1.1 system-ui,sans-serif;font-variant-numeric:tabular-nums}#rline .card .dl{font-weight:600;margin:2px 0 8px}'
-      + '#rline .card .row{display:flex;gap:12px;opacity:.85;margin-bottom:8px}#rline table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}'
-      + '#rline td,#rline th{padding:3px 2px;text-align:right;font-weight:500}#rline th{opacity:.55;font-size:11px}#rline td:first-child,#rline th:first-child{text-align:left}'
-      + '#rline tr.worst td{background:rgba(255,120,120,.14)}#rline .tip{margin-top:6px;opacity:.75}#rline .tip:empty{display:none}'
-      + '#rline .cmp{display:flex;gap:6px;margin-top:10px}#rline .cmp div{flex:1;background:rgba(255,255,255,.07);border-radius:8px;padding:6px 8px}#rline .cmp span{display:block;font-size:10px;opacity:.6;letter-spacing:.08em}#rline .cmp b{display:block;font:600 15px/1.3 system-ui,sans-serif;font-variant-numeric:tabular-nums}'
-      + '#rline .bt{display:flex;gap:8px;margin-top:12px}#rline button{flex:1;border:0;border-radius:9px;padding:9px 0;font:600 13px system-ui,sans-serif;cursor:pointer;background:rgba(255,255,255,.14);color:#fff}#rline button.p{background:#7dffb0;color:#0b1a12}</style>'
-      + '<div class="tm"></div><div class="sub"></div><div class="pop"></div><div class="spl"></div><div class="cd"></div><div class="ban"><b></b><i></i></div><div class="card"></div>';
-    document.body.appendChild(d); L.el = d;
+      + '#rline .spl{position:absolute;top:calc(var(--gt) + clamp(56px,11vmin,74px));left:50%;transform:translateX(-50%);font-size:12px;letter-spacing:.1em;font-variant-numeric:tabular-nums;opacity:0;transition:opacity .45s;white-space:nowrap}'
+      + '#rline .spl.on{opacity:1}#rline .spl .k{font-family:var(--f-song);letter-spacing:.2em;color:rgba(244,247,251,.82)}'
+      + '#rline .g{color:var(--sun)}#rline .r{color:#ff9d8c}'
+      + '#rline .cd{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);font-family:var(--f-lat);font-weight:300;font-size:clamp(72px,20vmin,132px);line-height:1;opacity:0;transition:opacity .15s}'
+      + '#rline .cd.on{opacity:1}#rline .cd.w{font-family:var(--f-song);font-size:clamp(40px,11vmin,72px);letter-spacing:.6em;margin-right:-.6em;color:var(--sun)}'
+      + '#rline .ban{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;text-align:center;opacity:0;transition:opacity .5s}'
+      + '#rline .ban.on{opacity:1}#rline .ban b{display:block;font-family:var(--f-lat);font-weight:300;font-size:clamp(46px,12vmin,84px);line-height:1;font-variant-numeric:tabular-nums}'
+      + '#rline .ban .rule{width:26px;height:1px;background:var(--sun);margin:14px 0 12px}#rline .ban i{display:block;font-family:var(--f-song);font-weight:300;font-style:normal;font-size:clamp(13px,3.4vmin,16px);letter-spacing:.34em;margin-right:-.34em}'
+      + '#rline .card{position:absolute;top:50%;right:var(--gr);width:min(330px,44vw);max-height:calc(100% - var(--gt) - var(--gb));overflow:auto;scrollbar-width:none;transform:translate(calc(100% + var(--gr) + 20px),-50%);transition:transform .6s cubic-bezier(.2,.6,.2,1);background:rgba(5,8,13,.52);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:18px 20px;pointer-events:auto;text-shadow:none;font-size:12px}'
+      + '#rline .card::-webkit-scrollbar{display:none}#rline .card.on{transform:translate(0,-50%)}'
+      + '#rline .card h3{margin:0;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.4em;color:var(--dim);white-space:nowrap}#rline .card h3 em{font-family:var(--f-song);font-style:normal;font-size:12px;letter-spacing:.24em;color:var(--snow);margin-right:.6em}'
+      + '#rline .card .big{margin-top:10px;font-family:var(--f-lat);font-weight:300;font-size:clamp(34px,7vmin,46px);line-height:1;font-variant-numeric:tabular-nums}'
+      + '#rline .card .rule{width:26px;height:1px;background:var(--sun);margin:12px 0 10px}#rline .card .dl{font-size:12px;letter-spacing:.12em}'
+      + '#rline .fs{display:flex;gap:clamp(14px,3vmin,24px);margin-top:14px}#rline .fs>div{display:flex;flex-direction:column}#rline .fs b{font-family:var(--f-lat);font-weight:300;font-size:clamp(16px,3.2vmin,20px);line-height:1;font-variant-numeric:tabular-nums}'
+      + '#rline .fs span{margin-top:6px;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.3em;white-space:nowrap;color:var(--dim)}'
+      + '#rline table{width:100%;margin-top:14px;border-collapse:collapse;font-variant-numeric:tabular-nums}#rline td,#rline th{padding:4px 2px;text-align:right;font-weight:400;border-top:1px solid rgba(244,247,251,.08)}'
+      + '#rline th{border-top:0;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.24em;color:var(--faint)}#rline td:first-child,#rline th:first-child{text-align:left}#rline td:first-child{font-family:var(--f-song);letter-spacing:.1em}'
+      + '#rline tr.worst td{color:#ffc4b8}#rline .tip{margin-top:10px;font-size:11px;line-height:1.7;letter-spacing:.1em;color:var(--dim)}#rline .tip:empty{display:none}'
+      + '#rline .bt{display:flex;gap:8px;margin-top:16px}#rline button{flex:1;appearance:none;-webkit-appearance:none;margin:0;border:0;height:38px;border-radius:999px;font-family:var(--f-ui);font-size:12px;letter-spacing:.14em;cursor:pointer;color:var(--dim);background:rgba(5,8,13,.25);box-shadow:inset 0 0 0 1px var(--hair);transition:color .2s,box-shadow .2s}'
+      + '#rline button.p{color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun);font-family:var(--f-song);letter-spacing:.3em}'
+      + '@media (hover:hover){#rline button:hover{color:var(--snow);box-shadow:inset 0 0 0 1px rgba(244,247,251,.5)}#rline button.p:hover{color:#ffe2b5;box-shadow:inset 0 0 0 1px #ffe2b5}}'
+      + '#rline kbd{margin-left:.5em;font-family:var(--f-lat);font-size:.85em;letter-spacing:.04em;opacity:.6}</style>'
+      + '<div class="tm"></div><div class="sub"></div><div class="pop"></div><div class="spl"></div><div class="cd"></div><div class="ban"><b></b><span class="rule"></span><i></i></div><div class="card"></div>';
+    (document.getElementById('app') || document.body).appendChild(d); L.el = d;
     d.addEventListener('click', e => { const a = e.target && e.target.dataset && e.target.dataset.a; if (a === 'again') lineRestart(); else if (a === 'harder') lineHarder(); else if (a === 'free') lineFree(); });
     L.q = k => d.querySelector('.' + k);
     return d;
@@ -375,13 +386,14 @@ const Rings = (() => {
     let worst = -1, wd = 0;
     const rows = seg.map((d, i) => { const b = segBest[i]; const df = b != null ? d - b : null; if (df != null && df >= 0.3 && df > wd) { wd = df; worst = i; } return { n: L.names[i] || (i + 1) + '', d, b, df }; });
     const td = r => '<td>' + (r.b != null ? fmt(r.b) : '—') + '</td><td class="' + (r.df == null || Math.abs(r.df) < 0.05 ? '' : r.df < 0 ? 'g' : 'r') + '">' + (r.df == null ? '' : sgn(r.df)) + '</td>';
-    L.q('card').innerHTML = '<h3>' + LINES[L.id].name + ' · ' + DNAME[L.diff] + '</h3><div class="big">' + fmt(score) + '</div>'
-      + '<div class="dl ' + (isNew ? 'g' : 'r') + '">' + (isNew ? (best ? '新纪录 · 快了 ' + (best.score - score).toFixed(1) + ' 秒' : '第一次完成 · 这就是你的纪录') : '最好 ' + fmt(best.score) + ' · 慢了 ' + (score - best.score).toFixed(1) + ' 秒') + '</div>'
-      + '<div class="row"><span>用时 ' + fmt(L.tEnd) + '</span><span>光圈 ' + RG.passed + ' / ' + tot + '</span><span>罚时 ' + (miss ? '+' + miss * p + ' 秒' : '0') + '</span></div>'
+    const fs = items => '<div class="fs">' + items.map(([v, k, c]) => '<div><b' + (c ? ' class="' + c + '"' : '') + '>' + v + '</b><span>' + k + '</span></div>').join('') + '</div>';
+    L.q('card').innerHTML = '<h3><em>' + LINES[L.id].name + '</em>' + DNAME[L.diff] + '</h3><div class="big">' + fmt(score) + '</div><div class="rule"></div>'
+      + '<div class="dl ' + (isNew ? 'g' : 'r') + '">' + (isNew ? (best ? '新纪录，快了 ' + (best.score - score).toFixed(1) + ' 秒' : '第一次完成，这就是你的纪录') : '比最好慢 ' + (score - best.score).toFixed(1) + ' 秒') + '</div>'
+      + fs([[fmt(L.tEnd), '用时'], [RG.passed + ' / ' + tot, '光圈'], [miss ? '+' + miss * p : '0', '罚时', miss ? 'r' : '']])
       + '<table><tr><th>分站</th><th>本局</th><th>之前最好</th><th></th></tr>' + rows.map((r, i) => '<tr' + (i === worst ? ' class="worst"' : '') + '><td>' + r.n + '</td><td>' + fmt(r.d) + '</td>' + td(r) + '</tr>').join('') + '</table>'
-      + '<div class="tip">' + [miss ? '漏了 ' + miss + ' 个圈，罚时 +' + miss * p + ' 秒' : '', worst >= 0 ? '最慢的一站：' + rows[worst].n + '（比最好慢 ' + wd.toFixed(1) + ' 秒）' : ''].filter(Boolean).join('；') + '</div>'
-      + '<div class="cmp"><div><span>个人最好</span><b>' + fmt(rec.best.score) + '</b></div><div><span>全部最好</span><b class="gtop">…</b></div><div><span>排名</span><b class="grank">…</b></div></div>'
-      + '<div class="bt"><button class="p" data-a="again">再来一局 ⏎</button>' + (DNEXT[L.diff] ? '<button data-a="harder">增加难度 ↑</button>' : '') + '<button data-a="free">继续滑 Esc</button></div>';
+      + '<div class="tip">' + [miss ? '漏了 ' + miss + ' 个圈，罚时 +' + miss * p + ' 秒' : '', worst >= 0 ? '最慢的一站：' + rows[worst].n + '，比最好慢 ' + wd.toFixed(1) + ' 秒' : ''].filter(Boolean).join('；') + '</div>'
+      + fs([[fmt(rec.best.score), '个人最好'], ['…', '全部最好', 'gtop'], ['…', '排名', 'grank']])
+      + '<div class="bt"><button class="p" data-a="again">再来一局<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">增加难度</button>' : '') + '<button data-a="free">继续滑<kbd>Esc</kbd></button></div>';
     board(score);
     clearTimeout(L.cardT); L.cardT = setTimeout(() => { if (L.st === 'done') L.q('card').classList.add('on'); }, 1500);
   }
@@ -434,8 +446,8 @@ const Rings = (() => {
       const k = 3 - Math.floor(L.cT / 0.8), cd = L.q('cd');
       if (k !== L.lastK) {
         L.lastK = k;
-        if (k >= 1) { cd.textContent = k; cd.classList.add('on'); beep(660, 0.14, 0.16); }
-        else { cd.textContent = '出发'; cd.classList.add('on'); beep(1320, 0.35, 0.18); clearTimeout(cd._t); cd._t = setTimeout(() => cd.classList.remove('on'), 700); lineGo(); }
+        if (k >= 1) { cd.textContent = k; cd.classList.remove('w'); cd.classList.add('on'); beep(660, 0.14, 0.16); }
+        else { cd.textContent = '出发'; cd.classList.add('on', 'w'); beep(1320, 0.35, 0.18); clearTimeout(cd._t); cd._t = setTimeout(() => cd.classList.remove('on'), 700); lineGo(); }
       }
       return;
     }
@@ -446,7 +458,7 @@ const Rings = (() => {
       while (L.ci < L.cut.length - 1 && s >= L.cut[L.ci]) {
         const t = G.runT, d = t - (L.ci ? L.split[L.ci - 1] : 0), b = L.rec && L.rec.seg && L.rec.seg[L.ci];
         L.split.push(t);
-        flash('spl', (L.names[L.ci] || '') + '　' + fmt(d) + (b != null ? '　<span class="' + (d <= b ? 'g' : 'r') + '">' + sgn(d - b) + '</span>' : ''), 2200);
+        flash('spl', '<span class="k">' + (L.names[L.ci] || '') + '</span>　' + fmt(d) + (b != null ? '　<span class="' + (d <= b ? 'g' : 'r') + '">' + sgn(d - b) + '</span>' : ''), 2200);
         L.ci++;
       }
       setTxt('tm', fmt(G.runT + L.pen));
@@ -460,13 +472,16 @@ const Rings = (() => {
   function pickUI() {
     if (RG.pk) return RG.pk;
     const d = document.createElement('div'); d.id = 'rpick';
-    d.innerHTML = '<style>#rpick{position:fixed;right:24px;bottom:64px;width:min(300px,40vw);z-index:4;background:rgba(10,14,24,.62);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px 14px;color:#fff;font:500 12px/1.4 system-ui,-apple-system,sans-serif;transition:opacity .3s}'
-      + '#rpick h4{margin:0 0 8px;font:600 11px/1 system-ui,sans-serif;letter-spacing:.2em;opacity:.65}#rpick .l{display:flex;flex-direction:column;gap:6px}'
-      + '#rpick button{all:unset;cursor:pointer;box-sizing:border-box;border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:7px 10px;background:rgba(255,255,255,.05)}#rpick button.on{border-color:#e8c787;background:rgba(232,199,135,.14)}'
-      + '#rpick .l button b{display:block;font:600 13px/1.3 system-ui,sans-serif}#rpick .l button i{font-style:normal;opacity:.6;font-size:11px}#rpick .l button em{float:right;font-style:normal;color:#e8c787;font-variant-numeric:tabular-nums}'
-      + '#rpick .r{display:flex;gap:6px;margin-top:8px}#rpick .r button{flex:1;text-align:center;padding:6px 0}#rpick .t{margin-top:8px;opacity:.6;font-size:11px}</style>'
+    d.innerHTML = '<style>#rpick{position:absolute;right:var(--gr);bottom:calc(var(--gb) + 34px);width:min(300px,38vw);z-index:4;pointer-events:auto;background:rgba(5,8,13,.42);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:16px 16px 14px;color:var(--snow);font-family:var(--f-ui);font-size:12px;transition:opacity .4s}'
+      + '#rpick h4{margin:0 0 10px;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.4em;color:var(--dim);white-space:nowrap}#rpick .l{display:flex;flex-direction:column;gap:6px}'
+      + '#rpick button{appearance:none;-webkit-appearance:none;margin:0;border:0;font:inherit;color:var(--dim);cursor:pointer;box-sizing:border-box;text-align:left;border-radius:10px;padding:8px 12px;background:rgba(5,8,13,.25);box-shadow:inset 0 0 0 1px var(--hair);transition:color .2s,box-shadow .2s}'
+      + '#rpick button.on{color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun)}@media (hover:hover){#rpick button:not(.on):hover{color:var(--snow);box-shadow:inset 0 0 0 1px rgba(244,247,251,.5)}}'
+      + '#rpick .l button b{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--f-song);font-weight:400;font-size:15px;letter-spacing:.2em;line-height:1.4;color:var(--snow)}#rpick .l button.on b{color:var(--sun)}'
+      + '#rpick .l button i{display:block;margin-top:2px;font-style:normal;font-size:11px;letter-spacing:.1em;color:var(--faint)}#rpick .l button em{font-family:var(--f-lat);font-style:normal;font-weight:300;font-size:13px;letter-spacing:.02em;font-variant-numeric:tabular-nums;color:var(--dim)}'
+      + '#rpick .r{display:flex;gap:6px;margin-top:10px}#rpick .r button{flex:1;text-align:center;padding:0;height:32px;border-radius:999px;letter-spacing:.2em}'
+      + '#rpick .t{margin-top:10px;font-size:11px;line-height:1.7;letter-spacing:.1em;color:var(--dim)}</style>'
       + '<h4>光圈挑战</h4><div class="l"></div><div class="r d"></div><div class="r g"></div><div class="t"></div>';
-    document.body.appendChild(d); RG.pk = d;
+    (document.getElementById('app') || document.body).appendChild(d); RG.pk = d;
     d.addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return; e.stopPropagation();
       if (b.dataset.l) Variants.set('rline', b.dataset.l); else if (b.dataset.d) Variants.set('ringdiff', b.dataset.d); else if (b.dataset.g) Variants.set('rings', b.dataset.g);
