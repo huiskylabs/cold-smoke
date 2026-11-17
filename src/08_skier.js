@@ -444,7 +444,7 @@ const Skier = (() => {
   K.solve = solve; K.P0 = P0; K.B = B; K.LEN = LEN; K.fixMesh = m => fixMesh(m);
   // (for the snowboard, 08a_board.js: the same bones, posed by a solver of its own)
   K.basis = basis; K.ik2 = ik2; K.frameXY = frameXY; K.fr = fr; K.SEC0 = SEC0; K.meshBuilder = () => meshBuilder();
-  K.boardOn = () => !!(K.solveBoard && Variants.val.ride === 'b');
+  K.boardOn = () => !!(K.solveBoard && Board.on());
 
   // ---- skin: the bind -> pose matrix of every bone (model space)
   function quat(m) {
@@ -834,7 +834,7 @@ const Skier = (() => {
   // loose ski clothes. Each is built when first asked for and kept: K.meshes[id]; K.mesh is the one drawn now)
   K.meshes = {};
   // (and a snowboard instead of skis and poles, Variants 'ride' b: 08a_board.js hands over the board, K.boardPart, built in the left foot's frame)
-  const rideV = () => K.boardPart && Variants.val.ride === 'b' ? 'S' : '';
+  const rideV = () => K.boardPart && K.boardOn() ? 'S' : '';
   // (and the glove: 'H' = the fine glove closed round the grip, Variants 'hand' b; on the new body and on skis only: a rider's hands hold no pole)
   const handV = (v, rd) => (v || bodyV()) === 'b' && !(rd == null ? rideV() : rd) && Variants.val.hand === 'b' && typeof Fpv !== 'undefined' && Fpv.gloveSD ? 'H' : '';
   K.build = function (v) {

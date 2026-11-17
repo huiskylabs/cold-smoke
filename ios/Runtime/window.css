@@ -3,6 +3,7 @@ html, body, #app, #view { background: transparent; }
 /* UIKit supplies the physical edge and the usable bar region in viewport points. */
 #app {
   --bar-offset: max(10px, var(--bar-inset, 0px));
+  --bar-button-size: 44px;
   --bar-room: calc(var(--bar-offset) + 52px + 12px);
   --title-left: var(--gl);
   --title-right: var(--gr);
@@ -19,7 +20,7 @@ html, body, #app, #view { background: transparent; }
   background: rgba(20, 26, 34, .80);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22), 0 2px 10px rgba(0, 0, 0, .13);
 }
-#bar button { width: 44px; height: 44px; opacity: 1; }
+#bar button { width: var(--bar-button-size); height: var(--bar-button-size); opacity: 1; }
 #bar svg { width: 22px; height: 22px; stroke-width: 1.75; }
 #bar.on #mn { display: block; }
 :root:is([data-bar-edge="right"], [data-bar-edge="left"]) #bar {
@@ -71,7 +72,11 @@ html, body, #app, #view { background: transparent; }
 #title .more button:focus-visible { outline-offset: -3px; }
 #title .more svg { width: 19px; height: 19px; }
 #title .cta .fine, #title .cta .keys { display: none; }
-#app #title .how { font: -apple-system-footnote; letter-spacing: normal; text-wrap: balance; }
+#app #title .how {
+  width: 100%; margin: 16px 0 0;
+  font: -apple-system-footnote; line-height: 1.55; letter-spacing: normal;
+  text-align: center; white-space: pre-line; text-wrap: balance;
+}
 #title.on .cta > * { transition-delay: 0s; }
 #app.wide #title { padding-left: max(var(--col), var(--title-left)); }
 #app.wide #title .cta { width: min(100%, 320px); }
@@ -102,25 +107,59 @@ html, body, #app, #view { background: transparent; }
   background: transparent; border: 0; box-shadow: none; backdrop-filter: none; overflow: visible;
 }
 .native-controls #app #bar { gap: 8px; padding: 0; }
-.native-controls #app.run { --hud-right: max(calc(var(--gr) - 6px), var(--sr), var(--xr)); }
-.native-controls[data-bar-edge="right"] #app.run { --hud-right: var(--bar-offset); }
-.native-controls[data-bar-edge="left"] #app.run { --hud-right: max(10px, var(--sr)); }
-.native-controls #app.run :is(#bar, #shoot) { left: auto; right: var(--hud-right); }
+.native-controls #app {
+  --hud-side: max(calc(var(--gr) - 6px), var(--sr), var(--xr));
+  --hud-bar-top: max(calc(var(--gt) + 8px), calc(var(--bar-top, 0px) + 24px));
+  --clock-side: calc(var(--hud-side) + var(--bar-button-size) + 16px);
+}
+.native-controls[data-cover-controls] #app {
+  --bar-offset: calc(var(--control-bar-axis) - var(--bar-button-size) / 2);
+}
+.native-controls[data-bar-edge="right"] #app { --hud-side: var(--bar-offset); }
+.native-controls[data-bar-edge="left"] #app { --hud-side: max(10px, var(--sr)); }
+.native-controls[data-bar-edge="left"]:is([data-cover-controls], [data-left-split]) #app { --hud-side: var(--bar-offset); }
+/* Home and the ski HUD share the lock-screen corner on the expanded display. */
+.native-controls[data-expanded-display] #app {
+  --hud-side: max(var(--sr), calc(48px - var(--bar-button-size) / 2));
+  --hud-bar-top: max(var(--st), calc(44px - var(--bar-button-size) / 2));
+}
+.native-controls #app.run #shoot { left: auto; right: var(--hud-side); }
+.native-controls[data-expanded-display] #app #bar,
 .native-controls #app.run #bar {
-  top: max(calc(var(--gt) + 8px), calc(var(--bar-top, 0px) + 24px));
+  left: auto; right: var(--hud-side);
+  top: var(--hud-bar-top);
   flex-direction: column;
   align-items: center;
   pointer-events: none;
 }
+.native-controls #app.run #clock {
+  right: var(--clock-side); top: var(--hud-bar-top);
+}
+.native-controls:not([data-cover-controls]) #app.run #clock::before { top: 0; }
+/* UIKit's cover bar already starts below the camera and any visible system UI. */
+.native-controls[data-cover-controls] #app #bar,
+.native-controls[data-cover-controls] #app.run #clock {
+  top: var(--bar-top);
+}
+.native-controls[data-cover-controls] #app.run #clock {
+  /* Keep the clock above the menu when it fits, and inside the viewport when rotated. */
+  transform: translateY(max(calc(-100% - 2px), calc(var(--gt) - var(--bar-top))));
+}
 .native-controls #app #pad #shoot { top: 50%; transform: translateY(-50%); width: 48px; height: 48px; }
-/* In the left Split View pane, keep the buttons at the device edge and the readout by the divider. */
-.native-controls[data-left-split] #app.run :is(#bar, #shoot) { left: var(--bar-offset); right: auto; }
+/* Follow the physical toolbar edge on the cover and in Split View. */
+.native-controls[data-bar-edge="left"]:is([data-cover-controls], [data-left-split]) #app.run :is(#bar, #shoot) { left: var(--hud-side); right: auto; }
+.native-controls[data-bar-edge="left"]:is([data-cover-controls], [data-left-split]) #app.run #clock {
+  left: var(--clock-side); right: auto;
+  padding-left: 14px; padding-right: 0; text-align: left;
+}
+.native-controls[data-bar-edge="left"]:is([data-cover-controls], [data-left-split]) #app.run #clock::before { left: 0; right: auto; }
+.native-controls[data-bar-edge="left"]:is([data-cover-controls], [data-left-split]) #app.run #clock .t { justify-content: flex-start; }
 .native-controls[data-left-split] #app.run #pad {
   --thumb-inset: max(20px, var(--sl), var(--xl));
 }
 .native-controls[data-left-split] #app.run #jump { left: calc(var(--thumb-inset) + 8px); right: auto; }
 .native-controls[data-left-split] #app.run #tuck { left: calc(var(--thumb-inset) + 94px); right: auto; }
-.native-controls[data-left-split] #app.run #hud .spd {
+.native-controls[data-bar-edge="left"]:is([data-cover-controls], [data-left-split]) #app.run #hud .spd {
   left: auto; right: var(--gr); align-items: flex-end; text-align: right;
 }
 @media (max-width: 560px), (max-height: 560px) {
@@ -150,7 +189,7 @@ html, body, #app, #view { background: transparent; }
 }
 .native-controls:is([data-bar-edge="right"], [data-bar-edge="left"]) #photo {
   /* Use the bar region, not the safe area of the scene beside it. */
-  --rail-side: max(0px, calc(var(--photo-bar-axis) - 34px));
+  --rail-side: max(0px, calc(var(--control-bar-axis) - 34px));
   --rail-top: calc(var(--photo-bar-top) + 8px);
   --rail-bottom: calc(var(--photo-bar-bottom) + 8px);
 }

@@ -22,10 +22,12 @@ final class GameController: UIViewController, WKNavigationDelegate {
     private struct ControlLayout: Equatable {
         var edge = ""
         var leftSplit = false
+        var coverControls = false
+        var expandedDisplay = false
         var barTop: CGFloat = 0
         var barInset: CGFloat = 0
         var compactControls = false
-        var photoAxis: CGFloat = 0
+        var controlBarAxis: CGFloat = 0
         var photoTop: CGFloat = 0
         var photoBottom: CGFloat = 0
         var division = CGRect.null
@@ -35,6 +37,8 @@ final class GameController: UIViewController, WKNavigationDelegate {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
+        NotificationCenter.default.addObserver(self, selector: #selector(sceneDidActivate(_:)),
+                                               name: UIScene.didActivateNotification, object: nil)
         if #available(iOS 27.1, *) {
             registerForTraitChanges(UITraitCollection.systemTraitsAffectingVerticalBarEdge + [UITraitHorizontalSizeClass.self]) {
                 (controller: GameController, _: UITraitCollection) in controller.view.setNeedsLayout()
@@ -42,6 +46,11 @@ final class GameController: UIViewController, WKNavigationDelegate {
         }
         do { try loadGame() }
         catch { showError(error.localizedDescription) }
+    }
+
+    @objc private func sceneDidActivate(_ note: Notification) {
+        guard let scene = note.object as? UIWindowScene, scene === viewIfLoaded?.window?.windowScene else { return }
+        web?.evaluateJavaScript("window.gameControls?.sceneDidActivate()")
     }
 
     private func loadGame() throws {
@@ -165,6 +174,18 @@ final class GameController: UIViewController, WKNavigationDelegate {
         var layout = ControlLayout()
         var settingsBar = CGRect.null
         let barEdge = web.traitCollection.verticalBarEdge
+        let traits = web.traitCollection
+        var splitPane: Bool?
+        if traits.userInterfaceIdiom == .phone, let scene = web.window?.windowScene {
+            let sceneSpace = scene.effectiveGeometry.coordinateSpace
+            let screenSpace = scene.screen.coordinateSpace
+            let display = sceneSpace.convert(screenSpace.bounds, from: screenSpace)
+            if sceneSpace.bounds.width > 0 && display.width > 0 {
+                // A split pane can have the same compact width as the cover.
+                splitPane = sceneSpace.bounds.width < display.width - 1
+            }
+        }
+        layout.expandedDisplay = splitPane == false && traits.horizontalSizeClass == .regular && traits.verticalSizeClass == .regular
         if barEdge == .leading || barEdge == .trailing {
             let rightToLeft = web.effectiveUserInterfaceLayoutDirection == .rightToLeft
             let left = (barEdge == .leading) != rightToLeft
@@ -172,18 +193,14 @@ final class GameController: UIViewController, WKNavigationDelegate {
             // UIKit reserves room along this strip for the camera, system UI and curved corners.
             let insets = web.edgeInsets(for: .bar(onEdge: physicalEdge, extent: 52))
             layout.edge = left ? "left" : "right"
-            if left, web.traitCollection.userInterfaceIdiom == .phone, let scene = web.window?.windowScene {
-                // The cover can also have a left bar. Only mirror the HUD in a half-width scene.
-                let sceneSpace = scene.effectiveGeometry.coordinateSpace
-                let screenSpace = scene.screen.coordinateSpace
-                let display = sceneSpace.convert(screenSpace.bounds, from: screenSpace)
-                layout.leftSplit = sceneSpace.bounds.width > 0 && sceneSpace.bounds.width <= display.width / 2 + 1
+            layout.compactControls = web.traitCollection.horizontalSizeClass == .compact
+            if let splitPane {
+                layout.leftSplit = left && splitPane
+                layout.coverControls = layout.compactControls && !splitPane
             }
-            layout.barTop = insets.top
             layout.barInset = left ? insets.left : insets.right
             // The cover uses compact width in either orientation; the open viewfinder
             // uses its own right-hand rail regardless of the system bar's side.
-            layout.compactControls = web.traitCollection.horizontalSizeClass == .compact
             let photoEdge: UIRectEdge = layout.compactControls ? physicalEdge : .right
             // Keep the standard bar's centerline even though the shutter is wider.
             var region = UIView.LayoutRegion.bar(onEdge: photoEdge, extent: 48)
@@ -191,8 +208,9 @@ final class GameController: UIViewController, WKNavigationDelegate {
             if #available(iOS 27.2, *) { region = .bar(onEdge: photoEdge) }
             #endif
             let bar = web.bounds.inset(by: web.edgeInsets(for: region))
+            layout.barTop = layout.coverControls ? bar.minY - web.bounds.minY : insets.top
             if layout.compactControls { settingsBar = web.convert(bar, to: nil) }
-            layout.photoAxis = photoEdge == .left ? bar.midX - web.bounds.minX : web.bounds.maxX - bar.midX
+            layout.controlBarAxis = photoEdge == .left ? bar.midX - web.bounds.minX : web.bounds.maxX - bar.midX
             let shutter = web.edgeInsets(for: .bar(onEdge: photoEdge, extent: 68))
             layout.photoTop = max(shutter.top, bar.minY - web.bounds.minY)
             layout.photoBottom = max(shutter.bottom, web.bounds.maxY - bar.maxY)
@@ -212,10 +230,12 @@ final class GameController: UIViewController, WKNavigationDelegate {
             const root = document.documentElement;
             root.dataset.barEdge = edge;
             root.toggleAttribute('data-left-split', leftSplit);
+            root.toggleAttribute('data-cover-controls', coverControls);
+            root.toggleAttribute('data-expanded-display', expandedDisplay);
             root.dataset.controlLayout = compactControls ? 'compact' : 'expanded';
             root.style.setProperty('--bar-top', barTop + 'px');
             root.style.setProperty('--bar-inset', barInset + 'px');
-            root.style.setProperty('--photo-bar-axis', photoAxis + 'px');
+            root.style.setProperty('--control-bar-axis', controlBarAxis + 'px');
             root.style.setProperty('--photo-bar-top', photoTop + 'px');
             root.style.setProperty('--photo-bar-bottom', photoBottom + 'px');
             root.dataset.fold = axis;
@@ -223,7 +243,8 @@ final class GameController: UIViewController, WKNavigationDelegate {
             root.style.setProperty('--fold-gap', gap + 'px');
             """, arguments: ["edge": layout.edge, "barTop": layout.barTop, "barInset": layout.barInset,
                              "compactControls": layout.compactControls, "leftSplit": layout.leftSplit,
-                             "photoAxis": layout.photoAxis, "photoTop": layout.photoTop, "photoBottom": layout.photoBottom,
+                             "coverControls": layout.coverControls, "expandedDisplay": layout.expandedDisplay,
+                             "controlBarAxis": layout.controlBarAxis, "photoTop": layout.photoTop, "photoBottom": layout.photoBottom,
                              "axis": fold.isNull ? "" : vertical ? "vertical" : "horizontal",
                              "start": start, "gap": gap], in: nil, in: .page, completionHandler: nil)
     }

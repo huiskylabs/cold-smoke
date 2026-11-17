@@ -71,7 +71,7 @@ Open `ios/ColdSmoke.xcodeproj` with Xcode and the iOS 27.1 SDK or newer. Run the
 
 WKWebView runs the shared simulation and audio. The iOS graphics adapter sends the shared scene to Metal, and UIKit presents the game buttons with Liquid Glass on iOS 26 and later. The camera follows the native window as the phone folds. While skiing, tap the camera icon on the right to frame a shot. The shutter captures the Metal scene, **Save** opens the system share sheet, and **Back** resumes the run.
 
-The native pause menu keeps your selected page as the Duo opens or closes. Time and snowfall preview the current scene; **Mountain** holds run-changing actions, and **Preferences → Advanced** contains version comparisons.
+The native pause menu keeps your selected page as the Duo opens or closes. Turn on **Preferences → Advanced → Show advanced options** to adjust time and weather, skip to terrain, arrange encounters, choose a mountain, or compare versions. The switch defaults to off and the Duo remembers your choice.
 
 ### Run it locally
 
@@ -180,7 +180,7 @@ Xbox Series X|S 手柄可在头显的「设置 → 蓝牙」配对。左摇杆�
 
 WKWebView 运行与 Web 版共用的滑行逻辑和声音，Metal 绘制雪场，UIKit 提供原生 Liquid Glass 游戏按钮。折叠时相机按窗口尺寸更新。滑行时点右侧的相机图标取景，按快门拍下雪场。点「保存」打开系统分享面板，点「返回」继续滑行。
 
-原生暂停菜单在展开与合上时保留当前页面。天色和降雪可以直接预览；「雪山」集中管理回到山顶和换山，「偏好设置 → 高级」中可以对比版本。
+原生暂停菜单在展开与合上时保留当前页面。打开「偏好设置 → 高级 → 显示高级选项」，即可调整天色与天气、跳转路段、安排偶遇、选择雪山或对比版本。开关默认关闭，Duo 会记住你的选择。
 
 ### 在本地运行
 

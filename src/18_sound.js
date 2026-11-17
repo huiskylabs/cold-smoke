@@ -323,6 +323,34 @@ const Sound = (() => {
   };
 
   // ---- live use
+  const inHeadset = () => typeof XR !== 'undefined' && XR.active;
+  const wantsSound = () => A.unlocked && A.on && (!document.hidden || inHeadset()) &&
+    !UI.paused && !UI.gone && !(inHeadset() && XR.photoMode);
+  let wakeTimer;
+  A.refresh = function (tau = 0.12) {
+    clearTimeout(wakeTimer); wakeTimer = null;
+    const ctx = A.ctx;
+    if (!ctx || !A.unlocked || ctx.state === 'closed') return;
+    A.rig.fade(wantsSound() ? A.level : 0, ctx.currentTime, tau);
+    if (!wantsSound()) return;
+    // On return from another app WebKit may say "running" before the audio clock
+    // actually advances. Probe only during recovery; never poll the skiing loop.
+    let cycled = false;
+    function wake(attempt) {
+      const before = ctx.currentTime;
+      if (ctx.state !== 'running') ctx.resume().catch(() => {});
+      wakeTimer = setTimeout(() => {
+        wakeTimer = null;
+        if (!wantsSound() || ctx.state === 'closed' || (ctx.state === 'running' && ctx.currentTime > before)) return;
+        if (!cycled && ctx.state === 'running') {
+          cycled = true;
+          ctx.suspend().then(() => { if (wantsSound()) return ctx.resume(); }).catch(() => {});
+        }
+        if (attempt < 3) wake(attempt + 1);
+      }, 250 * 2 ** attempt);
+    }
+    wake(0);
+  };
   A.init = function () {
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     try { A.ctx = new AC({ latencyHint: 'interactive' }); A.rig = A.build(A.ctx); } catch (e) { console.warn('audio unavailable', e); A.ctx = null; A.rig = null; return; }
@@ -330,20 +358,22 @@ const Sound = (() => {
     // coming back: start the clock, then come up again
     document.addEventListener('visibilitychange', () => {
       if (!A.ctx) return; clearTimeout(A.hideT);
-      if (typeof XR !== 'undefined' && XR.active) return;          // (a headset's immersive mode may hide the page behind it: the sound goes on)
-      if (document.hidden) { if (A.unlocked) A.rig.fade(0, A.ctx.currentTime, 0.03); A.hideT = setTimeout(() => { if (document.hidden) A.ctx.suspend(); }, 160); }
-      else if (A.unlocked) { A.ctx.resume(); A.rig.fade(A.on ? A.level : 0, A.ctx.currentTime, 0.25); }
+      if (inHeadset()) return;          // immersive mode may hide the page without leaving the game
+      A.refresh(document.hidden ? 0.03 : 0.25);
+      if (document.hidden) A.hideT = setTimeout(() => { if (document.hidden && !inHeadset()) A.ctx.suspend().catch(() => {}); }, 160);
+    });
+    A.ctx.addEventListener('statechange', () => {
+      if (wakeTimer == null && wantsSound() && (A.ctx.state === 'suspended' || A.ctx.state === 'interrupted')) A.refresh();
     });
   };
   // from a tap: browsers only let sound begin there
   A.unlock = function () {
     if (!A.ctx) return; A.unlocked = true;
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { }
-    if (A.ctx.state !== 'running') A.ctx.resume();
-    A.rig.fade(A.on ? A.level : 0, A.ctx.currentTime, 0.5);
+    A.refresh(0.5);
   };
   A.kick = function () { if (!A.rig || Game.s.dp !== undefined) return; const t = A.now(); A.rig.chirp(t + 0.06, 0.5, -0.25, 0.9); setTimeout(() => { if (A.rig) A.rig.chirp(A.now(), 0.42, 0.25, 1.0); }, 430); };      // pushing off: two strides (a start made with the poles is heard through its `pole` events instead)
-  A.setOn = function (on) { A.on = on; if (A.rig && A.unlocked) A.rig.fade(on ? A.level : 0, A.ctx.currentTime, 0.12); };
+  A.setOn = function (on) { A.on = on; A.refresh(); };
   A.now = () => A.ctx.currentTime + 0.012;
   A.snapshot = function () {
     const S = Game.s, c = Course.at(-S.p[2], A.pc), sg = Course.segAt(-S.p[2]), wd = Game.feel ? Game.feel.wind : null;

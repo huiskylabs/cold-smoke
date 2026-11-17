@@ -19,7 +19,7 @@ const Board = (() => {
   // (the owner, 2026-11-16: the board is for developer mode only for now. Without ?dev (or a path ending in /dev; never in the 小红书 build) it is
   // skis, whatever an address or an earlier pick in this browser asks for)
   { let dev = false; try { dev = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (/[?&]dev(=|&|$)/.test(location.search) || /\/dev\/?$/.test(location.pathname)); } catch (e) { }
-    if (VS && !dev) VS.val.ride = 'a'; }
+    if (VS && !dev /*native{*/ && !self.COLD_SMOKE?.advancedMenuKey /*}native*/) VS.val.ride = 'a'; }
   const BD = { len: 1.56, hw: 0.13, waist: 0.128, half: 0.25, kickN: 0.085, kickT: 0.065, run: 0.58, th: 0.013, yawF: -0.26, yawB: 0.15 };   // board (m), half the stance, binding angles (rad, + toward the tail)
   const K = Skier, L = K.LEN, basis = K.basis, ik2 = K.ik2, frameXY = K.frameXY, fr = K.fr, B = K.B;
   // the quarter turn: rider space (x, y, z) -> figure space (-z, y, x)
@@ -160,5 +160,5 @@ const Board = (() => {
     return m;
   };
   K.solveBoard = solve;
-  return { BD, solve, on: () => VS && VS.val.ride === 'b' };
+  return { BD, solve, on: () => VS && VS.val.ride === 'b' /*native{*/ && (!self.COLD_SMOKE?.advancedMenuKey || self.COLD_SMOKE.dev) /*}native*/ };
 })();

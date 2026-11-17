@@ -9,7 +9,7 @@ function bundle(platform) {
   const parts = ['(() => { "use strict";'];
   parts.push(platform === 'visionos'
     ? 'self.COLD_SMOKE = { nativeWindow: true, spatial: true, noTilt: true, renderer: "Apple Metal", autoQualityKey: "cs.q.vision" };'
-    : 'self.COLD_SMOKE = { nativeWindow: true, renderer: "Apple Metal", autoQualityKey: "cs.q.wk.metal.gpu" };');
+    : read('ios/Runtime/platform.js'));
   const skip = new Set(['19b_rank.js', '19c_xhs.js', '20_director.js']);
   for (const name of fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort()) {
     if (skip.has(name)) continue;

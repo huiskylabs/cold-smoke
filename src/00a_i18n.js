@@ -18,7 +18,8 @@ const I18N = (() => {
     'Y 校准正前方 · 菜单键退出': 'Y to recenter · Menu to leave',
     '手柄：左摇杆转向 · A 起跳 · RT 加速 · 菜单键退出': 'Stick: steer · A: jump · RT: tuck · Menu: exit',
     '选择沉浸模式，或按手柄 Y 进入 · A 出发 / 起跳 · RT 加速': 'Choose Immersive or press Y · A: start / jump · RT: tuck',
-    '下方按钮起跳和加速': 'Jump and Tuck near the bottom',
+    '左右拖动转弯，上拖压板头，下拖压板尾': 'Drag sideways to turn, up for tips, down for tails',
+    '滑行时，用下方按钮起跳或加速': 'Use the lower buttons to jump or tuck',
     /*}native*/
     // ---- title and loading
     '一个人，一座山，一直往下': 'One skier, one mountain, all the way down',

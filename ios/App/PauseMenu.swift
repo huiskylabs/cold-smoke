@@ -6,6 +6,7 @@ struct PauseSettings: Decodable, Equatable {
     struct Choice: Decodable, Equatable, Identifiable {
         let id, title: String
         let on, marked: Bool
+        var detail: String?
     }
     struct Versions: Decodable, Equatable {
         struct Row: Decodable, Equatable { let title: String; let options: [Choice] }
@@ -13,10 +14,12 @@ struct PauseSettings: Decodable, Equatable {
         let rows: [Row]
     }
     struct Gesture: Decodable, Equatable { let title, detail: String }
-    let sections, times, weather, views, terrain, encounters: [Choice]
-    let active, seed, record, quality, tier, snowfall: String
+    let sections, times, weather, views, terrain, encounters, mountains: [Choice]
+    let active, record, quality, tier, snowfall: String
+    let seed: String?
     let running, direct, english, sound, daily: Bool
     var bodyControls: Bool?
+    var advancedMenu: Bool?
     let versions: [Versions]
     let help: [Gesture]
 }
@@ -73,7 +76,6 @@ struct PauseMenu: View {
     private func send(_ id: String) { model.send(id) }
     private func title(_ page: String) -> String {
         switch page {
-        case "mt": return t("雪山", "Mountain")
         case "opt": return t("偏好设置", "Preferences")
         case "vers": return t("版本对比", "Version comparison")
         default: return s.sections.first { $0.id == "nav:" + page }?.title ?? ""
@@ -383,6 +385,7 @@ struct PauseMenu: View {
         }
     }
     private func actionTitle(_ id: String) -> String {
+        if let mountain = s.mountains.first(where: { $0.id == id }) { return mountain.title }
         switch id {
         case "m-top": return t("回到山顶","Return to summit")
         case "mountain:daily": return t("今日之山","Today’s mountain")
@@ -395,15 +398,25 @@ struct PauseMenu: View {
     }
     private func mountainPage() -> some View {
         VStack(spacing: 16) {
-            group(t("当前雪山","Current mountain")) {
-                row(s.seed, detail: s.daily ? t("今日之山","Today’s mountain") : "", icon: "mountain.2.fill")
-                if !s.record.isEmpty { Divider(); Text(s.record).font(.footnote).foregroundStyle(captionInk) }
+            group(title("mt")) {
+                rows(s.mountains) { mountain in
+                    Button {
+                        if s.running && !mountain.on { confirmation = mountain.id } else { send(mountain.id) }
+                    } label: {
+                        row(mountain.title, detail: mountain.detail ?? "", icon: "mountain.2",
+                            trailing: mountain.on ? "checkmark" : nil)
+                    }.buttonStyle(.plain).accessibilityAddTraits(mountain.on ? .isSelected : []).accessibilityIdentifier(mountain.id)
+                }
                 if s.running { Divider(); mountainAction("m-top", icon:"arrow.counterclockwise") }
             }
-            group(t("选择雪山","Choose a mountain"), footer: t("今日之山向所有人开放，每天北京时间零点更换。","Everyone skis the same daily mountain. It changes at midnight Beijing time.")) {
-                mountainAction("mountain:daily", icon:"calendar")
-                Divider()
-                mountainAction("mountain:new", icon:"shuffle")
+            if let seed = s.seed {
+                group(t("选择雪山","Choose a mountain"), footer: t("今日之山向所有人开放，每天北京时间零点更换。","Everyone skis the same daily mountain. It changes at midnight Beijing time.")) {
+                    row(seed, detail: s.record, icon: "mountain.2.fill")
+                    Divider()
+                    mountainAction("mountain:daily", icon:"calendar")
+                    Divider()
+                    mountainAction("mountain:new", icon:"shuffle")
+                }
             }
         }
     }
@@ -456,10 +469,19 @@ struct PauseMenu: View {
                     Text("简体中文").tag(false); Text("English").tag(true)
                 }
             }
-            if s.sections.contains(where: { $0.id == "nav:vers" }) {
+            let hasVersions = s.sections.contains { $0.id == "nav:vers" }
+            if s.advancedMenu != nil || hasVersions {
                 group(t("高级","Advanced")) {
-                    Button { open("vers") } label: { row(title("vers"), icon: symbol("vers"), trailing: "chevron.forward") }
-                        .buttonStyle(.plain).accessibilityIdentifier("settings-nav-vers")
+                    if let enabled = s.advancedMenu {
+                        Toggle(t("显示高级选项","Show advanced options"), isOn: Binding(get: { enabled }, set: {
+                            send($0 ? "advanced:on" : "advanced:off")
+                        })).frame(minHeight: 44).accessibilityIdentifier("settings-advanced-menu")
+                    }
+                    if hasVersions {
+                        if s.advancedMenu != nil { Divider() }
+                        Button { open("vers") } label: { row(title("vers"), icon: symbol("vers"), trailing: "chevron.forward") }
+                            .buttonStyle(.plain).accessibilityIdentifier("settings-nav-vers")
+                    }
                 }
             }
         }

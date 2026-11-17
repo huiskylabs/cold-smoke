@@ -38,7 +38,7 @@ HTML
   if [ "$platform" = visionos ]; then
     echo 'self.COLD_SMOKE = { nativeWindow: true, spatial: true, noTilt: true, renderer: "Apple Metal", autoQualityKey: "cs.q.vision" };'
   else
-    echo 'self.COLD_SMOKE = { nativeWindow: true, renderer: "Apple Metal", autoQualityKey: "cs.q.wk.metal.gpu" };'
+    cat ios/Runtime/platform.js
   fi
   for src in src/*.js; do
     case "$src" in

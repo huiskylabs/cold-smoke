@@ -81,7 +81,10 @@
       if (preview.classList.contains('on')) add(preview);
       else if (!photo.classList.contains('bare')) add(photoRail);
     } else if (!pause.classList.contains('on') && !app.classList.contains('bare')) {
-      if (menu.classList.contains('on')) settings = readPauseSettings(elements, directEntry);
+      if (menu.classList.contains('on')) {
+        settings = readPauseSettings(elements, directEntry);
+        settings.advancedMenu = UI.dev;
+      }
       else if (title.classList.contains('on')) add(cta, cta.scrollHeight > cta.clientHeight + 1 ? 'cta' : '');
       else if (hud.classList.contains('on')) add(pad);
       if (!settings && bar.classList.contains('on')) add(bar);
@@ -92,18 +95,23 @@
     if (current !== previous) { previous = current; host.postMessage(payload); }
   }
   window.gameControls = {
+    sceneDidActivate() { Sound.refresh(); },
     selectCamera(id) {
       if (!hud.classList.contains('on') || UI.open || Photo.on || !Game.views?.some(v => v.id === id)) return;
       UI.setView(id);
       schedule();
     },
     perform(id, phase) {
+      if (UI.open && phase === 'tap' && (id === 'advanced:on' || id === 'advanced:off')) {
+        UI.setAdvancedMenu(id === 'advanced:on');
+        schedule(); return;
+      }
       if (UI.open && phase === 'tap' && /^quality:(auto|[012])$/.test(id)) {
         const value = id.slice(8);
         Quality.select(value === 'auto' ? value : Number(value)); schedule(); return;
       }
       const button = elements.get(id);
-      if (!button) return;
+      if (!button || (!UI.dev && button.closest('.dev-only'))) return;
       if (phase === 'tap') button.click();
       else button.dispatchEvent(new PointerEvent(phase === 'down' ? 'pointerdown' : 'pointerup',
         { pointerId: id === 'jump' ? -11 : -12, pointerType: 'touch', bubbles: true, cancelable: true }));
@@ -113,7 +121,7 @@
   };
   // Scope observations to UI state. Speed, steering and the charge ring update every frame.
   const observer = new MutationObserver(schedule);
-  for (const el of [root, app, hud, pause, title, menu, photo, preview]) observer.observe(el, { attributes: true, attributeFilter: ['class', 'style', 'data-fold', 'data-bar-edge', 'data-control-layout', 'data-left-split'] });
+  for (const el of [root, app, hud, pause, title, menu, photo, preview]) observer.observe(el, { attributes: true, attributeFilter: ['class', 'style', 'data-fold', 'data-bar-edge', 'data-control-layout', 'data-left-split', 'data-cover-controls', 'data-expanded-display'] });
   for (const el of [bar, cta, nav, pane, pad]) observer.observe(el, { subtree: true, childList: true, characterData: true,
     attributes: true, attributeFilter: ['class', 'hidden', 'aria-label', 'aria-pressed', 'aria-expanded'] });
   const resize = new ResizeObserver(schedule);

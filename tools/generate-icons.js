@@ -141,25 +141,30 @@ function gogglesSvg() {
 }
 
 function skiJumpSvg() {
+  // UIKit uses the SVG's intrinsic size inside the circular glass button.
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="#000">
-  <circle cx="46" cy="16" r="5"/>
-  <path d="M42 20c-8 2-16 10-20 18l6 3c3-7 10-13 16-15z"/>
-  <path d="M24 36l-12-4 1.5-4 12 5z"/>
-  <path d="M22 40l6 8-4 2-7-9z"/>
-  <path d="M6 50l52-10 1 4-52 10z"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+  <circle cx="25.2" cy="3.8" r="2.7"/>
+  <path d="M20.7 6.4 Q23.2 4.8 24.5 7.1 Q25.8 9.4 23.4 11
+           L14 17.2 L8.3 28.2 Q7.4 30 5.8 29.2 Q4.3 28.4 5.1 26.7
+           L12.3 12.2 Q12.7 11.5 13.5 11 Z"/>
+  <path d="M2.6 34.8 L32 16 Q33.8 14.8 32.9 12.9" fill="none" stroke="#000"
+        stroke-width="1.2" stroke-linecap="round"/>
 </svg>
 `;
 }
 
 function skiTuckSvg() {
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="#000">
-  <circle cx="42" cy="24" r="5"/>
-  <path d="M20 42c4-14 14-16 22-10l-3 6c-6-4-13-2-16 8z"/>
-  <path d="M18 40l8 6-3 3-9-5z"/>
-  <path d="M28 44l8 4-2 4-9-3z"/>
-  <path d="M6 52h52v4H6z"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <circle cx="27" cy="7.2" r="3.9"/>
+  <path d="M10.7 6 L18.3 5.3 Q20.9 5.1 22 7.6 L24.2 12 H28
+           A1.7 1.7 0 0 1 28 15.4 H23 Q21.9 15.4 21.4 14.3 L20 11.7
+           L13.9 12.2 L16.3 14.9 Q17.4 16.2 16.3 17.5 L12.4 21.8
+           A1.7 1.7 0 0 1 9.9 19.5 L12.7 16.4 L8.5 11.8 Q7.6 10.8 7.6 9.3
+           Q7.6 6.3 10.7 6 Z"/>
+  <path d="M1.7 18.3 L18.2 27.5 Q19.8 28.4 20.8 27.8" fill="none" stroke="#000"
+        stroke-width="1.4" stroke-linecap="round"/>
 </svg>
 `;
 }

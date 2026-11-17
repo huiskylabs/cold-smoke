@@ -22,8 +22,21 @@ const UI = (() => {
     // developer mode (?dev, or a path ending in /dev; never in the 小红书 build). The time, the weather, the encounters and the versions
     // are only there. Taken out of the tree, not merely hidden, so a normal player cannot reach them.
     U.dev = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (typeof DEV !== 'undefined' && DEV);
+    /*native{*/
+    const platform = self.COLD_SMOKE;
+    if (platform?.advancedMenuKey && !platform.noDev) {
+      U.dev = platform.dev = U.dev || platform.dev;
+      U.setAdvancedMenu = enabled => {
+        U.dev = platform.dev = enabled;
+        el.app.classList.toggle('dev', enabled);
+        try { localStorage.setItem(platform.advancedMenuKey, enabled ? 'on' : 'off'); } catch {}
+        if (enabled && el.tune && !el.tune.hasChildNodes()) initTune();
+        show(sec);
+      };
+    }
+    /*}native*/
     el.app.classList.toggle('dev', !!U.dev);
-    if (!U.dev) el.app.querySelectorAll('.dev-only').forEach(n => n.remove());
+    if (!U.dev /*native{*/ && !U.setAdvancedMenu /*}native*/) el.app.querySelectorAll('.dev-only').forEach(n => n.remove());
     el.moreView = el.more.querySelector('[data-sec="view"]'); el.moreDaily = el.more.querySelector('[data-daily]'); el.daily = $('sw-daily'); el.mtDaily = el.menu.querySelector('section[data-sec="mt"] [data-daily]');
     I18N.capture(el.app); I18N.on(relang);
     U.layout();
@@ -102,8 +115,14 @@ const UI = (() => {
       return;
     }
     const steering = fa ? '按住屏幕，左右拖转弯，上下拖压板头 / 板尾' : framed ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
-    const actions = /*native{*/self.COLD_SMOKE?.nativeWindow ? '下方按钮起跳和加速' : /*}native*/'右下角 跳 / 加速';
-    el.how.textContent = T(steering) + ' · ' + T(actions);
+    /*native{*/
+    if (self.COLD_SMOKE?.nativeWindow) {
+      const gesture = fa ? '左右拖动转弯，上拖压板头，下拖压板尾' : steering;
+      el.how.textContent = T(gesture) + '\n' + T('滑行时，用下方按钮起跳或加速');
+      return;
+    }
+    /*}native*/
+    el.how.textContent = T(steering) + ' · ' + T('右下角 跳 / 加速');
   }
   if (typeof Variants !== 'undefined') Variants.on(n => { if (n === 'fa' && el) howText(); });
   // the gold of the interface: a, the start button and the picked chip filled amber (as delivered); b, a hairline of gold round dark glass, the
@@ -575,6 +594,7 @@ const UI = (() => {
     initTune();
   }
   function paintVariants() {
+    if (!U.dev) return;
     const V = varMod(), defs = V ? V.defs : [];
     if (el.vrows) {
       const sig = defs.map(d => [d.name, d.label, d.def].concat(d.opts.map(o => o[0] + ':' + o[1])).join('|')).join(';');
@@ -839,7 +859,7 @@ const UI = (() => {
     else if (Game.mode === 'hold') Game.mode = 'run';
     App.resumeK = 0.3; back = { t: 0 }; Input.zeroPending = true; Input.drag = null; Input.keys = {};
     el.day.classList.remove('held');
-    hush(Sound.on ? Sound.level : 0, 0.12); U.keepAwake();
+    Sound.refresh(); U.keepAwake();
   }
   // (not in the headset: the menu is a page on the canvas's side of the glass, out of sight in there. Going in can blur the window)
   U.pause = function () { if (!el || U.state !== 'run' || U.gone || XR.active) return false; if (!U.open) U.menu(true); return true; };

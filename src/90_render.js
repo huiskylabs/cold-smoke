@@ -19,6 +19,8 @@ const Render = (() => {
   };
   R.resize = function (w, h) {
     if (w === R.W && h === R.H) return;
+    // Screen-space motion vectors from the old projection do not describe this viewport.
+    prevVP = null;
     if (scene) { gfx.destroyTarget(scene); gfx.destroyTarget(R.hdrOnly); gfx.destroyTarget(R.hdrOnlyB); gfx.destroyTexture(hdr); gfx.destroyTexture(hdrB); gfx.destroyTexture(depth); }
     R.W = w; R.H = h; if (!R.xr) { canvas.width = w; canvas.height = h; }      // (in the headset the canvas is not what is shown: its size is left alone)
     hdr = gfx.texture({ w, h, format: 'rgba16f', filter: 'linear' }); depth = gfx.texture({ w, h, format: 'depth', filter: 'nearest' });
