@@ -445,10 +445,10 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   ws *= (1.0 - 0.22 * wind) * (1.0 + 1.1 * fine * wind * wk);
   let fres: f32 = 0.42 + 0.68 * pow(1.0 - saturate(sin(max(th - ${f(P.lift)}, 0.0))), 5.0);
   // (the land in the mirror, a little softened and drawn down by the ripples: never crisper than the land itself)
-  let lodM: f32 = lod + 1.6 + 1.6 * rough;
-  let uvM: vec2f = uv + vec2f(0.0, 0.0025 * rough * (rp + 0.5 * rp2));
+  let lodM: f32 = lod + 0.5 + 1.1 * rough;
+  let uvM: vec2f = uv + vec2f(0.0, 0.0010 * rough * (rp + 0.5 * rp2));
   let AM: vec4f = texLod(tSeaB, uvM, lodM);
-  let albM: vec3f = mix(alb, AM.rgb / max(AM.a, 0.004), 0.90);
+  let albM: vec3f = mix(alb, AM.rgb / max(AM.a, 0.004), 0.97);
   var landM: vec3f = mix(albM * lit * 0.85, ws * 0.6 + albM * lit * 0.35, 0.6 * wind * (0.5 + rp)) + lamps;
   var refl: vec3f = mix(ws, landM, mirrorLand);
   if (U.world.x > 2.5) {
@@ -484,9 +484,9 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     // it; with the sun low little goes in, and the water is a mirror for the sky again (no day-green lake under a gold sky)
     let sunK: f32 = smoothstep(0.03, 0.34, U.sunDir.y) * (1.0 - dark);
     // (in the shadow of the peak or of a cloud only the sky's light goes in: the colour stays, darker and bluer)
-    let sunIn: f32 = (1.0 - shS) * (1.0 - 0.50 * shC);
+    let sunIn: f32 = (1.0 - shS) * (1.0 - 0.22 * shC);
     let skyN: vec3f = vec3f(luma(U.ambSky.rgb)) * vec3f(0.92, 1.0, 1.04);
-    let body: vec3f = 2.55 * mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * (0.80 * sunIn) + skyN * 0.95) * (1.0 - 0.34 * wind);
+    let body: vec3f = 2.55 * mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * (0.80 * sunIn) + skyN * 0.95) * (1.0 - 0.14 * wind);
     // what the eye gets from the water is the mirror weighed by Fresnel (a few per cent looking down into it, nearly all of it at a graze)
     // and the light coming up out of the water with the rest. So from a height the colour is the water's own and the mirror lies on it
     // only where what it mirrors is bright, cloud and snow, as at Peyto; far off, at a graze, the lake turns to sky and mountain
