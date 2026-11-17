@@ -164,7 +164,12 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
       lamps = level * town * ((st * 2.2 + 0.08) * (0.25 + 1.3 * bk * bk) + av * 1.6);`
     : `      // a village: its windows, one by one
       let k: vec2f = floor(p / 34.0); let o: vec2f = fract(p / 34.0) - 0.5;
-      lamps = level * saturate(town) * step(0.62, hash21(k + vec2f(7.0, 19.0))) * exp(-dot(o, o) * 14.0) * 9.0 + 0.5 * level * saturate(town);`}
+      lamps = level * saturate(town) * step(0.62, hash21(k + vec2f(7.0, 19.0))) * exp(-dot(o, o) * 14.0) * 9.0 + 0.5 * level * saturate(town);
+      // cabins on the far shore and up the lower slopes of the mountains opposite: hamlets of a dozen lit windows, a few alone
+      let ck: vec2f = floor(p / (150.0 * PK)); let co: vec2f = fract(p / (150.0 * PK)) - 0.5 - 0.5 * (vec2f(hash21(ck + vec2f(1.0, 2.0)), hash21(ck + vec2f(5.0, 8.0))) - 0.5);
+      let ham: f32 = smoothstep(0.58, 0.70, pN(p / (PK * 2400.0) + vec2f(11.0, 5.0))) + 0.12;
+      let seat: f32 = smoothstep(0.55, 0.78, N.y) * smoothstep(30.0, 110.0, tH) * (1.0 - smoothstep(1200.0, 2300.0, tH)) * smoothstep(${f(9500 * P.K)}, ${f(12500 * P.K)}, length(p));
+      lamps += ham * seat * step(0.62, hash21(ck + vec2f(3.0, 41.0))) * exp(-dot(co, co) * 30.0) * 7.0;`}
     }
     return vec4f(n0, n1, lamps, 0.0);
   }
