@@ -199,6 +199,8 @@ function createGL(canvas, opt = {}) {
       P.ubuf = new Float32Array(Math.max(4, P.layout.size));
       return P;
     },
+    release() { g.hold = null; return Promise.resolve(); },
+    isReady: () => true,
     finishPipeline(P) {
       if (P.ready) return; const prog = P.prog;
       if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
@@ -320,6 +322,7 @@ async function createGPU(canvas, opt = {}) {
   const offscreen = !!opt.offscreen; let ctx = null, capTex = null;
   const canvasFormat = offscreen ? 'rgba8unorm' : navigator.gpu.getPreferredCanvasFormat();
   if (!offscreen) { ctx = canvas.getContext('webgpu'); if (!ctx) return null; ctx.configure({ device, format: canvasFormat, alphaMode: 'opaque' }); }
+  const held = [];
   const caps = { backend: 'webgpu', hdr: true, r32fTarget: true, maxTex: device.limits.maxTextureDimension2D, name: 'WebGPU', renderer: (adapter.info && (adapter.info.description || adapter.info.vendor + ' ' + adapter.info.architecture)) || 'webgpu' };
   const F = { rgba8: 'rgba8unorm', rgba16f: 'rgba16float', r32f: 'r32float', rgba32f: 'rgba32float', r8: 'r8unorm', depth: 'depth24plus', canvas: canvasFormat };
   const BPP = { rgba8: 4, rgba16f: 8, r32f: 4, rgba32f: 16, r8: 1 };
@@ -392,10 +395,14 @@ async function createGPU(canvas, opt = {}) {
     },
     updateBuffer(b, byteOffset, data) { device.queue.writeBuffer(b.gpu, byteOffset, data.buffer, data.byteOffset, data.byteLength); },
     destroyBuffer(b) { if (b && b.gpu) { b.gpu.destroy(); b.gpu = null; } },
-    pipeline(desc) {
+    // g.hold(name): while it is set (at start-up), a pipeline it says yes to is only noted, not compiled: what the first picture does not
+    // need waits, so that what it does need is not queued behind it. g.release() compiles the ones held, in the order they were asked for.
+    // A draw with a pipeline not compiled yet draws nothing (see draw), which is how the rest of the game already treats a pipeline in flight
+    pipeline(desc, P0) {
+      if (!P0 && g.hold && g.hold(desc.name)) { const P = { id: _gfxId++, desc, layout: uniformLayout(desc), ready: false, name: desc.name, held: true }; P.ubuf = new Float32Array(Math.max(4, P.layout.size)); P.wait = new Promise(r => { P.go = r; }); held.push(P); return P; }
       const src = buildShader(desc, 'wgsl');
-      const P = { id: _gfxId++, desc, src, layout: uniformLayout(desc), ready: false, name: desc.name };
-      P.ubuf = new Float32Array(Math.max(4, P.layout.size));
+      const P = P0 || { id: _gfxId++, desc, layout: uniformLayout(desc), ready: false, name: desc.name }; P.src = src; P.held = false;
+      P.ubuf = P.ubuf || new Float32Array(Math.max(4, P.layout.size));
       device.pushErrorScope('validation');
       const mod = device.createShaderModule({ code: src.code });
       P.mod = mod;
@@ -437,7 +444,13 @@ async function createGPU(canvas, opt = {}) {
       P.scope = device.popErrorScope();
       return P;
     },
+    release() {
+      g.hold = null; const L = held.splice(0); for (const P of L) { g.pipeline(P.desc, P); P.go(); }
+      return Promise.all(L.map(P => g.finishPipelineAsync(P).catch(e => console.warn('pipeline', P.name, e))));
+    },
+    isReady: P => !!P.gpu,
     async finishPipelineAsync(P) {
+      if (P.held) await P.wait;      // (held back at start-up: compiled once g.release() is called)
       if (P.ready) return;
       const info = await P.mod.getCompilationInfo(); const errs = info.messages.filter(m => m.type === 'error');
       await P.promise; const se = await P.scope;

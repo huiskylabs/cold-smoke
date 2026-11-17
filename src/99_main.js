@@ -5,6 +5,8 @@ const QS = new URLSearchParams(location.search);
 const DEV = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (QS.has('dev') || /(?:^|\/)dev\/?$/.test(location.pathname));
 
 // Start-up runs in stages with a breath between them, so the loading page can show where it has got to
+Variants.def('bootq', '开机顺序', [['a', '全部编好再开'], ['b', '先编第一眼要的']], 'b');
+const BOOT_LATER = /^(city|neb|deer|fauna|gate|wind|shaft|fpv)/;
 async function boot(stage) {
   const manual = QS.has('manual'), step = async (f, name) => { if (stage) stage(f, name); if (!manual) await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); };
   const canvas = document.getElementById('view');
@@ -21,6 +23,10 @@ async function boot(stage) {
   if (!gfx) gfx = createGL(canvas, { xr: xrOK });
   if (!gfx) throw new Error('这台设备的浏览器不支持 WebGL2，画面无法启动。');
   App.gfx = gfx;
+  // the first time a page is opened (and after every update that changes a shader) the browser compiles every shader from scratch: on
+  // an iPhone some 10 to 25 seconds behind the loading page, measured. What the title picture does not show is held back until it is up
+  // (Variants 'bootq' b): the far city's lights, the night sky's bake, animals, gates, crest plumes, light shafts, the first-person body
+  if (Variants.val.bootq !== 'a') gfx.hold = n => BOOT_LATER.test(n);
   Course.forceType = QS.get('seg') || null; Course.classic = QS.has('classic');      // dev: a mountain made of one kind of run; the runs in the order the first mountain had them
   Course.setSeed(DEV ? (seedInHash() || Math.floor(+QS.get('seed')) || Course.seed) : Course.seed);      // outside dev: always the home mountain (寒烟山)
   if (QS.get('tod')) { const q = QS.get('tod'); Sky.setClock(q in Sky.times ? Sky.times[q] : +q || 0); }
@@ -66,7 +72,7 @@ async function boot(stage) {
   await step(0.70, '调光');
   const pipes = [].concat(Sky.pipes, Terrain.pipes, Post.pipes, Skier.pipes, Deer.pipes, Trees.pipes, Spray.pipes, Grains.pipes, Dust.pipes, Nebula.pipes, Clouds.pipes, Shafts.pipes, Tracks.pipes, Wind.pipes);
   pipes.push(...Gates.pipes);
-  for (let i = 0; i < pipes.length; i++) { const p = pipes[i]; if (gfx.finishPipelineAsync) await gfx.finishPipelineAsync(p); else gfx.finishPipeline(p); if (stage && !manual && i % 6 === 5) await step(0.70 + 0.16 * (i + 1) / pipes.length, null); }
+  for (let i = 0; i < pipes.length; i++) { const p = pipes[i]; if (p.held) continue; if (gfx.finishPipelineAsync) await gfx.finishPipelineAsync(p); else gfx.finishPipeline(p); if (stage && !manual && i % 6 === 5) await step(0.70 + 0.16 * (i + 1) / pipes.length, null); }
   await step(0.87, '铺雪');
   fit();
   Input.init(canvas);
@@ -77,12 +83,13 @@ async function boot(stage) {
   // the first picture bakes the nebula and the trees: do it while the loading page still covers the canvas
   if (!manual) { await step(0.96, '第一缕光'); tick(1 / 60, true); await step(1, null); }
   App.ready = true;
+  App.later = gfx.release ? gfx.release() : Promise.resolve();
 }
 // one simulation + presentation step. `draw` false: advance everything but skip the GPU frame (tests fast-forward this way)
 function tick(dt, draw) {
   // slow motion (Game.timeScale, set in the air by 07_game.js): the whole world below runs on the game's clock (this dt, App.t); only the
   // player's hand on the controls stays on the real one (App.dtReal, for anything else that must)
-  const real = App.dtReal = dt; dt *= Game.timeScale || 1;
+  const real = App.dtReal = dt, j0 = performance.now(); dt *= Game.timeScale || 1;
   App.t += dt;
   Input.update(real);
   Game.update(dt);
@@ -128,6 +135,7 @@ function tick(dt, draw) {
   Feel.pass(dt);                                                        // a tree gone by close, untouched: said as an event (`near`) for the next step, where the trees hear it too
   Sound.frame();
   for (const f of App.onTick) f(dt, draw !== false);
+  App.stepS = (performance.now() - j0) / 1000;                           // (the page's own work this frame, before anything is drawn: the governor below asks for it)
   if (draw !== false) (App.renderHook || Render.render)();
 }
 App.onTick = [];
@@ -157,12 +165,19 @@ function fit() {
 // 60 frames a second come first. If this machine cannot hold them at full sharpness the picture is drawn a little smaller and stretched,
 // and it goes back up when there is room again. If even that is not enough, the Quality level steps down (00c_quality.js; only while it is
 // on 自动) and the picture starts again at full size for that level; after a long while with room to spare it may step back up, once
-const Gov = { on: QS.get('gov') !== '0' && !QS.get('w'), acc: 0, /*native{*/work: 0, /*}native*/n: 0, slow: 0, fast: 0, last: 0, downs: 0, t0: 0, calm: 0 };
+const Gov = { on: QS.get('gov') !== '0' && !QS.get('w'), acc: 0, /*native{*/work: 0, /*}native*/n: 0, slow: 0, fast: 0, last: 0, downs: 0, t0: 0, calm: 0, js: 0, ownT: 0, ownN: 0, own: 0 };
+Variants.def('govjs', '自动清晰度', [['a', '看平均帧时间'], ['b', '不算脚本卡的帧']], 'b');
 function govern(now, raw) {
+  const js = Gov.js; Gov.js = App.stepS || 0;                             // (the step before this one: what this frame waited on)
   if (!Gov.on || raw > 1) return;                                         // (a tab coming back to the front is not a slow frame)
   if (!Gov.t0) Gov.t0 = now; if (now - Gov.t0 < 3000) return;             // the first seconds are still compiling and warming up
+  // A frame that waited on the page's own work (a strip of terrain being made, say: more than half the wait, and most of a 60th of a
+  // second, went in script before anything was drawn) says nothing about the GPU, and a smaller picture would not have helped it:
+  // such frames are left out of the average. A second made mostly of them is the script being slow, and nothing is changed for it
+  if (js > Math.max(0.5 * raw, 0.0135) && Variants.val.govjs !== 'a') { Gov.ownT += raw; Gov.ownN++; }
   Gov.acc += raw; Gov.n++; if (Gov.acc < 1) return;
-  const avg = Gov.acc / Gov.n; Gov.acc = 0; Gov.n = 0;
+  const n = Gov.n - Gov.ownN, own = Gov.ownN > n, avg = n > 0 ? (Gov.acc - Gov.ownT) / n : 0; Gov.acc = Gov.ownT = 0; Gov.n = Gov.ownN = 0;
+  Gov.own = own ? Gov.own + 1 : 0; if (own) { Gov.slow = Gov.fast = Gov.calm = 0; return; }
   if (avg > 1 / 50) { Gov.slow++; Gov.fast = 0; } else if (avg < 1 / 57) { Gov.fast++; Gov.slow = 0; } else { Gov.slow = 0; Gov.fast = 0; }
   const floor = Quality.L.floor;
   if (Gov.slow >= 2 && Render.scale > floor) { Render.scale = Math.max(floor, Render.scale * (avg > 1 / 36 ? 0.8 : 0.9)); Gov.slow = 0; Gov.downs++; Gov.last = now; fit(); }
@@ -253,7 +268,7 @@ App.swap = function (place, now = QS.has('manual')) {
 Variants.on((n, id, first) => { if (n === 'mogf' && !first) { const s0 = -Game.s.p[2]; App.swap(() => Game.reset(s0)); } });
 App.onTick.push(() => {
   const sw = App.swapping, t = performance.now(); if (!sw) return;
-  Gov.acc = /*native{*/Gov.work = /*}native*/Gov.n = Gov.slow = 0;                // (these frames say nothing about how fast this machine draws)
+  Gov.acc = /*native{*/Gov.work = /*}native*/Gov.n = Gov.ownT = Gov.ownN = Gov.slow = 0;                // (these frames say nothing about how fast this machine draws)
   if (!sw.lift) { if (Terrain.rebuildStep(24) && t - sw.t0 >= 230) sw.lift = 1; }      // drawn again from this frame on: the new place is on the screen before the veil thins
   else if (sw.lift === 1) { sw.lift = 2; sw.t0 = t; const veil = document.getElementById('veil'); if (veil) { veil.style.transition = 'opacity .65s ease-out'; veil.classList.add('lift'); } }
   else if (t - sw.t0 > 260) { App.swapping = null; if (sw.run && Game.mode === 'title') Game.start(); }      // the push-off is seen: it waits for the veil to thin

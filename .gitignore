@@ -13,3 +13,5 @@ ios/App/AppIcon.icon/Assets/*.svg
 ios/App/Assets.xcassets/SkiJump.imageset/*.svg
 ios/App/Assets.xcassets/SkiTuck.imageset/*.svg
 visionos/App/Assets.xcassets/**/*.png
+# made by the measuring scripts in tools/perf
+tools/perf/tmp/

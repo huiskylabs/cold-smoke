@@ -172,8 +172,10 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   // brighter (the sky): nothing that the snow itself would smear is held back, dark edges do not grow dark streaks)
   let ex: f32 = U.ambSky.w; let kk: f32 = smoothstep(5.0, 16.0, lp); let cap: f32 = max(1.15 * luma(c0), 1.2 * luma(U.sunCol.rgb + U.ambSky.rgb)) * ex;
   var acc: vec3f = tame(c0, ex, kk, cap) * 0.25; var ws: f32 = 0.25;
-  // (one look every three pixels or so along the streak, 9 to 16 of them: a long streak in a corner stays a line, not a row of beads)
-  let nt: i32 = i32(clamp(ceil(lp / 3.0), 9.0, 16.0)); let nf: f32 = f32(nt);
+  // (one look every three pixels or so along the streak, 9 to 16 of them: a long streak in a corner stays a line, not a row of beads.
+  // A streak under 12 pixels does not need 9: one look every pixel and a half is already finer than that (M.p.w: 1 = so, 0 = always 9+))
+  let n0: f32 = clamp(ceil(lp / 3.0), 9.0, 16.0);
+  let nt: i32 = i32(mix(n0, clamp(ceil(lp / 1.5) + 1.0, 2.0, n0), M.p.w)); let nf: f32 = f32(nt);
   for (var i: i32 = 0; i < nt; i++) {
     let q: vec2f = clamp(v.uv + vel * ((f32(i) + n) / nf - 0.5), vec2f(0.0), vec2f(1.0));
     // what rides with the lens (the skier) leaves no streak on the ground behind it
@@ -201,11 +203,12 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   };
   // the sun's visibility starts afresh with the next frame instead of easing from the last one drawn (a test that skips frames calls it)
   P.visCut = function () { visInit = false; };
+  if (typeof Variants !== 'undefined') Variants.def('mbtap', '模糊采样', [['a', '固定 9 到 16 次'], ['b', '按拖影长度']], 'b');
   // draws the streaked scene into the pass that is open. `dt`: the time the last frame took
   P.motionBlur = function (sceneTex, depthTex, dt) {
     const sg = typeof Skier !== 'undefined' && Skier.world && Skier.world.seg, K = [];
     for (let i = 0; i < 4; i++) { const q = sg && sg[i]; if (q) { K.push([q[0][0], q[0][1], q[0][2], i < 2 ? 0.13 : 0.06], [q[1][0], q[1][1], q[1][2], 0]); } else K.push([0, 0, 0, 0], [0, 0, 0, 0]); }
-    gfx.draw(pMB, { u: { p: [P.shutter / Math.max(dt, 1e-4), P.blurMax, P.blurFar, 0], d0: P.riders[0], d1: P.riders[1], rd: [P.radC[0], P.radC[1], P.radial, P.radIn], k0: K[0], k1: K[1], k2: K[2], k3: K[3], k4: K[4], k5: K[5], k6: K[6], k7: K[7] }, tex: { tA: sceneTex, tDepth: depthTex }, count: 3 });
+    gfx.draw(pMB, { u: { p: [P.shutter / Math.max(dt, 1e-4), P.blurMax, P.blurFar, typeof Variants === 'undefined' || Variants.val.mbtap !== 'a' ? 1 : 0], d0: P.riders[0], d1: P.riders[1], rd: [P.radC[0], P.radC[1], P.radial, P.radIn], k0: K[0], k1: K[1], k2: K[2], k3: K[3], k4: K[4], k5: K[5], k6: K[6], k7: K[7] }, tex: { tA: sceneTex, tDepth: depthTex }, count: 3 });
   };
   P.run = function (sceneTex, depthTex) {
     const m = P.mips;
