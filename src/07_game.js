@@ -181,9 +181,9 @@ const Game = (() => {
   // with tools/motion, which is also the gate a change to the figure has to pass). None of them touches the physics: the skier goes down the
   // same line to the frame. Developer mode only for now, like the board (08a_board.js): without ?dev every row is a, whatever an address or an
   // earlier pick in this browser asks for.
-  //   mo1   b: the lab posture is chosen for the lean of this instant instead of an eighth of a second late (08f_labmo.js, phase; skis), and the
-  //            ski tip's look-ahead goes the way the ski goes, not the way the body does (tipClear below). It wants medge b with it: under
-  //            a trunk that is on time and edges that are late the thighs cross in a deep edge change, in 5% of the frames;
+  //   mo1   b: the ski tip's look-ahead goes the way the ski goes, not the way the body does (tipClear below). (It also read the lab posture
+  //            ahead of the lean; taken out 2026-11-17 on the owner's word: where the lean comes to rest, letting a turn go, the guess ran past
+  //            it and the upper body twisted twice more after every turn);
   //   medge b: the edges roll over with the body, to the same instant (updatePose; a is feel b's "the body goes first");
   //   mo2   b: the lab's hand stays outside its own leg and the pole is aimed again from where the hand ended up (08_skier.js, solve);
   //   mo3   b: the head keeps the game's own rule (level eyes) and a mogul field its quiet trunk (08_skier.js, solve);

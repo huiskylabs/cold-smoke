@@ -28,6 +28,7 @@ const SCN = [
   { id: 'foreaft', seg: 'bowl', s0: 60, dur: 40, ctl: 'fa', per: 2.6, note: '转弯时前压 / 后坐（前后重心）' },
   { id: 'standjump', seg: null, s0: 14, dur: 24, ctl: 'charge', per: 3.0, hold: 0.6, note: '出发处几乎原地：按住跳蓄力 0.6 秒、松开，每 3 秒一次（蹲下、蹬起、落地）' },
   { id: 'chargehop', seg: 'bowl', s0: 60, dur: 30, ctl: 'charge', per: 3.0, hold: 0.6, note: '直滑中按住跳蓄力 0.6 秒、松开，每 3 秒一次' },
+  { id: 'turnback', seg: 'bowl', s0: 60, dur: 40, ctl: 'turnback', per: 5.0, hold: 1.4, note: '拐一下再松手回正：按 1.4 秒，松开滑 3.6 秒，左右轮流（看回正后上身还扭不扭）' },
   { id: 'tuckbtn', seg: 'steeps', s0: 60, dur: 30, ctl: 'tuck', note: '按住团身键，再松开转弯' },
 ];
 
@@ -38,6 +39,7 @@ const mkCtl = function (sc) {
   const key = d => { I.keys.ArrowLeft = d < 0; I.keys.ArrowRight = d > 0; };
   return {
     none: t => { key(0); },
+    turnback: t => { const u = (t - 3) % sc.per, k = Math.floor((t - 3) / sc.per); key(t < 3 || u > sc.hold ? 0 : (k % 2 ? 1 : -1)); },
     keys: t => { key(t < 3 ? 0 : (Math.floor((t - 3) / (sc.per / 2)) % 2 ? -1 : 1)); },
     sine: t => { I.script = t < 3 ? 0 : sc.amp * Math.sin((t - 3) * 2 * Math.PI / sc.per); },
     pilot: t => { I.script = pilot(t); },

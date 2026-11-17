@@ -45,7 +45,7 @@ const LabMo = (() => {
   // between postures that are far apart at the same lean, and every jump snapped the legs: the owner's "卡蹦".)
   const PH = () => ({ w: 0, cref: 0.21, dl: 0, u: 0, prev: null, ref: 0.6, sv: null, svv: 0, su: 0, suv: 0 });
   const st = PH(), sb = PH();
-  function phase(S, p, dt, peak, wn, ahead) {
+  function phase(S, p, dt, peak, wn) {
     const lean = p.lean || 0, cr = p.crouch == null ? 0.21 : p.crouch;
     if (dt > 0 && S.prev != null) {
       const r = (lean - S.prev) / dt; S.dl += (r - S.dl) * (1 - Math.exp(-dt / 0.08));
@@ -56,14 +56,10 @@ const LabMo = (() => {
       S.cref += (cr - S.cref) * (1 - Math.exp(-dt / 1.5));
     } else { S.dl = 0; S.u = 0; S.ref = Math.max(0.6 * peak, Math.abs(lean)); S.cref = cr; }
     S.prev = lean;
-    const ref = Math.max(S.ref, 0.45 * peak);
+    const ref = Math.max(S.ref, 0.45 * peak), sa = Math.abs(lean);
     // the signed share (which side and how far) and u are then eased critically (no overshoot, ~0.1 s), so even when the game's lean swings over
     // in a few frames the legs take a quarter of a second or more to change, as real skiers' do (edge change about 0.4 s, knees bent throughout)
-    // (ahead, on skis with mo1 b, 07_game.js: the share is read that much ahead, the lean plus its own rate times the easing's delay 2/wn, so the
-    // eased posture arrives with the lean instead of an eighth of a second after it. M.step rolls the figure by the lean of this instant, and
-    // under a posture from an eighth of a second ago the trunk dived into each new turn ahead of the legs. Nothing new is kept: S.dl and wn are
-    // the ones above. The board's turn was not measured and is left as it was)
-    const lp = ahead ? lean + S.dl * 2 / wn : lean, sv = (lp >= 0 ? 1 : -1) * Math.min(1, Math.abs(lp) / ref);
+    const sv = (lean >= 0 ? 1 : -1) * Math.min(1, sa / ref);
     if (dt > 0 && S.sv != null) { const h = Math.min(dt, 0.05);
       S.svv += (wn * wn * (sv - S.sv) - 2 * wn * S.svv) * h; S.sv += S.svv * h;
       S.suv += (wn * wn * (S.u - S.su) - 2 * wn * S.suv) * h; S.su += S.suv * h; }
@@ -93,7 +89,7 @@ const LabMo = (() => {
   }
   M.step = function (p, sec, dt, speed) {
     p.idleRest = sec.idle ? sec.idle.rest || 0 : 0;
-    const ph = phase(st, p, dt, D.clips.carve.peak, 16, typeof Variants !== 'undefined' && Variants.val.mo1 === 'b'); weight(st, p, dt, p.dp > 0 ? 0 : 1);
+    const ph = phase(st, p, dt, D.clips.carve.peak, 16); weight(st, p, dt, p.dp > 0 ? 0 : 1);
     if (st.w < 1e-3) return null;
     // which turns, by speed (m/s)
     const sm = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
