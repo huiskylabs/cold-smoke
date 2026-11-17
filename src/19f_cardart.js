@@ -96,7 +96,7 @@ const CardArt = self.CardArt = (() => {
   const leg = (c, col, low, x, y0, w, lean = 0) => { poly(c, col, x - w / 2, y0, x + w / 2, y0, x + w * 0.3 + lean, 0.75, x - w * 0.3 + lean, 0.75); if (low) poly(c, low, x - w * 0.42 + lean * 0.6, 0.5, x + w * 0.42 + lean * 0.6, 0.5, x + w * 0.3 + lean, 0.75, x - w * 0.3 + lean, 0.75); };
   const bz = (t, a, b, cc, d) => { const m = 1 - t; return m * m * m * a + 3 * m * m * t * b + 3 * m * t * t * cc + t * t * t * d; };
 
-  F('fox', (c, P) => {
+  F('foxside', (c, P) => {
     const tail = c2 => { c2.beginPath(); c2.moveTo(-0.5, 0.0); c2.bezierCurveTo(-0.95, -0.1, -1.24, 0.3, -1.04, 0.66); c2.bezierCurveTo(-0.94, 0.42, -0.76, 0.26, -0.48, 0.2); c2.closePath(); };
     const body = c2 => { c2.beginPath(); c2.moveTo(-0.62, 0.1); c2.quadraticCurveTo(-0.08, -0.42, 0.46, 0.0); c2.quadraticCurveTo(-0.05, 0.48, -0.62, 0.1); c2.closePath(); };
     leg(c, P.shade, P.dark, -0.38, 0.1, 0.1, 0.03); leg(c, P.shade, P.dark, 0.34, 0.06, 0.1, 0.03);
@@ -112,6 +112,42 @@ const CardArt = self.CardArt = (() => {
     poly(c, P.body, 0.65, -0.37, 0.74, -0.66, 0.81, -0.36); poly(c, P.dark, 0.69, -0.38, 0.74, -0.58, 0.77, -0.38);
     if (!P.ghost) { disc(c, P.eye, 0.77, -0.28, 0.03); disc(c, P.dark, 1.03, -0.2, 0.026); }
   });
+  // the fox the player meets, drawn to be loved (baby proportions: a big head, big eyes with a glint, a round body, short legs, the brush
+  // wrapped round the feet; from real winter foxes: the white bib and cheeks, black ear backs and socks). Three poses (dev switch 小狐狸):
+  // a sitting, facing you; b lying with its chin on its paws, eyes shut happy; c sitting with its head tilted.
+  const foxHead = (c, P, eyes) => {
+    for (const k of [-1, 1]) { poly(c, P.dark, 0.32 * k, -0.42, 0.37 * k, -0.88, 0.07 * k, -0.54); poly(c, P.body, 0.3 * k, -0.44, 0.34 * k, -0.8, 0.1 * k, -0.55); poly(c, P.light, 0.27 * k, -0.48, 0.3 * k, -0.72, 0.15 * k, -0.55); }
+    c.beginPath(); c.moveTo(-0.4, -0.26); c.quadraticCurveTo(-0.36, -0.58, 0, -0.6); c.quadraticCurveTo(0.36, -0.58, 0.4, -0.26); c.lineTo(0.2, -0.11); c.quadraticCurveTo(0, 0.0, -0.2, -0.11); c.closePath(); c.fillStyle = P.body; c.fill();
+    c.beginPath(); c.moveTo(-0.4, -0.26); c.lineTo(-0.12, -0.25); c.quadraticCurveTo(0, -0.33, 0.12, -0.25); c.lineTo(0.4, -0.26); c.lineTo(0.2, -0.11); c.quadraticCurveTo(0, 0.0, -0.2, -0.11); c.closePath(); c.fillStyle = P.light; c.fill();
+    poly(c, P.light, -0.07, -0.56, 0.07, -0.56, 0, -0.3);
+    if (P.ghost) return;
+    if (eyes === 'happy') { c.strokeStyle = P.dark; c.lineWidth = 0.035; c.lineCap = 'round'; for (const k of [-1, 1]) { c.beginPath(); c.arc(0.15 * k, -0.34, 0.06, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); } }
+    else for (const k of [-1, 1]) { c.beginPath(); c.ellipse(0.155 * k, -0.36, 0.065, 0.082, 0, 0, 7); c.fillStyle = P.dark; c.fill(); disc(c, '#fff', 0.155 * k + 0.024, -0.39, 0.026); disc(c, 'rgba(255,255,255,0.7)', 0.155 * k - 0.02, -0.33, 0.012); }
+    for (const k of [-1, 1]) disc(c, 'rgba(255,140,130,0.45)', 0.26 * k, -0.24, 0.045);
+    c.beginPath(); c.moveTo(-0.05, -0.235); c.quadraticCurveTo(0, -0.25, 0.05, -0.235); c.quadraticCurveTo(0.03, -0.19, 0, -0.18); c.quadraticCurveTo(-0.03, -0.19, -0.05, -0.235); c.fillStyle = P.dark; c.fill();
+  };
+  const foxSit = (c, P, tilt) => {
+    const body = c2 => { c2.beginPath(); c2.moveTo(0, -0.1); c2.bezierCurveTo(0.36, -0.1, 0.44, 0.75, 0, 0.75); c2.bezierCurveTo(-0.44, 0.75, -0.36, -0.1, 0, -0.1); c2.closePath(); };
+    const tail = c2 => { c2.beginPath(); c2.moveTo(-0.05, 0.74); c2.bezierCurveTo(0.5, 0.82, 0.78, 0.5, 0.6, 0.16); c2.bezierCurveTo(0.56, 0.46, 0.38, 0.62, -0.05, 0.6); c2.closePath(); };
+    body(c); c.fillStyle = P.body; c.fill(); hatch(c, P, body, 0.48, 0.74, 0.05, 0.02);
+    c.beginPath(); c.moveTo(0, -0.05); c.quadraticCurveTo(0.22, 0.25, 0, 0.6); c.quadraticCurveTo(-0.22, 0.25, 0, -0.05); c.fillStyle = P.light; c.fill();
+    for (const k of [-1, 1]) { rr(c, 0.085 * k - 0.05, 0.42, 0.1, 0.33, 0.05); c.fillStyle = P.dark; c.fill(); }
+    tail(c); c.fillStyle = P.body; c.fill(); hatch(c, P, tail, 0.5, 0.82, 0.05, 0.02, -0.3);
+    c.save(); tail(c); c.clip(); disc(c, P.light, 0.6, 0.18, 0.15); c.restore();
+    c.save(); c.translate(0, -0.12); c.rotate(tilt || 0); c.translate(0, 0.12); foxHead(c, P, 'open'); c.restore();
+  };
+  F('fox-a', (c, P) => foxSit(c, P, 0));
+  F('fox-c', (c, P) => foxSit(c, P, -0.24));
+  F('fox-b', (c, P) => {
+    const body = c2 => { c2.beginPath(); c2.ellipse(0, 0.56, 0.56, 0.2, 0, 0, 7); };
+    const tail = c2 => { c2.beginPath(); c2.moveTo(-0.4, 0.66); c2.bezierCurveTo(-0.9, 0.76, -1.02, 0.42, -0.78, 0.3); c2.bezierCurveTo(-0.76, 0.5, -0.6, 0.56, -0.36, 0.5); c2.closePath(); };
+    tail(c); c.fillStyle = P.body; c.fill(); c.save(); tail(c); c.clip(); disc(c, P.light, -0.8, 0.32, 0.12); c.restore();
+    body(c); c.fillStyle = P.body; c.fill(); hatch(c, P, body, 0.6, 0.78, 0.05, 0.02);
+    for (const k of [-1, 1]) { c.beginPath(); c.ellipse(0.14 * k, 0.7, 0.11, 0.06, 0, 0, 7); c.fillStyle = P.dark; c.fill(); }
+    c.save(); c.translate(0, 0.48); c.scale(0.95, 0.95); foxHead(c, P, 'happy'); c.restore();
+  });
+  F('fox', (c, P) => A.figures['fox-' + ((typeof Variants !== 'undefined' && Variants.val && Variants.val.foxlook) || 'a')](c, P));
+  if (typeof Variants !== 'undefined') Variants.def('foxlook', '小狐狸', [['a', '坐着看你'], ['b', '趴着眯眼'], ['c', '歪头']], 'a');
   F('foxsleep', (c, P) => {           // curled up in the snow, the brush over the nose
     const body = c2 => { c2.beginPath(); c2.ellipse(0, 0.5, 0.42, 0.26, 0, 0, 7); };
     body(c); c.fillStyle = P.body; c.fill(); hatch(c, P, body, 0.52, 0.8, 0.04);
@@ -174,6 +210,7 @@ const CardArt = self.CardArt = (() => {
 
   // the colours of each figure, before the hour lights it
   const LOOK = {
+    foxside: { body: [214, 104, 44], dark: [52, 30, 26], light: [246, 240, 230], horn: [246, 240, 230] },
     fox: { body: [214, 104, 44], dark: [52, 30, 26], light: [246, 240, 230], horn: [246, 240, 230] },
     foxsleep: { body: [214, 104, 44], dark: [52, 30, 26], light: [246, 240, 230], horn: [246, 240, 230] },
     deer: { body: [152, 98, 62], dark: [48, 32, 26], light: [240, 232, 218], horn: [236, 222, 196] },
@@ -182,7 +219,7 @@ const CardArt = self.CardArt = (() => {
     eagle: { body: [96, 64, 42], dark: [42, 28, 22], light: [248, 244, 236], horn: [248, 244, 236] },
     skier: { body: [212, 70, 54], dark: [34, 40, 60], light: [244, 240, 232], horn: [255, 208, 138] },
   };
-  const HUE = { dawn: [[255, 200, 190], 0.14], day: [[255, 255, 255], 0], dusk: [[255, 168, 112], 0.18], night: [null, 0.55] };
+  const HUE = { dawn: [[255, 200, 190], 0.14], day: [[255, 255, 255], 0], dusk: [[255, 168, 112], 0.18], night: [null, 0.36] };
   function palette(id, T, tod, ghost) {
     if (ghost) { const g = css([34, 46, 70]); return { body: g, shade: g, dark: g, light: g, horn: g, eye: g, ghost: true }; }
     const L = LOOK[id] || LOOK.fox, h = HUE[tod] || HUE.day, lit = col => h[0] ? mix(col, h[0], h[1]) : mix(col, T.near, h[1]);
@@ -294,7 +331,7 @@ const CardArt = self.CardArt = (() => {
     if (shape !== 'kicker') { const tc = owned ? css(mix(T.near, INK, 0.55)) : css(mix(INK, [20, 30, 48], 0.4)); for (const [x, h] of [[0.9, 46], [0.97, 34]]) { const bx = W * x, by = PH * 0.86 + (x - 0.9) * 40 * u; for (let t = 0; t < 3; t++) { const y1 = by - h * u * (0.2 + t * 0.3), w = (10 - t * 2.6) * u; ctx.beginPath(); ctx.moveTo(bx - w, y1 + 12 * u); ctx.lineTo(bx, y1 - 9 * u); ctx.lineTo(bx + w, y1 + 12 * u); ctx.closePath(); ctx.fillStyle = tc; ctx.fill(); } } }
     return crest;
   }
-  const FIG = { fox: [0.22, 0.04], foxsleep: [0.2, 0.02], deer: [0.25, 0.0], hare: [0.17, 0.0], ibex: [0.23, 0.02], skier: [0.24, 0], eagle: [0.3, 0] };
+  const FIG = { fox: [0.3, 0.03], 'fox-b': [0.3, 0.02], foxside: [0.22, 0.04], foxsleep: [0.2, 0.02], deer: [0.25, 0.0], hare: [0.17, 0.0], ibex: [0.23, 0.02], skier: [0.24, 0], eagle: [0.3, 0] };
   function scene(ctx, W, PH, v) {
     const a = v.card.art || {}, fx = FX[a.fx] || {}, seed = hash(v.card.id) % 7;
     const S = scenery(ctx, W, PH, v, { scene: true, noAurora: !!fx.sky, runA: a.fx && a.fx.indexOf('rings') === 0 ? 0.5 : 1, sky: fx.sky && v.owned ? (c, T, u) => fx.sky(c, W, PH, T, u, seed) : null });

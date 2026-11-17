@@ -28,7 +28,7 @@ Cards.pack({
     { id: 'hy-powder', set: 'hanyan-views', zh: '粉雪大坡', en: 'Powder field', when: { type: 'station', idx: 9, at: 0.2 }, hint: { zh: '第二段林道之后', en: 'After the second forest lane' }, fact: { zh: '出林就是一整面粉雪', en: 'Out of the trees into a whole face of powder' } },
     { id: 'hy-chute', set: 'hanyan-views', zh: '林中陡槽', en: 'The chute', when: { type: 'station', idx: 11, at: 0.55 }, hint: { zh: '一圈的最后', en: 'The end of the lap' }, fact: { zh: '窄、急、看不远', en: 'Narrow, steep, blind' } },
     // (the fox's den: the fox trial sends 'fox.den' when it has led the player there; until then only the dev buttons can)
-    { id: 'hy-den', set: 'hanyan-views', zh: '狐狸的窝', en: "The fox's den", when: { type: 'event', name: 'fox.den' }, hint: { zh: '跟着小狐狸走', en: 'Follow the little fox' }, art: { type: 'scene', station: 9, at: 0.3, fig: 'foxsleep', stand: 'ledge', fx: 'den' }, fact: { zh: '小狐狸带你来的地方', en: 'Where the fox led you' } },
+    { id: 'hy-den', set: 'hanyan-views', zh: '狐狸的窝', en: "The fox's den", when: { type: 'event', name: 'fox.den' }, hint: { zh: '跟着小狐狸走', en: 'Follow the little fox' }, art: { type: 'scene', station: 9, at: 0.3, fig: 'fox-b', stand: 'ledge', fx: 'den' }, fact: { zh: '小狐狸带你来的地方', en: 'Where the fox led you' } },
     { id: 'hy-all', set: 'hanyan-views', zh: '寒烟山全景', en: 'All of Cold Smoke', when: { type: 'count', set: 'hanyan-views' }, hint: { zh: '收齐这一页的风景', en: 'Every view on this page' }, art: { type: 'emblem', glyph: 'ridge' }, hidden: 'secret', facets: [] },
 
     // ---- animals met on the way (19h_cardsrc.js: 'animal.seen' as one comes close)
