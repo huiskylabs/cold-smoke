@@ -254,7 +254,7 @@ const Trees = (() => {
   const TM = TreeModel;
   // r0/w0/max0: the fine meshes reach r0 metres (handing over across the last w0), at most max0 of them; r1/w1/max1: the same for the coarse
   // meshes; beyond stand the cards (NK photographs of each kind, one tile each). life: the trees move and shed (0 = still).
-  const T = { NV: TM.NV, NK: 12, r0: 14, w0: 3.5, max0: 8, r1: 48, w1: 8, max1: 72, far: 460, farD: 2.6, maxFar: 16384, tileW: 128, tileH: 256, ss: 2, pitch: 0.12, enabled: true, life: 1,
+  const T = { NV: TM.NV, NK: 12, r0: 14, w0: 3.5, max0: 8, r1: 48, w1: 8, max1: 72, far: 460, farD: 3.8, maxFar: 16384, tileW: 128, tileH: 256, ss: 2, pitch: 0.12, enabled: true, life: 1,
     stats: { near: 0, far: 0, tris: 0, fading: 0, out: 0, l0: 0, l1: 0, drawn: 0, shadow: 0, parts: 0 } };
   // (going through the woods, the owner's choice 'tpass'. a: as it was: a tree between the lens and the skier, or right against the lens,
   // fades out whole until it is clear. b: every tree stays. Its boughs give way round the body and are swept along with it as the skier
@@ -874,7 +874,7 @@ const Trees = (() => {
     const far = (c, o, fade, d) => {
       if (nFar >= T.maxFar) return;
       let wk = 1;
-      if (d > F0) { const keep = Math.max(0.22, Math.pow(F0 / d, 1.6)), hv = (Math.abs(Math.sin(c[o] * 12.9898 + c[o + 2] * 78.233)) * 43758.5453) % 1; if (hv > keep) return; wk = Math.min(1.9, 1 / Math.sqrt(keep)); }
+      if (d > F0) { const keep = Math.max(0.10, Math.pow(F0 / d, 1.6)), hv = (Math.abs(Math.sin(c[o] * 12.9898 + c[o + 2] * 78.233)) * 43758.5453) % 1; if (hv > keep) return; wk = Math.min(3.2, 1 / Math.sqrt(keep)); }
       const q = nFar++ * 12, s = c[o + 3] / 10 * smooth(R, R - 60 * (R / F0), d), v = c[o + 6];
       farCPU[q] = c[o] - ox; farCPU[q + 1] = c[o + 1] - oy - 0.10 * s; farCPU[q + 2] = c[o + 2] - oz; farCPU[q + 3] = s;
       farCPU[q + 4] = c[o + 4]; farCPU[q + 5] = c[o + 5]; farCPU[q + 6] = c[o + 7]; farCPU[q + 7] = v + 0.98 * fade;
