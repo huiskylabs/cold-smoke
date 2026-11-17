@@ -11,7 +11,7 @@
 // (K: the land is this many times bigger and farther than its numbers below say; streets and windows keep their true size)
 const Peak = { K: 2.2, H: 3000, AZ: 1.3, t0: -0.30, ta: 0.60, tb: 0.95, ak: 0.42, lift: 0.08, PC: [1800, 24000], HP: 6500, LC: [-600, 12800], LR: [11500, 5200], far: 75000, haze: 46000 };
 function peakBakeFS(kind) {
-  const f = metroF, P = Peak, isC = kind === 'c';
+  const f = metroF, P = Peak, isC = kind === 'c', isE = kind === 'e';
   // (the light keeps one bearing all day; the land is drawn as if it came more from the left than it does, so that the faces turned to
   // the eye are not all in shadow)
   const la = Sky.az - Vista.cityAz - 0.75;
@@ -55,7 +55,14 @@ ${isC ? `  let ln: f32 = pN(p / 5600.0 + vec2f(2.7, 6.1));
   let fk: f32 = saturate(1.0 - rp / R);
   // (its faces are cut by ribs and gullies, deepest low down; the horn itself stays clean)
   let rib: f32 = pRidge(q / 3300.0 + vec2f(6.0, 2.0), n);
-  let pk: f32 = PHP * (0.15 * fk + 0.85 * pow(fk, 2.3)) * (1.0 + (1.1 * (rib - 0.40) + 0.3 * (rg - 0.42)) * (1.0 - fk) * (0.35 + 0.65 * smoothstep(0.0, 0.25, fk)));
+  var pk: f32 = PHP * (0.15 * fk + 0.85 * pow(fk, ${f(isE ? 3.4 : 2.3)})) * (1.0 + (1.1 * (rib - 0.40) + 0.3 * (rg - 0.42)) * (1.0 - fk) * (0.35 + 0.65 * smoothstep(0.0, 0.25, fk)));
+${isE ? `  // (异星: not one horn but a crown of needles, far thinner and steeper than rock stands on earth)
+  for (var i: i32 = 0; i < 5; i++) {
+    let fi: f32 = f32(i);
+    let c: vec2f = vec2f(${f(P.PC[0])}, ${f(P.PC[1])}) + vec2f(sin(fi * 2.4 + 0.7), cos(fi * 2.4 + 0.7) * 0.7) * (5200.0 + 1900.0 * sin(fi * 1.7));
+    let rr: f32 = length(p - c); let fn2: f32 = saturate(1.0 - rr / (2600.0 + 500.0 * sin(fi * 3.1)));
+    pk = max(pk, (3600.0 + 1500.0 * sin(fi * 2.9 + 1.0)) * (0.10 * fn2 + 0.90 * pow(fn2, 2.6)) * (0.9 + 0.5 * (rib - 0.4) * (1.0 - fn2)) + 0.6 * pk);
+  }` : ''}
   return max(own, flr + max(rng, pk));
 }
 fn pTerr(p: vec2f, n: i32) -> f32 { return PK * pTerr0(p / PK, n); }
@@ -222,15 +229,48 @@ fn peakDeck(dl: vec2f, s: f32, h: f32, cov: f32, sc: f32) -> vec3f {
   let pw: vec2f = dl * x;
   let n: f32 = fbm2(pw / sc + vec2f(U.camPos.w * 0.0040, U.camPos.w * 0.0015) + vec2f(h * 0.01, 3.0));
   let t0: f32 = 1.0 - cov;
-  let k: f32 = smoothstep(t0 - 0.06, t0 + 0.16, n * 1.25);
+  // (a sheet seen all but edge on would show as a ruled line: it thins away there)
+  let k: f32 = smoothstep(t0 - 0.06, t0 + 0.16, n * 1.25) * smoothstep(0.012, 0.06, s);
   return vec3f(k * (1.0 - smoothstep(${f(55000 * P.K)}, ${f(75000 * P.K)}, x)), smoothstep(t0, t0 + 0.34, n * 1.25), x);
 }
-// the land, the cloud and the lake below, over the sky that is already there. kind: 2 云下之城, 3 金色雪旗
+// 异星: a great ringed planet standing low over the far ranges. rgb its light, a how much of the sky behind it it hides
+fn peakPlanet(d: vec3f) -> vec4f {
+  let C: vec3f = vec3f(${f(Math.sin(V.cityAz - 0.28) * Math.cos(0.14))}, ${f(Math.sin(0.14))}, ${f(-Math.cos(V.cityAz - 0.28) * Math.cos(0.14))});
+  if (dot(d, C) < 0.80) { return vec4f(0.0); }
+  let T1: vec3f = normalize(cross(vec3f(0.0, 1.0, 0.0), C)); let T2: vec3f = cross(C, T1);
+  let R: f32 = 0.125;
+  let x: f32 = dot(d, T1) / R; let y: f32 = dot(d, T2) / R; let r2: f32 = x * x + y * y;
+  let Ld: vec3f = normalize(U.sunDir.xyz + vec3f(0.0, 0.25, 0.0));
+  let lightK: vec3f = U.sunCol.rgb * (0.55 * (1.0 - 0.6 * U.skyP.z)) + vec3f(0.30, 0.34, 0.42) * U.skyP.z;
+  var col: vec3f = vec3f(0.0); var al: f32 = 0.0;
+  if (r2 < 1.0) {
+    let z: f32 = sqrt(1.0 - r2); let nw: vec3f = T1 * x + T2 * y - C * z;
+    let ndl: f32 = saturate(dot(nw, Ld) * 1.15 + 0.08);
+    // bands of cloud round it, swirled a little
+    let lat: f32 = y + 0.05 * sin(x * 5.0 + y * 3.0) + 0.06 * (vnoise2(vec2f(x * 3.0, y * 9.0)) - 0.5);
+    let bd: f32 = 0.5 + 0.5 * sin(lat * 17.0 + 2.0 * vnoise2(vec2f(lat * 6.0, 1.0)));
+    let body: vec3f = mix(vec3f(0.20, 0.55, 0.62), vec3f(0.86, 0.74, 0.60), bd) * (0.75 + 0.5 * vnoise2(vec2f(lat * 31.0, x * 2.0)));
+    col = body * lightK * ndl + vec3f(0.25, 0.55, 0.80) * (pow(1.0 - z, 3.0) * (0.10 + 0.5 * ndl)) * lightK;
+    al = smoothstep(1.0, 0.985, r2);
+  }
+  // its rings: a thin tilted disc, in front of it below, behind it above
+  let xr: f32 = x * 0.955 + y * 0.296; let yr: f32 = (-x * 0.296 + y * 0.955) / 0.20;
+  let rr: f32 = sqrt(xr * xr + yr * yr);
+  if (rr > 1.30 && rr < 2.35 && (r2 > 1.0 || yr < 0.0)) {
+    let g: f32 = (0.35 + 0.65 * vnoise2(vec2f(rr * 38.0, 2.0))) * (0.5 + 0.5 * vnoise2(vec2f(rr * 9.0, 7.0))) * smoothstep(1.30, 1.36, rr) * smoothstep(2.35, 2.22, rr) * (1.0 - 0.85 * smoothstep(1.78, 1.80, rr) * smoothstep(1.90, 1.88, rr));
+    let ra: f32 = saturate(g * 0.9);
+    col = col * (1.0 - ra) + vec3f(0.92, 0.84, 0.72) * lightK * (ra * 0.8);
+    al = max(al, ra * 0.8);
+  }
+  return vec4f(col, al);
+}
+// the land, the cloud and the lake below, over the sky that is already there. kind: 2 云下之城, 3 金色雪旗, 4 异星
 fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   let az0: f32 = atan2(d.x, -d.z) - ${f(V.cityAz)}; let a: f32 = atan2(sin(az0), cos(az0));
   let th: f32 = atan2(-d.y, length(d.xz)) + ${f(P.lift)};
   var sky: vec3f = sky0;
-  if (U.world.x > 2.5) { let bn: vec4f = peakBanner(a, th); sky = sky * (1.0 - bn.a) + bn.rgb; }
+  if (U.world.x > 3.5) { let pl: vec4f = peakPlanet(d); sky = sky * (1.0 - pl.a * (0.25 + 0.70 * U.skyP.z)) + pl.rgb; }
+  if (U.world.x > 2.5 && U.world.x < 3.5) { let bn: vec4f = peakBanner(a, th); sky = sky * (1.0 - bn.a) + bn.rgb; }
   if (th < ${f(P.t0)} || abs(a) > ${f(P.AZ)}) { return sky; }
   let tc: f32 = th - ${f(P.t0)};
   var v: f32 = min(tc / ${f(P.ta)}, 1.0);
@@ -262,8 +302,12 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   let hl: f32 = max(length(d.xz), 1e-4); let ce: f32 = cos(el);
   let dr: vec3f = vec3f(d.x / hl * ce, sin(el), d.z / hl * ce);
   var ws: vec3f = skyLut(dr);
-  if (M.au.x * U.skyP.w > 0.002) { ws += (aurora(dr, M.au.y, M.au.z, M.au.w) + aurora(normalize(dr + vec3f(0.0, 0.05, 0.0)), M.au.y, M.au.z, M.au.w)) * (0.5 * M.au.x * U.skyP.w); }
+  if (M.au.x * U.skyP.w > 0.002) { ws += (aurora(dr, M.au.y, M.au.z, M.au.w) + aurora(normalize(dr + vec3f(0.0, 0.05, 0.0)), M.au.y, M.au.z, M.au.w)) * (0.8 * M.au.x * U.skyP.w); }
   ws += moonDisc(normalize(dr + vec3f(0.0, 0.03 * rp, 0.0))) * 0.7;
+  if (U.world.x > 3.5) {
+    let pl: vec4f = peakPlanet(dr); ws = ws * (1.0 - pl.a * 0.8) + pl.rgb;
+    ws += aurora(normalize(dr * vec3f(1.0, 0.8, 1.0) + vec3f(0.0, -0.06, 0.0)), M.au.y + 0.16, M.au.z * 1.7 + 2.0, M.au.w).zxy * (1.3 * M.au.x * U.skyP.w);
+  }
   let fres: f32 = 0.32 + 0.68 * pow(1.0 - saturate(sin(max(th - ${f(P.lift)}, 0.0))), 5.0);
   let wcol: vec3f = mix(ws, alb * lit * 0.85 + lamps, mirrorLand) * fres + vec3f(0.004, 0.011, 0.024) * (0.3 + luma(amb));
   var c: vec3f = mix(land, wcol, water);

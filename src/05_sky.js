@@ -73,6 +73,8 @@ const Sky = (() => {
         if (U.skyP.w > 0.003) { col += stars(d) * (U.skyP.w * smoothstep(-0.01, 0.10, d.y) / (1.0 + 2.5 * luma(nb.rgb) * M.nu.w)); }
         // the aurora: out when the stars are (a clear dark sky), behind everything that stands or floats in front of the sky
         if (M.au.x * U.skyP.w > 0.002) { col += aurora(d, M.au.y, M.au.z, M.au.w) * (M.au.x * U.skyP.w); }
+        // (异星: a second curtain, violet, higher and wider, over the green one)
+        if (U.world.x > 3.5 && M.au.x * U.skyP.w > 0.002) { col += aurora(normalize(d * vec3f(1.0, 0.8, 1.0) + vec3f(0.0, -0.06, 0.0)), M.au.y + 0.16, M.au.z * 1.7 + 2.0, M.au.w).zxy * (1.3 * M.au.x * U.skyP.w); }
         col += nbc * (M.p.x * skyL + M.p.y) * smoothstep(-0.01, 0.15, d.y) * smoothstep(0.04, mix(0.12, 0.26, U.sunDir.w), ang) * U.fx.z * M.nu.w;
         col += moonDisc(d);
         col += meteor(d);
@@ -235,7 +237,7 @@ const Sky = (() => {
   S.nebShow = function () { return S.show() === 'nebula' ? 1 : 1 - S.nebNightK; };
   // the aurora's strength breathes slowly; the curtain drifts along the sky and its rays shimmer. How bright it is at all is S.auroraK
   S.aurora = function (t) {
-    const lake = typeof Metro !== 'undefined' && Metro.kind() === 'd';      // (金色雪旗: the aurora is always out over the lake)
+    const lake = typeof Metro !== 'undefined' && (Metro.kind() === 'd' || Metro.kind() === 'e');      // (金色雪旗: the aurora is always out over the lake)
     if (S.show() !== 'aurora' && !lake) return 0;
     const n = (x) => { const i = Math.floor(x), f = x - i, h = (k) => { const q = Math.sin(k * 127.1 + 311.7) * 43758.5453; return q - Math.floor(q); }; return lerp(h(i), h(i + 1), f * f * (3 - 2 * f)); };
     const breathe = 0.7 + 0.3 * n(t / 23) + 0.15 * Math.sin(t * 0.21);
