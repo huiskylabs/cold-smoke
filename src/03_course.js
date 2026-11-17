@@ -770,7 +770,9 @@ const Course = ((vn1, vn2, h2U) => {
     let d = 0;
     if (e > 3) {
       const patch = 0.55 + 0.45 * vnoise2(x / 70, z / 70, 21);
-      d = c.forest * smooth(3, 26, e) * smooth(-0.25, 0.25, patch - 0.42);
+      // (金色雪旗: past the near woods the walls are forest whatever the run's own stretch is like: a Rockies valley is wooded wall to wall)
+      const wD0 = typeof Metro !== 'undefined' && Metro.kind() === 'd';
+      d = (wD0 ? Math.max(c.forest, 0.85 * smooth(40, 140, e)) : c.forest) * smooth(3, 26, e) * smooth(-0.25, 0.25, patch - (wD0 && e > 140 ? 0.30 : 0.42));
       // (the richer mountain) the apron is open forest: thinner, with lanes running down the fall line between the trees, so there is always a
       // way through (a lane is where a stretched noise crosses zero: a few metres wide, tens of metres long, joining and parting)
       if (LV && e < APRON + 40) {
