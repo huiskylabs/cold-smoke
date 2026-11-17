@@ -370,7 +370,7 @@ const Rings = (() => {
     // the card: what this run was, against the best before it
     let worst = -1, wd = 0;
     const rows = seg.map((d, i) => { const b = segBest[i]; const df = b != null ? d - b : null; if (df != null && df >= 0.3 && df > wd) { wd = df; worst = i; } return { n: L.names[i] || (i + 1) + '', d, b, df }; });
-    const td = r => '<td>' + (r.b != null ? fmt(r.b) : '—') + '</td><td class="' + (r.df == null ? '' : r.df <= 0 ? 'g' : 'r') + '">' + (r.df == null ? '' : sgn(r.df)) + '</td>';
+    const td = r => '<td>' + (r.b != null ? fmt(r.b) : '—') + '</td><td class="' + (r.df == null || Math.abs(r.df) < 0.05 ? '' : r.df < 0 ? 'g' : 'r') + '">' + (r.df == null ? '' : sgn(r.df)) + '</td>';
     L.q('card').innerHTML = '<h3>' + LINES[L.id].name + ' · ' + DNAME[L.diff] + '</h3><div class="big">' + fmt(score) + '</div>'
       + '<div class="dl ' + (isNew ? 'g' : 'r') + '">' + (isNew ? (best ? '新纪录 · 快了 ' + (best.score - score).toFixed(1) + ' 秒' : '第一次完成 · 这就是你的纪录') : '最好 ' + fmt(best.score) + ' · 慢了 ' + (score - best.score).toFixed(1) + ' 秒') + '</div>'
       + '<div class="row"><span>用时 ' + fmt(L.tEnd) + '</span><span>光圈 ' + RG.passed + ' / ' + tot + '</span><span>罚时 ' + (miss ? '+' + miss * p + ' 秒' : '0') + '</span></div>'
