@@ -57,14 +57,12 @@ if (typeof Variants !== 'undefined') {
   // the view is hidden and then given back, sometimes you are down inside the trees or the land). a: the runs dealt from the seed as before.
   // b: 经典编排, the first lap is a set order of stations (ROUTE below) that alternates 藏 (a winding lane closed in by forest, a deep U
   // gully) and 露 (out onto a crest that looks down the valley at the city in the clouds), then the dealt runs carry on as before.
-  // Developer mode only for now: outside dev it is always a (see the end of this block).
+  // Live for everyone since 2026-11-17 (owner: 合并上线).
   Variants.def('route', '雪道', [['a', '随机'], ['b', '经典编排']], 'b');
   // 雪道清障 (owner, 2026-11-17: no trees in the middle of the U gully). The lone groups of trees out on the run were placed knowing nothing of
   // the lines the run is built round, so they stood on the gully's floor, in a jump's run-in and landing and in the mogul field's smooth
   // channel. b keeps those lines clear. a: as it was
-  Variants.def('rclear', '雪道清障', [['a', '原来'], ['b', '槽底和跳道无树']], 'b');
-  { let dev = false; try { dev = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (/[?&]dev(=|&|$)/.test(location.search) || /\/dev\/?$/.test(location.pathname)); } catch (e) { }
-    if (!dev) Variants.val.route = 'a'; }
+  Variants.def('rclear', '雪道清障', [['a', '原来'], ['b', '雪道上无树']], 'b');
   // (a change lays the same mountain out again)
   Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'route' || n === 'rclear') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
 }
