@@ -31,7 +31,7 @@
   copy.onclick = async () => { out.select(); let ok = false; try { await navigator.clipboard.writeText(out.value); ok = true; } catch (e) { try { ok = document.execCommand('copy'); } catch (x) { } } copy.textContent = ok ? '已复制' : '复制失败，请长按文本框全选复制'; };
 
   async function run() {
-    btn.disabled = true; btn.style.opacity = .4; const R = window.__benchR = { v: 5, when: new Date().toISOString() }, L = [];
+    btn.disabled = true; btn.style.opacity = .4; const R = window.__benchR = { v: 6, when: new Date().toISOString() }, L = [];
     try {
       // ---------- 环境
       R.ua = navigator.userAgent; R.dpr = devicePixelRatio; R.screen = [screen.width, screen.height]; R.inner = [innerWidth, innerHeight];
@@ -111,7 +111,7 @@
       }
     } catch (e) { R.error = String(e && e.message ? e.message : e).slice(0, 2000); }
     // ---------- 结果
-    L.push('=== 雪迹性能测量 v5 ' + R.when + ' ===');
+    L.push('=== 雪迹性能测量 v6 ' + R.when + ' ===');
     L.push('浏览器: ' + R.ua); L.push(`屏幕 ${R.screen} 窗口 ${R.inner} 像素比 ${R.dpr} 内存 ${R.mem} GB 核 ${R.cores}`);
     L.push('WebGPU: ' + (R.webgpu ? '有（' + R.gpuAdapter + '）' : '没有'));
     if (R.caps) { L.push('显卡: ' + R.caps.renderer); L.push(`WebGL2 能力: 浮点渲染目标 ${R.caps.hdr ? '有' : '没有'}，GPU 计时 ${R.caps.timerExt ? '有' : '没有'}，并行编译 ${R.caps.parallelCompile ? '有' : '没有'}，各向异性 ${R.caps.aniso ? '有' : '没有'}，最大贴图 ${R.caps.maxTex}，贴图单元 ${R.caps.maxTexUnits}/顶点 ${R.caps.maxVertTexUnits}`); }

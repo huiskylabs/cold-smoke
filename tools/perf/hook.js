@@ -62,9 +62,13 @@
   { const cgp = createGPU; createGPU = async function (c, o) { const g = await cgp(c, o); if (!g) return g; const op = g.pipeline;
     g.pipeline = desc => { const t0 = performance.now(), p = op(desc), e = { name: desc.name, t0, tDone: 0, len: p.src && p.src.code ? p.src.code.length : 0 }; P.gpuPipes.push(e);
       if (p.promise) p.promise.then(() => { e.tDone = performance.now(); }); return p; }; return g; }; }
-  // 地址带 cold：每条着色器末尾加一段这次打开独有的注释，浏览器的着色器缓存就认不出来（等于第一次打开）
-  if (/[?&]cold\b/.test(location.search)) { const b0 = buildShader, tag = '\n// cold ' + Date.now().toString(36) + Math.random().toString(36).slice(2) + '\n';
-    buildShader = function (d, l) { const r = b0(d, l); if (r.code) r.code += tag; if (r.vs) r.vs += tag; if (r.fs) r.fs += tag; return r; }; }
+  // 地址带 cold：每条着色器里加一句这次打开独有、但永远不生效的判断（和一个不可能的数比较），生成的机器码因此每次都不一样，
+  // 浏览器和系统（Metal）两层的着色器缓存都认不出来，等于第一次打开。只加注释不够：注释在翻译时就被去掉了，底层缓存照样命中
+  if (/[?&]cold\b/.test(location.search)) { const k = -(1e6 + Math.floor(Math.random() * 8e6)) + '.0', b0 = buildShader;
+    buildShader = function (d, l) { const r = b0(d, l);
+      if (r.code) r.code = r.code.replace('{ return vert(a); }', `{ var r: VOut = vert(a); if (U.origin.w == ${k}) { r.clip.w = r.clip.w * 1.0001; } return r; }`);
+      if (r.vs) r.vs = r.vs.replace(/\n}\n$/, `\n  if (U.origin.w == ${k}) gl_Position.w *= 1.0001;\n}\n`);
+      return r; }; }
   P.frameBegin = () => { P.passes = []; P.up = { texBytes: 0, texCalls: 0, bufBytes: 0, bufCalls: 0, globCalls: 0 }; P.rec = true; };
   P.frameEnd = () => { P.rec = false; return { passes: P.passes, up: P.up }; };
   P.timeBegin = () => { P.sect = {}; P.lastLabel = null; P.timing = true; P.mark('start'); };
