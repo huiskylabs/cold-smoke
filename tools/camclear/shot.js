@@ -1,6 +1,6 @@
 // 修前修后对比图：同一段滑行、同一个手势（两指拖动转视角），各出一张图。
 // 用法: node tools/camclear/shot.js <页面 html> <输出目录> <前缀> [宽=1280] [高=720]
-// REALGPU=1 用本机显卡（Mac 上用这个）；总是无头、无窗口，只用 playwright 自带的 Chromium（不碰系统里的 Chrome）。
+// REALGPU=1 用本机显卡（Mac 上用这个；Mac 上要用 playwright 1.65 那份，~/node_modules 里的旧版找不到它的 Chromium）；总是无头、无窗口，只用 playwright 自带的 Chromium（不碰系统里的 Chrome）。
 // NODRAW=1 只跑脚本不出图（检查脚本本身）。
 const { chromium } = require('playwright'), fs = require('fs'), path = require('path');
 const [PAGE, OUT, TAG, W = '1280', H = '720'] = process.argv.slice(2);
@@ -12,14 +12,14 @@ const CASES = [
   { id: '4_正面机位再转', t: 30, view: 'front', ty: -1.8, tp: 0.9, hold: 1.4 },
 ];
 (async () => {
-  const args = process.env.REALGPU ? ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist'] : ['--use-angle=swiftshader', '--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader'];
+  const args = process.env.REALGPU ? ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--enable-gpu', '--use-angle=metal'] : ['--use-angle=swiftshader', '--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader'];
   const browser = await chromium.launch({ headless: true, args: args.concat(['--no-sandbox']) });
   fs.mkdirSync(OUT, { recursive: true });
   const log = [];
   for (const c of CASES) {
     const page = await browser.newPage({ viewport: { width: +W, height: +H }, deviceScaleFactor: 1 });
     page.on('pageerror', e => console.log('pageerror:', e.message));
-    await page.goto('file://' + path.resolve(PAGE) + `?dev&manual&w=${W}&h=${H}&gov=0`);
+    await page.goto('file://' + path.resolve(PAGE) + `?dev&manual&w=${W}&h=${H}&gov=0&offscreen=1`);
     const b = await page.evaluate(() => window.__ski.boot()); if (!/^ok/.test(b)) throw new Error(b);
     const r = await page.evaluate(async ([c, nodraw]) => {
       const ski = window.__ski, M = ski.m, G = M.Game, C = M.Course, R = M.Render;
