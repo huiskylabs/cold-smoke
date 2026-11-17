@@ -305,7 +305,6 @@ const Terrain = (() => {
   // each outer ray bounds every visible height, even on a steep gully wall.
   function groundWedge(c, s) {
     if (!s) return null;
-    /*native{*/
     let low = Infinity, high = -Infinity, left, right;
     for (const u of [s.L, s.R]) for (const v of [s.B, s.T]) {
       const x = c.fwd[0] + u * c.right[0] + v * c.up[0];
@@ -316,13 +315,11 @@ const Terrain = (() => {
     }
     // Looking up or down can put the ground projection all around the eye.
     if (high - low >= Math.PI - 0.001) return null;
-    return [left, right].map(([x, z]) => ({ x, z, eye: x * c.pos[0] + z * c.pos[2], radius: 16 * (Math.abs(x) + Math.abs(z)) }));
-    /*}native*/
-    return null;
+    // (17, not 16: half a tile plus one cell, for the finer level's blend that can move a vertex by up to a cell)
+    return [left, right].map(([x, z]) => ({ x, z, eye: x * c.pos[0] + z * c.pos[2], radius: 17 * (Math.abs(x) + Math.abs(z)) }));
   }
   function drawGrid(L, r, binding, planes) {
     if (!planes) { gfx.draw(pipe, { ...binding, count: r.n }); return; }
-    /*native{*/
     let first = -1;
     for (const tile of r.tiles) {
       const x = (L.cx + tile.x) * L.cell, z = (L.cz + tile.z) * L.cell;
@@ -331,9 +328,16 @@ const Terrain = (() => {
       if (!visible && first >= 0) { gfx.draw(pipe, { ...binding, first, count: tile.first - first }); first = -1; }
     }
     if (first >= 0) gfx.draw(pipe, { ...binding, first, count: r.n - first });
-    /*}native*/
   }
+  // the ordinary screen (Variants 'tcull' b): the tiles of each level that lie wholly outside the camera's view to the left or right are
+  // not drawn. Measured on the user's iPhone the terrain is a quarter to a third of the frame; behind and beside the camera is most of it
+  if (typeof Variants !== 'undefined') Variants.def('tcull', '地形裁剪', [['a', '整圈都画'], ['b', '只画看得见的块']], 'b');
+  const viewTan = { L: 0, R: 0, B: 0, T: 0 };
   T.draw = function (origin, shadowTex, skyTex, sunTau, eye, frustum) {
+    if (!frustum && typeof Render !== 'undefined' && Render.cam && (typeof Variants === 'undefined' || Variants.val.tcull !== 'a')) {
+      const ty = Math.tan(Render.cam.fovY / 2), tx = ty * Render.W / Render.H;
+      viewTan.L = -tx; viewTan.R = tx; viewTan.B = -ty; viewTan.T = ty; eye = Render.cam; frustum = viewTan;
+    }
     const planes = groundWedge(eye, frustum);
     const Tu = Tracks.frame(), L0 = T.levels[0], pc = PATCH.m * 2; let amp = 0, X0 = 0, Z0 = 0;
     // the fine patch is snapped to the cells of the finest level, which must lie whole and unblended under it: a free camera that has taken
