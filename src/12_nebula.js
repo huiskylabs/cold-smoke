@@ -34,6 +34,7 @@ const Nebula = (() => {
     N.pipes = [pipeA, pipeB];
   };
   N.bake = function () {
+    if (gfx.isReady && !(gfx.isReady(pipeA) && gfx.isReady(pipeB))) return;      // (still compiling at start-up: baked on a later frame)
     gfx.beginPass(tA, { color: [0, 0, 0, 0] }); gfx.draw(pipeA, { u: { p: [0, 0, 0, 0] }, tex: { tNoise: Tex.noise }, count: 3 }); gfx.endPass(); gfx.genMips(texA);
     gfx.beginPass(tB, { color: [0, 0, 0, 0] }); gfx.draw(pipeB, { u: { p: [0, 0, 0, 0] }, tex: { tNoise: Tex.noise }, count: 3 }); gfx.endPass();
     N.baked = true;

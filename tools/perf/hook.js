@@ -15,7 +15,7 @@
     g.destroyTexture = t => { const r = P.tex.find(x => x.t === t); if (r) r.alive = false; return O.destroyTexture(t); };
     g.buffer = (data, kind, dyn) => { const b = O.buffer(data, kind, dyn); P.buf.push({ id: b.id, kind, bytes: data.byteLength, dyn: !!dyn, alive: true, b }); return b; };
     g.destroyBuffer = b => { const r = P.buf.find(x => x.b === b); if (r) r.alive = false; return O.destroyBuffer(b); };
-    g.pipeline = desc => { const t0 = performance.now(); const p = O.pipeline(desc); P.pipes.push({ name: desc.name, p, tCreate: performance.now() - t0, vsLen: p.src && p.src.vs ? p.src.vs.length : (p.src && p.src.code ? p.src.code.length : 0), fsLen: p.src && p.src.fs ? p.src.fs.length : 0, nu: p.layout.fields.length, ntex: Object.keys(desc.textures || {}).length }); return p; };
+    g.pipeline = (desc, P0) => { const t0 = performance.now(); const p = O.pipeline(desc, P0); P.pipes.push({ name: desc.name, p, tCreate: performance.now() - t0, vsLen: p.src && p.src.vs ? p.src.vs.length : (p.src && p.src.code ? p.src.code.length : 0), fsLen: p.src && p.src.fs ? p.src.fs.length : 0, nu: p.layout.fields.length, ntex: Object.keys(desc.textures || {}).length }); return p; };
     if (O.finishPipeline) g.finishPipeline = p => { const t0 = performance.now(); const r = O.finishPipeline(p); const e = P.pipes.find(x => x.p === p); if (e) e.tFinish = (e.tFinish || 0) + performance.now() - t0; return r; };
     g.updateTexture = (t, x, y, w, h, data) => { if (P.rec) { P.up.texBytes += data.byteLength; P.up.texCalls++; } return O.updateTexture(t, x, y, w, h, data); };
     g.updateBuffer = (b, off, data) => { if (P.rec) { P.up.bufBytes += data.byteLength; P.up.bufCalls++; } return O.updateBuffer(b, off, data); };
@@ -60,7 +60,7 @@
   // WebGPU：只记每条管线什么时候建、什么时候编译好（开机测试看第一次打开时哪几条最慢）
   P.gpuPipes = [];
   { const cgp = createGPU; createGPU = async function (c, o) { const g = await cgp(c, o); if (!g) return g; const op = g.pipeline;
-    g.pipeline = desc => { const t0 = performance.now(), p = op(desc), e = { name: desc.name, t0, tDone: 0, len: p.src && p.src.code ? p.src.code.length : 0 }; P.gpuPipes.push(e);
+    g.pipeline = (desc, P0) => { const t0 = performance.now(), p = op(desc, P0); if (p.held) return p; const e = { name: desc.name, t0, tDone: 0, len: p.src && p.src.code ? p.src.code.length : 0 }; P.gpuPipes.push(e);
       if (p.promise) p.promise.then(() => { e.tDone = performance.now(); }); return p; }; return g; }; }
   // 地址带 cold：每条着色器里加一句这次打开独有、但永远不生效的判断（和一个不可能的数比较），生成的机器码因此每次都不一样，
   // 浏览器和系统（Metal）两层的着色器缓存都认不出来，等于第一次打开。只加注释不够：注释在翻译时就被去掉了，底层缓存照样命中

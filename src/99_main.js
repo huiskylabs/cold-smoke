@@ -5,6 +5,8 @@ const QS = new URLSearchParams(location.search);
 const DEV = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (QS.has('dev') || /(?:^|\/)dev\/?$/.test(location.pathname));
 
 // Start-up runs in stages with a breath between them, so the loading page can show where it has got to
+Variants.def('bootq', '开机顺序', [['a', '全部编好再开'], ['b', '先编第一眼要的']], 'b');
+const BOOT_LATER = /^(city|neb|deer|fauna|gate|wind|shaft|fpv)/;
 async function boot(stage) {
   const manual = QS.has('manual'), step = async (f, name) => { if (stage) stage(f, name); if (!manual) await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); };
   const canvas = document.getElementById('view');
@@ -21,6 +23,10 @@ async function boot(stage) {
   if (!gfx) gfx = createGL(canvas, { xr: xrOK });
   if (!gfx) throw new Error('这台设备的浏览器不支持 WebGL2，画面无法启动。');
   App.gfx = gfx;
+  // the first time a page is opened (and after every update that changes a shader) the browser compiles every shader from scratch: on
+  // an iPhone some 10 to 25 seconds behind the loading page, measured. What the title picture does not show is held back until it is up
+  // (Variants 'bootq' b): the far city's lights, the night sky's bake, animals, gates, crest plumes, light shafts, the first-person body
+  if (Variants.val.bootq !== 'a') gfx.hold = n => BOOT_LATER.test(n);
   Course.forceType = QS.get('seg') || null; Course.classic = QS.has('classic');      // dev: a mountain made of one kind of run; the runs in the order the first mountain had them
   Course.setSeed(DEV ? (seedInHash() || Math.floor(+QS.get('seed')) || Course.seed) : Course.seed);      // outside dev: always the home mountain (寒烟山)
   if (QS.get('tod')) { const q = QS.get('tod'); Sky.setClock(q in Sky.times ? Sky.times[q] : +q || 0); }
@@ -66,7 +72,7 @@ async function boot(stage) {
   await step(0.70, '调光');
   const pipes = [].concat(Sky.pipes, Terrain.pipes, Post.pipes, Skier.pipes, Deer.pipes, Trees.pipes, Spray.pipes, Grains.pipes, Dust.pipes, Nebula.pipes, Clouds.pipes, Shafts.pipes, Tracks.pipes, Wind.pipes);
   pipes.push(...Gates.pipes);
-  for (let i = 0; i < pipes.length; i++) { const p = pipes[i]; if (gfx.finishPipelineAsync) await gfx.finishPipelineAsync(p); else gfx.finishPipeline(p); if (stage && !manual && i % 6 === 5) await step(0.70 + 0.16 * (i + 1) / pipes.length, null); }
+  for (let i = 0; i < pipes.length; i++) { const p = pipes[i]; if (p.held) continue; if (gfx.finishPipelineAsync) await gfx.finishPipelineAsync(p); else gfx.finishPipeline(p); if (stage && !manual && i % 6 === 5) await step(0.70 + 0.16 * (i + 1) / pipes.length, null); }
   await step(0.87, '铺雪');
   fit();
   Input.init(canvas);
@@ -77,6 +83,7 @@ async function boot(stage) {
   // the first picture bakes the nebula and the trees: do it while the loading page still covers the canvas
   if (!manual) { await step(0.96, '第一缕光'); tick(1 / 60, true); await step(1, null); }
   App.ready = true;
+  App.later = gfx.release ? gfx.release() : Promise.resolve();
 }
 // one simulation + presentation step. `draw` false: advance everything but skip the GPU frame (tests fast-forward this way)
 function tick(dt, draw) {
