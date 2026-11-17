@@ -188,7 +188,11 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   let tong: f32 = pRidge(qn * 11.0 + vec2f(3.0, 1.0), 3) + 0.5 * (dn - 0.5);
   let bare: f32 = (1.0 - smoothstep(-0.05, 0.05, tH / PHP - 0.44 + 0.30 * (tong - 0.35))) * smoothstep(0.02, 0.10, tH / PHP) * step(length(qv), ${f(P.PR)});
   let wood: f32 = (1.0 - smoothstep(650.0, 1500.0, tH + 500.0 * (pN(p / (1900.0 * PK)) - 0.5))) * smoothstep(0.60, 0.85, N.y) * step(2.0, tH);
-  var alb: vec3f = mix(vec3f(0.90, 0.93, 1.0), vec3f(0.11, 0.15, 0.15), wood * (0.55 + 0.35 * dn));
+  var alb: vec3f = mix(vec3f(0.90, 0.93, 1.0), vec3f(0.11, 0.15, 0.15), wood * (0.55 + 0.35 * dn));${isC ? '' : `
+  // (金色雪旗: a dark band of spruce close about the lake, as round Peyto and Maligne. The trees have shed their snow; against them the
+  // water shows its colour)
+  let shoreW: f32 = (1.0 - smoothstep(160.0, 480.0, tH + 260.0 * (pN(p / (900.0 * PK) + vec2f(2.0, 8.0)) - 0.5))) * smoothstep(0.30, 0.55, N.y) * step(2.0, tH);
+  alb = mix(alb, vec3f(0.06, 0.10, 0.08) * (0.75 + 0.5 * dn), shoreW * 0.85);`}
   alb = mix(alb, vec3f(0.19, 0.17, 0.17) * (0.6 + 0.5 * dn + 0.5 * vnoise2(vec2f(tH / 45.0, dot(p, vec2f(0.0007, 0.0004))))), max(max(rock, bare * 0.9), band * 0.6) * 0.92);
   alb = mix(alb, vec3f(0.96, 0.97, 1.0) * (0.84 + 0.16 * pN(p / 300.0)), cl);
   return vec4f(alb, 1.0);
@@ -432,7 +436,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     let pb: vec2f = wp / ${f(P.K)};
     let ellS: f32 = length(lq2) + 0.30 * (pkN(pb / 3600.0 + vec2f(1.0, 5.0)) - 0.5) + 0.34 * (pkN(pb / 8500.0 + vec2f(4.0, 2.0)) - 0.5) + 0.09 * (pkN(pb / 1300.0 + vec2f(7.0, 3.0)) - 0.5);
     let shoal: f32 = smoothstep(0.50, 1.12, ellS + 0.12 * (pat - 0.5) + 0.06 * (fbm2(wp / ${f(900 * P.K)} + vec2f(3.0, 1.0)) - 0.5));
-    var milky: vec3f = mix(vec3f(0.07, 0.47, 0.52), vec3f(0.13, 0.72, 0.73), smoothstep(0.0, 0.60, shoal));
+    var milky: vec3f = mix(vec3f(0.13, 0.50, 0.54), vec3f(0.20, 0.74, 0.75), smoothstep(0.0, 0.60, shoal));
     milky = mix(milky, vec3f(0.36, 0.88, 0.84), 0.60 * smoothstep(0.86, 1.02, shoal));
     milky = mix(milky, vec3f(0.10, 0.78, 0.76), 0.30 * smoothstep(0.45, 0.75, pat) * (1.0 - shoal));       // drifts of rock flour
     var jade: vec3f = mix(mix(vec3f(0.02, 0.36, 0.30), vec3f(0.05, 0.50, 0.62), smoothstep(0.35, 0.65, pat)), vec3f(0.42, 0.80, 0.62), smoothstep(0.62, 0.80, fbm2(wp / ${f(1300 * P.K)} + vec2f(1.0, 9.0))) * 0.7);
