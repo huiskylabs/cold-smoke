@@ -6,7 +6,8 @@ const [out = 'metro-shots', tods = 'night', W = '1920', Hh = '1080'] = process.a
 (async () => {
   fs.mkdirSync(out, { recursive: true });
   const shots = [{ id: 'b', dur: 1, seed: 20261115, tod: 'night', hold: true, start: false, at: { s: 14 }, lead: 0, cam: 'chase' }];
-  const browser = await chromium.launch({ channel: process.env.METRO_CHANNEL || 'chrome', headless: !process.env.METRO_HEADED, args: ['--enable-unsafe-webgpu', '--enable-gpu', '--use-angle=metal', '--ignore-gpu-blocklist'] });
+  const browser = await chromium.launch({ ...(process.env.METRO_CHANNEL ? { channel: process.env.METRO_CHANNEL } : {}), headless: true,   // (never the owner's own Chrome, never a window: playwright's own headless Chromium)
+    args: ['--enable-unsafe-webgpu', '--enable-gpu', '--use-angle=metal', '--ignore-gpu-blocklist'] });
   const page = await browser.newPage({ viewport: { width: +W, height: +Hh } });
   const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 600))); page.on('console', m => { if (m.type() === 'error') errs.push(m.text().slice(0, 600)); });
   const t0 = Date.now();
