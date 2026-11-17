@@ -46,8 +46,8 @@ const Post = (() => {
   // measured sunlit snow ~240, darkest 2% ~10-29, a deep clean blue sky. a: one grade for every world, as before
   if (typeof Variants !== 'undefined') Variants.def('grade', '调色', [['a', '所有地图一样'], ['b', '每张地图自己的']], 'b');
   P.grades = {
-    base: { e: 1, veil: 0.06, wb: 1, sp: 1, so: 1, haze: 1 },
-    d: { e: 1.42, veil: 0.02, wb: 0.25, sp: 1.12, so: 1.08, haze: 0.55 },
+    base: { e: 1, veil: 0.06, wb: 1, sp: 1, so: 1, haze: 1, black: 0, sky: 1 },
+    d: { e: 1.42, veil: 0.02, wb: 0.25, sp: 1.12, so: 1.08, haze: 0.55, black: 0.022, sky: 1.55 },
   };
   P.grade = function () {
     if (typeof Variants === 'undefined' || Variants.val.grade === 'a' || typeof Metro === 'undefined') return P.grades.base;
@@ -237,7 +237,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
     { const g = gPick(), k = 1 - Math.exp(-8 * clamp(Render.dt || 0, 0, 0.1)); P.gOld += (g[0] - P.gOld) * k; P.gNew += (g[1] - P.gNew) * k; P.white += (wPick() - P.white) * k; }
     gfx.beginPass(null, { color: [0, 0, 0, 1] });
     const gd = P.grade();
-    gfx.draw(pComp, { u: { gr: [gd.veil, 0, 0, 0], p: [P.exposure * gd.e, 1 / m.length, P.rayBase * P.rays, P.rayOcc * P.rays], q: [P.satPre * gd.sp, P.satPost * gd.so, P.flare, P.rayFall], r: [P.burst, P.ghosts * P.gOld, P.slow, P.speed], w: [P.wet, P.wetAge, P.wetSeed, P.fringe], wb: [P.wetBias[0], P.wetBias[1], P.wetNew, P.ghosts * P.gNew], sh: [P.chat[0] / W, P.chat[1] / H, P.chat[2], P.white], ws: [P.wetBlow, P.wetLook, P.wetC[0], P.wetC[1]], ls: (P.lsnowV[typeof Variants !== 'undefined' && Variants.val.lsnow] || P.lsnowV.a).concat([P.wbK() * gd.wb]) }, tex: { tScene: sceneTex, tBloom: m[0].tex, tDepth: depthTex, tVis: visTex, tRay: rayA }, count: 3 });
+    gfx.draw(pComp, { u: { gr: [gd.veil, gd.black, 0, 0], p: [P.exposure * gd.e, 1 / m.length, P.rayBase * P.rays, P.rayOcc * P.rays], q: [P.satPre * gd.sp, P.satPost * gd.so, P.flare, P.rayFall], r: [P.burst, P.ghosts * P.gOld, P.slow, P.speed], w: [P.wet, P.wetAge, P.wetSeed, P.fringe], wb: [P.wetBias[0], P.wetBias[1], P.wetNew, P.ghosts * P.gNew], sh: [P.chat[0] / W, P.chat[1] / H, P.chat[2], P.white], ws: [P.wetBlow, P.wetLook, P.wetC[0], P.wetC[1]], ls: (P.lsnowV[typeof Variants !== 'undefined' && Variants.val.lsnow] || P.lsnowV.a).concat([P.wbK() * gd.wb]) }, tex: { tScene: sceneTex, tBloom: m[0].tex, tDepth: depthTex, tVis: visTex, tRay: rayA }, count: 3 });
     gfx.endPass();
   };
   return P;
@@ -488,6 +488,8 @@ fn frag(v: VOut) -> FOut { var o: FOut;
   // white balance toward the low sun (sunlit snow a warm white, sky-lit shadows properly blue), exposure, then the film curve.
   // chroma is pushed a little before the curve (deep sky, rich shadows) and again after it.
   col *= mix(vec3f(1.0), vec3f(0.93, 1.0, 1.10), M.ls.w) * M.p.x;
+  // (the world's own black: the air and the glow lift the darkest things off black; photographs of the place show how far. M.gr.y)
+  col = max(col - vec3f(M.gr.y), vec3f(0.0)) * (1.0 + M.gr.y);
   // path to white: film and the eye lose colour as light nears their top, so backlit spray, a sunlit cloud edge or the glare round the sun
   // go gold at their rims and white where they are densest, never a saturated yellow "fire" (the curve works per channel, and red and green
   // reach its shoulder together long before blue does). Graded on brightness, so the warm snow of the low sun keeps its colour and the deep
