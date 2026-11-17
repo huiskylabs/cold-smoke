@@ -541,7 +541,7 @@ const Skier = (() => {
     const shl = seg(at(B.chest, -0.165, 0.20, 0), at(B.chest, 0.165, 0.20, 0)), col = seg(at(B.chest, 0, 0.21, 0.004), at(B.chest, 0, 0.262, -0.002)), nck = seg(J.neck, v3.mad(J.head, bd.hb.Y, -0.05));
     const arm = [0, 1].map(k => { const s = k ? 'R' : 'L', sh = J['sh' + s], el = J['elbow' + s], wr = J['wrist' + s], gr = J['grip' + s], fd = v3.norm(v3.sub(gr, el));
       return { up: seg(sh, el), upB: seg(v3.lerp(sh, el, 0.10), el), fo: seg(el, v3.mad(wr, fd, -0.03)), gaB: seg(v3.mad(wr, fd, -0.085), v3.mad(wr, fd, 0.005)), ga: seg(v3.mad(wr, fd, -0.05), wr), hu: seg(el, gr), mH: F[k ? B.handR : B.handL],
-        gaC: seg(v3.mad(wr, fd, -GAUNT.len), v3.mad(wr, fd, -0.03)), gs: v3.mad(wr, fd, -GAUNT.len), fd }; });
+        gaC: seg(v3.mad(wr, fd, -GAUNT.len), v3.mad(wr, fd, -0.03)), gs: v3.mad(wr, fd, -GAUNT.len), fd, el, cr: v3.norm(v3.sub(fd, v3.norm(v3.sub(el, sh)))) }; });
     const leg = [0, 1].map(k => { const iT = k ? B.thighR : B.thighL, iS = iT + 1, iF = iT + 2, s = k ? 'R' : 'L';
       return { ta: seg(at(iT, 0, 0.03, 0), at(iT, 0, 0.21, -0.016)), tb: seg(at(iT, 0, 0.21, -0.016), at(iT, 0, 0.425, -0.004)), kc: at(iS, 0, 0, -0.03), sa: seg(at(iS, 0, 0.02, 0), at(iS, 0, 0.15, 0.012)), sb: seg(at(iS, 0, 0.15, 0.012), at(iS, 0, 0.365, 0.004)),
         cu: seg(at(iS, 0, 0.25, 0.010), at(iS, 0, 0.425, 0.006)), mS: F[iS], mF: F[iF], h0: seg(J['hip' + s], J['knee' + s]), h1: seg(J['knee' + s], J['ankle' + s]), h2: seg(at(iF, 0, 0.09, 0.25), at(iF, 0, 0.09, -0.27)) }; });
@@ -576,7 +576,10 @@ const Skier = (() => {
     function rArm(k, x, y, z) {
       const A = arm[k];
       if (nb) {      // (new body: the sleeve tapers from the armpit to the elbow and on to a looser cuff; the glove is a squarish fist with a thumb over the grip)
-        const a = smin(cap(x, y, z, A.upB, 0.057, 0.049), cap(x, y, z, A.fo, 0.047, 0.044), 0.04);
+        // (the two halves of the sleeve run into each other softly in the crook of the arm, where the cloth gathers, but hardly at all round the point of
+        // the elbow: a soft blend all round put a ball there 12 mm proud of the forearm, the owner's "a big lump at the elbow", 2026-11-17)
+        const ce = (x - A.el[0]) * A.cr[0] + (y - A.el[1]) * A.cr[1] + (z - A.el[2]) * A.cr[2], ke = 0.006 + 0.034 * smooth(-0.02, 0.025, ce);
+        const a = smin(cap(x, y, z, A.upB, 0.057, 0.049), cap(x, y, z, A.fo, 0.047, 0.044), ke);
         if (hb) {      // (Variants 'hand' b: only the gauntlet's cuff is the body's, an open tube standing proud of the sleeve with a lip at its edge;
           // the hand itself is the fine glove closed round the grip (gloveMesh), built apart at a finer grid and carried on the pole's frame)
           const ga = smax(cap(x, y, z, A.gaC, GAUNT.r0, GAUNT.r1), -((x - A.gs[0]) * A.fd[0] + (y - A.gs[1]) * A.fd[1] + (z - A.gs[2]) * A.fd[2]), 0.004);
