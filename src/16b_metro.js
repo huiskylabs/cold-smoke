@@ -223,13 +223,13 @@ fn mHillShade(u: f32, w: f32, hl: f32, mode: f32) -> vec4f {
   let nx: f32 = mHills(u + e, w) - mHills(u - e, w); let nz: f32 = mHills(u, w + e) - mHills(u, w - e);
   let N: vec3f = normalize(vec3f(-nx, 2.0 * e, -nz));
   let steep: f32 = 1.0 - N.y;
-  let fo: f32 = 0.7 * smoothstep(0.42, 0.60, fbm2(vec2f(u, w) / 260.0) + 1.3 * steep - 0.25 * smoothstep(200.0 * MK, 1200.0 * MK, hl));
+  let fo: f32 = 0.85 * smoothstep(0.42, 0.60, fbm2(vec2f(u, w) / 260.0) + 1.3 * steep - 0.25 * smoothstep(200.0 * MK, 1200.0 * MK, hl));
   let rd: f32 = abs(u - mRoadU(w)) / sqrt(1.0 + sq((mRoadU(w + 20.0) - mRoadU(w - 20.0)) / 40.0)) / MK;
   // the towns in the valleys: clusters of warm lights low down, thinning up the slopes
   let low: f32 = (1.0 - smoothstep(60.0 * MK, 520.0 * MK, hl)) * smoothstep(2200.0 * MK, 4200.0 * MK, length(vec2f(u, w)));
-  let tn: f32 = smoothstep(0.50, 0.72, fbm2(vec2f(u, w) / (700.0 * MK) + vec2f(5.0, 2.0))) * low + 1.3 * exp(-rd / 650.0) * smoothstep(900.0 * MK, 2500.0 * MK, w);
+  let tn: f32 = smoothstep(0.50, 0.72, fbm2(vec2f(u, w) / (700.0 * MK) + vec2f(5.0, 2.0))) * low + 0.9 * (1.0 - smoothstep(40.0 * MK, 300.0 * MK, hl)) * exp(-rd / 300.0) * smoothstep(900.0 * MK, 2500.0 * MK, w);
   if (mode < 0.5) {
-    let k: vec2f = floor(vec2f(u, w) / 22.0); let on: f32 = step(1.0 - 0.50 * saturate(tn), hash21(k + vec2f(7.0, 19.0)));
+    let k: vec2f = floor(vec2f(u, w) / 22.0); let on: f32 = step(1.0 - 0.26 * saturate(tn), hash21(k + vec2f(7.0, 19.0)));
     let fp: vec2f = fract(vec2f(u, w) / 22.0) - 0.5;
     var em: vec3f = mTint(hash21(k) * 0.78) * (on * exp(-dot(fp, fp) * 22.0) * 5.0);
     // the road down: two ribbons of light, and its glow on the snow beside it
@@ -240,7 +240,7 @@ fn mHillShade(u: f32, w: f32, hl: f32, mode: f32) -> vec4f {
     let lamps: f32 = (1.0 - smoothstep(4.0, 11.0, abs(rd - 30.0))) * exp(-sq((fract(w / (80.0 * MK)) - 0.5) * 4.0));
     em += vec3f(1.0, 0.64, 0.28) * (lamps * 8.0 + 2.0 * exp(-rd / 90.0) * smoothstep(14.0, 30.0, rd) + 0.45 * exp(-rd / 420.0)) * rk;
     em += (vec3f(1.0, 0.92, 0.78) * ((1.0 - smoothstep(4.0, 10.0, abs(sd - 9.0))) * 4.5) + vec3f(1.0, 0.12, 0.06) * ((1.0 - smoothstep(4.0, 10.0, abs(sd + 9.0))) * 5.0)) * rk;
-    em += vec3f(1.0, 0.56, 0.24) * (0.55 * saturate(tn));
+    em += vec3f(1.0, 0.56, 0.24) * (0.16 * saturate(tn));
     return vec4f(em, 0.0);
   }
   // snow under a light from the upper left, the hollows bluer; forest dark on the steeper ground
@@ -377,7 +377,7 @@ fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
   let farK: f32 = smoothstep(5000.0 * ${f(M.K)}, 16000.0 * ${f(M.K)}, dist);
   let warmK: f32 = saturate((E.r - E.b) / max(El, 0.001) * 2.5) * (1.0 - A.a) * (1.0 - E.a);
   let Ec: vec3f = mix(E.rgb, vec3f(1.0, 0.50, 0.13) * El * 1.3, 0.62 * warmK) * mix(mix(0.85 + 0.4 * spark, 0.36 + spark, farK), 1.0, E.a);
-  let nightGround: vec3f = A.rgb * vec3f(0.016, 0.024, 0.07) * (night * (1.0 + 5.0 * smoothstep(0.62, 0.90, luma(A.rgb))));
+  let nightGround: vec3f = A.rgb * vec3f(0.016, 0.024, 0.07) * (night * (1.0 + 5.0 * smoothstep(0.42, 0.85, luma(A.rgb))));
   // the traffic on the avenues of the middle city: beads of light going slowly, red where they drive away, white where they come
   // (the line of sight is taken back to the ground it was baked from)
   let gp: vec2f = vec2f(sin(ba), cos(ba)) * dist - vec2f(${f(M.DC[0])}, ${f(M.DC[1])});
