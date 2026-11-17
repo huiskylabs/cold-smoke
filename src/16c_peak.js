@@ -68,12 +68,12 @@ fn pCloudTop0(p: vec2f) -> f32 {
   let d1: f32 = (c1 - ${f(isC ? 0.47 : 0.74)}) * smoothstep(${f(isC ? 5200 : 7000)}, ${f(isC ? 8200 : 10000)}, r);
   var t1: f32 = -400.0;
   if (d1 > 0.0) { let k: f32 = saturate(d1 * 9.0); t1 = ${f(isC ? 900 : 420)} * pow(d1 * 2.4, 0.62) + k * (${f(isC ? 520 : 200)} * (b - 0.35) + 170.0 * (b2 - 0.5)); }
-  // the band about the peak's waist
+  // the band about the peak's waist: a belt of separate heaps lying against its flanks, where they stand about 1500 m over the lake
   let q: vec2f = p - vec2f(${f(P.PC[0])}, ${f(P.PC[1])}); let rp: f32 = length(q);
-  let c2: f32 = pN(p / 4300.0 + vec2f(1.9, 9.4));
-  let d2: f32 = (c2 - 0.42) * exp(-sq((rp - 6300.0) / 2400.0));
+  let c2: f32 = pN(p / 1500.0 + vec2f(1.9, 9.4)) + 0.45 * (pN(p / 5200.0 + vec2f(6.0, 3.0)) - 0.5);
+  let d2: f32 = (c2 - 0.50) * exp(-sq((rp - 5300.0) / 1150.0));
   var t2: f32 = -400.0;
-  if (d2 > 0.0) { let k: f32 = saturate(d2 * 9.0); t2 = 1500.0 * k + 2300.0 * pow(d2 * 2.4, 0.62) + k * (640.0 * (b - 0.35) + 190.0 * (b2 - 0.5)); }
+  if (d2 > 0.0) { let k: f32 = saturate(d2 * 14.0); t2 = 1900.0 * k + 1500.0 * pow(d2 * 2.4, 0.6) + k * (360.0 * (b - 0.35) + 150.0 * (b2 - 0.5)); }
   return max(t1, t2);
 }
 fn pCloudTop(p: vec2f) -> f32 { return PK * pCloudTop0(p / PK); }
@@ -126,7 +126,7 @@ fn pShade(p: vec2f, x: f32, mode: f32, fa: f32, fr: f32) -> vec4f {
     var lamps: f32 = 0.0;
     if (cl > 0.5) {
       // cloud: soft in the light, and lit from inside by the town under it
-      n0 = 0.16 + 0.84 * n0; n1 = 0.22 + 0.78 * n1;
+      n0 = 0.42 + 0.58 * n0; n1 = 0.48 + 0.52 * n1;
       lamps = ${f(isC ? 0.55 : 0.12)} * town * sq(pN(p / (1700.0 * PK) + vec2f(5.0, 5.0)) * 1.5) * (1.0 - smoothstep(150.0, 900.0, tH)) * step(1.0, tH);
     } else {
       let level: f32 = smoothstep(0.90, 0.985, N.y) * (1.0 - smoothstep(120.0, 420.0, tH)) * step(1.0, tH);
