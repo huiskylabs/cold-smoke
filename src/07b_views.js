@@ -127,7 +127,7 @@
   }
 
   // ---- the snow under a lens: the highest of the fine surface there and a step either way (what is drawn is a 1 m mesh of it)
-  function snow(x, z) { return Math.max(Course.height(x, z, 0.5), Course.height(x + 0.6, z, 0.5), Course.height(x - 0.6, z, 0.5), Course.height(x, z + 0.6, 0.5), Course.height(x, z - 0.6, 0.5)); }
+  const snow = (x, z) => Course.snowTop(x, z);
   // (what the rig's height is counted from: the same, but never under the broad lie of the slope, and eased by a spring further down)
   const base = (x, z) => Math.max(Course.height(x, z, 2), snow(x, z));
   // y held above lo, with a smooth join k wide
@@ -394,9 +394,17 @@
       rot(x, y, z, D.p); D.p[0] += cx; D.p[1] += cy; D.p[2] += cz; rot(fx, fy, fz, D.f);
     }
     // ---- never under the snow, never in the figure
-    { const lk = rigOn ? 1 : Math.min(1, 6 * (Math.abs(look.yaw) + Math.abs(look.pit))), mg = rigOn ? cur.mg : 0.35;
+    // (lt: how far the view is turned by hand. The rig's floor B.fl was taken under the rig's own place, before the turn: once the lens is
+    // swung round the figure it stands over other snow, so there the snow where it now is counts as well, and it keeps clear of it by
+    // at least as much as the picture's near corners reach out from it: 0.35 m)
+    { const lt = Math.min(1, 6 * (Math.abs(look.yaw) + Math.abs(look.pit))), lk = rigOn ? 1 : lt, mg = rigOn ? lerp(cur.mg, Math.max(cur.mg, 0.35), lt) : 0.35;
       if (lk > 0) {
-        const y = over(D.p[1], (rigOn && B.flOK ? B.fl : snow(D.p[0], D.p[2])) + mg, 0.15);       // (the rig's floor, which falls after a lip like a weight: see rigStep) D.p[1] += (y - D.p[1]) * lk;
+        // (the rig's floor, which falls after a lip like a weight: see rigStep)
+        // (the owner's players, 2026-11-17: turning the view with two fingers, the picture went under the snow. The line that lifts the lens
+        // had been swallowed into the end of the comment above it since the view was written, so nothing held it up: looking up swung it
+        // as much as six metres down into the slope behind the skier, and round to the side into the walls of a gully)
+        const sn = snow(D.p[0], D.p[2]), y = over(D.p[1], (rigOn && B.flOK ? Math.max(B.fl, lerp(B.fl, sn, lt)) : sn) + mg, 0.15);
+        D.p[1] += (y - D.p[1]) * lk;
         const hx = D.p[0] - p[0], hz = D.p[2] - p[2], hd = Math.hypot(hx, hz) || 1e-3, need = over(hd, 1.0 * smooth(2.6, 2.0, D.p[1] - p[1]), 0.2);
         if (need > hd) { D.p[0] = p[0] + hx / hd * (hd + (need - hd) * lk); D.p[2] = p[2] + hz / hd * (hd + (need - hd) * lk); }
       }
@@ -423,6 +431,9 @@
     // (inside the helmet the picture is drawn from closer in, so that the hands and the poles just in front of the lens are whole; not before the lens
     // is inside, or the top of the helmet would show for a moment on the way down)
     rc.near = B.near0 + (VD.fp.near - B.near0) * smooth(0.7, 1, fpc);
+    // (and, as for every lens, the corners of the picture out of the snow: Course.nearLift. It only ever lifts. Not from inside the helmet,
+    // which is where the head is, and whose own near plane is a tenth of a metre)
+    if (fpc < 1) out.p[1] += Course.nearLift(out.p, out.f, out.fov, Render.W / Render.H, rc.near, 0.05, out.roll);
     // (a tree gone by close tips the lens a little: the flinch, 07c_feel.js)
     Render.setCamera(out.p, [out.p[0] + out.f[0], out.p[1] + out.f[1], out.p[2] + out.f[2]], [0, 1, 0], out.fov, out.roll + (typeof Feel !== 'undefined' && Feel.roll || 0));
     return true;
