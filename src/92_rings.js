@@ -141,7 +141,7 @@ const Rings = (() => {
     for (let tries = 0; live < AHEAD && tries < 20; tries++) { spawn(); const r = RG.rings[RG.rings.length - 1]; if (r.skip) RG.rings.pop(); else live++; }
     const ahead = RG.rings.filter(r => r.pass < 0);
     const cur = ahead[0]; if (!cur) return;
-    if (cur.grow < 0) cur.grow = T;          // the first ring of a run opens at once
+    if (cur.grow < 0 && L.st !== 'count') cur.grow = T;          // the first ring of a run opens at once; on a challenge line (用户 22:34 UTC) it waits as a flame through 3-2-1 and opens on 出发
     const v = Math.max(6, S.speed || 0), dCur = cur.s - s;
     if (dCur < Math.max(14, v * 0.8) && ahead[1] && ahead[1].grow < 0) ahead[1].grow = T;          // nearly there: the next flame swells and opens
     // (用户 05:16 UTC: 离圈一两米、头碰到圈面之前就要 splash 散开，半米一米时能不能过已经定了): the splash starts 1.6 m before the ring's plane
@@ -166,7 +166,7 @@ const Rings = (() => {
     for (const r of RG.rings) {
       const dist = Math.hypot(r.x - cam[0], r.y - cam[1], -r.s - cam[2]), ord = r.pass >= 0 ? 0 : ahead.indexOf(r);
       const sz = Math.sqrt(r.r / 4.5), near = Math.pow(cl(1 - (dist - 25) / 280, 0.16, 1), 1.2);          // (用户 20:39 UTC: 有时候还是比较淡，亮一点、点多一点: far ones still fainter, but not lost)
-      if ((r.fin || L.id) && r.grow < 0) r.grow = r.born - 1;          // (the finish, and every ring of a challenge line (用户 21:56 UTC: 第一个圈倒数时还是一团火): a whole ring from the moment it is there, never a flame, so the line reads during the count)
+      if (r.fin && r.grow < 0) r.grow = r.born - 1;          // (the finish is a whole ring from the moment it is there, never a flame)
       const grown = r.grow >= 0 ? cl((T - r.grow) / 0.9, 0, 1) : 0;
       const dis = r.splash >= 0 ? cl((T - r.splash) / 2.2, 0, 1) : 0;
       const ordK = ord <= 1 ? 1 : ord === 2 ? 0.62 : 0.4;
