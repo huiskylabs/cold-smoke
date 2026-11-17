@@ -13,7 +13,10 @@ const Metro = (() => {
   // H: how far below the eye the city lies (m); RE: the radius of its little planet (the horizon dips, and curves, far more than the earth's);
   // AZ: the panorama covers bearings +-AZ about the city's; ta, tb: its rows, packed toward the horizon (drop = ta v + tb v^4);
   // bend: how much farther the ground falls away to either side than straight ahead (rad at 90 degrees: the planet's curve, overdrawn)
-  const M = { H: 2200, RE: 9.0e5, AZ: 1.3, t0: -0.11, ta: 0.44, tb: 0.97, bend: 0.34, lift: 0.17, ak: 0.42, W: 2048, Hh: 1024, R1: 9600, DC: [-2315, 14041], lamp: 0.42, seed: 20261115, cloud: false, samples: 4, done: false, E: null, A: null, pipes: [] };
+  const K0 = 8000 / 2200;
+  // (K: the whole world below is this many times bigger and farther than the first 不夜城's, the eye 8000 m over it; the city's own
+  // streets and blocks keep their true size, so from here they are a fine grain of lights)
+  const M = { K: K0, H: 8000, RE: 9.0e5 * K0, AZ: 1.3, t0: -0.11, ta: 0.44, tb: 0.97, bend: 0.34, lift: 0.17, ak: 0.42, W: 2048, Hh: 1024, R1: 9600 * K0, DC: [-2315 * K0, 14041 * K0], lamp: 0.42, seed: 20261115, cloud: false, samples: 4, done: false, E: null, A: null, pipes: [] };
   M.on = () => Variants.val.world === 'b';
   let gfx, pipe, tE, tA;
   M.init = function (g, res) {
@@ -61,41 +64,14 @@ function metroBakeFS() {
   const RIVERS = [
     [[0, 345, 300], [150, 336, 320], [300, 335, 340], [430, 345, 380], [560, 375, 440], [700, 414, 500], [860, 430, 520], [1020, 428, 500], [1180, 416, 460], [1330, 402, 430], [1536, 392, 400]],
     [[150, 300, 220], [330, 296, 240], [470, 310, 260], [560, 340, 300], [600, 380, 320]]];
-  const SEGS = []; RIVERS.forEach(r => { for (let n = 0; n + 1 < r.length; n++) { const a = cg(r[n][0], r[n][1]), b = cg(r[n + 1][0], r[n + 1][1]); SEGS.push([a[0], a[1], b[0], b[1], r[n][2], r[n + 1][2]]); } });
-  // the towers of the picture, one by one: [x, y of its foot, its height and width (px of the picture), its light, a mast?]
-  const TCOL = [[1.0, 0.80, 0.55], [0.20, 0.85, 1.0], [1.0, 0.30, 0.75], [1.0, 0.95, 0.85], [0.62, 0.45, 1.0]];
-  const TOWERS = [[835, 334, 52, 16, 0, 0], [858, 326, 68, 17, 1, 0], [882, 338, 58, 14, 0, 0], [905, 328, 84, 18, 3, 1], [930, 336, 72, 15, 2, 0], [953, 324, 92, 18, 0, 1],
-    [976, 338, 78, 14, 1, 0], [1000, 330, 118, 17, 3, 1], [1023, 336, 88, 15, 2, 0], [1046, 326, 70, 17, 1, 0], [1068, 336, 54, 15, 0, 0],
-    [322, 398, 46, 10, 3, 1], [742, 456, 36, 10, 4, 0], [1418, 332, 30, 10, 1, 0], [640, 352, 30, 10, 0, 0], [1190, 345, 34, 11, 2, 0]];
-  const HEROES = TOWERS.map(t => {
-    // (tall and slim, as the picture has them: a shaft, a narrower head, on the great ones a crown and a mast)
-    const g = cg(t[0], t[1]), px = g[2] / 795, h = t[2] * 0.86 * px, hw = t[3] * 0.833 * px / 2 * 0.52;
-    const tiers = [[hw, hw, 0, 0.72 * h, 0], [0.70 * hw, 0.70 * hw, 0.72 * h, (t[2] > 60 ? 0.91 : 1) * h, 0]];
-    if (t[2] > 60) tiers.push([0.40 * hw, 0.40 * hw, 0.91 * h, h, 0]);
-    if (t[5]) tiers.push([Math.max(4, 0.07 * hw), Math.max(4, 0.07 * hw), h, 1.16 * h, 1]);
-    return { c: [g[0], g[1]], rot: 0.07, col: TCOL[t[4]], t: tiers };
-  });
-  // the great bridges over the river, where the picture has them: [x, y]. Each a deck on two towers (boxes, like the landmarks),
-  // and its hanging cables strung with lamps (mCables)
-  const BRIDGES = [[330, 338], [650, 400], [900, 430], [1250, 409]].map(b => {
-    const c = cg(b[0], b[1]); let best = null, bd = 1e9;
-    for (const g of SEGS.slice(0, RIVERS[0].length - 1)) { const mx = (g[0] + g[2]) / 2, my = (g[1] + g[3]) / 2, d = Math.hypot(mx - c[0], my - c[1]); if (d < bd) { bd = d; best = g; } }
-    const tl = Math.hypot(best[2] - best[0], best[3] - best[1]), n = [-(best[3] - best[1]) / tl, (best[2] - best[0]) / tl], L = best[4] + best[5] + 1100;
-    return { c: [c[0], c[1]], n, L, rot: Math.atan2(n[1], n[0]) };
-  });
-  BRIDGES.forEach(b => {
-    const col = [1.0, 0.86, 0.66];
-    HEROES.push({ c: b.c, rot: b.rot, col, t: [[b.L / 2, 26, 70, 92, 3]] });
-    for (const sg of [-1, 1]) HEROES.push({ c: [b.c[0] + sg * 0.27 * b.L * b.n[0], b.c[1] + sg * 0.27 * b.L * b.n[1]], rot: b.rot, col, t: [[22, 34, 0, 430, 4]] });
-  });
+  const SEGS = []; RIVERS.forEach(r => { for (let n = 0; n + 1 < r.length; n++) { const a = cg(r[n][0], r[n][1]), b = cg(r[n + 1][0], r[n + 1][1]); SEGS.push([a[0], a[1], b[0], b[1], r[n][2] * M.K * 0.5, r[n + 1][2] * M.K * 0.5]); } });
   // the ridges of the mountain's foot, as the picture has them: crest lines [x1, y1, x2, y2, height, half width (m)]
   const RIDGES = [[250, 520, 620, 650, 430, 950], [300, 455, 560, 520, 300, 750], [480, 565, 760, 700, 380, 800], [1050, 600, 1400, 560, 430, 950], [1000, 520, 1300, 482, 280, 700], [1150, 700, 1500, 640, 500, 1000]]
-    .map(r => { const a = cg(r[0], r[1]), b = cg(r[2], r[3]); return [a[0], a[1], b[0], b[1], r[4], r[5]]; });
-  const TIERS = []; HEROES.forEach(h => h.t.forEach(t => TIERS.push({ h, t })));
-  const cc = (x, y, r, h) => { const g = cg(x, y); return [g[0], g[1], r, h]; };
+    .map(r => { const a = cg(r[0], r[1]), b = cg(r[2], r[3]); return [a[0] / M.K, a[1] / M.K, b[0] / M.K, b[1] / M.K, r[4], r[5]]; });
+  const cc = (x, y, r, h) => { const g = cg(x, y); return [g[0], g[1], r * M.K, h]; };
   const CORES = [cc(952, 331, 1900, 520), cc(322, 398, 700, 300), cc(742, 456, 600, 260), cc(1418, 332, 800, 300), cc(640, 352, 600, 240), cc(1190, 345, 700, 280), cc(200, 300, 900, 260), cc(1300, 300, 1000, 260)];
   return `
-const MH: f32 = ${f(H)}; const MRE: f32 = ${f(M.RE)}; const MR1: f32 = ${f(M.R1)}; const MCS: f32 = 120.0;
+const MH: f32 = ${f(H)}; const MRE: f32 = ${f(M.RE)}; const MR1: f32 = ${f(M.R1)}; const MCS: f32 = 120.0; const MK: f32 = ${f(M.K)}; const MH0: f32 = ${f(H / M.K)}; const MR0: f32 = ${f(M.R1 / M.K)};
 fn mLine(x: f32, f: f32, w: f32) -> f32 {
   let ww: f32 = max(w, 0.002);
   let a: f32 = x + 0.5 * (ww + f); let b: f32 = x - 0.5 * (ww - f);
@@ -104,7 +80,7 @@ fn mLine(x: f32, f: f32, w: f32) -> f32 {
 fn mBand(s: f32, hw: f32, fw: f32) -> f32 { let w: f32 = max(fw, 0.5); return saturate((min(s + hw, 0.5 * w) - max(s - hw, -0.5 * w)) / w); }
 fn mFoot(n: vec2f, dh: vec2f, fr: f32, fa: f32) -> f32 { let c: f32 = dot(n, dh); return abs(c) * fr + sqrt(max(1.0 - c * c, 0.0)) * fa; }
 // the road that winds down from the mountain to the city: where it lies (u) at w
-fn mRoadU(w: f32) -> f32 { let k: f32 = 1.0 - smoothstep(5200.0, 9000.0, w); return -0.17 * w + (520.0 * sin(w / 760.0 + 0.6) + 260.0 * sin(w / 310.0)) * k * smoothstep(300.0, 1500.0, w) + 160.0; }
+fn mRoadU(ww: f32) -> f32 { let w: f32 = ww / MK; let k: f32 = 1.0 - smoothstep(5200.0, 9000.0, w); return MK * (-0.17 * w + (520.0 * sin(w / 760.0 + 0.6) + 260.0 * sin(w / 310.0)) * k * smoothstep(300.0, 1500.0, w) + 160.0); }
 // the river of the concept picture: signed distance to its bank (m, < 0 on the water)
 fn mSeg(p: vec2f, a: vec2f, b: vec2f, ra: f32, rb: f32) -> f32 { let pa: vec2f = p - a; let ba: vec2f = b - a; let h: f32 = saturate(dot(pa, ba) / dot(ba, ba)); return length(pa - ba * h) - mix(ra, rb, h); }
 fn mRiver(u: f32, w: f32) -> f32 {
@@ -113,20 +89,21 @@ ${SEGS.map(g => `  d = min(d, mSeg(p, vec2f(${f(g[0])}, ${f(g[1])}), vec2f(${f(g
   return d;
 }
 // the foothills: height above the plain (m). Spurs run down from the mountain, the road's valley between them
-fn mHills(u: f32, w: f32) -> f32 {
+fn mHills(uu: f32, ww: f32) -> f32 {
+  let u: f32 = uu / MK; let w: f32 = ww / MK; let MR1: f32 = MR0;
   let r: f32 = length(vec2f(u, w)); if (r > MR1) { return 0.0; }
-  let env: f32 = (MH - 240.0) * pow(1.0 - r / MR1, 1.45);
+  let env: f32 = (MH0 - 240.0) * pow(1.0 - r / MR1, 1.45);
   let az: f32 = atan2(u, max(w, 1.0));
   let n: f32 = vnoise2(vec2f(az * 8.0 + 0.35 * sin(r / 2100.0) + 3.0, r / 5200.0));
   let rg: f32 = (1.0 - abs(2.0 * n - 1.0)) * (0.72 + 0.40 * smoothstep(1500.0, 5000.0, r) * (1.0 - abs(2.0 * vnoise2(vec2f(az * 21.0 + 9.0, r / 2400.0)) - 1.0)));
-  let val: f32 = smoothstep(120.0, 1500.0 + 0.12 * r, abs(u - mRoadU(w)));
+  let val: f32 = smoothstep(120.0, 1500.0 + 0.12 * r, abs(u - mRoadU(ww) / MK));
   let det: f32 = fbm2(vec2f(u, w) / 900.0) - 0.5;
   let old: f32 = env * (0.30 + 0.70 * pow(rg, 1.7)) * (0.16 + 0.84 * val) * (1.0 + 0.5 * det) + 70.0 * det * (1.0 - smoothstep(MR1 - 2500.0, MR1, r));
   // the picture's ridges: sharp crests falling away to either side, cut by the road's valley
   let p: vec2f = vec2f(u, w); var rdg: f32 = 0.0;
 ${RIDGES.map(g => `  rdg = max(rdg, ${f(g[4])} * pow(saturate(1.0 - mSeg(p, vec2f(${f(g[0])}, ${f(g[1])}), vec2f(${f(g[2])}, ${f(g[3])}), 0.0, 0.0) / ${f(g[5])}), 1.25));`).join('\n')}
   rdg *= (1.0 + 0.7 * det) * (0.25 + 0.75 * val) * (1.0 - smoothstep(MR1 - 1400.0, MR1, r));
-  return max(max(old * 0.55, rdg), 0.0);
+  return MK * max(max(old * 0.55, rdg), 0.0);
 }
 // how tall the towers of a quarter may stand at a spot
 fn mCoreH(u: f32, w: f32) -> f32 {
@@ -136,7 +113,7 @@ ${CORES.map(c => `  h = max(h, ${f(c[3])} * exp(-(sq(u - ${f(c[0])}) + sq(w - ${
 }
 // how built up the land is (0 .. 1), how white its light, park 0 .. 1, which grid
 fn mLand(u: f32, w: f32) -> vec4f {
-  let p: vec2f = vec2f(u, w); let r: f32 = length(p - vec2f(${f(DC[0])}, ${f(DC[1])}));
+  let p: vec2f = vec2f(u, w) / MK; let r: f32 = length(p - vec2f(${f(DC[0] / M.K)}, ${f(DC[1] / M.K)}));
   let n1: f32 = fbm2(p / 15000.0 + vec2f(3.1, 7.7)); let n2: f32 = fbm2(p / 4200.0 + vec2f(9.7, 1.3)); let n3: f32 = vnoise2(p / 1300.0 + vec2f(0.5, 4.1));
   let dens: f32 = saturate(0.52 + 0.70 * exp(-r / 9000.0) + 2.2 * (n1 - 0.5) + 1.6 * (n2 - 0.5));
   let white: f32 = saturate(0.8 * exp(-r / 3500.0) + 0.8 * (n2 - 0.6));
@@ -191,27 +168,29 @@ fn mGround(u: f32, w: f32, dh: vec2f, fr: f32, fa: f32, mode: f32) -> vec4f {
   for (var i: i32 = 0; i < 6; i++) {
     let an: f32 = 0.5 + f32(i) * 1.05 + 0.25 * sin(f32(i) * 3.7);
     let dv: vec2f = vec2f(cos(an), sin(an)); let nv: vec2f = vec2f(-dv.y, dv.x);
-    let along: f32 = dot(rel, dv); let off: f32 = dot(rel, nv) - 320.0 * sin(along / 3600.0 + f32(i));
+    let along: f32 = dot(rel, dv) / MK; let off: f32 = dot(rel, nv) - MK * 320.0 * sin(along / 3600.0 + f32(i));
     mw += (mBand(off, 13.0, mFoot(nv, dh, fr, fa)) * 1.4 + 0.12 * exp(-abs(off) / 80.0)) * smoothstep(800.0, 2600.0, along);
   }
   // water, banks, bridges (the avenues carry on across the water)
   let rs: f32 = mRiver(u, w); let rf: f32 = max(fr * 0.6, fa);
   let water: f32 = saturate(0.5 - rs / max(rf, 1.0));
   let bank: f32 = mBand(rs - 16.0, 7.0, rf) * (0.35 + 0.65 * mLine((u + w) / 24.0, 0.4, (fr + fa) / 24.0));
-  let land: f32 = L.x * (1.0 - 0.85 * L.z);
+  // the patchwork: every great block between avenues its own share of light (some nearly dark: yards, parks, sheds), and the
+  // quarters of the picture's towers burn brightest and whitest
+  let sbk: f32 = hash21(vec2f(floor(g.x / (6.0 * P)), floor(g.y / (8.0 * P))) + vec2f(13.0, 57.0));
+  let core: f32 = saturate(mCoreH(u, w) / 380.0);
+  let land: f32 = L.x * (1.0 - 0.85 * L.z) * mix(0.30 + 1.25 * sbk * sbk, 1.6, core);
   // the foot of the mountain: no city on the slopes, only what lies in the valleys
-  let hl: f32 = mHills(u, w); let flt: f32 = 1.0 - smoothstep(20.0, 160.0, hl);
+  let hl: f32 = mHills(u, w); let flt: f32 = 1.0 - smoothstep(20.0 * MK, 160.0 * MK, hl);
   let gold: vec3f = vec3f(1.0, 0.66, 0.30); let warm: vec3f = vec3f(1.0, 0.80, 0.52); let led: vec3f = vec3f(0.90, 0.93, 1.0);
   if (mode < 0.5) {
     let cs: vec3f = mix(gold, warm, 0.1 + 0.4 * L.y);
-    var em: vec3f = (cs * (street * 5.0 * land) + pcol * (pts * 7.0 * mix(0.25, 1.0, land))) * (1.0 - water);
+    var em: vec3f = (cs * (street * 5.0 * land) + mix(pcol, mix(led, mTint(0.86 + 0.14 * sbk), 0.45), 0.7 * core) * (pts * 7.0 * mix(0.25, 1.0, land) * (1.0 + 3.0 * core))) * (1.0 - water);
     let brd: f32 = (avx * 1.3 + avy) * mix(0.3, 1.0, L.x);
     em += mix(gold * 1.1, led, 0.10 + 0.25 * L.y) * ((brd * (1.0 - water)) * 1.5) + mix(gold, led, 0.25) * (mw * 0.45 * (1.0 - water)) + warm * (bank * 4.0);
     // the water mirrors what stands on its banks: long shimmering streaks
     let sh: f32 = exp(min(rs, 0.0) / 260.0) * (0.5 + 0.9 * vnoise2(vec2f(u / 34.0, w / 600.0)));
     em += mix(gold, vec3f(1.0, 0.45, 0.55), vnoise2(vec2f(u / 400.0, 3.0))) * (water * sh * 0.22 * mix(0.4, 1.0, L.x));
-    // the great bridges: where a boulevard crosses, two lit pylons stand in the water
-    em += vec3f(1.0, 0.86, 0.62) * (mBand(dax, 16.0, wg.x) * step(1.0, kax) * water * 10.0 * exp(-sq((rs + 150.0) / 55.0)));
     return vec4f(em * flt, water * flt);
   }
   // by day, and under the moon: snow on the roofs and the parks, dark streets, blue water
@@ -223,21 +202,21 @@ fn mGround(u: f32, w: f32, dh: vec2f, fr: f32, fa: f32, mode: f32) -> vec4f {
 }
 // the mountain's foot at (u, w), hl m above the plain
 fn mHillShade(u: f32, w: f32, hl: f32, mode: f32) -> vec4f {
-  let e: f32 = 40.0;
+  let e: f32 = 40.0 * MK;
   let nx: f32 = mHills(u + e, w) - mHills(u - e, w); let nz: f32 = mHills(u, w + e) - mHills(u, w - e);
   let N: vec3f = normalize(vec3f(-nx, 2.0 * e, -nz));
   let steep: f32 = 1.0 - N.y;
-  let fo: f32 = smoothstep(0.42, 0.60, fbm2(vec2f(u, w) / 260.0) + 1.3 * steep - 0.25 * smoothstep(200.0, 1200.0, hl));
+  let fo: f32 = smoothstep(0.42, 0.60, fbm2(vec2f(u, w) / 260.0) + 1.3 * steep - 0.25 * smoothstep(200.0 * MK, 1200.0 * MK, hl));
   let rd: f32 = abs(u - mRoadU(w)) / sqrt(1.0 + sq((mRoadU(w + 20.0) - mRoadU(w - 20.0)) / 40.0));
   // the towns in the valleys: clusters of warm lights low down, thinning up the slopes
-  let low: f32 = (1.0 - smoothstep(60.0, 520.0, hl)) * smoothstep(2200.0, 4200.0, length(vec2f(u, w)));
-  let tn: f32 = smoothstep(0.50, 0.72, fbm2(vec2f(u, w) / 700.0 + vec2f(5.0, 2.0))) * low + 0.8 * exp(-rd / 260.0) * smoothstep(900.0, 2500.0, w);
+  let low: f32 = (1.0 - smoothstep(60.0 * MK, 520.0 * MK, hl)) * smoothstep(2200.0 * MK, 4200.0 * MK, length(vec2f(u, w)));
+  let tn: f32 = smoothstep(0.50, 0.72, fbm2(vec2f(u, w) / (700.0 * MK) + vec2f(5.0, 2.0))) * low + 0.8 * exp(-rd / 500.0) * smoothstep(900.0 * MK, 2500.0 * MK, w);
   if (mode < 0.5) {
     let k: vec2f = floor(vec2f(u, w) / 22.0); let on: f32 = step(1.0 - 0.34 * saturate(tn), hash21(k + vec2f(7.0, 19.0)));
     let fp: vec2f = fract(vec2f(u, w) / 22.0) - 0.5;
     var em: vec3f = mTint(hash21(k) * 0.78) * (on * exp(-dot(fp, fp) * 22.0) * 5.0);
     // the road down: two ribbons of light, and its glow on the snow beside it
-    let rk: f32 = smoothstep(500.0, 1500.0, w);
+    let rk: f32 = smoothstep(500.0 * MK, 1500.0 * MK, w);
     // (as roads look by night from the air: lamps in a row down either side and their pools of light on the snow, a dark carriageway
     // between, and on it the cars: a white stream coming, a red one going)
     let sd: f32 = (u - mRoadU(w)) / sqrt(1.0 + sq((mRoadU(w + 20.0) - mRoadU(w - 20.0)) / 40.0));
@@ -248,9 +227,9 @@ fn mHillShade(u: f32, w: f32, hl: f32, mode: f32) -> vec4f {
     return vec4f(em, 0.0);
   }
   // snow under a light from the upper left, the hollows bluer; forest dark on the steeper ground
-  let sh: f32 = saturate(0.10 + 1.5 * dot(N, normalize(vec3f(-0.62, 0.50, -0.30)))) * (0.70 + 0.30 * smoothstep(0.0, 500.0, hl));
+  let sh: f32 = saturate(0.10 + 1.5 * dot(N, normalize(vec3f(-0.62, 0.50, -0.30)))) * (0.70 + 0.30 * smoothstep(0.0, 500.0 * MK, hl));
   let snow: vec3f = mix(vec3f(0.10, 0.14, 0.36), vec3f(0.84, 0.90, 1.0), sh);
-  return vec4f(mix(mix(snow, vec3f(0.035, 0.05, 0.085), fo * 0.9), vec3f(0.07, 0.075, 0.09), (1.0 - smoothstep(16.0, 26.0, rd)) * smoothstep(500.0, 1500.0, w)), 0.0);
+  return vec4f(mix(mix(snow, vec3f(0.035, 0.05, 0.085), fo * 0.9), vec3f(0.07, 0.075, 0.09), (1.0 - smoothstep(16.0, 26.0, rd)) * smoothstep(500.0 * MK, 1500.0 * MK, w)), 0.0);
 }
 // a bank of cloud at p (m from the eye), y m above the plain: its density
 fn mCloud(p: vec2f, y: f32) -> f32 {
@@ -263,80 +242,6 @@ fn mCloud(p: vec2f, y: f32) -> f32 {
   let top: f32 = 180.0 + heap * (140.0 + 900.0 * smoothstep(0.25, 0.80, bil));
   return saturate((top - y) / 60.0) * saturate((y - 150.0) / 60.0) * smoothstep(0.02, 0.25, heap);
 }
-// a landmark's tier against the line of sight: (0 nothing / 1 a wall across / 2 a wall along / 3 a roof, how far out, how high, where
-// across the face -1 .. 1)
-fn mBox(c: vec2f, rc: f32, rs: f32, hsz: vec2f, base: f32, top: f32, dl: vec2f, s: f32, xmax: f32) -> vec4f {
-  let o: vec2f = vec2f(-c.x * rc - c.y * rs, c.x * rs - c.y * rc);
-  var d: vec2f = vec2f(dl.x * rc + dl.y * rs, -dl.x * rs + dl.y * rc);
-  if (abs(d.x) < 1e-4) { d.x = 1e-4; }
-  if (abs(d.y) < 1e-4) { d.y = 1e-4; }
-  let lo: vec2f = (-hsz - o) / d; let hi: vec2f = (hsz - o) / d;
-  let t1: vec2f = min(lo, hi); let t2: vec2f = max(lo, hi);
-  let te: f32 = max(max(t1.x, t1.y), 0.0); let tx: f32 = min(t2.x, t2.y);
-  if (te < tx && te < xmax) {
-    let he: f32 = mRayH(te, s);
-    if (he < top && he >= base) {
-      let pp: vec2f = o + d * te;
-      if (t1.x > t1.y) { return vec4f(2.0, te, he, pp.y / hsz.y); }
-      return vec4f(1.0, te, he, pp.x / hsz.x);
-    }
-    let hx: f32 = mRayH(tx, s);
-    if (he >= top && hx < top) { return vec4f(3.0, mix(te, tx, (he - top) / max(he - hx, 1e-3)), top, 0.0); }
-  }
-  return vec4f(0.0);
-}
-// the hanging cables of the bridges, strung with lamps (light only: added over whatever lies behind). xmax: what stands in the way
-fn mCables(dl: vec2f, s: f32, xmax: f32, dTh: f32) -> vec3f {
-  var e: f32 = 0.0;
-${BRIDGES.map(b => `  { let c: vec2f = vec2f(${f(b.c[0])}, ${f(b.c[1])}); let n: vec2f = vec2f(${f(b.n[0])}, ${f(b.n[1])}); let m: vec2f = vec2f(-n.y, n.x);
-    let dn: f32 = dot(dl, m);
-    if (abs(dn) > 1e-3) {
-      let x: f32 = dot(c, m) / dn; let a: f32 = abs(dot(dl * x - c, n)); let hh: f32 = mRayH(x, s); let t0: f32 = ${f(0.27 * b.L)}; let hl: f32 = ${f(0.5 * b.L)};
-      if (x > 0.0 && x < xmax && a < hl && hh > 60.0 && hh < 470.0) {
-        var yc: f32 = 100.0 + 330.0 * sq(a / t0);
-        if (a > t0) { yc = mix(430.0, 92.0, (a - t0) / (hl - t0)); }
-        let tk: f32 = max(9.0, x * dTh * 7.0);
-        e += exp(-sq((hh - yc) / tk)) * (0.55 + 0.45 * step(0.5, fract(a / 34.0))) * 4.0 + 0.16 * step(hh, yc) * step(92.0, hh) * step(0.70, fract(a / 44.0));
-      }
-    } }`).join('\n')}
-  return vec3f(1.0, 0.88, 0.70) * e;
-}
-// the nearest landmark along the line of sight, before xmax: (kind of hit + 4 x which tier, how far, how high, where across)
-fn mHero(dl: vec2f, s: f32, xmax: f32) -> vec4f {
-  var best: vec4f = vec4f(0.0, xmax, 0.0, 0.0);
-${TIERS.map((e, k) => `  if (abs(${f(e.h.c[0])} * dl.y - ${f(e.h.c[1])} * dl.x) < ${f(Math.hypot(e.t[0], e.t[1]) + 5)}) { let r: vec4f = mBox(vec2f(${f(e.h.c[0])}, ${f(e.h.c[1])}), ${f(Math.cos(e.h.rot))}, ${f(Math.sin(e.h.rot))}, vec2f(${f(e.t[0])}, ${f(e.t[1])}), ${f(e.t[2])}, ${f(e.t[3])}, dl, s, best.y); if (r.x > 0.5 && r.y < best.y) { best = vec4f(r.x + ${f(4 * k)}, r.y, r.z, r.w); } }`).join('\n')}
-  return best;
-}
-// what a landmark shows where the line of sight meets it
-fn mHeroShade(r: vec4f, mode: f32, dAz: f32, dTh: f32) -> vec3f {
-  let idx: i32 = i32(r.x / 4.0); let kind: f32 = r.x - 4.0 * f32(idx);
-  var hsz: vec2f = vec2f(100.0); var base: f32 = 0.0; var top: f32 = 1000.0; var tk: f32 = 0.0; var hc: vec3f = vec3f(1.0);
-${TIERS.map((e, k) => `  if (idx == ${k}) { hsz = vec2f(${f(e.t[0])}, ${f(e.t[1])}); base = ${f(e.t[2])}; top = ${f(e.t[3])}; tk = ${f(e.t[4])}; hc = vec3f(${e.h.col.map(f).join(', ')}); }`).join('\n')}
-  let along: f32 = step(1.5, kind) * step(kind, 2.5); let hf: f32 = mix(hsz.x, hsz.y, along); let fc: f32 = mix(1.0, 0.42, along);
-  if (kind > 2.5) {
-    if (mode < 0.5) { return hc * (0.5 + 2.5 * step(0.5, tk) * step(tk, 1.5) + 2.2 * step(2.5, tk) * step(tk, 3.5)); }
-    return vec3f(0.60, 0.66, 0.80);
-  }
-  if (mode > 0.5) { return vec3f(0.09, 0.12, 0.19) * (0.6 + 0.7 * (1.0 - along)); }
-  if (tk > 3.5) { return hc * (0.35 + 1.9 * smoothstep(0.45, 1.0, r.z / top)); }      // a bridge tower, floodlit, brightest at its head
-  if (tk > 2.5) { return hc * 2.4; }                                                    // a bridge deck: its lamps
-  if (tk > 1.5) {
-    // a face of coloured light, its colour turning as it climbs, floor by floor
-    let g: f32 = saturate((r.z - base) / max(top - base, 1.0));
-    return mix(hc, vec3f(0.95, 0.35, 0.80), 0.75 * g) * ((0.35 + 1.1 * step(0.55, fract(r.z / 44.0))) * fc * (0.55 + 0.7 * step(0.5, hash21(floor(vec2f(r.w * hf / 26.0, r.z / 44.0)) + vec2f(f32(idx), 5.0)))));
-  }
-  if (tk > 0.5) { return hc * 7.0; }
-  let dist: f32 = sqrt(r.y * r.y + sq(MH - r.z));
-  let wsz: vec2f = max(vec2f(7.0, 4.5), vec2f(dist * dAz, dist * dTh) * 4.8);
-  let wq: vec2f = vec2f(r.w * hf / wsz.x, r.z / wsz.y); let wc: vec2f = floor(wq); let wf: vec2f = fract(wq);
-  let fl: f32 = hash21(vec2f(wc.y, f32(idx) * 91.0));
-  let on: f32 = step(0.50 - 0.35 * step(0.80, fl), hash21(wc + vec2f(f32(idx) * 177.0, 53.0))) * step(0.14, wf.x) * step(wf.x, 0.86) * step(0.22, wf.y) * step(wf.y, 0.80);
-  var em: vec3f = mix(vec3f(1.0, 0.66, 0.30), hc, 0.30) * (on * (0.8 + 1.4 * hash21(wc + vec2f(3.0, 3.0))) * 2.2 * fc);
-  // its corners run with light from foot to crown, and every setback wears a band of it
-  em += hc * (1.4 * step(0.93, abs(r.w)) + 5.0 * smoothstep(top - 40.0, top - 16.0, r.z));
-  em += vec3f(1.0, 0.70, 0.36) * (0.9 * exp(-r.z / 60.0));
-  return em;
-}
 // what the eye sees along (bearing az from the city's, dropping th below level): mode 0 light, mode 1 matter
 fn mScene(az: f32, th: f32, mode: f32, dAz: f32, dTh: f32) -> vec4f {
   let dl: vec2f = vec2f(sin(az), cos(az)); let s: f32 = tan(th);
@@ -347,113 +252,26 @@ fn mScene(az: f32, th: f32, mode: f32, dAz: f32, dTh: f32) -> vec4f {
   // the foothills first (they are nearer)
   var hit: i32 = 0; var xh: f32 = 0.0;
   if (s > 0.16) {
-    var xp: f32 = 250.0; var dp: f32 = mRayH(xp, s) - mHills(dl.x * xp, dl.y * xp);
+    var xp: f32 = 250.0 * MK; var dp: f32 = mRayH(xp, s) - mHills(dl.x * xp, dl.y * xp);
     for (var i: i32 = 0; i < 90; i++) {
-      let x: f32 = xp + max(40.0, 0.35 * dp); if (x > min(xg, MR1)) { break; }
+      let x: f32 = xp + max(40.0 * MK, 0.35 * dp); if (x > min(xg, MR1)) { break; }
       let d: f32 = mRayH(x, s) - mHills(dl.x * x, dl.y * x);
       if (d < 0.0) { xh = mix(xp, x, dp / (dp - d)); hit = 1; break; }
       xp = x; dp = d;
     }
   }
-  var col: vec4f = vec4f(0.0); var xs: f32 = xg; var tflag: f32 = 0.0;
-  let hr0: vec4f = mHero(dl, s, 60000.0);
+  var col: vec4f = vec4f(0.0); var xs: f32 = xg;
   if (hit == 1) {
     xs = xh; let u: f32 = dl.x * xh; let w: f32 = dl.y * xh; let hl: f32 = mHills(u, w);
     col = mHillShade(u, w, hl, mode);
-    if (hl < 160.0) { let dist: f32 = sqrt(xh * xh + MH * MH); col = mix(mGround(u, w, dl, dist * dTh / max(s, 0.02), dist * dAz, mode), col, smoothstep(20.0, 160.0, hl)); }
+    if (hl < 160.0 * MK) { let dist: f32 = sqrt(xh * xh + MH * MH); col = mix(mGround(u, w, dl, dist * dTh / max(s, 0.02), dist * dAz, mode), col, smoothstep(20.0 * MK, 160.0 * MK, hl)); }
   }
+  // (from this high no building has a shape: the city is its ground of lights, and nothing stands over the rim)
   if (hit == 0 && onG > 0.5) {
-    // ---- the towers: walk the grid from where the line of sight comes down among the roofs to where it meets the ground
-    var hm: f32 = 150.0;
-${CORES.map(c => `    { let t0: f32 = dot(vec2f(${f(c[0])}, ${f(c[1])}), dl); let b: f32 = abs(${f(c[0])} * dl.y - ${f(c[1])} * dl.x); if (b < ${f(c[2] * 2.2)} && t0 < xg + ${f(c[2] * 2.2)} && t0 > xg - ${f(c[3] * 1.4)} / s - ${f(c[2] * 2.2)}) { hm = max(hm, ${f(c[3] * 1.4)}); } }`).join('\n')}
-    let x0: f32 = max(xg - hm / s, 300.0);
-    let rel0: vec2f = dl * x0 - vec2f(${f(DC[0])}, ${f(DC[1])});
-    let gc: f32 = cos(0.07); let gs: f32 = sin(0.07);
-    let g0: vec2f = vec2f(rel0.x * gc + rel0.y * gs, -rel0.x * gs + rel0.y * gc) / MCS;
-    var gd: vec2f = vec2f(dl.x * gc + dl.y * gs, -dl.x * gs + dl.y * gc);
-    if (abs(gd.x) < 1e-4) { gd.x = 1e-4; }
-    if (abs(gd.y) < 1e-4) { gd.y = 1e-4; }
-    var c: vec2f = floor(g0); let st: vec2f = sign(gd); let inv: vec2f = vec2f(1.0) / abs(gd);
-    var tm: vec2f = (c + max(st, vec2f(0.0)) - g0) / gd; let tend: f32 = (xg - x0) / MCS;
-    var th0: f32 = 0.0; var tw: i32 = 0; var tn: vec2f = vec2f(0.0); var tx: f32 = 0.0; var tinfo: vec4f = vec4f(0.0); var tq: f32 = 0.0;
-    for (var i: i32 = 0; i < 110; i++) {
-      if (th0 > tend) { break; }
-      // the tower of this cell, if it has one
-      let cc: vec2f = (c + 0.5) * MCS; let cu: f32 = cc.x * gc - cc.y * gs + ${f(DC[0])}; let cw: f32 = cc.x * gs + cc.y * gc + ${f(DC[1])};
-      let h3: vec3f = hash33(vec3f(c.x, c.y, 7.0)); let ch: f32 = mCoreH(cu, cw);
-      let hero: f32 = 0.0;
-      if (h3.x < 0.10 + 0.46 * saturate(ch / 420.0) + hero) {
-        let Ld: vec4f = mLand(cu, cw);
-        let ht: f32 = mix(ch * (0.16 + 0.80 * h3.y * h3.y) + 110.0 * Ld.x * (0.25 + h3.z) * step(0.35, Ld.x), 1300.0, hero);
-        let hs: f32 = mix(0.17 + 0.22 * h3.z, 0.30, hero);
-        if (ht > 28.0 && mRiver(cu, cw) > 40.0 && mHills(cu, cw) < 15.0 && (Ld.z < 0.5 || ch > 150.0)) {
-          let lo: vec2f = (c + 0.5 - hs - g0) / gd; let hi: vec2f = (c + 0.5 + hs - g0) / gd;
-          let t1: vec2f = min(lo, hi); let t2: vec2f = max(lo, hi);
-          let te: f32 = max(max(t1.x, t1.y), 0.0); let tx2: f32 = min(t2.x, t2.y);
-          if (te < tx2) {
-            let he: f32 = mRayH(x0 + te * MCS, s);
-            if (he < ht) {
-              tw = 1; tx = x0 + te * MCS; tinfo = vec4f(ht, h3.x, h3.y, h3.z); tq = he;
-              if (t1.x > t1.y) { tn = vec2f(-st.x, 0.0); } else { tn = vec2f(0.0, -st.y); }
-              break;
-            }
-            let hx: f32 = mRayH(x0 + tx2 * MCS, s);
-            if (hx < ht) { tw = 2; tx = x0 + mix(te, tx2, (he - ht) / max(he - hx, 1e-3)) * MCS; tinfo = vec4f(ht, h3.x, h3.y, h3.z); tq = ht; break; }
-          }
-        }
-      }
-      if (tm.x < tm.y) { th0 = tm.x; tm.x += inv.x; c.x += st.x; } else { th0 = tm.y; tm.y += inv.y; c.y += st.y; }
-    }
-    // the landmarks stand before all of it
-    var xmh: f32 = xg; if (tw > 0) { xmh = tx; }
-    let hr: vec4f = hr0;
-    if (hr.x > 0.5 && hr.y < xmh) { tw = 3; tflag = 1.0; xs = hr.y; col = vec4f(mHeroShade(hr, mode, dAz, dTh), 0.0); }
-    if (tw > 0 && tw < 3) {
-      tflag = 1.0; xs = tx; let u: f32 = dl.x * tx; let w: f32 = dl.y * tx; let Lw: vec4f = mLand(u, w);
-      let th1: f32 = fract(tinfo.y * 7.31 + tinfo.w * 3.7); let tint: vec3f = mTint(mix(th1 * 0.66, 0.87 + 0.13 * th1, step(0.86, th1) * Lw.y));
-      let tall: f32 = saturate(tinfo.x / 600.0);
-      if (tw == 1) {
-        // a wall: lit windows in blocks, lit floors, the glow of the street at its foot, a lit top on the tall ones
-        let q: f32 = dot(vec2f(u, w), vec2f(-tn.y, tn.x));
-        // (as real towers look by night from the air: a dark body, and on it a grid of small warm windows, a share of them lit, that
-        // share and their colour the building's own. The windows are never drawn smaller than the picture can show)
-        let dist: f32 = sqrt(tx * tx + sq(MH - tq));
-        let wsz: vec2f = max(vec2f(7.0, 4.5), vec2f(dist * dAz, dist * dTh) * 4.8);
-        let wq: vec2f = vec2f(q / wsz.x, tq / wsz.y); let wc: vec2f = floor(wq); let wf: vec2f = fract(wq);
-        let fl: f32 = hash21(vec2f(wc.y, tinfo.z * 91.0));
-        let fc: f32 = mix(1.0, 0.45, step(0.5, abs(tn.x)));
-        let litK: f32 = 0.20 + 0.50 * fract(tinfo.y * 13.7);
-        let on: f32 = step(1.0 - litK - 0.35 * step(0.80, fl), hash21(wc + vec2f(tinfo.y * 177.0, tinfo.z * 53.0))) * step(0.14, wf.x) * step(wf.x, 0.86) * step(0.22, wf.y) * step(wf.y, 0.80);
-        let bt: f32 = fract(tinfo.w * 5.3 + tinfo.y * 2.1);
-        let wcol: vec3f = mix(mix(vec3f(1.0, 0.64, 0.28), vec3f(1.0, 0.84, 0.62), step(0.68, bt)), vec3f(0.72, 0.86, 1.0), step(0.90, bt));
-        let ck: f32 = fract(tinfo.w * 9.1 + tinfo.z * 3.3);
-        let ccol: vec3f = mix(mix(vec3f(0.15, 0.85, 1.0), vec3f(1.0, 0.16, 0.10), step(0.40, ck)), mix(vec3f(1.0, 0.95, 0.85), vec3f(0.30, 0.42, 1.0), step(0.85, ck)), step(0.65, ck));
-        if (mode < 0.5) {
-          var em: vec3f = wcol * (on * (0.8 + 1.4 * hash21(wc + vec2f(3.0, 3.0))) * 2.4 * fc);
-          em += vec3f(1.0, 0.70, 0.36) * (0.7 * exp(-tq / 40.0));
-          em += ccol * (5.0 * tall * step(0.84, tinfo.w) * smoothstep(0.92, 0.95, tq / tinfo.x));
-          col = vec4f(em, 0.0);
-        } else {
-          let face: f32 = 0.55 + 0.45 * saturate(dot(tn, normalize(vec2f(-0.6, -0.8))));
-          col = vec4f(mix(vec3f(0.05, 0.06, 0.10), vec3f(0.13, 0.16, 0.24), face) * (0.8 + 0.4 * tinfo.z), 0.0);
-        }
-      } else {
-        // a roof: snow by day; at night a rim of light, and on the tall ones a lit crown
-        if (mode < 0.5) { col = vec4f(tint * (0.04 + 1.6 * tall * step(0.84, tinfo.w)) + vec3f(1.0, 0.2, 0.1) * (2.0 * step(0.90, tinfo.z) * tall), 0.0); }
-        else { col = vec4f(vec3f(0.58, 0.64, 0.78), 0.0); }
-      }
-    }
-    if (tw == 0) {
-      let u: f32 = dl.x * xg; let w: f32 = dl.y * xg; let dist: f32 = sqrt(xg * xg + MH * MH);
-      col = mGround(u, w, dl, dist * dTh / max(s - xg / MRE, 0.004), dist * dAz, mode);
-    }
+    let u: f32 = dl.x * xg; let w: f32 = dl.y * xg; let dist: f32 = sqrt(xg * xg + MH * MH);
+    col = mGround(u, w, dl, dist * dTh / max(s - xg / MRE, 0.004), dist * dAz, mode);
   }
-  // (over the rim there is nothing but the landmarks, against the sky)
-  if (hit == 0 && onG < 0.5) {
-    let hr: vec4f = hr0;
-    if (hr.x > 0.5) { tflag = 1.0; xs = hr.y; col = vec4f(mHeroShade(hr, mode, dAz, dTh), 1.0); }
-  }
-  if (mode < 0.5) { col = vec4f(col.rgb + mCables(dl, s, xs, dTh), tflag); }
+  if (mode < 0.5) { col = vec4f(col.rgb, 0.0); }
   // ---- banks of cloud lying low where the foothills meet the city, and a few farther out: lit from below by what they lie over
   let xa: f32 = 2.0 * (MH - 1000.0) / (s + sqrt(max(s * s - 2.0 * (MH - 1000.0) / MRE, 0.0)));
   let xb: f32 = min(2.0 * (MH - 180.0) / (s + sqrt(max(s * s - 2.0 * (MH - 180.0) / MRE, 0.0))), xs);
@@ -531,15 +349,15 @@ fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
   let sa: vec2f = vec2f(ba, q.z);
   var spark: f32 = 0.0;
   for (var i: i32 = 0; i < 2; i++) {
-    let cs: f32 = mix(0.0021, 0.0052, f32(i)); let g: vec2f = sa / cs + vec2f(f32(i) * 37.0, 11.0);
+    let cs: f32 = mix(0.0015, 0.0038, f32(i)); let g: vec2f = sa / cs + vec2f(f32(i) * 37.0, 11.0);
     let cl: vec2f = floor(g); let h: vec2f = hash22(cl + vec2f(3.0, 501.0));
     let o: vec2f = fract(g) - 0.5 - (h - 0.5) * 0.55; let b: f32 = hash21(cl + vec2f(77.0, 9.0));
     // each flickers by itself, as far lights do through moving air: quicker and deeper the farther off
     let ft: f32 = U.camPos.w * (2.6 + 5.0 * h.y); let fk: f32 = 0.5 + 0.5 * sin(ft + 6.283 * h.x) * sin(ft * 0.37 + 9.0 * b);
-    spark += exp(-dot(o, o) * mix(26.0, 34.0, f32(i))) * b * b * b * b * mix(3.4, 10.0, f32(i)) * mix(1.0, 0.25 + 1.5 * fk, 0.35 + 0.65 * smoothstep(5000.0, 16000.0, dist));
+    spark += exp(-dot(o, o) * mix(26.0, 34.0, f32(i))) * b * b * b * b * mix(3.4, 10.0, f32(i)) * mix(1.0, 0.25 + 1.5 * fk, 0.35 + 0.65 * smoothstep(5000.0 * ${f(M.K)}, 16000.0 * ${f(M.K)}, dist));
   }
   let El: f32 = luma(E.rgb);
-  let farK: f32 = smoothstep(5000.0, 16000.0, dist);
+  let farK: f32 = smoothstep(5000.0 * ${f(M.K)}, 16000.0 * ${f(M.K)}, dist);
   let warmK: f32 = saturate((E.r - E.b) / max(El, 0.001) * 2.5) * (1.0 - A.a) * (1.0 - E.a);
   let Ec: vec3f = mix(E.rgb, vec3f(1.0, 0.50, 0.13) * El * 1.3, 0.62 * warmK) * mix(mix(0.85 + 0.4 * spark, 0.36 + spark, farK), 1.0, E.a);
   let nightGround: vec3f = A.rgb * vec3f(0.016, 0.024, 0.07) * night;
@@ -553,24 +371,24 @@ fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
     let dax: f32 = (fract(gg.x / 720.0 + 0.5) - 0.5) * 720.0; let lane: f32 = floor(gg.x / 720.0 + 0.5);
     let ml: f32 = exp(-sq(dax / max(14.0, 0.7 * pix)));
     let L: f32 = max(90.0, 2.5 * pal);
-    let p1: f32 = (gg.y - 26.0 * U.camPos.w) / L + lane * 0.37; let p2: f32 = (gg.y + 26.0 * U.camPos.w) / (L * 1.3) + lane * 0.61;
+    let p1: f32 = (gg.y - 70.0 * U.camPos.w) / L + lane * 0.37; let p2: f32 = (gg.y + 70.0 * U.camPos.w) / (L * 1.3) + lane * 0.61;
     let b1: f32 = step(0.45, hash21(vec2f(floor(p1), lane + 7.0))) * exp(-sq((fract(p1) - 0.5) * 3.2));
     let b2: f32 = step(0.45, hash21(vec2f(floor(p2), lane + 91.0))) * exp(-sq((fract(p2) - 0.5) * 3.2));
     cars += (vec3f(1.0, 0.10, 0.05) * (b1 * 3.0) + vec3f(1.0, 0.93, 0.80) * (b2 * 2.2)) * ml;
     let day: f32 = (fract(gg.y / 960.0 + 0.5) - 0.5) * 960.0; let lan2: f32 = floor(gg.y / 960.0 + 0.5);
     let m2: f32 = exp(-sq(day / max(14.0, 0.7 * pal)));
     let L2: f32 = max(90.0, 2.5 * pix);
-    let p3: f32 = (gg.x - 24.0 * U.camPos.w) / L2 + lan2 * 0.53; let p4: f32 = (gg.x + 24.0 * U.camPos.w) / (L2 * 1.2) + lan2 * 0.29;
+    let p3: f32 = (gg.x - 60.0 * U.camPos.w) / L2 + lan2 * 0.53; let p4: f32 = (gg.x + 60.0 * U.camPos.w) / (L2 * 1.2) + lan2 * 0.29;
     let b3: f32 = step(0.5, hash21(vec2f(floor(p3), lan2 + 3.0))) * exp(-sq((fract(p3) - 0.5) * 3.2));
     let b4: f32 = step(0.5, hash21(vec2f(floor(p4), lan2 + 57.0))) * exp(-sq((fract(p4) - 0.5) * 3.2));
     cars += (vec3f(1.0, 0.10, 0.05) * (b3 * 2.6) + vec3f(1.0, 0.93, 0.80) * (b4 * 2.0)) * m2;
   }
   // (only where a lit road lies under the eye: not on towers, water, the hills, or the far boroughs whose streets run otherwise)
-  cars *= (1.0 - saturate(E.a)) * (1.0 - A.a) * saturate(luma(E.rgb) * 0.9) * (1.0 - smoothstep(6200.0, 7000.0, length(gp))) * smoothstep(9300.0, 10200.0, dist);
+  cars *= (1.0 - saturate(E.a)) * (1.0 - A.a) * saturate(luma(E.rgb) * 0.9) * (1.0 - smoothstep(6200.0 * ${f(M.K)}, 7000.0 * ${f(M.K)}, length(gp))) * smoothstep(9300.0 * ${f(M.K)}, 10200.0 * ${f(M.K)}, dist);
   var c: vec3f = (mix(A.rgb * lit + nightGround, A.rgb * lit * 0.6 + mir, A.a) + (Ec * mix(tw, 1.0, E.a) + cars) * (night * ${f(M.lamp)})) * ex;
   // the air: by night a deep blue that the city warms a little, thickening toward the rim
   let air: vec3f = mix(haze, vec3f(0.035, 0.06, 0.16) + vec3f(0.10, 0.07, 0.05) * luma(E.rgb), night * 0.85);
-  c = mix(air, c, exp(-dist / mix(34000.0, 52000.0, night)));
+  c = mix(air, c, exp(-dist / (mix(34000.0, 52000.0, night) * ${f(M.K)})));
   return mix(haze, c, smoothstep(0.0, 0.004, q.z));
 }
 // the planet's rim: a thin bright line of blue air, and its glow over it (added to the sky all round)
