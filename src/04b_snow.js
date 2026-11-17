@@ -15,16 +15,19 @@ const SnowLook = (() => {
   const VS = typeof Variants !== 'undefined' ? Variants : null;
   const PARTS = [['snr2', '└ 闪光不闪烁'], ['snr4', '└ 雪痕边埂'], ['snr6', '└ 压雪纹']];
   if (VS) { VS.def('snowr', '雪面渲染', [['a', '原来的'], ['b', '新的']], 'b'); for (const [n, l] of PARTS) VS.def(n, l, [['on', '开'], ['off', '关']], 'on'); }
+  // the glints on the snow (snr2): a, as delivered (4-10 px flecks with a rainbow tint, out to 220 m: at speed the shutter drew them into
+  // dashes); b, as photographs show them: pinpoints, close by only, nearly white, going over into a smooth sheen toward the sun further off
+  if (VS) VS.def('glint', '└ 雪面闪点', [['a', '原来'], ['b', '收细']], 'b');
   S.b = () => !!VS && VS.val.snowr === 'b';
   S.on = n => S.b() && VS.val[n] !== 'off';
-  // the uniforms the terrain takes: sf.y = soft glints; sg = (groomed run, tracks, -, quality level); sn = (z of the table's first row,
+  // the uniforms the terrain takes: sf.x = fine glints (Variants 'glint' b), sf.y = soft glints; sg = (groomed run, tracks, -, quality level); sn = (z of the table's first row,
   // 1 / its spacing, table on, -); ct0..15 = (centre of the run - origin x, half width, powder, ridge)
   const U = S.U = { sf: [0, 0, 0, 0], sg: [0, 0, 0, 0], sn: [0, 0, 0, 0] };
   for (let i = 0; i < S.N; i++) U['ct' + i] = [0, 40, 0, 0];
   S.uniformNames = () => { const u = { sf: 'vec4f', sg: 'vec4f', sn: 'vec4f' }; for (let i = 0; i < S.N; i++) u['ct' + i] = 'vec4f'; return u; };
   const row = {};
   S.frame = function (origin, at) {
-    U.sf[1] = S.on('snr2') ? 1 : 0; U.sg[0] = S.on('snr6') ? 1 : 0; U.sg[1] = S.on('snr4') ? 1 : 0; U.sg[3] = typeof Quality !== 'undefined' ? Quality.tier : 0;
+    U.sf[1] = S.on('snr2') ? 1 : 0; U.sf[0] = VS && VS.val.glint === 'a' ? 0 : 1; U.sg[0] = S.on('snr6') ? 1 : 0; U.sg[1] = S.on('snr4') ? 1 : 0; U.sg[3] = typeof Quality !== 'undefined' ? Quality.tier : 0;
     U.sn[2] = U.sg[0];
     if (!U.sg[0]) return U;
     // the table: from BACK m behind the camera on down the run (the run goes toward -z)
@@ -68,9 +71,10 @@ fn sparkSoft(wxz: vec2f, cell: vec2f, N: vec3f, Hh: vec3f, ja: vec2f, jb: vec2f,
   let d: f32 = max(dot(nn, Hh), 0.0);
   let w: vec2f = (g - id - 0.5 - (r.yw - 0.5) * 0.4) * cell;
   let px: vec2f = vec2f(w.x * jb.y - w.y * jb.x, w.y * ja.x - w.x * ja.y) * idet;
-  let s2: f32 = 1.1 + 0.9 * r.w;                      // (its radius squared in pixels, about 1.0 to 1.4 px)
+  // (its radius squared in pixels, about 1.0 to 1.4 px; with the fine glints, M.sf.x, about 0.8 to 1.05 px)
+  let s2: f32 = mix(1.1 + 0.9 * r.w, 0.6 + 0.5 * r.w, M.sf.x);
   let shape: f32 = exp(-dot(px, px) / s2) * (1.4 / s2);
-  let tint: vec3f = mix(vec3f(1.0), 0.55 + 0.75 * cos(6.2832 * (r.z + vec3f(0.0, 0.33, 0.67))), 0.45 * r.x);
+  let tint: vec3f = mix(vec3f(1.0), 0.55 + 0.75 * cos(6.2832 * (r.z + vec3f(0.0, 0.33, 0.67))), mix(0.45, 0.18, M.sf.x) * r.x);
   return vec4f(tint, 1.0) * (pow(d, n) * shape * (n / 380.0));
 }
 `;

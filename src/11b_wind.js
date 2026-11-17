@@ -16,6 +16,10 @@ const Wind = (() => {
     stats: { plumes: 0, found: 0, tried: 0, ground: 0, ms: 0 } };
   // the owner's choice: a no wind-blown snow (as it was), b smoke off the crests and drift along the ground, c the same, more of it
   if (typeof Variants !== 'undefined') Variants.def('drift', '风吹雪', [['a', '无'], ['b', '有'], ['c', '更强']], 'b');
+  // the smoke off the crests: a, as delivered (lit by the sun's own colour, so at the golden hour and at sunset a thin wisp over a deep blue
+  // sky came out tan, a brown feather or a stalk of dry grass, and a few wisps were thrown far up off the ridge); b, as the photographs show
+  // spindrift: a white veil lying close along the crest, its wisps half as high again at most and wider, so they run together
+  if (typeof Variants !== 'undefined') Variants.def('plume', '└ 山脊雪烟', [['a', '原来'], ['b', '白纱']], 'b');
   const KV = { a: 0, b: 1, c: 1.8 };
   let gfx, pipeSmoke, pipeGlint, pipeGround, dataTex, data, rnd = RNG(4517), kv = 1, nAct = 32, dirty = false;
   const slots = [], off = [0, 0];
@@ -147,8 +151,8 @@ const Wind = (() => {
     if (kv === 0) return;
     const sky = typeof Sky !== 'undefined' ? Sky.lut : null;
     if (n) {
-      gfx.draw(pipeSmoke, { u: { p: [W.PS, 0, 0, 0] }, tex: { tS: dataTex, tDepth: R.depth, tShadow: R.shadowTex, tSky: sky, tDetail: Tex.detail }, count: 4, instances: W.NS * W.PS });
-      gfx.draw(pipeGlint, { u: { p: [W.PC, 0, 0, 0] }, tex: { tS: dataTex, tDepth: R.depth, tShadow: R.shadowTex }, count: 4, instances: W.NS * W.PC });
+      gfx.draw(pipeSmoke, { u: { p: [W.PS, typeof Variants !== 'undefined' && Variants.val.plume === 'a' ? 0 : 1, 0, 0] }, tex: { tS: dataTex, tDepth: R.depth, tShadow: R.shadowTex, tSky: sky, tDetail: Tex.detail }, count: 4, instances: W.NS * W.PS });
+      gfx.draw(pipeGlint, { u: { p: [W.PC, typeof Variants !== 'undefined' && Variants.val.plume === 'a' ? 0 : 1, 0, 0] }, tex: { tS: dataTex, tDepth: R.depth, tShadow: R.shadowTex }, count: 4, instances: W.NS * W.PC });
     }
     const hb = typeof Spray !== 'undefined' ? Spray.hb : null;
     if (hb && W.ground > 0.01) {
@@ -205,7 +209,7 @@ fn plumeAt(j: u32, i: u32, salt: u32) -> Plume {
   // rest), spreading out, and stirred by eddies that grow with it
   let sp: f32 = 0.7 + 0.6 * h.x;
   let al: f32 = L * s * sp;
-  let up: f32 = Hh * pow(s, 0.6) * (0.15 + 1.4 * h.y * h.y);
+  let up: f32 = Hh * pow(s, 0.6) * (0.15 + mix(1.4, 0.7, M.p.y) * h.y * h.y);
   let lat: f32 = Wc * (h.z - 0.5) + L * 0.16 * s * (h2.z - 0.5);
   let ew: f32 = L * 0.05 * s;
   let e1: f32 = sin(tb * 1.7 + h2.x * 30.0 + s * 9.0); let e2: f32 = sin(tb * 1.3 + h2.y * 30.0 + s * 7.0);
@@ -236,12 +240,13 @@ fn vert(a: VIn) -> VOut {
   let ay: vec3f = normalize(cross(V, ax));
   // (never smaller than about a pixel and a half across: a wisp too far off to be seen is a little of the pixel it is in)
   let px: f32 = zv * U.camRight.w * 2.0 * U.res.w;
-  let r0: f32 = P.L * (0.009 + 0.036 * s) * (0.6 + 0.8 * fract(P.seed * 7.3));
+  let r0: f32 = P.L * mix(0.009 + 0.036 * s, 0.016 + 0.060 * s, M.p.y) * (0.6 + 0.8 * fract(P.seed * 7.3));
   let r: f32 = max(r0, px * 1.5); let st: f32 = 3.0 + 4.0 * s;
   let wp: vec3f = P.pos + ax * (corner.x * r * st) + ay * (corner.y * r);
   v.clip = U.viewProj * vec4f(wp, 1.0);
   v.uv = vec4f(corner, fract(P.seed * 13.1), fract(P.seed * 29.7));
   var col: vec3f = windLight(P.pos, V, 1.0);
+  col = mix(col, vec3f(luma(col)) * vec3f(1.04, 1.0, 0.97), 0.55 * M.p.y);      // (b: snow dust scatters every colour alike: toward white)
   col = applyFog(col, P.pos);
   v.c = vec4f(col, min(dens, 0.55) * min(1.0, sq(r0 / r)) * mix(1.0, 0.75, fogAmount(P.pos)));
   v.z = vec4f(zv, r * 0.9, st, 0.0);

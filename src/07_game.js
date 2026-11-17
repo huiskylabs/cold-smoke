@@ -71,6 +71,7 @@ const Input = (() => {
   // must be called from a tap (iOS asks for permission); resolves true if motion events may arrive.
   // (/*web{*/ … /*}web*/ is left out of the 小红书 小工具 build, where device orientation is switched off and the finger steers: tools/build-xhs.js)
   I.requestTilt = async function () {
+    if (self.COLD_SMOKE?.noTilt) return false;
     /*web{*/ try {
       if (typeof DeviceOrientationEvent === 'undefined') return false;
       if (DeviceOrientationEvent.requestPermission) { const r = await DeviceOrientationEvent.requestPermission(); if (r !== 'granted') return false; }
@@ -100,21 +101,21 @@ const Input = (() => {
     if (I.drag) { t = clamp((I.drag.x - I.drag.x0) / (Math.min(View.w || innerWidth, (View.h || innerHeight) * 1.4, 900) * 0.2), -1, 1); if (fb) t = sign(t) * Math.max(0, Math.abs(t) - 0.04) / 0.96; I.mode = 'touch'; }
     else if (I.xr) { t = I.xr.steer; I.mode = 'xr'; }                     // (in a headset: the head leaned or tipped to the side, 21_xr.js)
     else if (I.tiltLive()) { const d = I.gx - I.zero; t = clamp(sign(d) * Math.max(0, Math.abs(d) - 0.025) / 0.40, -1, 1); I.mode = 'tilt'; }
-    t = clamp(t + I.kb, -1, 1);
+    t = clamp(t + I.kb/*native{*/ + (I.pad?.steer || 0)/*}native*/, -1, 1);
     if (I.script != null) t = I.script;
     if (Math.abs(t) > 0.25) I.used = true;
     I.u = t;
     // the two moves besides steering, each one thing held down: jump (Space, or W / ArrowUp) and tuck-or-pole (ArrowDown or S).
     // On a touch screen the interface's buttons set I.btn; the physics reads I.jump and I.tuck
     const K = I.keys;
-    if (Variants.val.fa !== 'b') { I.jump = !!(K.Space || K.KeyW || K.ArrowUp || I.btn.jump); I.tuck = !!(K.ArrowDown || K.KeyS || I.btn.tuck); I.fa = I.faV = I.faT = 0; return; }
+    if (Variants.val.fa !== 'b') { I.jump = !!(K.Space || K.KeyW || K.ArrowUp || I.btn.jump/*native{*/ || I.pad?.jump/*}native*/); I.tuck = !!(K.ArrowDown || K.KeyS || I.btn.tuck/*native{*/ || I.pad?.tuck/*}native*/); I.fa = I.faV = I.faT = 0; return; }
     // (fore/aft b: up / W the shovels (+1), down / S the tails (-1); the jump is Space alone, the tuck Shift. A key comes on as a leg moves the
     // weight, not at a blow: the same critically damped spring as the steering keys, nine tenths of the way in about a third of a second.
     // The steering finger's height from where it came down does the same, at the same scale as across; a script, if set, overrides both)
-    I.jump = !!(K.Space || I.btn.jump); I.tuck = !!(K.ShiftLeft || K.ShiftRight || I.btn.tuck);
+    I.jump = !!(K.Space || I.btn.jump/*native{*/ || I.pad?.jump/*}native*/); I.tuck = !!(K.ShiftLeft || K.ShiftRight || I.btn.tuck/*native{*/ || I.pad?.tuck/*}native*/);
     const kf = (K.ArrowUp || K.KeyW ? 1 : 0) - (K.ArrowDown || K.KeyS ? 1 : 0);
     { const want = kf, w = Math.abs(want) >= Math.abs(I.fa) && want * I.fa >= 0 ? 11 : 15, x = I.fa - want, vv = I.faV, ee = Math.exp(-w * dt), bb = (vv + w * x) * dt; I.fa = want + (x + bb) * ee; I.faV = (vv - w * bb) * ee; }
-    let f = I.fa;
+    let f = I.fa/*native{*/ + (I.pad?.fa || 0)/*}native*/;
     if (I.xr) f += I.xr.fa;                                              // (in a headset: the head over the tips or back over the tails)
     if (I.drag && I.drag.y0 != null) { const L = Math.min(View.w || innerWidth, (View.h || innerHeight) * 1.4, 900) * 0.2, dy = clamp((I.drag.y0 - I.drag.y) / L, -1, 1); f += sign(dy) * Math.max(0, Math.abs(dy) - 0.08) / 0.92; }
     I.faT = clamp(I.faScript != null ? I.faScript : f, -1, 1);
@@ -260,7 +261,9 @@ const Game = (() => {
       if (sound && S.jT > 0) { S.popV = lerp(POP_V0, POP_V1, chgK(S.jT)) * (1 + 0.3 * sat((S.load / GRAV - 1.1) / 0.6)); S.popT = 0; }
       S.jOn = false; S.jT = 0;
     }
+    /*native{*/const previousCharge = S.charge;/*}native*/
     S.charge = S.jOn ? chgK(S.jT) : Math.max(0, S.charge - dt / 0.07);
+    /*native{*/if (previousCharge < 1 && S.charge === 1) G.onJumpCharged?.();/*}native*/
     let nPop = 0;
     if (S.popT >= 0) { const q = S.popT / POP_T, sq = Math.sin(PI * q); if (q >= 1 || !contact) { S.popT = -1; S.lift = contact; } else { nPop = S.popV * 2 / POP_T * sq * sq; S.popT += dt; } }
     // accelerate: one control. Slow, the skier double-poles, stroke after stroke (S.dp is the phase of the stroke: reach, plant at 0.22, drive
@@ -889,6 +892,10 @@ const Game = (() => {
     // springs: the trunk is heavy and comes round late, never at a jerk. (Only on the snow, forwards,
     // with the skis under the body: in the air, a tuck, a stroke or a fall the old reading stands. gnd: how far all that holds)
     const mo = fl.mo = first ? (Variants.val.motion === 'a' ? 0 : 1) : damp(fl.mo, Variants.val.motion === 'a' ? 0 : 1, 4, dt);
+    // (Variants 'mocap' b, mcK easing a switch over: the upper body through a turn as a real skier moves it, 06c_mocap.js; it takes the place of the
+    // separation, the hands' reach round the turn, the flex-and-rise, the swing of the poles and their plant, and the fore and aft of motion b)
+    const mcK = fl.mcK = first ? (Variants.val.mocap === 'b' && Variants.val.labmo !== 'b' ? 1 : 0) : damp(fl.mcK, Variants.val.mocap === 'b' && Variants.val.labmo !== 'b' ? 1 : 0, 4, dt);
+    if (first) Mocap.reset(); const MC = Mocap.update(Lv, dt);
     const gnd = fl.gnd = (1 - w) * (1 - dpK) * (1 - sat(S.crash * 5)) * smooth(3, 8, sp) * smooth(0.3, 0.8, cy) * (1 - 0.6 * smooth(0.3, 1, pose.tuck)) * (1 - sat(Math.abs(q.yaw) * 3));
     // (mogul b, in a field of bumps: the trunk faces straight down the hill whichever way the skis point, the head still, as the judges want it:
     // the legs turn under it. fl.mogU eases in and out over half a second)
@@ -901,7 +908,7 @@ const Game = (() => {
     const kS = lerp(lerp(0.3, 0.8, smooth(-0.04, 0.04, skR * fl.lean * cy)), 1, fl.mogU), skL = spring(fl, 'skL', skR, 6, kd);
     const sepM = clamp((1 - kS) * skL - skR, -0.85, 0.85) * (fl.gS = damp(fl.gS == null ? gnd : fl.gS, gnd, 12, kd)), hdM = spring(fl, 'hdM', clamp((0.35 * trR - 0.34 * skR) * gnd - 0.15 * skR * gnd, -0.7, 0.7) * (1 - fl.mogU), 9, kd);
     pose.quiet = fl.mogU;
-    pose.sep = lerp(fl.sepB * cy, sepM, mo) + q.sep - spring(fl, 'wu', fl.plan && fl.plan.spin ? fl.plan.dir * 0.3 * fl.prep : 0, 20, kd); pose.headYaw = clamp(spring(fl, 'hd', lerp(fl.hy * cy, hdM, mo) + q.head, 16, kd), -1.3, 1.3);
+    pose.sep = lerp(lerp(fl.sepB * cy, sepM, mo), lerp(fl.sepB * cy, MC.sep, gnd), mcK) + q.sep - spring(fl, 'wu', fl.plan && fl.plan.spin ? fl.plan.dir * 0.3 * fl.prep : 0, 20, kd); pose.headYaw = clamp(spring(fl, 'hd', lerp(lerp(fl.hy * cy, hdM, mo), fl.hy * cy * (1 - gnd), mcK) + q.head, 16, kd), -1.3, 1.3);
     // (the inside ski draws ahead as the edges come up: hardly at all in a shallow turn)
     pose.lead = 0.19 * sL * Math.abs(sL) + q.lead; pose.stance = 0.31 + 0.16 * Math.abs(sL) + 0.04 * w + q.st;
     fl.foreS = damp(fl.foreS || 0, clamp(-0.25 * w * (1 - q.own) + q.fore - 0.5 * fl.soak, -1, 1), 8, kd); pose.fore = fl.foreS;
@@ -925,7 +932,10 @@ const Game = (() => {
     if (dt > 0) { const lv = fl.lnV = damp(fl.lnV || 0, (fl.lean - (fl.lnP == null ? fl.lean : fl.lnP)) / dt, 25, dt); fl.lnP = fl.lean; fl.plT = (fl.plT || 0) + dt;
       const sn = Math.sign(fl.lean); if (!fl.plSg) fl.plSg = sn; if (sn === fl.plSg) fl.plPk = Math.max(fl.plPk || 0, Math.abs(fl.lean));
       const sg = fl.plSg, tc = sn === sg ? (fl.lean * lv < 0 ? Math.abs(fl.lean / lv) : 9) : Math.abs(fl.lean) < 0.25 ? 0 : 9;   // (crossed already, between two steps: at once)
-      if (sg && tc < PL_LEAD) { const pk = fl.plPk || 0; fl.plSg = -sg; fl.plPk = 0; if (pk > 0.14) { fl.plS = -sg; fl.plT = 0; fl.plDur = tc + PL_HOLD; fl.plK = lerp(0.62, 1, smooth(0.14, 0.32, pk)); } } }
+      // (fast, the pole is only swung forward and flicked toward the snow, not planted: at 50 km/h and more a tip held in the snow is left
+      // behind by a third of a metre a frame, and the pole whipped back and was pulled out again within three or four frames, a twitch of the
+      // hand and the pole at every turn, owner 2026-11-13 '手还有杆莫名其妙抽搐'. A plant asked for at half its reach never touches: no pin)
+      if (sg && tc < PL_LEAD) { const pk = fl.plPk || 0; fl.plSg = -sg; fl.plPk = 0; if (pk > 0.14) { fl.plS = -sg; fl.plT = 0; fl.plDur = tc + PL_HOLD; fl.plK = lerp(0.62, 1, smooth(0.14, 0.32, pk)) * lerp(1, 0.5, smooth(8, 13, sp)); } } }
     const plWant = side => Variants.val.poles === 'a' ? quiet * sat(side * S.leanV * 0.75 - 0.15) * smooth(0.62, 0.20, -side * S.lean) * smooth(0.20, 0.03, side * S.lean)
       : fl.plS === side && fl.plT < (fl.plDur || 0) ? quiet * fl.plK : 0;
     // hands ahead: a skier carries the hands in front and a little wide, at the height of the belt, the outside hand reaching on round the turn;
@@ -941,13 +951,15 @@ const Game = (() => {
       // (wanted from the last third of the old turn until the new edges have just begun to bite: a touch, not a prop to lean on)
       const key = side < 0 ? 'plantL' : 'plantR', want = plWant(side);
       // (it is asked for at a stroke; the hand sets off after it through a spring, without a jerk)
-      pose[key] = sat(spring(fl, side < 0 ? 'plL' : 'plR', want, want > (pose[key] || 0) ? 26 : 18, dt * k));
+      pose[key] = sat(spring(fl, side < 0 ? 'plL' : 'plR', want, want > (pose[key] || 0) ? 16 : 11, dt * k));      // (16 / 11: the swing set going and given back without a flick, owner 2026-11-13)
+      if (mcK > 0) pose[key] = lerp(pose[key], (side < 0 ? MC.plL : MC.plR) * quiet * lerp(1, 0.5, smooth(8, 13, sp)), mcK);      // (mocap: the plant is where the turn is, no spring)
       const a = side < 0 ? pose.armL : pose.armR, pl = pose[key], g = grabs ? 0 : side < 0 ? q.gL : q.gR;
-      const out = sat(-side * sLn * 1.6), inn = sat(side * sLn * 1.6), ac = act * (1 - g), HA = fl.ha;
+      const out = sat(-side * sLn * 1.6) * (1 - mcK), inn = sat(side * sLn * 1.6) * (1 - mcK), ac = act * (1 - g), HA = fl.ha, hm = side < 0 ? MC.hL : MC.hR;
       a[0] = side * (0.03 * pl + hx - 0.13 * g + HA[0] * ac) + (side < 0 ? q.ax : q.bx) * hk; a[1] = 0.03 * pl + hy - 0.6 * g + (HA[1] + HA[3] * out + HA[5] * inn) * ac + (side < 0 ? q.ay : q.by) * hk; a[2] = -0.10 * pl + hz + 0.32 * g - (HA[2] + HA[4] * out + HA[6] * inn) * ac + (side < 0 ? q.az : q.bz) * hk;
+      if (mcK > 0) for (let i = 0; i < 3; i++) a[i] += hm[i] * ac * gnd * mcK;
     }
     // (b: the poles do not swing to a clock: they nod with how the legs are loaded and with the body going over, and with the snow's chatter)
-    pose.swing = lerp(Math.sin(G.t * 2.3) * 0.25 + S.leanV * 0.12, S.leanV * 0.12 + 0.16 * clamp(fl.pump, -1, 1) + 6 * (fl.chat || 0), mo) * hk;
+    pose.swing = lerp(Math.sin(G.t * 2.3) * 0.25 + S.leanV * 0.12, S.leanV * 0.12 + 0.16 * clamp(fl.pump, -1, 1) + 6 * (fl.chat || 0), mo) * hk * (1 - mcK);
     // (angulation: in a turn the knees and hips go inside and the chest stays nearer upright over the outside ski; the more it is laid over the more so.
     // Through a spring: the trunk comes upright a moment after the legs tip in)
     pose.tilt = spring(fl, 'tlt', -0.17 * fl.lean * cy * smooth(0.08, 0.6, Math.abs(fl.lean)) * gnd, 9, kd) * mo;
@@ -962,13 +974,13 @@ const Game = (() => {
         fl.ldV = vv + ac * dt; fl.ld = x + fl.ldV * dt; } fl.wasAir = S.air;
       if (dt > 0) fl.dist = ((fl.dist || 0) + sp * dt) % 4096;
       const ch = fl.chat = 0.011 * smooth(10, 30, sp) * (1 - w) * (1 - 0.6 * (S.powder || 0)) * (vnoise1(fl.dist * 0.42, 31) * 0.7 + vnoise1(fl.dist * 1.1, 37) * 0.3);
-      pose.crouch = clamp(pose.crouch + mo * (fx + (fl.ld || 0) * (1 - w)), 0, 1);
+      pose.crouch = clamp(pose.crouch + lerp(mo * fx, MC.crouch * gnd, mcK) + mo * (fl.ld || 0) * (1 - w), 0, 1);
       // (feel b: fore and aft on the snow. Into a new turn the shins press the boots and the hips go forward over the feet; through the apex they
       // are centred; out of it the weight comes back toward the tails; and whatever the snow is braking with (a skid, the powder) sets the body
       // back on its heels a little. Through a spring of a little under 1 Hz: the weight shifts, it does not jump)
       const foT = FB ? clamp((0.55 * ent - 0.35 * rel - 0.06 * (S.aDrag || 0)) * gnd, -0.6, 0.6) : 0;
-      pose.fore = clamp(pose.fore + spring(fl, 'foB', foT, 5.5, kd), -1, 1);       // (the snow's chatter is not put into the knee bend: with the feet on the snow that moved the hips and everything above them)
-      for (const a of [pose.armL, pose.armR]) { a[1] += mo * (1.6 * ch - 0.25 * (fl.ld || 0)) * hk; a[2] -= mo * 0.4 * (fl.ld || 0) * hk; } }
+      pose.fore = clamp(pose.fore + spring(fl, 'foB', foT, 5.5, kd) * (1 - mcK), -1, 1);       // (the snow's chatter is not put into the knee bend: with the feet on the snow that moved the hips and everything above them)
+      for (const a of [pose.armL, pose.armR]) { a[1] += mo * (1.6 * ch * (1 - mcK) - 0.25 * (fl.ld || 0)) * hk; a[2] -= mo * 0.4 * (fl.ld || 0) * hk; } }
     if (crash > 0.001) { const wb = Math.sin(crash * 22) * crash; pose.armL[1] += 0.18 * crash + 0.05 * wb; pose.armR[1] += 0.18 * crash - 0.05 * wb; pose.sep += wb * 0.25; }
     // ---- root frame
     // the feet (on the snow they stand on the snow that is drawn; over bumps the body rides a smoother line and the legs make up the difference)
@@ -1211,7 +1223,9 @@ const Game = (() => {
     // come and go without a corner, and the other viewpoints are handed the same lens)
     const fe = typeof Feel !== 'undefined' ? Feel : null, pos = [cam.pos[0] + rx * ox, cam.pos[1] + oy - (fe && fe.dip || 0), cam.pos[2] + rz * ox];
     // other viewpoints (07b_views.js) take the lens over here; the chase camera above keeps running underneath, so switching back is seamless
-    if (G.viewCam && G.viewCam(dt, cam, pos, f)) return;
+    const viewOver = G.viewCam && G.viewCam(dt, cam, pos, f);
+    /*native{*/G.hasViewOverride = viewOver;/*}native*/
+    if (viewOver) return;
     Render.setCamera(pos, v3.add(pos, f), [0, 1, 0], cam.fov, cam.roll + vnoise1(t * 13, 3) * sh * 0.5 + (fe && fe.roll || 0));
   }
 

@@ -5,6 +5,7 @@ defineGlobals([
   ['camRight', 'vec4f'],   // xyz, w tan(fovY/2)
   ['camUp', 'vec4f'],      // xyz, w aspect
   ['camFwd', 'vec4f'],     // xyz, w near plane
+  ['eyeCenter', 'vec4f'],  // xy tangent-space offset of the image centre from the optical axis
   ['sunDir', 'vec4f'],     // xyz toward the light (sun, or moon at night), w how milky the horizon haze is (1 by day, 0 when the sun is on the horizon)
   ['sunCol', 'vec4f'],     // rgb light radiance at ground, w disc intensity
   ['ambSky', 'vec4f'],     // rgb sky irradiance from above, w exposure
@@ -70,6 +71,10 @@ fn tfbm3(p: vec3f) -> f32 { return 0.5333 * tnoise3(p) + 0.2667 * tnoise3(p * 2.
 `;
 
 SL.common = `
+fn screenRay(ndc: vec2f) -> vec3f {
+  let slope: vec2f = ndc * vec2f(U.camRight.w * U.camUp.w, U.camRight.w) + U.eyeCenter.xy;
+  return U.camFwd.xyz + U.camRight.xyz * slope.x + U.camUp.xyz * slope.y;
+}
 const PI: f32 = 3.14159265;
 fn sq(x: f32) -> f32 { return x * x; }
 fn luma(c: vec3f) -> f32 { return dot(c, vec3f(0.2126, 0.7152, 0.0722)); }

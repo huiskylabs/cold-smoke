@@ -2,20 +2,25 @@
 // Solid objects (skier, trees, animals) are modelled as signed distance functions and meshed once at boot,
 // so they can be skinned, instanced and shadow-mapped cheaply. Nothing is loaded: the shapes are these functions.
 
+// (plain square roots, not Math.hypot: the same numbers at twice the speed, and these are asked for hundreds of thousands of times while the page loads)
 const sd = {
-  smin(a, b, k) { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; },
-  smax(a, b, k) { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.max(a, b) + h * h * k * 0.25; },
-  sphere(x, y, z, cx, cy, cz, r) { return Math.hypot(x - cx, y - cy, z - cz) - r; },
-  ellipsoid(x, y, z, cx, cy, cz, rx, ry, rz) { const px = (x - cx) / rx, py = (y - cy) / ry, pz = (z - cz) / rz, k0 = Math.hypot(px, py, pz), k1 = Math.hypot(px / rx, py / ry, pz / rz); return k1 > 1e-9 ? k0 * (k0 - 1) / k1 : -Math.min(rx, ry, rz); },
+  // (written with comparisons, not Math.min / max / abs: the same numbers, NaN included, but V8 ran the Math version some thirty times slower here,
+  // and the skier's body alone asks for it millions of times while the page loads: 4.1 s of its 4.2 s mesh in node, 1.5 s now)
+  smin(a, b, k) { const d = a - b, h = k - (d < 0 ? -d : d), m = a < b ? a : b <= a ? b : NaN; if (!(h > 0)) return m; const q = h / k; return m - q * q * k * 0.25; },
+  smax(a, b, k) { const d = a - b, h = k - (d < 0 ? -d : d), m = a > b ? a : b >= a ? b : NaN; if (!(h > 0)) return m; const q = h / k; return m + q * q * k * 0.25; },
+  sphere(x, y, z, cx, cy, cz, r) { const dx = x - cx, dy = y - cy, dz = z - cz; return Math.sqrt(dx * dx + dy * dy + dz * dz) - r; },
+  ellipsoid(x, y, z, cx, cy, cz, rx, ry, rz) { const px = (x - cx) / rx, py = (y - cy) / ry, pz = (z - cz) / rz, k0 = Math.sqrt(px * px + py * py + pz * pz), ax = px / rx, ay = py / ry, az = pz / rz, k1 = Math.sqrt(ax * ax + ay * ay + az * az); return k1 > 1e-9 ? k0 * (k0 - 1) / k1 : -Math.min(rx, ry, rz); },
   // capsule between a and b with radii ra -> rb (linear taper)
   capsule(x, y, z, ax, ay, az, bx, by, bz, ra, rb) {
     const pax = x - ax, pay = y - ay, paz = z - az, bax = bx - ax, bay = by - ay, baz = bz - az;
     const h = Math.max(0, Math.min(1, (pax * bax + pay * bay + paz * baz) / (bax * bax + bay * bay + baz * baz)));
-    return Math.hypot(pax - bax * h, pay - bay * h, paz - baz * h) - (ra + (rb - ra) * h);
+    const ex = pax - bax * h, ey = pay - bay * h, ez = paz - baz * h;
+    return Math.sqrt(ex * ex + ey * ey + ez * ez) - (ra + (rb - ra) * h);
   },
   rbox(x, y, z, cx, cy, cz, hx, hy, hz, r) {
     const qx = Math.abs(x - cx) - hx + r, qy = Math.abs(y - cy) - hy + r, qz = Math.abs(z - cz) - hz + r;
-    return Math.hypot(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - r;
+    const ax = qx > 0 ? qx : 0, ay = qy > 0 ? qy : 0, az = qz > 0 ? qz : 0;
+    return Math.sqrt(ax * ax + ay * ay + az * az) + Math.min(Math.max(qx, qy, qz), 0) - r;
   },
   // cone-ish drooping disc: a "tier" of a snow-laden conifer (see trees)
   torusY(x, y, z, cx, cy, cz, R, r) { const q = Math.hypot(x - cx, z - cz) - R; return Math.hypot(q, y - cy) - r; },

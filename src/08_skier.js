@@ -9,7 +9,11 @@ const SKIER_LOOK = {
   jacket:     { alb: [0.95, 0.255, 0.026], sheen: 0.5, cloth: 1, specS: 0.05, specP: 28, gloss: 0 },      // orange shell
   sleeveFore: { alb: [0.018, 0.030, 0.055] },       // navy forearms: from 3.5-6.5 cm below the elbow down to the cuff (otherwise as the jacket)
   sleeveBand: { alb: [0.86, 0.87, 0.85] },          // pale band round the upper sleeve: 15 cm below the shoulder joint, about 2.5 cm wide
-  glove:      { alb: [0.018, 0.018, 0.020], sheen: 0.2, cloth: 0, specS: 0.08, specP: 30, gloss: 0 },     // black gauntlet glove
+  glove:      { alb: [0.018, 0.018, 0.020], sheen: 0.2, cloth: 0, specS: 0.08, specP: 30, gloss: 0 },     // black gauntlet glove (the new glove's leather: fingers and palm)
+  gloveLeather: { alb: [0.021, 0.019, 0.018], sheen: 0.12, specS: 0.26, specP: 46 },   // the new glove's leather (Variants 'hand' b): fingers, palm, thumb
+  gloveBack:  { alb: [0.022, 0.023, 0.027], sheen: 0.45, specS: 0.04, specP: 24 },     // the new glove's nylon: the back of the hand and the gauntlet
+  gloveBand:  { alb: [0.075, 0.078, 0.085] },       // its wrist elastic and the gauntlet's drawcord hem: charcoal
+  gloveTab:   { alb: [0.62, 0.63, 0.62] },          // pull tab at the wrist, cord lock on the gauntlet: pale grey
   pole:       { alb: [0.015, 0.015, 0.015], sheen: 0, cloth: 0, specS: 0.6, specP: 80, gloss: 0.08 },     // shaft: black, glossy
   poleGrip:   { alb: [0.95, 0.255, 0.026] },        // grip: the jacket's orange, the top 18 cm of the pole (otherwise as the shaft)
   poleBasket: { alb: [0.05, 0.055, 0.065] },        // basket: dark grey, 8 to 11.5 cm above the tip (otherwise as the shaft)
@@ -39,6 +43,14 @@ const Skier = (() => {
     };
     return { X: f([1, 0, 0]), Y: f([0, 1, 0]), Z: f([0, 0, 1]) };
   }
+  // a weight that hands one way of moving over to another, eased on a critically damped path (no overshoot) over about 2/w seconds, so the
+  // limbs it moves never change speed in a frame. Kept in sec per frame (sec.pfN): a second solve of the same frame starts from the same place
+  function ez(sec, key, x, w) {
+    const E = sec.ez || (sec.ez = {}), dt = sec.pfDt || 0; let q = E[key];
+    if (!q || !(dt > 0) || !(x === x)) { E[key] = { n: sec.pfN, b: [x, 0], o: [x, 0] }; return x; }
+    if (q.n !== sec.pfN) { q.b = q.o; q.n = sec.pfN; }
+    const d = q.b[0] - x, e = Math.exp(-w * dt), bb = (q.b[1] + w * d) * dt; q.o = [x + (d + bb) * e, (q.b[1] - w * bb) * e]; return q.o[0];
+  }
   function ik2(a, c, l1, l2, pole) {
     const d = v3.sub(c, a), L = v3.len(d) || 1e-6, Lc = clamp(L, Math.abs(l1 - l2) + 1e-4, l1 + l2 - 1e-4), dn = v3.mul(d, 1 / L);
     const x = (l1 * l1 - l2 * l2 + Lc * Lc) / (2 * Lc), h = Math.sqrt(Math.max(0, l1 * l1 - x * x));
@@ -50,9 +62,23 @@ const Skier = (() => {
     const y = v3.norm(ydir); let x = v3.sub(xhint, v3.mul(y, v3.dot(xhint, y))); if (v3.len(x) < 1e-5) x = v3.cross(y, [0, 0, 1]); x = v3.norm(x);
     return m4.fromBasis(x, y, v3.cross(x, y), o);
   }
+  // a fist's frame at the grip: y up the pole, z toward the wrist (square to the pole), x = y cross z (out of the back of a right hand; the left
+  // hand's glove is mirrored, so for both x is the body's right when the arms hang easy). With the forearm laid along the pole (a tuck: the shafts
+  // under the arms) "toward the wrist" is lost: there the body's right (rt) takes over, so the backs of the hands stay turned out and never flip
+  function fistFrame(g, pd, wr, rt) {
+    const y = v3.norm(v3.mul(pd, -1)), w = v3.sub(wr, g), wz = v3.sub(w, v3.mul(y, v3.dot(w, y)));
+    return frameXY(g, y, v3.add(v3.cross(y, wz), v3.mul(rt, 0.025)));
+  }
   const fr = (b, x, y, z) => [b.X[0] * x + b.Y[0] * y + b.Z[0] * z, b.X[1] * x + b.Y[1] * y + b.Z[1] * z, b.X[2] * x + b.Y[2] * y + b.Z[2] * z];   // a vector given in a basis
   const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
   const nlerp = (a, b, t) => v3.norm(v3.lerp(a, b, t));
+  // (turning one direction into another along the arc between them, at an even pace. Between two that point nearly opposite ways, a pole trailing
+  // behind and the same pole reaching forward for its plant, a straight blend passes close to nothing and the direction that comes out of it swung
+  // round in a frame or two: a twitch of the pole at every turn. So the swing goes by way of `via`, down and out beside the leg, as a pole swung
+  // forward from the wrist does)
+  const slerp = (a, b, t) => { const c = clamp(v3.dot(a, b), -1, 1), th = Math.acos(c), sn = Math.sin(th); if (sn < 1e-4) return v3.norm(v3.lerp(a, b, t));
+    return v3.norm(v3.add(v3.mul(a, Math.sin((1 - t) * th) / sn), v3.mul(b, Math.sin(t * th) / sn))); };
+  const swingTo = (a, b, t, via) => { const m = v3.norm(v3.add(v3.add(a, b), v3.mul(via, 1.2))); return t < 0.5 ? slerp(a, m, t * 2) : slerp(m, b, t * 2 - 1); };
   // a curve through keys [t, value] (value: number or vector); it passes each key without stopping there. `loop`: first and last key are the same moment of a cycle
   function spl(ks, t, loop) {
     const n = ks.length - 1; let i = 0; while (i < n - 1 && t > ks[i + 1][0]) i++;
@@ -103,7 +129,7 @@ const Skier = (() => {
     const lean = p.lean || 0, sl = Math.sin(lean), al = Math.abs(sl), edge = p.edge || 0, tuck = sat(p.tuck || 0), air = sat(p.air || 0);
     const stance = p.stance == null ? 0.31 : p.stance, lead = p.lead || 0, liftL = p.liftL || 0, liftR = p.liftR || 0, armL = p.armL || P0.armL, armR = p.armR || P0.armR;
     const gL = smooth(0, 1, p.grabL || 0), gR = smooth(0, 1, p.grabR || 0), gM = Math.max(gL, gR), gS = gR - gL;
-    const f = clamp(p.dp || 0, 0, 1), dpw = f > 0 ? (1 - smooth(0, 0.7, tuck)) * (1 - air) * (1 - gM) * (1 - smooth(0.14, 0.5, Math.abs(lean))) : 0;   // (nobody double-poles on one edge)
+    const f = clamp(p.dp || 0, 0, 1), dpw = ez(sec, 'dpw', f > 0 ? (1 - smooth(0, 0.7, tuck)) * (1 - air) * (1 - gM) * (1 - smooth(0.14, 0.5, Math.abs(lean))) : 0, 16);   // (nobody double-poles on one edge. Eased: a stroke begun or given up hands the arms over in a moment, never in a frame)
     const PL = LEN.pole, J = {}, F = new Array(K.NB);
     // standing at ease (see update): rest 0..1 with the pole tips set down at T (u: one lifted, to be set down afresh), up: the trunk more upright, br: a
     // breath drawn 0..1, sh: the weight on the left (-1) or right (+1) ski, hy, hp, ty: where head and shoulders are turned, sx: the body's slow sway
@@ -133,16 +159,29 @@ const Skier = (() => {
     // pelvis: the body line from the snow contact tilts by the lean; hips move inside the turn (angulation). A ski boot lets the shin tip forward only so
     // far, so a deep crouch does not push the knees on: it sits back, hips behind the heels, and the trunk folds forward over the thighs to balance
     // (at ease with the weight on one ski: the hips are over it and that hip stands the higher, the other leg let go a little, the shoulders tipped back level)
-    const pb = basis((p.sep || 0) * 0.35, hinge * 0.5, lean * 0.62 + gS * 0.10 - 0.075 * ish);
+    let pb = basis((p.sep || 0) * 0.35, hinge * 0.5, lean * 0.62 + gS * 0.10 - 0.075 * ish);
     let pel, hipL, hipR, zP = 0;
     for (let it = 0; it < 6; it++) {
-      const D0 = Math.min(H - LEN.hipD - LEN.ankle, 0.8385), flex = smin(Math.acos(clamp(D0 / (LEN.thigh + LEN.shin), -1, 1)), 0.54, 0.15), dy = D0 - LEN.shin * Math.cos(flex);
+      const D0 = smin(H - LEN.hipD - LEN.ankle, 0.8385, 0.10), flex = smin(Math.acos(clamp(D0 / (LEN.thigh + LEN.shin), -1, 1)), 0.54, 0.15), dy = D0 - LEN.shin * Math.cos(flex);
       zP = -LEN.shin * Math.sin(flex) + Math.sqrt(Math.max(0, LEN.thigh * LEN.thigh - dy * dy)) - 0.012 - (p.fore || 0) * 0.06 - 0.16 * faF + 0.13 * faA + (dpw > 0 ? dpw * spl(DP_Z, f) : 0);
       pel = [H * Math.sin(lean) + 0.07 * sl + 0.045 * ish, H * Math.cos(lean) + (liftL + liftR) * 0.5, zP];
       hipL = v3.add(v3.mad(pel, pb.X, -LEN.hipW), v3.mul(pb.Y, -LEN.hipD)); hipR = v3.add(v3.mad(pel, pb.X, LEN.hipW), v3.mul(pb.Y, -LEN.hipD));
       // (a leg is never locked straight: the last few centimetres are given up softly)
       const over = Math.max(v3.len(v3.sub(hipL, J.ankleL)), v3.len(v3.sub(hipR, J.ankleR))) - (LEN.thigh + LEN.shin) * 0.975;
       if (over <= -0.03) break; H -= (over >= 0.03 ? over : (over + 0.03) * (over + 0.03) / 0.12) * 1.1;
+    }
+    // (the lab's turns, 08f_labmo.js: the pelvis from a real skier's posture at this lean, faded in by lab.w; the game's crouch, fore/aft and lifted
+    // skis still move it, so bumps, landings and the shovels/tails control keep working)
+    const L = sec.lab;
+    if (L && L.w > 0) {
+      const am = v3.lerp(J.ankleL, J.ankleR, 0.5), lp = v3.add(am, v3.mul(L.pel, LabMo.LEG));
+      lp[1] += -0.38 * (c - L.cref) - 0.06 * faF - 0.085 * faA + (liftL + liftR) * 0.5; lp[2] += -(p.fore || 0) * 0.06 - 0.16 * faF + 0.13 * faA;
+      pel = v3.lerp(pel, lp, L.w); pb = LabMo.mixB(pb, L.pb, L.w);
+      for (let it = 0; it < 3; it++) {
+        hipL = v3.add(v3.mad(pel, pb.X, -LEN.hipW), v3.mul(pb.Y, -LEN.hipD)); hipR = v3.add(v3.mad(pel, pb.X, LEN.hipW), v3.mul(pb.Y, -LEN.hipD));
+        const over = Math.max(v3.len(v3.sub(hipL, J.ankleL)), v3.len(v3.sub(hipR, J.ankleR))) - (LEN.thigh + LEN.shin) * 0.975;
+        if (over <= -0.03) break; pel = v3.mad(pel, v3.norm(v3.sub(am, pel)), over >= 0.03 ? over : (over + 0.03) * (over + 0.03) / 0.12);      // (given up softly, as the game's own legs are)
+      }
     }
     J.pelvis = pel; J.hipL = hipL; J.hipR = hipR;
     // legs from the boot up: the boot holds the shin square to the ski sideways, so the knee folds forward over the toe and goes into the turn with the
@@ -153,11 +192,25 @@ const Skier = (() => {
       let e1 = v3.sub(fw, v3.mul(dn, v3.dot(fw, dn))); if (v3.len(e1) < 1e-4) e1 = v3.sub(b.Y, v3.mul(dn, v3.dot(b.Y, dn))); e1 = v3.norm(e1); const e2 = v3.cross(dn, e1);
       const A = x * v3.dot(dn, b.X) - Ls * Math.sin(clamp(lean * 0.10, -0.09, 0.09)), Bc = v3.dot(e1, b.X), Cc = v3.dot(e2, b.X), R = Math.hypot(Bc, Cc);
       let th = 0, th0 = 0;
-      if (hc > 1e-5 && R > 1e-5) { const t0 = Math.atan2(Cc, Bc), w = Math.acos(clamp(-A / (hc * R), -1, 1)), wrap = q => Math.atan2(Math.sin(q), Math.cos(q)), ta = wrap(t0 + w), tb = wrap(t0 - w); th = Math.abs(ta) < Math.abs(tb) ? ta : tb;
+      if (hc > 1e-5 && R > 1e-5) { const t0 = Math.atan2(Cc, Bc), w = Math.acos(clamp(-A / (hc * R), -1, 1)), wrap = q => Math.atan2(Math.sin(q), Math.cos(q)), ta = wrap(t0 + w), tb = wrap(t0 - w);
+        // (of the two places, the one nearer straight ahead; but where the two are nearly as near, as the edges change over, that choice could
+        // flip back and forth and the knee jumped a few centimetres in a frame: the one it took last frame keeps it until the other is the nearer by a good margin (sec.pf, kept by update))
+        const kq = sec.pf ? sec.pf[side < 0 ? 0 : 1] : null; if (kq && kq.kn !== sec.pfN) { kq.kp = kq.ko; kq.kvp = kq.kvo; kq.kn = sec.pfN; }
+        let ca = Math.abs(ta), cb = Math.abs(tb); if (kq && kq.kp != null) { if (Math.abs(wrap(ta - kq.kp)) < Math.abs(wrap(tb - kq.kp))) ca -= 0.3; else cb -= 0.3; }
+        th = ca < cb ? ta : tb;
+        // (and the knee's swing about the line from hip to ankle (it keeps both bones their length) follows over a thirtieth of a second: where the
+        // ski's edge and the leg's lean cross through flat together the answer moved unevenly from one frame to the next)
+        if (kq) { if (kq.kp != null && sec.pfDt > 0) { const w = 30, h = sec.pfDt, d = -wrap(th - kq.kp), e = Math.exp(-w * h), vv = kq.kvp || 0, b = (vv + w * d) * h; th = th + (d + b) * e; kq.kvo = (vv - w * b) * e; } else kq.kvo = 0; kq.ko = th; }      // (2026-11-15: critically damped, so its speed never jumps either)
         // (but a leg flung out to the side (the spread eagle, the X) cannot keep its shin square in the boot: the nearest it can come put the knee out
         // sideways or right round behind, the thigh screwed round on itself by up to half a turn, and the cloth at the hip, hung between the pelvis and that
         // thigh, was wrung thin. Past what the boot can hold the knee goes back to bending over the ski's tip, the way a straight leg is carried in the air)
-        th0 = th; th *= 1 - smooth(0.5, 1.5, Math.abs(A) / (hc * R)); }
+        th0 = th; th *= ez(sec, 'kf' + side, 1 - smooth(0.5, 1.5, Math.abs(A) / (hc * R)), 20); }      // (eased: on a leg near straight this changes fast)
+      // (and the swing as drawn, whichever way it was found, eased once more the same way: a leg thrown wide in the air, or one that comes straight,
+      // can change which rule finds it, and the knee must not jump for that)
+      { const kq = sec.pf ? sec.pf[side < 0 ? 0 : 1] : null;
+        if (kq) { if (kq.fn !== sec.pfN) { kq.fp = kq.fo; kq.fvp = kq.fvo; kq.fn = sec.pfN; }
+          if (kq.fp != null && sec.pfDt > 0) { const wrap = q => Math.atan2(Math.sin(q), Math.cos(q)), w = 30, h = sec.pfDt, d = wrap(kq.fp - th), e = Math.exp(-w * h), vv = kq.fvp || 0, b = (vv + w * d) * h; th = th + (d + b) * e; kq.fvo = (vv - w * b) * e; }
+          else kq.fvo = 0; kq.fo = th; } }
       const kp = q => v3.add(v3.mad(ank, dn, x), v3.add(v3.mul(e1, hc * Math.cos(q)), v3.mul(e2, hc * Math.sin(q)))); J['kneeRaw' + (side < 0 ? 'L' : 'R')] = kp(th0 + (th - th0) * 0.15); return kp(th);
     };
     J.kneeL = knee(hipL, J.ankleL, fbL, -1); J.kneeR = knee(hipR, J.ankleR, fbR, 1);
@@ -182,14 +235,18 @@ const Skier = (() => {
     // (p.quiet, a mogul field: the chest stays nearer upright still, the legs angulate under it, the judges' quiet upper body)
     const leanT = lean * (fbT ? lerp(0.66, 0.48, smooth(0.2, 0.9, Math.abs(lean))) : lerp(0.74, 0.40, smooth(0.25, 0.72, Math.abs(lean)))) * (1 - 0.4 * (p.quiet || 0)) + sec.roll + gS * 0.26 + (id ? 0.03 * ish + id.sx : 0) + (fbT ? 0 : p.tilt || 0), sep = (p.sep || 0) + sec.yaw + (id ? id.ty : 0);
     const up2 = Math.min(hinge * 1.15 + 0.06 + crunch - 0.035 * ibr, 1.74);      // (a breath drawn straightens the upper back...)
-    const t1 = basis(sep * 0.7, hinge, leanT), t2 = basis(sep, up2, leanT * 0.82);
+    let t1 = basis(sep * 0.7, hinge, leanT), t2 = basis(sep, up2, leanT * 0.82);
+    if (L && L.w > 0) { t1 = LabMo.mixB(t1, L.t1, L.w); t2 = LabMo.mixB(t2, L.t2, L.w); }
     J.chest = v3.mad(pel, t1.Y, LEN.spine + 0.004 * ibr); J.neck = v3.mad(J.chest, t2.Y, LEN.chest);
     // (shoulders come forward and together when the arms are in front of the face)
     const prot = 0.035 * tuck + 0.02 * gM;
     J.shL = v3.add(v3.add(v3.mad(J.neck, t2.X, -LEN.shW + prot * 0.5), v3.mul(t2.Y, -LEN.shD)), v3.mul(t2.Z, -prot)); J.shR = v3.add(v3.add(v3.mad(J.neck, t2.X, LEN.shW - prot * 0.5), v3.mul(t2.Y, -LEN.shD)), v3.mul(t2.Z, -prot));
     if (ibr) { J.shL = v3.add(J.shL, fr(t2, -0.003 * ibr, 0.012 * ibr, 0.004 * ibr)); J.shR = v3.add(J.shR, fr(t2, 0.003 * ibr, 0.012 * ibr, 0.004 * ibr)); }      // (...and lifts the shoulders)
     // head: eyes stay near level and look where the skier is going; folded right over, the neck cranes back as far as a neck goes
-    const hp = Math.max(0.05 + 0.10 * cT + 0.02 * tuck + sec.head + (id ? id.hp : 0), up2 - 1.0), hb = basis((p.sep || 0) + (p.headYaw || 0) + (id ? id.hy : 0), hp, lean * 0.10), nY = v3.norm(v3.add(t2.Y, hb.Y));
+    const hp = Math.max(0.05 + 0.10 * cT + 0.02 * tuck + sec.head + (id ? id.hp : 0), up2 - 1.0);
+    let hb = basis((p.sep || 0) + (p.headYaw || 0) + (id ? id.hy : 0), hp, lean * 0.10);
+    if (L && L.w > 0) hb = LabMo.mixB(hb, L.hb, L.w);
+    const nY = v3.norm(v3.add(t2.Y, hb.Y));
     J.skull = v3.mad(J.neck, nY, LEN.neck); J.head = v3.add(v3.mad(J.skull, hb.Y, LEN.head), v3.mul(hb.Z, -0.015));
     // body shapes the hands and the poles have to stay out of
     const caps = [[hipL, J.kneeL, 0.115, 0.095], [hipR, J.kneeR, 0.115, 0.095], [J.kneeL, J.ankleL, 0.09, 0.085], [J.kneeR, J.ankleR, 0.09, 0.085], [v3.add(v3.mad(hipL, pb.Z, 0.03), v3.mul(pb.X, 0.035)), v3.add(v3.mad(hipR, pb.Z, 0.03), v3.mul(pb.X, -0.035)), 0.15, 0.15],
@@ -250,7 +307,7 @@ const Skier = (() => {
         const x1 = side * Math.max(side * t[0] + 0.08, side * ft[0] + 0.17), dx = x1 - t[0], ty = lerp(0.02, DP.TIPY, pin);
         t[1] -= smooth(0.62, 1, ps) * clamp(t[1] - ty - Math.sqrt(Math.max(PL * PL - dx * dx - 0.09, 0.25)), 0, 0.10);
         const dy = Math.max(t[1] - ty, 0.2), dz = Math.sqrt(Math.max(PL * PL - dy * dy - dx * dx, 0.04));
-        const dq = v3.norm(v3.add(nlerp(d, v3.norm([dx, -dy, -dz]), ps), [side * 0.85 * rb / PL * sw, 0, 0]));      // (the swing)
+        const dq = v3.norm(v3.add(swingTo(d, v3.norm([dx, -dy, -dz]), ps, v3.norm([side * 0.45, -0.89, 0])), [side * 0.85 * rb / PL * sw, 0, 0]));      // (the swing)
         if (pp && !pp.d) { tipT = [pp.T[0], DP.TIPY, pp.T[1]]; const dv = v3.sub(t, tipT), l = v3.len(dv); hp = v3.mul(dv, Math.max(PL - 0.04 - l, 0) / l); t = v3.add(t, hp); d = v3.norm(v3.sub(tipT, t)); planted = 1; low = 1; deep = 1; }
         else if (pp) { if (pp.h) t = v3.mad(t, pp.h, 1 - pp.w); d = nlerp(pp.d, nlerp(d, dq, pp.g), pp.w); low = lerp(1 - pp.w, pin, pp.g); deep = 1 - pp.w; }
         else { d = dq; low = pin; }
@@ -298,6 +355,11 @@ const Skier = (() => {
       t = inReach(t); if (g < 1) { const q = pushOut(pushOut(t, 0.062, side), 0.062, side); t = inReach(g > 0 ? v3.lerp(q, t, g) : q); }
       // (kept off its path like that, a hand on a planted pole would drag the tip through the snow. A little of it the wrist takes up, the hand keeping
       // to the pole; more, and the pole has already been let go: see below)
+      // (the fist the same, where it sits against its shoulder: a rule handing over to another moved it a few centimetres in a frame. Not on a
+      // planted pole, nor in a stroke, where the hand is the pole's)
+      { const hq = sec.pf ? sec.pf[side < 0 ? 0 : 1] : null;
+        if (hq) { if (hq.hn !== sec.pfN) { hq.hp = hq.ho; hq.hn = sec.pfN; } const r = v3.sub(t, sh), wv = (1 - planted) * (1 - dpw);
+          if (hq.hp && sec.pfDt > 0 && wv > 0) t = v3.add(sh, v3.lerp(r, v3.lerp(hq.hp, r, 1 - Math.exp(-sec.pfDt / 0.04)), wv)); hq.ho = v3.sub(t, sh); } }
       let slip = 0;
       if (planted >= 1 && tipT) { const dv = v3.sub(t, tipT), l = v3.len(dv), k = 1 - smooth(0.02, 0.03, Math.abs(l - PL)); t = v3.lerp(t, v3.mad(tipT, dv, PL / l), k);
         const ds = v3.sub(t, sh), ls = v3.len(ds); if (ls > reach) t = v3.mad(sh, ds, reach / ls); slip = Math.abs(v3.len(v3.sub(t, tipT)) - PL); }
@@ -325,6 +387,12 @@ const Skier = (() => {
         for (let i = 0; i < 7 && b1 > b0; i++) { const m = (b0 + b1) / 2; if (shaftGap(t, nlerp(d, safe, m)) >= 0) b1 = m; else b0 = m; }
         d = nlerp(d, safe, b1 * (1 - planted));
       }
+      // (what the pole does is worked out afresh each frame from many rules (the swing to the plant, clear of the legs, clear of the body, trailing),
+      // and where one of them takes over from another the shaft could swing round in a single frame: a twitch of the pole the eye catches at once.
+      // So, while the snow does not have it, the pole's direction follows what is worked out over a twentieth of a second (sec.pf, kept by update; a
+      // second solve of the same frame starts from the same place). Never past it: there is nothing here to swing back)
+      const pf = sec.pf ? sec.pf[side < 0 ? 0 : 1] : null;
+      if (pf) { if (pf.n !== sec.pfN) { pf.p = pf.o; pf.n = sec.pfN; } if (pf.p && sec.pfDt > 0 && planted < 1) d = slerp(pf.p, d, lerp(1 - Math.exp(-sec.pfDt / 0.05), 1, planted)); pf.o = d; }
       // (and the tip never goes under the snow, except to be planted)
       { const sy = clamp((lerp(0.035, DP.TIPY, low) - 0.045 * deep - t[1]) / PL, -1, 1); if (d[1] < sy) { const hz = Math.hypot(d[0], d[2]), k = Math.sqrt(1 - sy * sy) / (hz || 1); d = hz > 1e-6 ? [d[0] * k, sy, d[2] * k] : [0, sy, Math.sqrt(1 - sy * sy)]; } }
       return { w: t, e, d, planted, T: Tm, u: uo, ur, slip, hp };
@@ -332,6 +400,17 @@ const Skier = (() => {
     let hL = hand(-1), hR = hand(1);
     if (dpd && dpd.g && f < dpRel && Math.max(hL.slip, hR.slip) > 1e-4) { dpRel = dpd.gf; dpOut = true; hL = hand(-1); hR = hand(1); }
     J.gripL = hL.w; J.elbowL = hL.e; J.gripR = hR.w; J.elbowR = hR.e; J.poleDL = hL.d; J.poleDR = hR.d;
+    J.wristL = v3.mad(J.elbowL, v3.norm(v3.sub(J.gripL, J.elbowL)), LEN.farm); J.wristR = v3.mad(J.elbowR, v3.norm(v3.sub(J.gripR, J.elbowR)), LEN.farm);
+    // (the lab's arms, except while a pole is being planted or held in the snow, or in a double-pole stroke: those are the game's own)
+    if (!(L && L.w > 0)) { ez(sec, 'wa0', 0, 18); ez(sec, 'wa1', 0, 18); }
+    if (L && L.w > 0) for (let k = 0; k < 2; k++) { const sd = k ? 'R' : 'L', h = k ? hR : hL, side = k ? 1 : -1;
+      const wa = ez(sec, 'wa' + k, L.w * (1 - Math.max(sat((k ? p.plantR : p.plantL) * 1.5 || 0), sat(h.planted * 2))) * (1 - dpw), 18); if (!(wa > 1e-4)) continue;      // (handed over eased, never in a frame)
+      const sh = J['sh' + sd], le = v3.mad(sh, L.ua[k], LEN.uarm), lg = pushOut(v3.mad(le, L.fa[k], LEN.farm + LEN.grip), 0.045, side);
+      const e = v3.mad(sh, v3.norm(v3.sub(v3.lerp(J['elbow' + sd], le, wa), sh)), LEN.uarm), g = v3.mad(e, v3.norm(v3.sub(v3.lerp(J['grip' + sd], lg, wa), e)), LEN.farm + LEN.grip);
+      J['elbow' + sd] = e; J['grip' + sd] = g; h.e = e; h.w = g;
+      // (the pole trails from the hand where it is now; its tip kept a little off the snow)
+      let d = h.d; if (g[1] + d[1] * PL < 0.03) { const hz = Math.hypot(d[0], d[2]) || 1, dy = clamp((0.03 - g[1]) / PL, -1, 1), k2 = Math.sqrt(1 - dy * dy) / hz; d = [d[0] * k2, dy, d[2] * k2]; }
+      h.d = d; J['poleD' + sd] = d; }
     J.wristL = v3.mad(J.elbowL, v3.norm(v3.sub(J.gripL, J.elbowL)), LEN.farm); J.wristR = v3.mad(J.elbowR, v3.norm(v3.sub(J.gripR, J.elbowR)), LEN.farm);
     J.tipL = v3.mad(J.gripL, hL.d, PL); J.tipR = v3.mad(J.gripR, hR.d, PL); J.plantedL = hL.planted; J.plantedR = hR.planted;
     // ---- frames
@@ -345,7 +424,10 @@ const Skier = (() => {
     const axR = limb(B.uarmR, J.shR, J.elbowR, J.gripR, [1, 0, 0]); F[B.handR] = frameXY(J.wristR, v3.sub(J.gripR, J.elbowR), v3.cross(v3.sub(J.gripR, J.elbowR), hR.d));
     limb(B.thighL, hipL, J.kneeL, J.ankleL, [-1, 0, 0]); limb(B.thighR, hipR, J.kneeR, J.ankleR, [-1, 0, 0]);
     F[B.footL] = m4.fromBasis(fbl.X, fbl.Y, fbl.Z, J.footL); F[B.footR] = m4.fromBasis(fbr.X, fbr.Y, fbr.Z, J.footR);
-    F[B.poleL] = frameXY(J.gripL, v3.mul(J.poleDL, -1), [1, 0, 0]); F[B.poleR] = frameXY(J.gripR, v3.mul(J.poleDR, -1), [1, 0, 0]);
+    // (the pole's frame is also the fist's: y up the grip, x out of the back of the hand, z back toward the wrist, the same axes as the first-person
+    // glove's hand space (07d_fpv.js), so the glove closed round the grip (Variants 'hand' b) rides on it and opens toward the forearm whichever way
+    // the pole swings. The pole itself is round: turning its frame about the shaft changes nothing on it)
+    { const rt = [F[B.chest][0], F[B.chest][1], F[B.chest][2]]; F[B.poleL] = fistFrame(J.gripL, J.poleDL, J.wristL, rt); F[B.poleR] = fistFrame(J.gripR, J.poleDR, J.wristR, rt); }
     // (what the stroke did this time: where the tips are held, how far along the hands are, whether a tip has gone out of reach)
     const dp = dpw > 0 && hL.T ? { T: [hL.T, hR.T], u: [hL.u, hR.u], out: dpOut || Math.max(hL.ur, hR.ur) > 1 } : null;
     return { J, F, hb, t1, t2, pb, fbL: fbl, fbR: fbr, caps, c, hinge, up2, dp, hp: [hL.hp, hR.hp], br: ibr };
@@ -360,6 +442,9 @@ const Skier = (() => {
     return o;
   };
   K.solve = solve; K.P0 = P0; K.B = B; K.LEN = LEN; K.fixMesh = m => fixMesh(m);
+  // (for the snowboard, 08a_board.js: the same bones, posed by a solver of its own)
+  K.basis = basis; K.ik2 = ik2; K.frameXY = frameXY; K.fr = fr; K.SEC0 = SEC0; K.meshBuilder = () => meshBuilder();
+  K.boardOn = () => !!(K.solveBoard && Variants.val.ride === 'b');
 
   // ---- skin: the bind -> pose matrix of every bone (model space)
   function quat(m) {
@@ -399,7 +484,7 @@ const Skier = (() => {
     if (s.br) M[B.chest] = m4.mul(m4.mul(F[B.chest], [1 + 0.018 * s.br, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 + 0.035 * s.br, 0, 0, 0, 0, 1]), invBind[B.chest]);
     return M;
   }
-  K.skin = function (pose, sec) { const s = solve(Object.assign({}, P0, pose), sec); return { M: skinMats(s), J: s.J, s }; };
+  K.skin = function (pose, sec) { const q = Object.assign({}, P0, pose), s = K.boardOn() ? K.solveBoard(q, sec) : solve(q, sec); return { M: skinMats(s), J: s.J, s }; };
 
   // ---- body: a distance field built on the bind-pose joints, in the bones' own frames (+z of trunk, head, leg and foot frames is the back of the body).
   // What makes it read as a skier from behind: shoulders a quarter wider than the hips; a jacket that hangs from chest and seat and ends in a hem that
@@ -428,7 +513,10 @@ const Skier = (() => {
     return Math.hypot(Math.max(dx, 0), Math.max(dy, 0), Math.max(dz, 0)) + Math.min(Math.max(dx, dy, dz), 0) - 0.004;
   }      // (the middle of the seat, in the pelvis's frame: where the two masses of rPelvis are centred)
   const PACK = K.PACK = { box: [0, -0.055, 0.180, 0.122, 0.195, 0.062, 0.055], lid: [0, 0.125, 0.170, 0.112, 0.07, 0.068], pocket: [0, -0.12, 0.250, 0.08, 0.085, 0.018, 0.018], k: [0.035, 0.02] };
-  function buildBody(bd, nb) {
+  // the gauntlet of the new glove (Variants 'hand' b): how far up the forearm from the wrist its edge stands, its radius there and toward the wrist.
+  // (Real ski gloves: a cuff 6-8 cm long over the sleeve, flared a little, cinched by a cord at its edge. The shader draws its edge from the same len)
+  const GAUNT = K.GAUNT = { len: 0.072, r0: 0.054, r1: 0.049 };
+  function buildBody(bd, nb, sb, hb) {
     const J = bd.J, F = bd.F, sq = Math.sqrt, smin = sd.smin, smax = sd.smax;
     // (the same shapes as in sd, written out with plain square roots: this field is asked for half a million times while the page loads)
     const seg = (a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2]; return [a[0], a[1], a[2], dx, dy, dz, 1 / (dx * dx + dy * dy + dz * dz)]; };
@@ -452,7 +540,8 @@ const Skier = (() => {
     const shlL = seg(at(B.chest, 0, 0.20, 0.004), at(B.chest, -0.155, 0.188, 0.004)), shlR = seg(at(B.chest, 0, 0.20, 0.004), at(B.chest, 0.155, 0.188, 0.004)), colB = seg(at(B.chest, 0, 0.21, 0.006), at(B.chest, 0, 0.235, 0.006));
     const shl = seg(at(B.chest, -0.165, 0.20, 0), at(B.chest, 0.165, 0.20, 0)), col = seg(at(B.chest, 0, 0.21, 0.004), at(B.chest, 0, 0.262, -0.002)), nck = seg(J.neck, v3.mad(J.head, bd.hb.Y, -0.05));
     const arm = [0, 1].map(k => { const s = k ? 'R' : 'L', sh = J['sh' + s], el = J['elbow' + s], wr = J['wrist' + s], gr = J['grip' + s], fd = v3.norm(v3.sub(gr, el));
-      return { up: seg(sh, el), upB: seg(v3.lerp(sh, el, 0.10), el), fo: seg(el, v3.mad(wr, fd, -0.03)), gaB: seg(v3.mad(wr, fd, -0.085), v3.mad(wr, fd, 0.005)), ga: seg(v3.mad(wr, fd, -0.05), wr), hu: seg(el, gr), mH: F[k ? B.handR : B.handL] }; });
+      return { up: seg(sh, el), upB: seg(v3.lerp(sh, el, 0.10), el), fo: seg(el, v3.mad(wr, fd, -0.03)), gaB: seg(v3.mad(wr, fd, -0.085), v3.mad(wr, fd, 0.005)), ga: seg(v3.mad(wr, fd, -0.05), wr), hu: seg(el, gr), mH: F[k ? B.handR : B.handL],
+        gaC: seg(v3.mad(wr, fd, -GAUNT.len), v3.mad(wr, fd, -0.03)), gs: v3.mad(wr, fd, -GAUNT.len), fd, el, cr: v3.norm(v3.sub(fd, v3.norm(v3.sub(el, sh)))) }; });
     const leg = [0, 1].map(k => { const iT = k ? B.thighR : B.thighL, iS = iT + 1, iF = iT + 2, s = k ? 'R' : 'L';
       return { ta: seg(at(iT, 0, 0.03, 0), at(iT, 0, 0.21, -0.016)), tb: seg(at(iT, 0, 0.21, -0.016), at(iT, 0, 0.425, -0.004)), kc: at(iS, 0, 0, -0.03), sa: seg(at(iS, 0, 0.02, 0), at(iS, 0, 0.15, 0.012)), sb: seg(at(iS, 0, 0.15, 0.012), at(iS, 0, 0.365, 0.004)),
         cu: seg(at(iS, 0, 0.25, 0.010), at(iS, 0, 0.425, 0.006)), mS: F[iS], mF: F[iF], h0: seg(J['hip' + s], J['knee' + s]), h1: seg(J['knee' + s], J['ankle' + s]), h2: seg(at(iF, 0, 0.09, 0.25), at(iF, 0, 0.09, -0.27)) }; });
@@ -487,7 +576,15 @@ const Skier = (() => {
     function rArm(k, x, y, z) {
       const A = arm[k];
       if (nb) {      // (new body: the sleeve tapers from the armpit to the elbow and on to a looser cuff; the glove is a squarish fist with a thumb over the grip)
-        const a = smin(cap(x, y, z, A.upB, 0.057, 0.049), cap(x, y, z, A.fo, 0.047, 0.044), 0.04);
+        // (the two halves of the sleeve run into each other softly in the crook of the arm, where the cloth gathers, but hardly at all round the point of
+        // the elbow: a soft blend all round put a ball there 12 mm proud of the forearm, the owner's "a big lump at the elbow", 2026-11-17)
+        const ce = (x - A.el[0]) * A.cr[0] + (y - A.el[1]) * A.cr[1] + (z - A.el[2]) * A.cr[2], ke = 0.006 + 0.034 * smooth(-0.02, 0.025, ce);
+        const a = smin(cap(x, y, z, A.upB, 0.057, 0.049), cap(x, y, z, A.fo, 0.047, 0.044), ke);
+        if (hb) {      // (Variants 'hand' b: only the gauntlet's cuff is the body's, an open tube standing proud of the sleeve with a lip at its edge;
+          // the hand itself is the fine glove closed round the grip (gloveMesh), built apart at a finer grid and carried on the pole's frame)
+          const ga = smax(cap(x, y, z, A.gaC, GAUNT.r0, GAUNT.r1), -((x - A.gs[0]) * A.fd[0] + (y - A.gs[1]) * A.fd[1] + (z - A.gs[2]) * A.fd[2]), 0.004);
+          armJ = a; armG = ga; return smin(a, ga, 0.006);
+        }
         loc(A.mH, x, y, z); const qx = q[0], qy = q[1], qz = q[2];
         let gl = smin(cap(x, y, z, A.gaB, 0.057, 0.049),     // (a long gauntlet, its cuff standing over the end of the sleeve)
            rbx(qx, qy, qz, 0, 0.066, 0.004, 0.040, 0.050, 0.045, 0.030), 0.018);
@@ -524,6 +621,13 @@ const Skier = (() => {
       loc(leg[k].mF, x, y, z); const a = q[0], b = q[1], d = q[2];
       let s = rbx(a, b, d, 0, 0.088, -0.02, 0.052, 0.040, 0.152, 0.032); s = smax(s, (b - 0.150 - 0.33 * (d + 0.02)) * 0.95, 0.02);    // shell, lower over the toes
       s = smin(s, E(a, b, d, 0, 0.135, 0.02, 0.05, 0.06, 0.085), 0.025);                                                               // instep
+      // (on a snowboard, sb: no ski binding. A snowboard binding instead: a short baseplate under the sole and two straps, over the toes and
+      // across the instep. No highback: modelled apart from the boot it stood up behind the heel as a black slab, the owner's "two boards standing up". The boot keeps its shell: its 30 cm sit on a 26 cm board as a real boot does)
+      if (sb) {
+        let n = rbx(a, b, d, 0, 0.012, -0.01, 0.062, 0.012, 0.165, 0.006);                                                             // baseplate
+        n = Math.min(n, rbx(a, b, d, 0, 0.148, 0.0, 0.060, 0.016, 0.034, 0.008), rbx(a, b, d, 0, 0.088, -0.13, 0.058, 0.014, 0.024, 0.008));   // straps
+        ftB = s; ftN = n; return smin(s, n, 0.004);
+      }
       let n = rbx(a, b, d, 0, 0.034, -0.03, 0.034, 0.014, 0.25, 0.006);                                                                // binding: plate,
       n = smin(n, rbx(a, b, d, 0, 0.066, -0.218, 0.036, 0.030, 0.042, 0.014), 0.008);                                                  // toe piece,
       n = smin(n, rbx(a, b, d, 0, 0.075, 0.185, 0.037, 0.040, 0.052, 0.014), 0.008); n = smin(n, E(a, b, d, 0, 0.105, 0.235, 0.026, 0.022, 0.04), 0.008);    // heel piece and its lever
@@ -690,28 +794,71 @@ const Skier = (() => {
     return fixMesh(mb.done());
   }
 
+  // ---- the glove (Variants 'hand' b): the first-person view's glove (07d_fpv.js gloveSD: four fingers wound round the grip, the thumb over the
+  // first finger, knuckle guards, a padded back) seen from five metres. The body's own grid (13.5 mm) cannot hold a finger (2.5 cm across), so the
+  // hand is meshed apart, in the hand's own space, at a grid of GL.cell, once, and the left hand is its mirror image. Each vertex rides on the pole's
+  // frame (the fist's, see fistFrame) and, back past the wrist, goes over to the hand bone (the forearm's line), so the wrist bends between them.
+  // GL.s: a ski glove is bulkier than the hand in it. Out: [verts (10 floats), weights (4), indices] for the right hand then the left.
+  const GL = K.GL = { cell: 0.006, s: 1.10, cut: 0.032 };
+  function gloveMesh(bd) {
+    if (typeof Fpv === 'undefined' || !Fpv.gloveSD) return null;
+    const t0 = performance.now(), G = Fpv.gloveSD, HW = Fpv.HW, s = GL.s, N1 = 0.342, N2 = -0.940;      // (N: from the wrist toward the knuckles, as in the first-person hand space)
+    const hu = (y, z) => (y - HW[1]) * N1 + (z - HW[2]) * N2;      // how far past the wrist, toward the knuckles
+    const gs = (x, y, z) => G(x / s, y / s, z / s) * s;
+    // (cut off a little behind the wrist: from there on the gauntlet is the body's. The grip runs through the fist: the hole the fingers close round)
+    const f = (x, y, z) => smaxS(gs(x, y, z), -(hu(y / s, z / s) * s + GL.cut), 0.006);
+    const grip = (x, y, z) => Math.max(Math.hypot(x, z) - 0.0175, y - 0.075);
+    const m = meshSDF(f, [-0.075 * s, -0.115 * s, -0.065 * s], [0.08 * s, 0.10 * s, 0.13 * s], GL.cell, { stride: 4, repair: true });
+    const o = [0, 0, 0], nv = m.nv, V = new Float32Array(nv * 20), W = new Float32Array(nv * 8), I = new Uint32Array(m.ni * 2);
+    for (let side = 0; side < 2; side++) {      // 0 right, 1 left (mirrored in x)
+      const Fm = bd.F[side ? B.poleL : B.poleR], sx = side ? -1 : 1, base = side * nv;
+      for (let i = 0; i < nv; i++) {
+        const p = i * 10, x = m.verts[p], y = m.verts[p + 1], z = m.verts[p + 2], nx = m.verts[p + 3], ny = m.verts[p + 4], nz = m.verts[p + 5];
+        const P = m4.tp(Fm, [sx * x, y, z]), Nn = v3.norm(m4.td(Fm, [sx * nx, ny, nz])), q = (base + i) * 10;
+        // (how open each spot is: between the fingers, under the thumb, against the grip it is dark)
+        const h = 0.008, oc = Math.min(f(x + nx * h, y + ny * h, z + nz * h), grip(x + nx * h, y + ny * h, z + nz * h)) / h, ao = clamp(0.18 + 0.82 * oc, 0.15, 1);
+        G(x / s, y / s, z / s, o); const fin = o[0] < o[2] ? 1 + o[1] : 0, u = hu(y / s, z / s) * s;
+        V[q] = P[0]; V[q + 1] = P[1]; V[q + 2] = P[2]; V[q + 3] = Nn[0]; V[q + 4] = Nn[1]; V[q + 5] = Nn[2]; V[q + 6] = 2; V[q + 7] = ao;
+        // (for the shader: which finger (0 = none) and how far out of the back of the hand, packed in one number; how far past the wrist)
+        V[q + 8] = fin + 0.5 + clamp(x, -0.09, 0.09) * 5; V[q + 9] = u;
+        const w = smooth(-GL.cut, 0.012, u), wb = (base + i) * 4;
+        W[wb] = side ? B.poleL : B.poleR; W[wb + 1] = side ? B.handL : B.handR; W[wb + 2] = w; W[wb + 3] = 0;
+      }
+      for (let t = 0; t < m.ni; t += 3) { const b = side * m.ni + t; I[b] = m.idx[t] + base; I[b + 1] = m.idx[t + (side ? 2 : 1)] + base; I[b + 2] = m.idx[t + (side ? 1 : 2)] + base; }
+    }
+    K.gloveMs = performance.now() - t0; K.gloveV = nv * 2;
+    return { V, W, I, nv: nv * 2, ni: m.ni * 2 };
+  }
+
   // (two bodies for the owner to pick from (Variants 'body'): a = the one before, b = the new one, smoother at the joints and shaped like a person in
   // loose ski clothes. Each is built when first asked for and kept: K.meshes[id]; K.mesh is the one drawn now)
   K.meshes = {};
+  // (and a snowboard instead of skis and poles, Variants 'ride' b: 08a_board.js hands over the board, K.boardPart, built in the left foot's frame)
+  const rideV = () => K.boardPart && Variants.val.ride === 'b' ? 'S' : '';
+  // (and the glove: 'H' = the fine glove closed round the grip, Variants 'hand' b; on the new body and on skis only: a rider's hands hold no pole)
+  const handV = (v, rd) => (v || bodyV()) === 'b' && !(rd == null ? rideV() : rd) && Variants.val.hand === 'b' && typeof Fpv !== 'undefined' && Fpv.gloveSD ? 'H' : '';
   K.build = function (v) {
     v = v === 'a' || v === 'b' ? v : (Variants.val.body === 'a' ? 'a' : 'b');
-    if (K.meshes[v]) return (K.mesh = K.meshes[v]);
+    const rd = rideV(), hv = handV(v, rd), key = v + rd + hv;
+    if (K.meshes[key]) return (K.mesh = K.meshes[key]);
     if (!bind) { bind = solve(P0); invBind = bind.F.map(m => m ? m4.invert(m) : null); K.bind = bind; bind.seatC = m4.tp(bind.F[B.pelvis], SEATC); }
-    const nb = v === 'b', body = buildBody(bind, nb);
+    const nb = v === 'b', hb = hv === 'H', body = buildBody(bind, nb, !!rd, hb);
     const t0 = performance.now();
     const m = meshSDF(body.f, [-0.44, 0.0, -0.66], [0.44, 1.80, 0.38], 0.0135, { stride: 4, attr: body.attr });
     K.meshMs = performance.now() - t0;
     const bw0 = boneWeights(m, bind, body, nb);
     const sp = splitMaterials(m, bw0), bw = sp.bw; m.verts = sp.verts; m.nv = sp.nv;
     // skis and poles, rigid on their bones (built in bone-local space, then moved to the bind pose)
-    const parts = [[skiMesh(0), B.footL], [skiMesh(0), B.footR], [poleMesh(), B.poleL], [poleMesh(), B.poleR]];
-    let nv = m.nv, ni = m.ni; for (const [pm] of parts) { nv += pm.nv; ni += pm.ni; }
+    const parts = rd ? [[K.boardPart(), B.footL]] : [[skiMesh(0), B.footL], [skiMesh(0), B.footR], [poleMesh(), B.poleL], [poleMesh(), B.poleR]];
+    const gm = hb ? gloveMesh(bind) : null;
+    let nv = m.nv + (gm ? gm.nv : 0), ni = m.ni + (gm ? gm.ni : 0); for (const [pm] of parts) { nv += pm.nv; ni += pm.ni; }
     const V = new Float32Array(nv * 10), W = new Float32Array(nv * 4), I = new Uint32Array(ni); V.set(m.verts); W.set(bw); I.set(m.idx);
     let vo = m.nv, io = m.ni;
     for (const [pm, bone] of parts) {
       const Fm = bind.F[bone];
       for (let i = 0; i < pm.nv; i++) {
-        const p = m4.tp(Fm, [pm.verts[i * 10], pm.verts[i * 10 + 1], pm.verts[i * 10 + 2]]), n = m4.td(Fm, [pm.verts[i * 10 + 3], pm.verts[i * 10 + 4], pm.verts[i * 10 + 5]]), o = (vo + i) * 10;
+        // (pm.at: a part made in a space of its own (the board's), placed in the bone's by that matrix; its own coordinates still go to the shader)
+        const Fq = pm.at ? m4.mul(Fm, pm.at) : Fm, p = m4.tp(Fq, [pm.verts[i * 10], pm.verts[i * 10 + 1], pm.verts[i * 10 + 2]]), n = m4.td(Fq, [pm.verts[i * 10 + 3], pm.verts[i * 10 + 4], pm.verts[i * 10 + 5]]), o = (vo + i) * 10;
         V[o] = p[0]; V[o + 1] = p[1]; V[o + 2] = p[2]; V[o + 3] = n[0]; V[o + 4] = n[1]; V[o + 5] = n[2]; V[o + 6] = pm.verts[i * 10 + 6]; V[o + 7] = 1;
         // local coordinates of hard parts ride along for the shader's graphics
         V[o + 8] = bone >= B.poleL ? pm.verts[i * 10 + 1] : pm.verts[i * 10 + 2]; V[o + 9] = pm.verts[i * 10 + 4];
@@ -720,13 +867,14 @@ const Skier = (() => {
       for (let i = 0; i < pm.ni; i++) I[io + i] = pm.idx[i] + vo;
       vo += pm.nv; io += pm.ni;
     }
-    K.mesh = K.meshes[v] = { V, W, I, nv, ni, v };
+    if (gm) { V.set(gm.V, vo * 10); W.set(gm.W, vo * 4); for (let i = 0; i < gm.ni; i++) I[io + i] = gm.I[i] + vo; vo += gm.nv; io += gm.ni; }
+    K.mesh = K.meshes[key] = { V, W, I, nv, ni, v, ride: rd, hand: hv };
     return K.mesh;
   };
 
   K.init = function (g) {
     gfx = g;
-    useBody(K.mesh && K.mesh.v === Variants.val.body ? K.mesh : K.build());
+    useBody(K.mesh && K.mesh.v === Variants.val.body && K.mesh.ride === rideV() && K.mesh.hand === handV() ? K.mesh : K.build());
     boneTex = gfx.texture({ w: 4, h: 32, format: 'rgba32f', filter: 'nearest' });
     const buffers = [{ attrs: [['pos', 'vec3f'], ['nrm', 'vec3f'], ['mat', 'vec4f']] }, { attrs: [['bw', 'vec4f']] }];
     // places on the bind-pose body the fragment shader paints by: the chest's own frame (straps, pack), the pelvis's (the height above the jacket's hem:
@@ -739,6 +887,7 @@ const Skier = (() => {
   let pl: vec3f = vec3f(dot(bp - ${f3(pb.O)}, ${f3(pb.X)}), dot(bp - ${f3(pb.O)}, ${f3(pb.Y)}), dot(bp - ${f3(pb.O)}, ${f3(pb.Z)}));
   let bm: vec3f = vec3f(abs(bp.x), bp.y, bp.z); let armU: f32 = dot(bm - ${f3(bj.shR)}, ${dir(bj.shR, bj.elbowR)}); let armF: f32 = dot(bm - ${f3(bj.elbowR)}, ${dir(bj.elbowR, bj.gripR)});
   let hemV: f32 = pl.y + 0.082 + 0.026 * saturate((pl.z + 0.02) / 0.14);
+  let foreD: vec3f = ${dir(bj.elbowR, bj.gripR)}; let gEdge: f32 = ${f1(LEN.farm - GAUNT.len)};
   let thU: f32 = dot(bm - ${f3(bj.hipR)}, ${dir(bj.hipR, bj.kneeR)}); let legS: f32 = dot(bm - ${f3(bj.kneeR)}, ${dir(bj.kneeR, bj.ankleR)});
   let pkD: f32 = skMin(skMin(skBox(tl, ${pk(PACK.box, 0, 3)}, ${pk(PACK.box, 3, 3)}, ${f1(PACK.box[6])}), skEll(tl, ${pk(PACK.lid, 0, 3)}, ${pk(PACK.lid, 3, 3)}), ${f1(PACK.k[0])}), skBox(tl, ${pk(PACK.pocket, 0, 3)}, ${pk(PACK.pocket, 3, 3)}, ${f1(PACK.pocket[6])}), ${f1(PACK.k[1])});
   let eq: vec3f = bm - ${f3(bj.elbowR)}; let kq: vec3f = bm - ${f3(bj.kneeR)}; let hq: vec3f = bm - ${f3(bj.hipR)};
@@ -785,7 +934,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   // ---- between the poses it is asked for the body has a little life of its own: the trunk trails the legs into a turn and folds after them when they
   // are driven up under it, hands and pack ride on, and all of it settles again within a few tenths of a second (game time: App.t)
   const spr = (s, to, w, z, dt) => { s[1] = (s[1] + w * w * (to - s[0]) * dt) / (1 + 2 * z * w * dt + w * w * dt * dt); s[0] += s[1] * dt; return s[0]; };
-  const st = { t: 0, pose: null, root: null, pos: [0, 0, 0], lean: [0, 0], cf: [0, 0], crouch: [0, 0], f0: 0, dp: null, pp: [null, null], pq: [0, 0], hm: { p: [0, 0], r: [0, 0], v: null, o: [0, 0] }, sec: { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: [null, null], idle: null } };
+  const st = { t: 0, pose: null, root: null, pos: [0, 0, 0], lean: [0, 0], cf: [0, 0], crouch: [0, 0], f0: 0, dp: null, pp: [null, null], pq: [0, 0], hm: { p: [0, 0], r: [0, 0], v: null, o: [0, 0] }, sec: { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: [null, null], idle: null, pf: [{ o: null, p: null, n: 0 }, { o: null, p: null, n: 0 }], pfN: 0, pfDt: 0 } };
   // root: {pos (world, on the snow), fwd (unit, along the skis), nrm (snow normal)}; pose: see P0 (anything left out is as in P0)
   const cur = Object.assign({}, P0);
   K.pose = cur; K.world = { J: null, root: null };
@@ -857,14 +1006,33 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   const CLOTH = { a: [0, 0, 0], b: [1, 1, 1], c: [1.7, 1, 0.7] }, clo = { p: [0, 0, 0, 0], q: [0, 0, 1, 1], h: 1, t: -1 }, HEMP = [0, 0.08, 0.05];
   Variants.def('body', '人物模型', [['a', '原来'], ['b', '新的']], 'b');
   Variants.def('cloth', '衣服', [['a', '平整'], ['b', '自然'], ['c', '厚实']], 'b');
+  // (the glove: a = the squarish fist of the body's own mesh; b = a glove with fingers closed round the grip, see gloveMesh)
+  Variants.def('hand', '手套', [['a', '原来'], ['b', '手指握杖']], 'b');
+  // (and the clothes' finer details, as real ski clothes are made: stitching beside the seams, a cargo pocket on the thigh, scuff guards inside the
+  // ankles, zip pulls and hem toggles, a dusting of snow on what faces up, boots with buckles and a power strap: see SKIER_FS, kit)
+  Variants.def('kit', '衣服细节', [['a', '原来'], ['b', '更细']], 'b');
   function cloth(J) {
     const bd = (a, b, c) => sat(0.8 * (1 - v3.dot(v3.norm(v3.sub(b, a)), v3.norm(v3.sub(c, b))))), up = v3.norm(v3.sub(J.chest, J.pelvis)), hf = (h, k) => sat(0.5 + 0.5 * v3.dot(up, v3.norm(v3.sub(k, h))));
     clo.p = [bd(J.shL, J.elbowL, J.gripL), bd(J.shR, J.elbowR, J.gripR), bd(J.hipL, J.kneeL, J.ankleL), bd(J.hipR, J.kneeR, J.ankleR)];
     clo.q[0] = hf(J.hipL, J.kneeL); clo.q[1] = hf(J.hipR, J.kneeR);
   }
+  const FLOW = ['crouch', 'tuck', 'air', 'grabL', 'grabR', 'fa', 'fore', 'sep', 'swing', 'liftL', 'liftR', 'pitchL', 'pitchR', 'rollL', 'rollR', 'lead', 'stance', 'headYaw', 'bal'], FA = ['armL', 'armR'], fl = {};
+  function flow(p, dt) {
+    const w = 26, e = Math.exp(-w * dt);
+    const go = (key, x) => { const q = fl[key]; if (!(dt > 0) || !q || !(x === x)) { fl[key] = [x, 0]; return x; }
+      const d = q[0] - x, b = (q[1] + w * d) * dt; q[0] = x + (d + b) * e; q[1] = (q[1] - w * b) * e; return q[0]; };
+    for (const k of FLOW) if (typeof p[k] === 'number') p[k] = go(k, p[k]);
+    // (the stroke's phase too, where it turns back (a stroke given up before the tips went in): the hands slow and come back, they do not bounce.
+    // Not across the start of the next stroke, where the phase starts again from 0 by design, nor at the end of the last)
+    { const d = typeof p.dp === 'number' ? p.dp : 0, q = fl.dp;
+      if (!(dt > 0) || !q) fl.dp = [d, 0, d];
+      else if (d > q[2] || (d === q[2] && Math.abs(q[0] - d) < 1e-4) || d < q[2] - 0.5 || (d <= 0 && q[2] > 0.5) || (d <= 0 && q[0] <= 1e-3)) { q[1] = d >= q[2] && d - q[2] < 0.5 ? (d - q[2]) / dt : 0; q[0] = d; q[2] = d; }      // (going forward, starting over, ending: as it is)
+      else { q[2] = d; p.dp = Math.max(0, go('dp', d)); } }      // (turning back: eased from the speed it had)
+    for (const k of FA) if (p[k] && p[k].length === 3) p[k] = [go(k + 0, p[k][0]), go(k + 1, p[k][1]), go(k + 2, p[k][2])];
+  }
   K.update = function (root, pose, origin) {
     for (const k in P0) cur[k] = P0[k]; Object.assign(cur, pose);
-    const now = typeof App !== 'undefined' && App.t === App.t ? App.t : 0, sec = st.sec, f = clamp(cur.dp || 0, 0, 1);
+    const now = typeof App !== 'undefined' && App.t === App.t ? App.t : 0, sec = st.sec; let f = clamp(cur.dp || 0, 0, 1);
     let dt = now - st.t;
     // a new pose object, a new place or a gap in time: nothing to carry over
     const cut = st.pose !== pose || st.root !== root || !(dt >= 0) || dt > 0.25 || v3.len(v3.sub(root.pos, st.pos)) > 6;
@@ -872,7 +1040,13 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     const toW = q => [root.pos[0] + X[0] * q[0] + Y[0] * q[1] + Z[0] * q[2], root.pos[1] + X[1] * q[0] + Y[1] * q[1] + Z[1] * q[2], root.pos[2] + X[2] * q[0] + Y[2] * q[1] + Z[2] * q[2]];
     // (standing at ease changes what the pose asks for: before anything is made of it)
     sec.idle = ease(root, pose, cut, cut ? 0 : dt, X, Z, toW);
+    sec.pfN++; sec.pfDt = cut ? 0 : Math.max(dt, 0); if (cut) for (const q of sec.pf) { q.o = q.p = q.ho = q.hp = q.ko = q.kp = q.fo = q.fp = null; }
     if (cut) { st.lean = [cur.lean, 0]; st.cf = [cur.crouch, 0]; st.crouch = [cur.crouch, 0]; st.dp = null; st.pp[0] = st.pp[1] = null; st.f0 = f; dt = 0; }
+    // (2026-11-15, the owner: every change of move must flow, nothing may snap. What the game asks of the body can change in a frame: the legs
+    // thrown long for a take-off, a tuck dropped into, a grab, the air begun or ended, the arms told somewhere new. The body is carried there
+    // over a few hundredths of a second on a critically damped path (no overshoot, nothing springs back): its speed never jumps, so a joint
+    // never snaps. Lean and edge are left alone (the skis are on the snow with them), and so are the stroke's phase, the plants and the trick angles)
+    flow(cur, cut ? 0 : dt); f = clamp(cur.dp || 0, 0, 1);
     // the hem of the jacket is cloth on a moving body: it lags behind what the body does (speeding up, turning) and the wind of the run lifts it off the
     // seat and shakes it, on the game's time (slow motion slows it too). p: how far the back hem stands out (radians about the small of the back, never
     // in through the seat), r: how far it swings to a side; v: the figure's velocity in the world, smoothed (its change, read in the figure's frame, is what the hem lags behind)
@@ -899,8 +1073,11 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     // along; g: the pose taking it over again)
     const pq = [sat(cur.plantL || 0), sat(cur.plantR || 0)];
     for (let k = 0; k < 2; k++) { const P = st.pp[k]; sec.pl[k] = P; if (!P) continue;
-      if (P.d) { P.w = smooth(0, 0.18, now - P.rel); P.g = smooth(0.18, 0.45, now - P.rel); } else { const w = P.W, d = [w[0] - root.pos[0], w[1] - root.pos[1], w[2] - root.pos[2]]; P.T = [v3.dot(d, X), v3.dot(d, Z)]; } }
-    const s = solve(cur, sec);
+      if (P.d) { P.w = smooth(0, 0.3, now - P.rel); P.g = smooth(0.3, 0.6, now - P.rel); } else { const w = P.W, d = [w[0] - root.pos[0], w[1] - root.pos[1], w[2] - root.pos[2]]; P.T = [v3.dot(d, X), v3.dot(d, Z)]; } }
+    // (the lab's turns: which posture, how much of it; null = the game's own figure)
+    sec.lab = typeof LabMo !== 'undefined' && !K.boardOn() ? LabMo.step(cur, sec, cut ? 0 : dt, st.hm.v ? v3.len(st.hm.v) : 0) : null;
+    sec.labB = typeof LabMo !== 'undefined' && K.boardOn() ? LabMo.stepB(cur, sec, cut ? 0 : dt) : null;
+    const s = K.boardOn() ? K.solveBoard(cur, sec) : solve(cur, sec);
     for (let k = 0; k < 2; k++) { const P = st.pp[k], sd = k ? 'R' : 'L', tp = s.J['tip' + sd], gp = s.J['grip' + sd];
       if (!P) { if (!cut && dt > 0 && !(f > 0) && pq[k] > st.pq[k] && pq[k] > 0.5 && tp[1] <= 0) st.pp[k] = { W: toW(tp), T: [tp[0], tp[2]], d: null, h: null, w: 0, g: 0, rel: 0 }; }
       // (h: how far the pole has pushed the hand up, riding over it: more than a hand's breadth and it is pulled out)
@@ -939,14 +1116,15 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   const bodyV = () => Variants.val.body === 'a' ? 'a' : 'b';
   function useBody(m) {
     if (!m.gpu) m.gpu = { vb: gfx.buffer(m.V, 'vertex'), vb2: gfx.buffer(m.W, 'vertex'), ib: gfx.buffer(m.I, 'index') };
-    K.mesh = m; vb = m.gpu.vb; vb2 = m.gpu.vb2; ib = m.gpu.ib; count = m.ni; nite[1] = m.v === 'b' ? 1 : 0;
+    K.mesh = m; vb = m.gpu.vb; vb2 = m.gpu.vb2; ib = m.gpu.ib; count = m.ni; nite[1] = m.v === 'b' ? 1 : 0; nite[2] = m.hand === 'H' ? 1 : 0;
   }
-  const wantBody = () => { if (K.mesh.v !== bodyV()) useBody(K.build(bodyV())); }; K.want = wantBody;
+  const wantBody = () => { if (K.mesh.v !== bodyV() || K.mesh.ride !== rideV() || K.mesh.hand !== handV()) useBody(K.build(bodyV())); }; K.want = wantBody;
   K.draw = function (shadowTex, skyTex) {
     wantBody();
     const want = CLOTH[Variants.val.cloth] || CLOTH.b, now = performance.now() / 1000, de = now - clo.t, e = clo.t < 0 || de > 0.1 ? 1 : 1 - Math.exp(-Math.max(de, 0) * 6); clo.t = now;
     clo.q[2] += (want[1] - clo.q[2]) * e; clo.q[3] += (want[0] - clo.q[3]) * e; clo.h += (want[2] - clo.h) * e;
-    nite[0] = typeof Sky !== 'undefined' && Sky.night === Sky.night ? smooth(0.35, 1, Sky.night) : 0;      // (from deep dusk on: dusk itself stays as it was)
+    nite[0] = typeof Sky !== 'undefined' && Sky.night === Sky.night ? smooth(0.35, 1, Sky.night) : 0;
+    nite[3] = Variants.val.kit === 'b' && nite[1] > 0 ? 1 : 0;      // (the finer details of the clothes, Variants 'kit' b: new body only)      // (from deep dusk on: dusk itself stays as it was)
     gfx.draw(pipe, { u: { p: clo.p, q: clo.q, r: nite }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count });
   };
   K.drawShadow = function () { wantBody(); gfx.draw(pipeShadow, { u: { p: [0, 0, 0, 0] }, tex: { tBones: boneTex }, vb: [vb, vb2], ib, count }); };
@@ -1015,6 +1193,10 @@ fn frag(v: VOut) -> FOut {
   // makes of it: a mesh cannot keep such an edge straight (it came out as a ragged fringe that read as fur), a line can.
   // jacket or trousers: by the line of the hem (well above it: by which of the two is nearer)
   if (id < 1.5) { id = 1.0; if (hemV > 0.006 && (hemV < 0.05 || v.mat.z > -0.012)) { id = 0.0; } }
+  // sleeve or gauntlet (Variants 'hand' b): by the gauntlet's edge, a line round the forearm GAUNT.len short of the wrist. Decided per triangle the
+  // edge was a sawtooth (the body's grid is 13.5 mm). The fine glove's own pixels (mat.z > 0) keep what they are
+  let hb: f32 = M.r.z; let kit: f32 = M.r.w;
+  if (hb > 0.5 && armF > 0.10 && ((id > 1.5 && id < 2.5 && v.mat.z < 0.05) || (id < 0.5 && v.mat.w < 0.0))) { id = select(0.0, 2.0, armF > gEdge); }
   // trousers or boot: by the line of the trouser hem, down the shin
   // (nb: the new body (Variants 'body' b), whose trousers hang lower over the boot and whose sleeve runs into the shoulder without an armhole seam)
   let nb: f32 = M.r.y; let hemS: f32 = mix(0.349, 0.362, nb);
@@ -1039,7 +1221,7 @@ fn frag(v: VOut) -> FOut {
   if (id < 0.5 || (id > 7.5 && id < 8.5)) { id = select(0.0, 8.0, pkD < 0.006); }
   if (id < 0.5) {            // jacket: orange shell, dark forearms, a pale band round the upper sleeves, pack straps over the shoulders
     let onTorso: f32 = max(smoothstep(-0.004, 0.004, v.mat.w), colK);
-    let fore: f32 = mix(smoothstep(0.035, 0.065, armF), smoothstep(0.140, 0.152, armF), nb) * (1.0 - onTorso);     // (new body: only a navy storm cuff, under the gauntlet's edge)
+    let fore: f32 = mix(smoothstep(0.035, 0.065, armF), smoothstep(0.140, 0.152, armF), nb) * (1.0 - onTorso) * (1.0 - hb);     // (new glove: the shell's own colour right down to the gauntlet, as on real jackets)     // (new body: only a navy storm cuff, under the gauntlet's edge)
     alb = mix(orange, navy, fore);
     let chev: f32 = smoothstep(0.016, 0.011, abs(armU - 0.150)) * (1.0 - onTorso) * (1.0 - fore);
     alb = mix(alb, ${V(L.sleeveBand.alb)}, chev);
@@ -1078,7 +1260,9 @@ fn frag(v: VOut) -> FOut {
     let fw: f32 = skFold(pl, vec3f(0.0, 1.0, 0.0), 15.5, px); let ft: f32 = skFold(tl, vec3f(0.45, 0.88, 0.13), 9.0, px);
     // (above the hem: with the trunk folded forward the back is drawn taut and the front is crowded)
     let waist: f32 = smoothstep(0.010, 0.05, hemV) * smoothstep(0.34, 0.14, hemV) * mix(1.0 + 0.6 * tf, 1.0 - 0.55 * tf, smoothstep(-0.03, 0.05, pl.z));
-    fold = slv * (exp(-de * de / mix(0.014, 0.022, nb)) * (0.004 + 0.013 * elb) * mix(1.0, 0.45, nb) * (abs(fe) * 2.0 - 0.2) + (0.030 + 0.012 * nb) * lay * fs) + onTorso * (waist * 0.030 * fw + (0.024 + 0.012 * nb) * lay * ft) + 0.010 * big;
+    // (new glove: the sleeve is pushed up by the gauntlet and stands in small rings above its edge)
+    let bun: f32 = hb * slv * smoothstep(gEdge - 0.055, gEdge - 0.004, armF) * step(armF, gEdge);
+    fold = bun * 0.005 * (abs(skFold(eq, foreD, 36.0, px)) * 2.0 - 0.3) + slv * (exp(-de * de / mix(0.014, 0.022, nb)) * (0.004 + 0.013 * elb) * mix(1.0, 0.45, nb) * (abs(fe) * 2.0 - 0.2) + (0.030 + 0.012 * nb) * lay * fs) + onTorso * (waist * 0.030 * fw + (0.024 + 0.012 * nb) * lay * ft) + 0.010 * big;
     // seams: round the armhole, down the flank, the band of the hem, the flap over the front zip; the two pocket zips
     let flank: f32 = mix(pl.z - 0.005, tl.z - 0.012, smoothstep(0.10, 0.25, hemV));
     sd = min(abs(v.mat.w) * 0.6 + nb, abs(hemV - 0.034) + slv);
@@ -1090,6 +1274,23 @@ fn frag(v: VOut) -> FOut {
     fold = mix(fold, -0.003, strap) + 0.001 * (strapEdge - strap);
     alb *= 1.0 - kz * (0.10 * smoothstep(0.036, 0.032, hemV) * onTorso + 0.85 * smoothstep(0.0034, 0.0020, zipD));
     dark = 0.42 * smoothstep(0.040, 0.008, pkD); shell = 1.0 - 0.6 * strap;
+    if (kit > 0.5) {
+      // (kit b) stitching: a pale thread a few millimetres either side of every seam, the way a shell is top-stitched; gone once a pixel is wider than it
+      let stF: f32 = saturate(1.6 - px * 500.0) * (1.0 - strap);
+      let st: f32 = smoothstep(0.0010, 0.0003, abs(min(sd, zipD) - 0.0042)) * stF;
+      alb = mix(alb, alb * 1.35 + 0.02, st * 0.6); fold += st * 0.0002;
+      // the zip's pull at the top of the front, under the chin, and the chest pocket's at the top of its zip
+      let pull: f32 = smoothstep(0.0012, 0.0, max(abs(tl.x - 0.016) - 0.0035, abs(tl.y - 0.150) - 0.013)) * smoothstep(0.03, -0.05, tl.z) * onTorso;
+      let pull2: f32 = smoothstep(0.0012, 0.0, max(abs(tl.x + 0.058) - 0.0030, abs(tl.y - 0.150) - 0.010)) * smoothstep(0.03, -0.05, tl.z) * onTorso;
+      alb = mix(alb, vec3f(0.05, 0.055, 0.06), max(pull, pull2)); specS = mix(specS, 0.4, max(pull, pull2)); fold += 0.0015 * max(pull, pull2);
+      // the hem's drawcord toggles, at the front either side
+      let tg: f32 = smoothstep(0.0065, 0.0045, length(vec2f(abs(pl.x) - 0.125, hemV - 0.022))) * smoothstep(0.0, -0.06, pl.z) * onTorso;
+      alb = mix(alb, vec3f(0.04, 0.045, 0.05), tg); fold += 0.003 * tg; specS = mix(specS, 0.3, tg);
+      // a dusting of snow on what faces up (shoulders, the tops of the arms), patchy, never a coat of it
+      let fineJ: vec4f = texLod(tDetail, bp.xy * 11.0 + bp.zz * vec2f(7.0, 5.0), log2(max(px * 5600.0, 1.0)));
+      let snJ: f32 = smoothstep(0.55, 0.92, bn.y) * smoothstep(0.62, 0.90, fineJ.w * 0.65 + weave.z * 0.45) * (1.0 - strap);
+      alb = mix(alb, vec3f(0.80, 0.85, 0.92), snJ * 0.55); cloth = mix(cloth, 0.3, snJ);
+    }
   } else if (id < 1.5) {     // trousers: slate shell (not black: the seat and the legs have to show their form), a dusting of snow at the hems
     alb = vec3f(0.066, 0.082, 0.108);
     // their cloth: creased behind the knee and across the lap (the more the leg is folded the deeper), stacked in rings above the boot, long soft folds between
@@ -1117,12 +1318,79 @@ fn frag(v: VOut) -> FOut {
     let snowy: f32 = mix(smoothstep(0.31, 0.235, bp.y), smoothstep(0.30, 0.17, bp.y), nb) * smoothstep(0.55, 0.85, fine.w * 0.6 + weave.z * 0.5 + smoothstep(0.28, 0.235, bp.y) * 0.2 + kz * 0.25 * saturate(-fold * 120.0));
     alb = mix(alb, vec3f(0.78, 0.83, 0.90), snowy * mix(0.5, 0.22, nb));     // (new body: a fainter, patchier dusting with no edge to it)
     sheen = mix(0.35, 0.28, nb); cloth = 1.0; specS = mix(0.04, 0.035, nb); shell = mix(0.45, 0.42, nb);     // (new body: a soft sheen on the waterproof face)
+    if (kit > 0.5) {
+      // (kit b) a cargo pocket on the outside of the thigh, just in front of the side seam, a flap over its top and a snap; ...
+      let pq: vec2f = vec2f(thU - 0.230, rl.z + 0.030); let pkB: vec2f = abs(pq) - vec2f(0.070, 0.036);
+      let pkd: f32 = length(max(pkB, vec2f(0.0))) + min(max(pkB.x, pkB.y), 0.0);
+      let onP: f32 = smoothstep(0.03, 0.05, rl.x) * step(legS, -0.04);
+      let flap: f32 = step(pkd, 0.0) * step(thU, 0.192) * onP;
+      fold += onP * (0.0018 * smoothstep(0.004, 0.0, -pkd) * step(pkd, 0.0) - 0.0016 * exp(-abs(pkd) * 600.0) - 0.0014 * exp(-abs(thU - 0.192) * 700.0) * step(pkd, 0.0));
+      alb *= 1.0 - onP * 0.35 * smoothstep(0.012, 0.0, thU - 0.192) * step(0.192, thU) * step(pkd, 0.0);      // (the shade under the flap)
+      let snap: f32 = smoothstep(0.0045, 0.0030, length(vec2f(thU - 0.177, rl.z + 0.030))) * onP;
+      alb = mix(alb, vec3f(0.11, 0.115, 0.12), snap); specS = mix(specS, 0.5, snap);
+      // ... stitching beside the seams and round the pocket ...
+      let stF: f32 = saturate(1.6 - px * 500.0);
+      let st: f32 = smoothstep(0.0010, 0.0003, abs(min(sd, abs(pkd) + 1.0 - onP) - 0.0040)) * stF * inL;
+      alb = mix(alb, alb * 1.45 + 0.015, st * 0.6);
+      // ... and the scuff guards: a tougher, darker, glossier patch inside each ankle, where the other ski's edge catches
+      let scuff: f32 = smoothstep(0.022, 0.012, bm.x - 0.115) * smoothstep(hemS - 0.105, hemS - 0.090, legS) * smoothstep(hemS + 0.004, hemS - 0.004, legS);
+      alb = mix(alb, vec3f(0.030, 0.033, 0.038), scuff); specS = mix(specS, 0.12, scuff); specP = mix(specP, 40.0, scuff); cloth = mix(cloth, 0.6, scuff);
+      fold -= 0.0015 * exp(-abs(bm.x - 0.115 - 0.017) * 500.0) * smoothstep(hemS - 0.105, hemS - 0.090, legS) * step(legS, hemS);
+    }
   } else if (id < 2.5) {     // gloves
     alb = ${V(L.glove.alb)}; sheen = ${F(L.glove.sheen)}; specS = ${F(L.glove.specS)}; specP = ${F(L.glove.specP)};
+    if (hb > 0.5 && v.mat.z > 0.05) {
+      // the new glove (Variants 'hand' b), as real ski gloves are made: leather where the hand holds (fingers, palm, the thumb), so the knuckles and
+      // the curled fingers catch a small hard highlight; a nylon back with a padded panel; a ribbed elastic band round the wrist with a pale tab.
+      // fin: which finger (0 = none); hx: how far out of the back of the hand; gu: how far past the wrist toward the knuckles
+      let fin: f32 = floor(v.mat.z); let hx: f32 = (fract(v.mat.z) - 0.5) * 0.2; let gu: f32 = v.mat.w;
+      let lea: f32 = max(step(0.5, fin), smoothstep(0.022, 0.006, hx));
+      alb = mix(${V(L.gloveBack.alb)}, ${V(L.gloveLeather.alb)}, lea);
+      sheen = mix(${F(L.gloveBack.sheen)}, ${F(L.gloveLeather.sheen)}, lea); cloth = 1.0 - lea; specS = mix(${F(L.gloveBack.specS)}, ${F(L.gloveLeather.specS)}, lea); specP = mix(${F(L.gloveBack.specP)}, ${F(L.gloveLeather.specP)}, lea); gloss = 0.03 * lea;
+      // (the seam where the leather of the palm meets the nylon back, round the side of the hand)
+      sd = abs(hx - 0.014) + step(0.5, fin);
+      fold -= 0.0012 * exp(-sd * 260.0);
+      let rib: f32 = smoothstep(0.009, 0.006, abs(gu + 0.014)) * (1.0 - step(0.5, fin));
+      fold += rib * 0.0006 * sin(gu * 2400.0);
+      alb = mix(alb, ${V(L.gloveBand.alb)}, rib);
+      let tab: f32 = smoothstep(0.0012, 0.0, max(abs(hx - 0.050) - 0.010, abs(gu + 0.006) - 0.010)) * (1.0 - step(0.5, fin));
+      alb = mix(alb, ${V(L.gloveTab.alb)}, tab); specS = mix(specS, 0.05, tab);
+    } else if (hb > 0.5) {
+      // its gauntlet: nylon, a drawcord in a grey hem round its edge and a pale cord lock on the outside of the arm
+      let e: f32 = armF - gEdge; let aq: vec3f = eq - foreD * dot(eq, foreD); let outK: f32 = dot(aq, vec3f(1.0, 0.0, 0.0)) / max(length(aq), 1e-4);
+      alb = ${V(L.gloveBack.alb)}; sheen = ${F(L.gloveBack.sheen)}; cloth = 1.0; specS = ${F(L.gloveBack.specS)}; specP = ${F(L.gloveBack.specP)};
+      let hem: f32 = smoothstep(0.010, 0.0075, e);
+      alb = mix(alb, ${V(L.gloveBand.alb)}, hem); fold = hem * 0.0015 * (abs(skFold(eq, foreD, 70.0, px)) * 2.0 - 0.4) - 0.0015 * exp(-abs(e - 0.010) * 500.0);
+      let lockK: f32 = smoothstep(0.80, 0.90, outK) * smoothstep(0.004, 0.0, abs(e - 0.012) - 0.009);
+      alb = mix(alb, ${V(L.gloveTab.alb)}, lockK); specS = mix(specS, 0.25, lockK); fold += lockK * 0.002;
+      // (and its folds: the stuffed cuff wrinkles across where the wrist bends)
+      fold += 0.0025 * (1.0 - hem) * (abs(skFold(eq, foreD, 22.0, px)) * 2.0 - 0.4);
+    }
   } else if (id < 3.5) {     // boots: graphite shell (pale ones are lost against the snow and the legs seem to end at the hem), orange buckles
     alb = vec3f(0.055, 0.058, 0.066);
     let bk: f32 = smoothstep(0.012, 0.006, abs(fract(bp.y * 14.0) - 0.5) * 0.07) * step(0.14, bp.y) * step(bp.z, 0.02);
-    alb = mix(alb, orange, bk * 0.9);
+    alb = mix(alb, orange, bk * 0.9 * (1.0 - kit));
+    if (kit > 0.5) {
+      // (kit b) as alpine boots are: two buckles over the forefoot and two round the cuff, levers on the outside, orange; a black power strap round the top
+      let bx: f32 = bm.x - 0.155; let outB: f32 = smoothstep(0.012, 0.030, bx);
+      var lev: f32 = 0.0;
+      lev = max(lev, smoothstep(0.0015, 0.0, max(abs(bp.y - 0.115) - 0.007, abs(bp.z + 0.105) - 0.017)));
+      lev = max(lev, smoothstep(0.0015, 0.0, max(abs(bp.y - 0.150) - 0.007, abs(bp.z + 0.040) - 0.017)));
+      lev = max(lev, smoothstep(0.0015, 0.0, max(abs(bp.y - 0.225) - 0.007, abs(bp.z + 0.005) - 0.018)));
+      lev = max(lev, smoothstep(0.0015, 0.0, max(abs(bp.y - 0.285) - 0.007, abs(bp.z + 0.000) - 0.018)));
+      lev *= outB;
+      // (each lever bites on a ladder: a row of small ribs just ahead of it; and the cuff turns on a riveted pivot over the ankle bone, both sides)
+      let lad: f32 = (smoothstep(0.0012, 0.0, max(abs(bp.y - 0.115) - 0.004, abs(bp.z + 0.135) - 0.012)) + smoothstep(0.0012, 0.0, max(abs(bp.y - 0.225) - 0.004, abs(bp.z + 0.030) - 0.012))) * step(0.5, fract(bp.z * 330.0)) * outB;
+      let piv: vec2f = vec2f(bp.y - 0.180, bp.z - 0.012);
+      let riv: f32 = smoothstep(0.0075, 0.0055, length(piv)) * smoothstep(0.012, 0.026, abs(bx));
+      alb = mix(alb, vec3f(0.30, 0.31, 0.33), max(lad * 0.8, riv)); fold += 0.0012 * lad + 0.0018 * riv - 0.0012 * smoothstep(0.0015, 0.0, abs(length(piv) - 0.0075));
+      alb = mix(alb, orange, lev * 0.95); specS = mix(0.35, 0.5, lev); fold += 0.0025 * lev;
+      // (the shell's own seam: the overlap of the cuff over the lower shell, a line from the instep down to behind the ankle)
+      let ov: f32 = smoothstep(0.0025, 0.0, abs(bp.y - 0.165 - 0.35 * (bp.z + 0.02))) * step(0.06, bp.y);
+      fold -= 0.0015 * ov; alb *= 1.0 - 0.35 * ov;
+      let ps: f32 = smoothstep(0.336, 0.340, bp.y) * smoothstep(0.372, 0.368, bp.y);
+      alb = mix(alb, vec3f(0.018, 0.018, 0.020), ps); specS = mix(specS, 0.06, ps); fold += 0.0015 * ps;
+    }
     let sole: f32 = step(bp.y, 0.060); alb = mix(alb, vec3f(0.02), sole);
     specS = 0.35; specP = 60.0; gloss = 0.06;
   } else if (id < 4.5) {     // helmet: matte white with an orange centre stripe
@@ -1134,6 +1402,26 @@ fn frag(v: VOut) -> FOut {
       alb = mix(alb, vec3f(0.03, 0.03, 0.035), vs); fold = -0.002 * vs;
       alb *= 1.0 - 0.35 * smoothstep(0.02, 0.0, hd3.y - 0.012) * smoothstep(-0.07, -0.10, hd3.z) * step(0.02, hd3.y);
       specS = 0.30; specP = 60.0; gloss = 0.05;
+      if (kit > 0.5) {
+        // (kit b) as freeride helmets are made (the reference sheet): a hard shell over a foam liner whose black edge band shows all round the
+        // rim; a second row of vents beside the first and a pair over the brow; ear pads of black fabric; a fit dial at the back under the strap;
+        // the shell a little glossier than the band. ye: the rim's own line (the distance field cuts the shell there, see HEAD.rim)
+        let ye: f32 = ${Skier.HEAD.rim.toFixed(4)} + 0.25 * max(hd3.z, 0.0);
+        let band: f32 = smoothstep(0.016, 0.012, hd3.y - ye);
+        let vs2: f32 = smoothstep(0.0055, 0.0032, abs(abs(hd3.x) - 0.066)) * smoothstep(0.020, 0.014, abs(hd3.z - 0.010)) * step(0.040, hd3.y);
+        let vb: f32 = smoothstep(0.0050, 0.0030, abs(hd3.y - 0.058)) * smoothstep(0.016, 0.011, abs(abs(hd3.x) - 0.030)) * step(hd3.z, -0.07);
+        let vv: f32 = max(vs2, vb);
+        alb = mix(alb, vec3f(0.03, 0.03, 0.035), vv); fold -= 0.0018 * vv;
+        let el: vec3f = (vec3f(abs(hd3.x), hd3.y, hd3.z) - ${'vec3f(' + Skier.HEAD.ear.slice(0, 3).map(v => v.toFixed(4)).join(', ') + ')'}) / ${'vec3f(' + Skier.HEAD.ear.slice(3).map(v => v.toFixed(4)).join(', ') + ')'};
+        let ear: f32 = smoothstep(1.0, 0.85, length(el.yz)) * step(0.075, abs(hd3.x));
+        let dial: f32 = smoothstep(0.016, 0.013, length(vec2f(hd3.x, hd3.y - ye - 0.026))) * step(0.06, hd3.z);
+        let dialR: f32 = smoothstep(0.0015, 0.0, abs(length(vec2f(hd3.x, hd3.y - ye - 0.026)) - 0.009)) * dial;
+        alb = mix(alb, vec3f(0.028, 0.029, 0.033), max(band, max(ear, dial)));
+        alb = mix(alb, vec3f(0.12, 0.12, 0.13), dialR);
+        fold += 0.0012 * (band - smoothstep(0.004, 0.0, abs(hd3.y - ye - 0.016))) + 0.0015 * dial;
+        sheen = mix(sheen, 0.5, max(band, ear)); cloth = max(cloth, ear);
+        specS = mix(0.42, 0.06, max(band, max(ear, vv))); specP = mix(90.0, 24.0, max(band, ear)); gloss = mix(0.08, 0.0, max(band, ear));
+      }
     }
   } else if (id < 5.5) {     // goggle lens: mirrored, iridescent
     alb = vec3f(0.01, 0.01, 0.015); gloss = 0.85; specS = 2.0; specP = 600.0;
@@ -1169,6 +1457,27 @@ fn frag(v: VOut) -> FOut {
     sheen = 0.25; specS = 0.08; specP = 26.0; cloth = 0.6;
     // (its cloth: soft dents, a seam where the lid closes over the body, its sides turning away into the shade)
     fold = 0.012 * big; sd = abs(tl.y - (tl.z - 0.18) * 0.35 - 0.087); dark = 0.25 * smoothstep(-0.012, 0.006, pkD); shell = 0.5;
+    if (kit > 0.5) {
+      // (kit b) as ski packs are made (the reference sheet): two black compression straps across the back with pale buckles at the sides, the front
+      // pocket's zip running round its top in a piping line, piping round the back panel's edge, a pale zip pull on the lid, a grab loop at the top
+      let pz: f32 = step(0.20, tl.z);
+      var strap: f32 = 0.0;
+      strap = max(strap, smoothstep(0.0105, 0.0085, abs(tl.y - 0.040)));
+      strap = max(strap, smoothstep(0.0105, 0.0085, abs(tl.y + 0.170)));
+      strap *= pz * step(abs(tl.x), 0.118);
+      let bk: f32 = strap * smoothstep(0.012, 0.009, abs(abs(tl.x) - 0.088));
+      alb = mix(alb, vec3f(0.018, 0.018, 0.020), strap); alb = mix(alb, vec3f(0.55, 0.56, 0.57), bk);
+      fold += 0.002 * strap + 0.0015 * bk - 0.0012 * smoothstep(0.0025, 0.0, abs(abs(tl.y - 0.040) - 0.0105)) * pz - 0.0012 * smoothstep(0.0025, 0.0, abs(abs(tl.y + 0.170) - 0.0105)) * pz;
+      specS = mix(specS, 0.3, bk);
+      let pq: vec3f = abs(tl - ${'vec3f(' + Skier.PACK.pocket.slice(0, 3).map(v => v.toFixed(4)).join(', ') + ')'}) - ${'vec3f(' + Skier.PACK.pocket.slice(3, 6).map(v => v.toFixed(4)).join(', ') + ')'};
+      let pe: f32 = max(pq.x, pq.y);
+      let pip: f32 = smoothstep(0.0028, 0.0010, abs(pe + 0.004)) * step(0.235, tl.z) * (1.0 - strap);
+      alb = mix(alb, vec3f(0.012, 0.012, 0.014), pip); fold -= 0.0010 * pip;
+      let rim: f32 = smoothstep(0.0040, 0.0015, abs(pkD + 0.006)) * (1.0 - strap) * (1.0 - lid);
+      alb = mix(alb, orange * 0.8, rim * 0.85); fold += 0.0008 * rim;
+      let pull: f32 = smoothstep(0.0015, 0.0, max(abs(tl.x - 0.050) - 0.006, abs(tl.y - (tl.z - 0.18) * 0.35 - 0.080) - 0.014)) * step(0.17, tl.z);
+      alb = mix(alb, vec3f(0.70, 0.71, 0.70), pull); fold += 0.0012 * pull;
+    }
   } else if (id < 9.5) {     // skis: graphic topsheet, bright base, steel edges
     let top: f32 = smoothstep(0.55, 0.8, v.mat.w); let base: f32 = smoothstep(-0.55, -0.8, v.mat.w); let z: f32 = v.mat.z;
     // (the same pair as the first-person view's: lemon going lime toward the tip, a black band with a pale pinstripe further back, an orange tail)

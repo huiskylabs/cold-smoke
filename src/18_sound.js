@@ -347,7 +347,7 @@ const Sound = (() => {
   A.now = () => A.ctx.currentTime + 0.012;
   A.snapshot = function () {
     const S = Game.s, c = Course.at(-S.p[2], A.pc), sg = Course.segAt(-S.p[2]), wd = Game.feel ? Game.feel.wind : null;
-    return { run: Game.mode === 'run', speed: Math.hypot(S.v[0], S.v[1], S.v[2]), contact: S.contact, lat: S.aReac / 9.81, skid: Math.abs(Math.sin(S.beta)), load: S.load / 9.81, powder: S.powder, I: Spray.intensity, tuck: S.tuck, lean: S.lean,
+    return { run: Game.mode === 'run', title: Game.mode === 'title', speed: Math.hypot(S.v[0], S.v[1], S.v[2]), contact: S.contact, lat: S.aReac / 9.81, skid: Math.abs(Math.sin(S.beta)), load: S.load / 9.81, powder: S.powder, I: Spray.intensity, tuck: S.tuck, lean: S.lean,
       ridge: c.ridge || 0, forest: Math.max(c.forest || 0, c.glade || 0),
       wind: wd ? wd.v : null, push: wd ? wd.b : 0, tk: Math.max(S.tuck, S.tuckIn || 0),       // (for the wind: what is met, the blow of the moment, either tuck)
       air: S.air, airT: S.airT, ts: Game.timeScale || 1, kind: sg.type, slope: sg.p.slope, sun: Sky.sunElev,       // (for the score)

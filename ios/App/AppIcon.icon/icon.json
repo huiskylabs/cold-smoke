@@ -1,0 +1,30 @@
+{
+  "fill": {
+    "automatic-gradient": "extended-srgb:0.655,0.807,0.902,1.000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "Goggles.svg",
+          "name": "Goggles",
+          "glass": false
+        }
+      ],
+      "name": "Snow goggles",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.13
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "iOS"
+    ]
+  }
+}

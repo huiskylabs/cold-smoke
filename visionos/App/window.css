@@ -1,0 +1,5 @@
+/* SwiftUI presents the window chrome and instruments. Keep the game's
+   transparent input surfaces for steering, looking around and composing. */
+html, body, #app, #view { background: transparent; }
+#load, #title, #hud, #bar, #menu, #pause, #say, #fatal, #shade,
+#photo > :not(#ph-surf) { visibility: hidden !important; pointer-events: none !important; }

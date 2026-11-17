@@ -35,14 +35,19 @@ const Photo = self.Photo = (() => {
     const h = Course.height(p[0], p[2], 0.5) + GROUND; if (p[1] < h) p[1] = h;
     return p;
   }
+  /*native{*/P.constrainPosition = keepIn;/*}native*/
 
   // ---- in and out
-  P.can = () => !P.on && typeof UI !== 'undefined' && UI.open && !UI.gone && !App.swapping && App.ready && !(App.gfx && App.gfx.lost) && !(typeof XR !== 'undefined' && XR.active);
+  P.can = () => !P.on && typeof UI !== 'undefined' && (UI.open/*native{*/ || UI.state === 'run'/*}native*/) && !UI.gone && !App.swapping && App.ready && !(App.gfx && App.gfx.lost) && !(typeof XR !== 'undefined' && XR.active);
   P.enter = function () {
     if (!P.can()) return false;
     if (!el) build();
+    /*native{*/
+    const fromRun = !UI.open;
+    if (fromRun && !UI.pause()) return false;
+    /*}native*/
     const c = Render.cam, F = typeof Fpv !== 'undefined' ? Fpv : null;
-    saved = { pos: c.pos.slice(), fwd: c.fwd.slice(), up: c.up.slice(), right: c.right.slice(), fovY: c.fovY, near: c.near, roll: c.roll,
+    saved = { /*native{*/fromRun, /*}native*/pos: c.pos.slice(), fwd: c.fwd.slice(), up: c.up.slice(), right: c.right.slice(), fovY: c.fovY, near: c.near, roll: c.roll,
       scale: Render.scale, blur: Render.motionBlur, fpv: F ? [F.vis, F.hideFig] : null };
     // (from inside the helmet, first person and the ski tips, the figure is drawn without its head and its own arms: here it is seen whole)
     if (F) { F.vis = false; F.hideFig = false; }
@@ -58,7 +63,8 @@ const Photo = self.Photo = (() => {
   };
   P.exit = function () {
     if (!P.on) return;
-    P.on = false; App.photoFrame = null; closeShot();
+    P.on = false; /*native{*/P.pad = null; /*}native*/App.photoFrame = null; closeShot();
+    if (want) { want = false; busy = false; }
     const c = Render.cam, s = saved; saved = null;
     if (s) {
       c.pos = s.pos; c.fwd = s.fwd; c.up = s.up; c.right = s.right; c.fovY = s.fovY; c.near = s.near; c.roll = s.roll;
@@ -70,7 +76,8 @@ const Photo = self.Photo = (() => {
     try { redraw(); Render.computeGlobals(App.t, 0, App.state); } catch (e) { }
     el.app.classList.remove('photo'); el.root.setAttribute('aria-hidden', 'true');
     stickOff();
-    if (App.redraw && App.paused) App.redraw();
+    /*native{*/if (s?.fromRun && !document.hidden) UI.resume();
+    /*}native*/if (App.redraw && App.paused) App.redraw();
   };
 
   // ---- one frame: the lens moved by whatever the player is holding, then the scene drawn again with no time passing
@@ -78,9 +85,10 @@ const Photo = self.Photo = (() => {
     const c = cam;
     // looking: eased a little, so a flick of the mouse is a turn of the head and not a jump
     const kl = 1 - Math.exp(-dt * 22); c.yaw += c.ty * kl; c.pit += c.tp * kl; c.ty -= c.ty * kl; c.tp -= c.tp * kl;
-    c.pit = clamp(c.pit, -1.45, 1.45);
+    /*native{*/if (P.pad) { c.yaw += P.pad.lookX * dt * 1.6; c.pit += P.pad.lookY * dt * 1.3; }
+    /*}native*/c.pit = clamp(c.pit, -1.45, 1.45);
     // moving: across the map in the direction the lens faces (a level move, so looking down does not drive it into the snow), and up or down
-    let mf = 0, mr = 0, mu = 0;
+    let mf = /*native{*/P.pad?.y || /*}native*/0, mr = /*native{*/P.pad?.x || /*}native*/0, mu = 0;
     if (keys.KeyW || keys.ArrowUp) mf += 1; if (keys.KeyS || keys.ArrowDown) mf -= 1;
     if (keys.KeyD || keys.ArrowRight) mr += 1; if (keys.KeyA || keys.ArrowLeft) mr -= 1;
     if (keys.KeyE || keys.Space || keys.PageUp) mu += 1; if (keys.KeyQ || keys.PageDown) mu -= 1;
@@ -106,13 +114,16 @@ const Photo = self.Photo = (() => {
     Trees.update(c, o, Render.W / Render.H, Game.root.pos, 0);
     if (typeof Gates !== 'undefined') Gates.update(c, o, Game.root.pos, 0, App.t);
   }
-  function frame(dt) {
-    steer(dt); place(); redraw();
+  P.drawFrozen = function () {
+    redraw();
     Render.motionBlur = false;
     Render.computeGlobals(App.t, 0, App.state);
     for (const f of App.onTick) f(0, true);
     (App.renderHook || Render.render)();
-    if (want) { want = false; grab(); }
+  };
+  function frame(dt) {
+    steer(dt); place(); P.drawFrozen();
+    if (want) { const request = want; want = false; grab(request); }
     if (toastT > 0 && (toastT -= dt) <= 0) el.toast.classList.remove('on');
     lens();
   }
@@ -121,11 +132,31 @@ const Photo = self.Photo = (() => {
   function lens() { const mm = Math.round(12 / Math.tan(cam.fov / 2)); if (mm !== lastMM) { lastMM = mm; el.mm.textContent = mm + ' mm'; } }
 
   // ---- the picture: the canvas read in the frame it was drawn in (WebGL keeps no buffer once the frame is shown, WebGPU hands it on)
-  P.snap = function () { if (!P.on || busy) return; busy = true; want = true; };
-  function grab() {
+  P.snap = function (/*native{*/library = false/*}native*/) { if (!P.on || busy) return; busy = true; want = /*native{*/library === true ? 'library' : /*}native*/'preview'; };
+  async function grab(request) {
+    const session = saved;
+    /*native{*/
+    if (request === 'preview' && self.COLD_SMOKE?.previewGamePhoto) {
+      try { await self.COLD_SMOKE.previewGamePhoto(); P.shots++; }
+      catch { if (saved === session) tell('没能拍下来'); }
+      finally { busy = false; }
+      return;
+    }
+    if (request === 'library') {
+      const message = await self.COLD_SMOKE.saveGamePhoto(-1);
+      busy = false;
+      if (saved === session) tell(message);
+      return;
+    }
+    /*}native*/
     let url = null, cv = null;
-    try { const v = document.getElementById('view'); cv = document.createElement('canvas'); cv.width = v.width; cv.height = v.height; cv.getContext('2d').drawImage(v, 0, 0); }
-    catch (e) { console.warn('photo', e); busy = false; tell('没能拍下来'); return; }
+    try {
+      /*native{*/if (App.gfx.capturePhoto) cv = await App.gfx.capturePhoto();
+      else /*}native*/{
+        const v = document.getElementById('view'); cv = document.createElement('canvas'); cv.width = v.width; cv.height = v.height; cv.getContext('2d').drawImage(v, 0, 0);
+      }
+    } catch (e) { console.warn('photo', e); busy = false; if (saved === session) tell('没能拍下来'); return; }
+    if (saved !== session) { busy = false; return; }
     el.flash.classList.remove('on'); void el.flash.offsetWidth; el.flash.classList.add('on');
     P.shots++;
     const name = fileName();
@@ -135,7 +166,7 @@ const Photo = self.Photo = (() => {
       return;
     }
     cv.toBlob(b => {
-      busy = false; if (!b) { tell('没能拍下来'); return; }
+      busy = false; if (saved !== session) return; if (!b) { tell('没能拍下来'); return; }
       if (hand()) showShot(b, name);
       else { download(b, name); tell('已保存', name); }
     }, 'image/png');
@@ -162,6 +193,13 @@ const Photo = self.Photo = (() => {
   }
   async function saveShot() {
     if (!shot) return; const { b, name } = shot;
+    /*native{*/
+    if (App.gfx.sharePhoto) {
+      try { if (await App.gfx.sharePhoto(b, name)) { closeShot(); tell('已保存'); } }
+      catch (e) { console.warn('share', e); tell('没能拍下来'); }
+      return;
+    }
+    /*}native*/
     try {
       const f = new File([b], name, { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f] }); closeShot(); tell('已保存'); return; }
@@ -172,7 +210,10 @@ const Photo = self.Photo = (() => {
 
   // ---- the words and buttons over the scene: shown, or put away (H, or the button) for an empty frame to look through; a tap brings them back
   function showWords(on) { hideW = !on; el.root.classList.toggle('bare', hideW); }
-  function hint() { el.hint.textContent = T(hand() ? '右边拖动转视角 · 左边摇杆移动 · 双指缩放' : '拖动鼠标转视角 · WASD 移动 · Q E 升降 · 滚轮缩放 · Z C 歪斜 · R 复位 · H 隐藏文字'); }
+  function hint() {
+    /*native{*/if (self.COLD_SMOKE?.spatial && P.pad) { el.hint.textContent = T('左摇杆移动 · 右摇杆取景 · X 拍摄 · B 返回'); return; }
+    /*}native*/el.hint.textContent = T(hand() ? '右边拖动转视角 · 左边摇杆移动 · 双指缩放' : '拖动鼠标转视角 · WASD 移动 · Q E 升降 · 滚轮缩放 · Z C 歪斜 · R 复位 · H 隐藏文字');
+  }
 
   // ---- the hands
   function onKey(e) {

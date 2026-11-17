@@ -54,7 +54,7 @@ const Sky = (() => {
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let uv: vec2f = vec2f(f32((a.vid << 1u) & 2u), f32(a.vid & 2u)); v.clip = vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, 1.0, 1.0); v.uv = uv; return v; }`,
       fs: `fn frag(v: VOut) -> FOut { var o: FOut;
         let ndc: vec2f = vec2f(v.uv.x * 2.0 - 1.0, 1.0 - v.uv.y * 2.0);
-        let d: vec3f = normalize(U.camFwd.xyz + U.camRight.xyz * (ndc.x * U.camRight.w * U.camUp.w) + U.camUp.xyz * (ndc.y * U.camRight.w));
+        let d: vec3f = normalize(screenRay(ndc));
         var col: vec3f = skyLut0(vec3f(d.x, max(d.y, 0.0), d.z));
         let mu: f32 = dot(d, U.sunDir.xyz);
         // the haze band at the horizon: milky and bright by day rather than yellow (at sunset it keeps all its colour)
@@ -96,7 +96,7 @@ const Sky = (() => {
         if (U.world.x < 0.5) { col = farRanges(d, col); }
         if (U.world.x > 1.5) { col = peakPlain(d, mu, col); }                         // (云下之城, 金色雪旗: 16c_peak.js)
         if (U.world.x > 0.5 && U.world.x < 1.5) { col += metroDome(d); col = metroPlain(d, mu, col); }   // (不夜城: 16b_metro.js)
-        if (U.world.x < 0.5) { col = mix(col, cloudSea(d, mu, col), smoothstep(0.0, -0.006, d.y)); }
+        if (U.world.x < 0.5 && d.y < 0.0) { col = mix(col, cloudSea(d, mu, col), smoothstep(0.0, -0.006, d.y)); }
         if (U.world.x < 0.5) { let cb: vec3f = col; col = mix(cityLayer(d, col), cb, M.wf.w); }      // (behind heavy snow only a shape of it: 05b_weather.js)
         // ...and nearer than all of it, a bolt of lightning
         col += bolt(d);
@@ -218,6 +218,12 @@ const Sky = (() => {
   };
 
   S.nebDay = 0.55; S.nebNight = 0.33; S.nebSat = 0.45; S.polar = 0.34; S.glare = 0.075;
+  // how strong the nebula is, for the owner to choose: by day its pale ghost on the blue (kept on purpose, but at 0.55 it reads as a burst of
+  // cirrus gone wrong: real cirrus lies in parallel streaks along the wind) and by night (it crowds the moon, the city and the clouds into one
+  // corner). [day, night] multipliers on nebDay and nebNight
+  const NebDayV = { a: 1, b: 0.27, c: 0 }, NebNightV = { a: 1, b: 0.65 };
+  Variants.def('nebday', '白天星云', [['a', '现在的'], ['b', '很淡'], ['c', '没有']], 'a');
+  Variants.def('nebnight', '夜空星云', [['a', '现在的'], ['b', '淡些']], 'a');
   Variants.def('moon', '夜里的月亮', [['a', '月牙'], ['b', '盈凸']], 'b');
   // the night's show (the owner: nebula and aurora together are too busy, "它们不能同时出现"): each night is a nebula night, an aurora night
   // or, now and then, a plain night of stars alone; never both. The pick is made per night (from the mountain's seed and which night it
@@ -253,7 +259,7 @@ const Sky = (() => {
     const ph = (Render.time * 0.9) % 1, strobe = (ph < 0.045 || (ph > 0.13 && ph < 0.175)) ? 1 : 0, beacon = Math.pow(Math.max(0, Math.sin(Render.time * 4.2)), 8);
     // (under the overcast the far summits lose the sun with everything else)
     const wx = typeof Weather !== 'undefined' ? Weather.sky : null, wk = wx && Weather.sunK != null ? Weather.sunK : 1;
-    gfx.draw(pipeSky, { u: { au: [S.aurora(Render.time), 0.12, Render.time * 0.0035, Render.time], p: [S.nebDay, S.nebNight * S.nebNightK, S.polar * lerp(0.5, 1, S.milk), lerp(1.0, S.nebSat, S.milk)], nr: b.nr, nu: [b.nu[0], b.nu[1], b.nu[2], b.nu[3] * S.nebShow()], nf: b.nf,
+    gfx.draw(pipeSky, { u: { au: [S.aurora(Render.time), 0.12, Render.time * 0.0035, Render.time], p: [S.nebDay * (NebDayV[Variants.val.nebday] ?? 1), S.nebNight * S.nebNightK * (NebNightV[Variants.val.nebnight] ?? 1), S.polar * lerp(0.5, 1, S.milk), lerp(1.0, S.nebSat, S.milk)], nr: b.nr, nu: [b.nu[0], b.nu[1], b.nu[2], b.nu[3] * S.nebShow()], nf: b.nf,
       sd: [S.disc[0], S.disc[1], S.disc[2], S.isMoon ? 0 : 1], mo: [md[0], md[1], md[2], S.moonVis], hi: [S.sunHi[0], S.sunHi[1], S.sunHi[2], S.night], fr: [S.sunFar[0] * wk, S.sunFar[1] * wk, S.sunFar[2] * wk, strobe + 0.5 * beacon],
       pa: PL.on ? [PL.x - cam[0], PL.z - cam[2], S.hiAlt, 1] : [0, 0, S.hiAlt, 0], pb: [PL.hx, PL.hz, PL.len, PL.v], pc: [PL.cut, S.glare, (Variants.val.moon === 'b' ? 1 : 0) * S.night, 0], cs: [Clouds.sea.f, Clouds.sea.oA, Clouds.sea.oB, 0], ab: S.anti, ns: [NSKY.step(Render.time)[0], NSKY.v[1], 0, 0],
       wa: wx ? wx.wa : [0, 0, 0, 0], wb: wx ? wx.wb : [0, 0, 0, 0], wc: wx ? wx.wc : [0, 0, 0, 0], wd: wx ? wx.wd : [0, 0, 0, 0], we: wx ? wx.we : [0, 0, 0, 0], wf: wx ? wx.wf : [0, 0, 0, 0], wg: wx ? wx.wg : [0, 0, 0, 0] },

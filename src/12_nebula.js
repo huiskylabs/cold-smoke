@@ -34,6 +34,7 @@ const Nebula = (() => {
     N.pipes = [pipeA, pipeB];
   };
   N.bake = function () {
+    if (gfx.isReady && !(gfx.isReady(pipeA) && gfx.isReady(pipeB))) return;      // (still compiling at start-up: baked on a later frame)
     gfx.beginPass(tA, { color: [0, 0, 0, 0] }); gfx.draw(pipeA, { u: { p: [0, 0, 0, 0] }, tex: { tNoise: Tex.noise }, count: 3 }); gfx.endPass(); gfx.genMips(texA);
     gfx.beginPass(tB, { color: [0, 0, 0, 0] }); gfx.draw(pipeB, { u: { p: [0, 0, 0, 0] }, tex: { tNoise: Tex.noise }, count: 3 }); gfx.endPass();
     N.baked = true;
@@ -43,6 +44,7 @@ const Nebula = (() => {
   N.wide = { az: 0.40, el: 0.215, half: 0.47, roll: 0.55 }; N.tall = { az: 0.17, el: 0.31, half: 0.50, roll: -0.20 };
   N.basis = function () {
     Object.assign(N, Render.W >= Render.H ? N.wide : N.tall);
+    if (typeof Clouds !== 'undefined' && Clouds.skyOf) { const k = Clouds.skyOf(); N.az += k[1]; N.el += k[2]; }      // (Variants 'vary' b: each mountain its own sky)
     const ce = Math.cos(N.el), f = [Math.sin(N.az) * ce, Math.sin(N.el), -Math.cos(N.az) * ce];
     let r = v3.norm(v3.cross(f, [0, 1, 0])), u = v3.cross(r, f);
     const c = Math.cos(N.roll), s = Math.sin(N.roll), r2 = v3.add(v3.mul(r, c), v3.mul(u, s)), u2 = v3.sub(v3.mul(u, c), v3.mul(r, s));

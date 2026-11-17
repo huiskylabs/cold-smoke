@@ -6,6 +6,20 @@
 // any zh* is Chinese, everything else English.
 const I18N = (() => {
   const EN = {
+    /*native{*/
+    '身体动作控制 开': 'Body controls on', '身体动作控制 关': 'Body controls off',
+    '按手柄 A 出发': 'Press A to start', '左摇杆转向和调整重心': 'Left stick to steer and shift weight',
+    'LB / RB 换视角 · X 拍照': 'LB / RB: change view · X: photo mode',
+    '转头取景 · 左摇杆移动': 'Look to frame · Move with left stick',
+    'X 拍摄 · B 返回滑行': 'X: take photo · B: resume skiing',
+    '正在保存': 'Saving…', '请允许添加照片': 'Allow adding photos in Settings',
+    '左摇杆移动 · 右摇杆取景 · X 拍摄 · B 返回': 'Left stick: move · Right stick: look · X: take photo · B: return',
+    '按住 A 蓄力，松开起跳 · RT 加速': 'Hold A to charge, release to jump · RT to tuck',
+    'Y 校准正前方 · 菜单键退出': 'Y to recenter · Menu to leave',
+    '手柄：左摇杆转向 · A 起跳 · RT 加速 · 菜单键退出': 'Stick: steer · A: jump · RT: tuck · Menu: exit',
+    '选择沉浸模式，或按手柄 Y 进入 · A 出发 / 起跳 · RT 加速': 'Choose Immersive or press Y · A: start / jump · RT: tuck',
+    '下方按钮起跳和加速': 'Jump and Tuck near the bottom',
+    /*}native*/
     // ---- title and loading
     '一个人，一座山，一直往下': 'One skier, one mountain, all the way down',
     '沉浸模式': 'Immersive', '捏一下手指 出发': 'Pinch to start', '左右歪头转弯 · 头往前压板头，往后压板尾': 'Lean your head to turn · forward for the tips, back for the tails',
@@ -14,8 +28,9 @@ const I18N = (() => {
     '画面和声音全部由代码实时生成，没有一张贴图、一段录音。戴上耳机更好。': 'Every picture and every sound is made live by code: not one texture, not one recording. Best with headphones.',
     '画面和声音全部由代码实时生成，戴上耳机更好。': 'Every picture and every sound is made live by code. Best with headphones.',
     '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速': '← → or A D to turn · Space to jump · ↓ or S to tuck',
-    '按住屏幕左右拖动转弯 · 右下角 跳 / 加速': 'Hold and drag left or right to turn · Jump and Tuck at bottom right',
-    '倾斜手机或按住屏幕左右拖动转弯 · 右下角 跳 / 加速': 'Tilt the phone, or hold and drag, to turn · Jump and Tuck at bottom right',
+    '按住屏幕左右拖动转弯': 'Hold and drag left or right to turn',
+    '倾斜手机或按住屏幕左右拖动转弯': 'Tilt the phone, or hold and drag, to turn',
+    '右下角 跳 / 加速': 'Jump and Tuck at bottom right',
     '倾斜手机转弯，或按住屏幕左右拖动': 'Tilt the phone to turn, or hold and drag',
     '醒来': 'waking', '磨雪': 'grinding snow', '远山与城市': 'far ranges and the city', '立起天空': 'raising the sky', '林子里有鹿': 'deer in the woods',
     '种树': 'planting trees', '点亮星云': 'lighting the nebula', '调音': 'tuning', '调光': 'setting the light', '铺雪': 'laying the snow', '第一缕光': 'first light',
@@ -26,14 +41,14 @@ const I18N = (() => {
     '像握方向盘一样倾斜手机': 'Tilt the phone like a steering wheel', '按住屏幕，左右拖动': 'Hold the screen, drag left or right',
     '连着转弯，把雪扬起来': 'Link your turns, throw up the snow', '按住「跳」蓄力，松开起跳': 'Hold Jump to load up, let go to fly',
     '← → 转弯 · ↑ ↓ 压板头 / 板尾 · 空格 跳 · Shift 加速': '← → to turn · ↑ ↓ weight on the tips / tails · Space to jump · Shift to tuck',
-    '按住屏幕，左右拖转弯，上下拖压板头 / 板尾 · 右下角 跳 / 加速': 'Hold and drag: across to turn, up for the tips, down for the tails · Jump and Tuck at bottom right',
+    '按住屏幕，左右拖转弯，上下拖压板头 / 板尾': 'Hold and drag: across to turn, up for the tips, down for the tails',
     '↑ 压板头入弯 · ↓ 压板尾出弯 · 空格 跳': '↑ tips into a turn · ↓ tails out of it · Space to jump',
     '压板头 · 压板尾：入弯压头切得紧，出弯压尾冲出去，弯尾还压头会搓雪减速': 'Weight on the tips or the tails: tips into a turn to bite, tails out of it to shoot on; still on the tips at the end, the tails skid and slow you',
     '上下拖动': 'Drag up / down', '往上压板头，往下压板尾': 'Up puts weight on the tips, down on the tails', '前后重心': 'Fore / aft',
     '空格 跳（按住蓄力） · ↓ 加速': 'Space to jump (hold to load up) · ↓ to tuck', '← →  或  A D  转弯': '← →  or  A D  to turn',
     '画面断开了': 'THE PICTURE WAS LOST', '点一下重新上山': 'Tap to ski again',
     // ---- the runs (Course: SEG_NAMES), the hours, the weather, the views, the animals
-    '开阔大坡': 'Open Bowl', '陡坡': 'The Steeps', '树林': 'Glade', '起伏': 'Rollers', '雪槽': 'Gully', '跳台': 'Kickers', '深粉雪': 'Deep Powder', '山脊': 'Ridge', '蘑菇': 'Moguls',
+    '开阔大坡': 'Open Bowl', '陡坡': 'The Steeps', '树林': 'Glade', '起伏': 'Rollers', '雪槽': 'Gully', '跳台': 'Kickers', '深粉雪': 'Deep Powder', '山脊': 'Ridge', '蘑菇': 'Moguls', '林道': 'Forest Lane',
     '自动': 'Auto', '白天': 'Day', '傍晚': 'Golden hour', '黄昏': 'Dusk', '夜晚': 'Night', '黎明': 'Dawn',
     '晴': 'Clear', '小雪': 'Light snow', '中雪': 'Snow', '大雪': 'Heavy snow', '雷暴雪': 'Thundersnow',
     '上午': 'Morning', '中午': 'Midday', '下午': 'Afternoon', '固定': 'Held',

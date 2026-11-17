@@ -634,7 +634,7 @@ function cityLightSSL() {
 const C_DECK: f32 = ${f(V.deck)};
 fn cproj(p: vec3f) -> vec4f { return U.viewProj * vec4f(U.camPos.xyz + p, 1.0); }
 // the direction a pixel looks in
-fn pixDir(px: vec2f) -> vec3f { let n: vec2f = vec2f(px.x * U.res.z * 2.0 - 1.0, 1.0 - px.y * U.res.w * 2.0); return normalize(U.camFwd.xyz + U.camRight.xyz * (n.x * U.camRight.w * U.camUp.w) + U.camUp.xyz * (n.y * U.camRight.w)); }
+fn pixDir(px: vec2f) -> vec3f { let n: vec2f = vec2f(px.x * U.res.z * 2.0 - 1.0, 1.0 - px.y * U.res.w * 2.0); return normalize(screenRay(n)); }
 // where a direction falls in the city's panorama
 fn cityUV(d: vec3f) -> vec2f { return vec2f((atan2(d.x, -d.z) - ${f(V.cityAz)}) / ${f(2 * V.cityHalf)} + 0.5, (${f(V.cEL1)} - atan2(d.y, length(d.xz))) / ${f(V.cEL1 - V.cEL0)}); }
 // how far off the nearest tower stands there (open sky counts as beyond them all)

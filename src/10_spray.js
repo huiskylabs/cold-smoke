@@ -775,8 +775,7 @@ fn frag(v: VOut) -> FOut {
   let vis: f32 = saturate(a.y / max(a.w, 1e-7));           // sun reaching the near face of the cloud (through terrain, skier and the cloud itself)
   let zr: f32 = a.z / max(a.w, 1e-7); let zm: f32 = zr + U.dof.x;
   let ndc: vec2f = vec2f(v.uv.x * 2.0 - 1.0, 1.0 - v.uv.y * 2.0);
-  let tn: vec2f = vec2f(ndc.x * U.camRight.w * U.camUp.w, ndc.y * U.camRight.w);
-  let d: vec3f = normalize(U.camFwd.xyz + U.camRight.xyz * tn.x + U.camUp.xyz * tn.y);
+  let d: vec3f = normalize(screenRay(ndc));
   let L: vec3f = U.sunDir.xyz; let mu: f32 = dot(d, L);
   // --- powder is not smoke. Hanging in the air it tears into veils and strands (a noise field anchored in the world, sinking with the snow,
   // read on the cloud's near face so it holds still while the camera moves), and where it is thin it breaks up into single winking specks.

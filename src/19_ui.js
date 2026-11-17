@@ -3,7 +3,7 @@ const UI = (() => {
   const U = { state: 'load', segIdx: -1, hintT: 0, hintKind: null, acc: 0, shown: { spd: -1, drop: -1 }, tod: 'auto', open: false };
   const $ = id => document.getElementById(id);
   const T = s => I18N.t(s), EN = () => I18N.en();          // (the words shown: see 00a_i18n.js)
-  const SEG_EN = { bowl: 'OPEN BOWL', steeps: 'THE STEEPS', glade: 'GLADE', rollers: 'ROLLERS', gully: 'GULLY', kickers: 'KICKERS', powder: 'DEEP POWDER', ridge: 'RIDGE', moguls: 'MOGULS' };
+  const SEG_EN = { bowl: 'OPEN BOWL', steeps: 'THE STEEPS', glade: 'GLADE', rollers: 'ROLLERS', gully: 'GULLY', kickers: 'KICKERS', powder: 'DEEP POWDER', ridge: 'RIDGE', moguls: 'MOGULS', corridor: 'FOREST LANE' };
   // the hours the day can be turned to, in the order the sun goes through them (keys of Sky.times)
   const TIMES = [['day', '白天'], ['golden', '傍晚'], ['sunset', '日落'], ['dusk', '黄昏'], ['night', '夜晚'], ['dawn', '黎明']];
   const mq = q => !!(window.matchMedia && matchMedia(q).matches);
@@ -73,6 +73,9 @@ const UI = (() => {
     initSwitch();
     initSplits();
     initVariants();
+    goldLine();
+    // (Variants 'tmusic' b: the score plays under the title page, so the first touch anywhere there may start the sound, as browsers require)
+    document.addEventListener('pointerdown', () => { try { if (U.state === 'title' && typeof Music !== 'undefined' && Music.titleOn() && !Sound.unlocked) Sound.unlock(); } catch (e) { } }, true);
     if (typeof Rank !== 'undefined') try { Rank.init(); } catch (e) { console.warn(e); }          // (the boards, inside 小红书 only: 19b_rank.js)
     if (typeof XHS !== 'undefined') try { XHS.init(el); } catch (e) { console.warn(e); }            // (the host's buttons, settings, notes, follow: 19c_xhs.js)
   };
@@ -93,10 +96,22 @@ const UI = (() => {
   const faOn = () => typeof Variants !== 'undefined' && Variants.val.fa === 'b';
   function howText() {
     const hh = U.hh, framed = U.framed, fa = faOn(); el.app.classList.toggle('fa', fa);
-    el.how.textContent = T(!hh ? (fa ? '← → 转弯 · ↑ ↓ 压板头 / 板尾 · 空格 跳 · Shift 加速' : '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速')
-      : fa ? '按住屏幕，左右拖转弯，上下拖压板头 / 板尾 · 右下角 跳 / 加速' : framed ? '按住屏幕左右拖动转弯 · 右下角 跳 / 加速' : '倾斜手机或按住屏幕左右拖动转弯 · 右下角 跳 / 加速');
+    /*native{*/if (self.COLD_SMOKE?.spatial) { el.how.textContent = T('选择沉浸模式，或按手柄 Y 进入 · A 出发 / 起跳 · RT 加速') + ' · ' + T('LB / RB 换视角 · X 拍照'); return; }
+    /*}native*/if (!hh) {
+      el.how.textContent = T(fa ? '← → 转弯 · ↑ ↓ 压板头 / 板尾 · 空格 跳 · Shift 加速' : '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速');
+      return;
+    }
+    const steering = fa ? '按住屏幕，左右拖转弯，上下拖压板头 / 板尾' : framed ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
+    const actions = /*native{*/self.COLD_SMOKE?.nativeWindow ? '下方按钮起跳和加速' : /*}native*/'右下角 跳 / 加速';
+    el.how.textContent = T(steering) + ' · ' + T(actions);
   }
   if (typeof Variants !== 'undefined') Variants.on(n => { if (n === 'fa' && el) howText(); });
+  // the gold of the interface: a, the start button and the picked chip filled amber (as delivered); b, a hairline of gold round dark glass, the
+  // way the rest of the interface wears it (the clock's rule, the view cards). The owner: the identity is the thin gold line, filled gold looked bad
+  if (typeof Variants !== 'undefined') Variants.def('gold', '金色按钮', [['a', '实心'], ['b', '细描边']], 'b');
+  if (typeof Variants !== 'undefined') Variants.def('tbtn', '标题按钮', [['a', '横排胶囊'], ['b', '竖排方块']], 'b');
+  function goldLine() { if (el && typeof Variants !== 'undefined') { el.app.classList.toggle('line', Variants.val.gold !== 'a'); el.app.classList.toggle('vbtn', Variants.val.tbtn === 'b'); } }
+  if (typeof Variants !== 'undefined') Variants.on(n => { if (n === 'gold' || n === 'tbtn') goldLine(); });
   U.stage = function (f, name) { if (!el) return; el.fill.style.transform = 'scaleX(' + f.toFixed(3) + ')'; if (name) el.stage.textContent = T(name); };
   // first frame is on the canvas: let it come up out of the dark, then set the title over it
   U.ready = function () {
@@ -130,6 +145,7 @@ const UI = (() => {
     // tilt has to be asked for from this tap (iOS shows its own prompt); where it is refused the finger takes over
     let asked = false; if (!XR.active) try { asked = await Promise.race([Input.requestTilt(), new Promise(r => setTimeout(() => r(false), 8000))]); } catch (e) { }
     Input.zeroPending = true; U.keepAwake();
+    if (App.later) await App.later;      // (the shaders held back at start-up: almost always done long before; see boot in 99_main.js)
     launch();
     U.state = 'run'; U.t0 = performance.now(); U.segIdx = -1; U.hintT = 0; U.hintKind = null; U.tiltAsked = asked;
     newRun();
@@ -547,8 +563,8 @@ const UI = (() => {
   // ---- the versions the owner picks between: their own page of the menu, not part of the game. One row for each choice in Variants, in
   // groups (a choice this list does not know yet goes under 新加的), the current version filled, the recommended one marked with a grain of
   // amber. A press switches at once (each module eases its own change); 恢复推荐 puts every choice back to the recommended version
-  const VGROUP = [['镜头', ['cam', 'wood', 'shots', 'tips', 'fptuck', 'edge', 'chatter', 'buffet']], ['人物与动作', ['body', 'cloth', 'poles', 'motion']],
-    ['画面', ['ghost', 'hi', 'nspray', 'nsky', 'cu']], ['雪', ['spray', 'curtain', 'sparkle', 'clumps', 'lens', 'pdepth', 'drift']], ['场景与天气', ['tpass', 'tgrain', 'tvar', 'world', 'rock', 'moon', 'aurora', 'snow', 'rtree', 'flag', 'sink', 'wind']], ['手感', ['keys']]];
+  const VGROUP = [['画面与音乐（11 月 16 日评审）', ['glint', 'gold', 'tbtn', 'nebday', 'nebnight', 'mlevel', 'tmusic', 'lsnow', 'plume', 'wbal', 'vary']], ['性能（11 月 17 日）', ['pslice', 'govjs', 'mbtap', 'patchd', 'bootq', 'tcull']], ['镜头', ['cam', 'wood', 'shots', 'tips', 'fptuck', 'edge', 'chatter', 'buffet']], ['人物与动作', ['body', 'cloth', 'poles', 'motion']],
+    ['画面', ['ghost', 'hi', 'nspray', 'nsky', 'cu']], ['雪', ['spray', 'curtain', 'sparkle', 'clumps', 'lens', 'pdepth', 'drift']], ['场景与天气', ['tpass', 'tgrain', 'tvar', 'world', 'lake', 'boats', 'rock', 'moon', 'aurora', 'snow', 'rtree', 'flag', 'sink', 'wind']], ['手感', ['keys']]];
   let vSig = null, wxSig = null;
   const varMod = () => { try { return typeof Variants !== 'undefined' && Variants && Array.isArray(Variants.defs) ? Variants : null; } catch (e) { return null; } };
   function initVariants() {

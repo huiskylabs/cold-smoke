@@ -192,7 +192,7 @@ fn frag(v: VOut) -> FOut {
   var o: FOut;
   let zf: f32 = linDepth(texFetchD(tDepth, vec2i(v.clip.xy), 0));
   let ndc: vec2f = vec2f(v.uv.x * 2.0 - 1.0, 1.0 - v.uv.y * 2.0);
-  let dv: vec3f = U.camFwd.xyz + U.camRight.xyz * (ndc.x * U.camRight.w * U.camUp.w) + U.camUp.xyz * (ndc.y * U.camRight.w);
+  let dv: vec3f = screenRay(ndc);
   let len: f32 = length(dv); let d: vec3f = dv / len; let r: f32 = zf * len;
   let sky: f32 = smoothstep(9000.0, 13000.0, zf);
   // it builds with distance and levels off (a snowfall is so many kilometres across, and the cloud it falls from is near overhead: looking up
