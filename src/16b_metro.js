@@ -13,7 +13,7 @@ const Metro = (() => {
   // H: how far below the eye the city lies (m); RE: the radius of its little planet (the horizon dips, and curves, far more than the earth's);
   // AZ: the panorama covers bearings +-AZ about the city's; ta, tb: its rows, packed toward the horizon (drop = ta v + tb v^4);
   // bend: how much farther the ground falls away to either side than straight ahead (rad at 90 degrees: the planet's curve, overdrawn)
-  const M = { H: 2200, RE: 9.0e5, AZ: 1.3, t0: -0.11, ta: 0.44, tb: 0.97, bend: 0.34, lift: 0.17, ak: 0.42, W: 2048, Hh: 1024, R1: 10500, DC: [500, 12500], lamp: 0.42, cloud: false, samples: 4, done: false, E: null, A: null, pipes: [] };
+  const M = { H: 2200, RE: 9.0e5, AZ: 1.3, t0: -0.11, ta: 0.44, tb: 0.97, bend: 0.34, lift: 0.17, ak: 0.42, W: 2048, Hh: 1024, R1: 9000, DC: [-2315, 14041], lamp: 0.42, seed: 20261115, cloud: false, samples: 4, done: false, E: null, A: null, pipes: [] };
   M.on = () => Variants.val.world === 'b';
   let gfx, pipe, tE, tA;
   M.init = function (g, res) {
@@ -48,31 +48,33 @@ const metroF = x => { const t = String(+(+x).toFixed(7)); return /[.e]/.test(t) 
 function metroBakeFS() {
   const f = metroF, M = Metro, H = M.H, DC = M.DC;
   // the quarters with tall towers: [u, w, radius, height of the tallest]
-  // the landmarks: a few towers far out of scale (taller than the mountain the skier stands on, they pierce the rim and stand
-  // against the stars), each of a shape of its own. c: where, rot, col: its light; tiers [half x, half y, from, to (m), kind]:
-  // kind 0 a windowed wall, 1 a mast or deck all alight, 2 a face of coloured light
-  const HEROES = [
-    { c: [500, 12900], rot: 0.07, col: [1.0, 0.86, 0.70], t: [[260, 260, 0, 1100, 0], [190, 190, 1100, 1900, 0], [120, 120, 1900, 2500, 0], [55, 55, 2500, 2850, 0], [12, 12, 2850, 3500, 1]] },
-    { c: [-1720, 12300], rot: 0.07, col: [0.20, 0.85, 1.0], t: [[130, 170, 0, 2300, 0], [14, 14, 2300, 2750, 1]] },
-    { c: [-1280, 12300], rot: 0.07, col: [0.20, 0.85, 1.0], t: [[130, 170, 0, 2300, 0], [14, 14, 2300, 2750, 1]] },
-    { c: [-1500, 12300], rot: 0.07, col: [0.20, 0.85, 1.0], t: [[90, 26, 1500, 1570, 1]] },
-    { c: [2500, 11700], rot: 0.0, col: [1.0, 0.22, 0.14], t: [[50, 50, 0, 1900, 0], [210, 210, 1900, 2040, 2], [10, 10, 2040, 2750, 1]] },
-    { c: [1900, 13900], rot: 0.6, col: [0.25, 0.45, 1.0], t: [[190, 130, 0, 2100, 2], [120, 80, 2100, 2600, 2]] },
-    { c: [-300, 14100], rot: 0.07, col: [1.0, 0.70, 0.30], t: [[300, 300, 0, 500, 0], [225, 225, 500, 950, 0], [155, 155, 950, 1350, 0], [85, 85, 1350, 1700, 0], [28, 28, 1700, 1950, 1]] },
-    { c: [-5200, 9000], rot: 0.3, col: [0.30, 1.0, 0.70], t: [[130, 130, 0, 1500, 0], [70, 70, 1500, 1800, 0], [10, 10, 1800, 2350, 1]] },
-    { c: [6800, 14500], rot: 0.07, col: [0.70, 0.45, 1.0], t: [[160, 160, 0, 1800, 0], [90, 90, 1800, 2200, 2], [10, 10, 2200, 2750, 1]] }];
-  // (as the concept picture has them: the tallest reach about to the rim, no higher; so the heights above are brought down, and a
-  // dozen plainer big towers are stood among them, so that downtown has its few great ones, a crowd of middling ones, and the low city)
-  HEROES.forEach(h => h.t.forEach(t => { t[2] *= 0.60; t[3] *= 0.60; if (t[0] > 30) { t[0] *= 1.25; t[1] *= 1.25; } }));
-  { let sd = 20261117; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
-    const cols = [[1.0, 0.80, 0.55], [0.20, 0.85, 1.0], [1.0, 0.30, 0.75], [1.0, 0.70, 0.30], [0.55, 0.65, 1.0], [1.0, 0.86, 0.70]];
-    for (let i = 0; i < 8; i++) {
-      const a = rnd() * 6.283, r = 350 + 1500 * Math.sqrt(rnd()), hx = 85 + 80 * rnd(), hy = 85 + 80 * rnd(), ht = 600 + 700 * rnd() * (1 - r / 2600), cut = ht * (0.62 + 0.25 * rnd());
-      HEROES.push({ c: [DC[0] + r * Math.cos(a), DC[1] + 300 + r * Math.sin(a) * 0.8], rot: rnd() < 0.7 ? 0.07 : rnd() * 1.5, col: cols[i % cols.length],
-        t: [[hx, hy, 0, cut, rnd() < 0.2 ? 2 : 0], [hx * 0.62, hy * 0.62, cut, ht, 0]] });
-    } }
+  // ---- the layout is the concept picture's (01_night_metropolis, 1536 x 1024), measured off it and held as constants: nothing here
+  // is drawn by chance. cg(x, y): a point of that picture, as ground (u, w) under this map's eye (its rim at y 185, the lip of the
+  // slope at y 800, against ours at 145 and 450 of 720; 795 px to the radian; the eye on the fixed mountain looks 0.36 rad left of the map's axis)
+  const cg = (x, y) => {
+    const az = (x / 1536 * 1280 - 640) / 780 - 0.36, th = 0.07 + (y - 185) * 0.496 / 795, t = Math.tan(th);
+    const d = 2 * H / (t + Math.sqrt(Math.max(t * t - 2 * H / M.RE, 1e-6)));
+    return [d * Math.sin(az), d * Math.cos(az), d];
+  };
+  // the river: it comes in from the far left, swings down and to the right in a long S before downtown, and leaves to the right;
+  // a second arm joins it from the left. [x, y of the picture, half its width (m)]
+  const RIVERS = [
+    [[0, 345, 300], [150, 336, 320], [300, 335, 340], [430, 345, 380], [560, 375, 440], [700, 414, 500], [860, 430, 520], [1020, 428, 500], [1180, 416, 460], [1330, 402, 430], [1536, 392, 400]],
+    [[150, 300, 220], [330, 296, 240], [470, 310, 260], [560, 340, 300], [600, 380, 320]]];
+  const SEGS = []; RIVERS.forEach(r => { for (let n = 0; n + 1 < r.length; n++) { const a = cg(r[n][0], r[n][1]), b = cg(r[n + 1][0], r[n + 1][1]); SEGS.push([a[0], a[1], b[0], b[1], r[n][2], r[n + 1][2]]); } });
+  // the towers of the picture, one by one: [x, y of its foot, its height and width (px of the picture), its light, a mast?]
+  const TCOL = [[1.0, 0.80, 0.55], [0.20, 0.85, 1.0], [1.0, 0.30, 0.75], [1.0, 0.95, 0.85], [0.62, 0.45, 1.0]];
+  const TOWERS = [[835, 334, 52, 16, 0, 0], [858, 326, 68, 17, 1, 0], [882, 338, 58, 14, 0, 0], [905, 328, 84, 18, 3, 1], [930, 336, 72, 15, 2, 0], [953, 324, 92, 18, 0, 1],
+    [976, 338, 78, 14, 1, 0], [1000, 330, 118, 17, 3, 1], [1023, 336, 88, 15, 2, 0], [1046, 326, 70, 17, 1, 0], [1068, 336, 54, 15, 0, 0],
+    [322, 398, 46, 10, 3, 1], [742, 456, 36, 10, 4, 0], [1418, 332, 30, 10, 1, 0], [640, 352, 30, 10, 0, 0], [1190, 345, 34, 11, 2, 0]];
+  const HEROES = TOWERS.map(t => {
+    const g = cg(t[0], t[1]), px = g[2] / 795, h = t[2] * 0.72 * px, hw = t[3] * 0.833 * px / 2;
+    const tiers = [[hw, hw, 0, 0.80 * h, 0], [0.62 * hw, 0.62 * hw, 0.80 * h, h, 0]]; if (t[5]) tiers.push([Math.max(5, 0.07 * hw), Math.max(5, 0.07 * hw), h, 1.17 * h, 1]);
+    return { c: [g[0], g[1]], rot: 0.07, col: TCOL[t[4]], t: tiers };
+  });
   const TIERS = []; HEROES.forEach(h => h.t.forEach(t => TIERS.push({ h, t })));
-  const CORES = [[DC[0], DC[1], 1250, 900], [-5200, 9000, 800, 420], [3900, 7300, 620, 330], [-1500, 6900, 520, 300], [6800, 14500, 900, 460], [-7600, 16500, 1000, 480], [1200, 19500, 900, 420], [-3200, 13800, 600, 340]];
+  const cc = (x, y, r, h) => { const g = cg(x, y); return [g[0], g[1], r, h]; };
+  const CORES = [cc(952, 331, 1900, 520), cc(322, 398, 700, 300), cc(742, 456, 600, 260), cc(1418, 332, 800, 300), cc(640, 352, 600, 240), cc(1190, 345, 700, 280), cc(200, 300, 900, 260), cc(1300, 300, 1000, 260)];
   return `
 const MH: f32 = ${f(H)}; const MRE: f32 = ${f(M.RE)}; const MR1: f32 = ${f(M.R1)}; const MCS: f32 = 120.0;
 fn mLine(x: f32, f: f32, w: f32) -> f32 {
@@ -83,21 +85,13 @@ fn mLine(x: f32, f: f32, w: f32) -> f32 {
 fn mBand(s: f32, hw: f32, fw: f32) -> f32 { let w: f32 = max(fw, 0.5); return saturate((min(s + hw, 0.5 * w) - max(s - hw, -0.5 * w)) / w); }
 fn mFoot(n: vec2f, dh: vec2f, fr: f32, fa: f32) -> f32 { let c: f32 = dot(n, dh); return abs(c) * fr + sqrt(max(1.0 - c * c, 0.0)) * fa; }
 // the road that winds down from the mountain to the city: where it lies (u) at w
-fn mRoadU(w: f32) -> f32 { let k: f32 = 1.0 - smoothstep(5200.0, 9800.0, w); return (520.0 * sin(w / 760.0 + 0.6) + 260.0 * sin(w / 310.0)) * k * smoothstep(300.0, 1500.0, w) + 160.0; }
-// the two arms that join the rivers, left and right of downtown (which so stands on an island): where their middle runs
-fn mArm(w: f32, k: f32) -> f32 { return mix(-6900.0 + 700.0 * sin(w / 1900.0), 7300.0 + 600.0 * sin(w / 2300.0 + 1.0), k); }
-// the rivers: the near one crosses in front of downtown, the far one behind it, an arm joins them on the left.
-// Signed distance to the bank (m, < 0 on the water)
+fn mRoadU(w: f32) -> f32 { let k: f32 = 1.0 - smoothstep(5200.0, 9000.0, w); return -0.17 * w + (520.0 * sin(w / 760.0 + 0.6) + 260.0 * sin(w / 310.0)) * k * smoothstep(300.0, 1500.0, w) + 160.0; }
+// the river of the concept picture: signed distance to its bank (m, < 0 on the water)
+fn mSeg(p: vec2f, a: vec2f, b: vec2f, ra: f32, rb: f32) -> f32 { let pa: vec2f = p - a; let ba: vec2f = b - a; let h: f32 = saturate(dot(pa, ba) / dot(ba, ba)); return length(pa - ba * h) - mix(ra, rb, h); }
 fn mRiver(u: f32, w: f32) -> f32 {
-  let c1: f32 = 10250.0 + 520.0 * sin(u / 4300.0 + 0.9) + 210.0 * sin(u / 1500.0 + 2.0);
-  let w1: f32 = 640.0 + 200.0 * sin(u / 2900.0 + 1.0);
-  let s1: f32 = abs(w - c1) / sqrt(1.0 + sq(0.12 * cos(u / 4300.0 + 0.9) + 0.14 * cos(u / 1500.0 + 2.0))) - w1;
-  let c2: f32 = 15400.0 + 1500.0 * sin(u / 6800.0 + 2.6) + 380.0 * sin(u / 2100.0);
-  let w2: f32 = 560.0 + 180.0 * sin(u / 3700.0 + 4.0);
-  let s2: f32 = abs(w - c2) / sqrt(1.0 + sq(0.22 * cos(u / 6800.0 + 2.6) + 0.18 * cos(u / 2100.0))) - w2;
-  let s3: f32 = max(abs(u - mArm(w, 0.0)) - 300.0, max(c1 - w, w - c2));
-  let s4: f32 = max(abs(u - mArm(w, 1.0)) - 280.0, max(c1 - w, w - c2));
-  return min(min(s1, s2), min(s3, s4));
+  let p: vec2f = vec2f(u, w); var d: f32 = 1.0e5;
+${SEGS.map(g => `  d = min(d, mSeg(p, vec2f(${f(g[0])}, ${f(g[1])}), vec2f(${f(g[2])}, ${f(g[3])}), ${f(g[4])}, ${f(g[5])}));`).join('\n')}
+  return d;
 }
 // the foothills: height above the plain (m). Spurs run down from the mountain, the road's valley between them
 fn mHills(u: f32, w: f32) -> f32 {
@@ -194,23 +188,6 @@ fn mGround(u: f32, w: f32, dh: vec2f, fr: f32, fa: f32, mode: f32) -> vec4f {
     em += mix(gold, vec3f(1.0, 0.45, 0.55), vnoise2(vec2f(u / 400.0, 3.0))) * (water * sh * 0.22 * mix(0.4, 1.0, L.x));
     // the great bridges: where a boulevard crosses, two lit pylons stand in the water
     em += vec3f(1.0, 0.86, 0.62) * (mBand(dax, 16.0, wg.x) * step(1.0, kax) * water * 10.0 * exp(-sq((rs + 150.0) / 55.0)));
-    // the suspension bridges over the two arms, seen from the side: drawn standing (what is y m up shows against the ground
-    // y / slope farther on): two towers, the hanging cables strung with lamps, the lit deck
-    let sl: f32 = MH / max(length(vec2f(u, w)), 1.0); let fy: f32 = max(fr * sl, 3.0);
-    for (var i: i32 = 0; i < 6; i++) {
-      let k: f32 = f32(i / 3); let wb: f32 = 11250.0 + 1350.0 * f32(i - 3 * (i / 3)) + 300.0 * k;
-      let y: f32 = (w - wb) * sl; let xb: f32 = u - mArm(wb, k);
-      if (y > -20.0 && y < 300.0 && abs(xb) < 560.0) {
-        let ax: f32 = abs(xb); let tw0: f32 = 250.0;
-        var yc: f32 = 52.0 + 170.0 * sq(ax / tw0);
-        if (ax > tw0) { yc = mix(222.0, 40.0, saturate((ax - tw0) / 290.0)); }
-        let cab: f32 = mBand(y - yc, 4.0, fy) * (0.45 + 0.55 * mLine(xb / 24.0, 0.35, fa / 24.0));
-        let hang: f32 = mLine(xb / 24.0, 0.12, fa / 24.0) * step(40.0, y) * step(y, yc) * 0.10;
-        let twr: f32 = mBand(ax - tw0, 9.0, fa) * step(0.0, y) * step(y, 236.0) * (0.55 + 0.9 * smoothstep(190.0, 236.0, y));
-        let deck: f32 = mBand(y - 40.0, 5.0, fy) * step(ax, 540.0);
-        em += (vec3f(1.0, 0.72, 0.38) * (deck * 6.0) + vec3f(1.0, 0.88, 0.70) * ((cab + hang) * 4.0 + twr * 4.5)) * step(ax, 545.0);
-      }
-    }
     return vec4f(em * flt, water * flt);
   }
   // by day, and under the moon: snow on the roofs and the parks, dark streets, blue water
@@ -511,14 +488,40 @@ fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
     let cs: f32 = mix(0.0021, 0.0052, f32(i)); let g: vec2f = sa / cs + vec2f(f32(i) * 37.0, 11.0);
     let cl: vec2f = floor(g); let h: vec2f = hash22(cl + vec2f(3.0, 501.0));
     let o: vec2f = fract(g) - 0.5 - (h - 0.5) * 0.55; let b: f32 = hash21(cl + vec2f(77.0, 9.0));
-    spark += exp(-dot(o, o) * mix(26.0, 34.0, f32(i))) * b * b * b * b * mix(3.4, 10.0, f32(i));
+    // each flickers by itself, as far lights do through moving air: quicker and deeper the farther off
+    let ft: f32 = U.camPos.w * (2.6 + 5.0 * h.y); let fk: f32 = 0.5 + 0.5 * sin(ft + 6.283 * h.x) * sin(ft * 0.37 + 9.0 * b);
+    spark += exp(-dot(o, o) * mix(26.0, 34.0, f32(i))) * b * b * b * b * mix(3.4, 10.0, f32(i)) * mix(1.0, 0.25 + 1.5 * fk, 0.35 + 0.65 * smoothstep(5000.0, 16000.0, dist));
   }
   let El: f32 = luma(E.rgb);
   let farK: f32 = smoothstep(5000.0, 16000.0, dist);
   let warmK: f32 = saturate((E.r - E.b) / max(El, 0.001) * 2.5) * (1.0 - A.a) * (1.0 - E.a);
   let Ec: vec3f = mix(E.rgb, vec3f(1.0, 0.50, 0.13) * El * 1.3, 0.62 * warmK) * mix(mix(0.85 + 0.4 * spark, 0.36 + spark, farK), 1.0, E.a);
   let nightGround: vec3f = A.rgb * vec3f(0.016, 0.024, 0.07) * night;
-  var c: vec3f = (mix(A.rgb * lit + nightGround, A.rgb * lit * 0.6 + mir, A.a) + Ec * (mix(tw, 1.0, E.a) * night * ${f(M.lamp)})) * ex;
+  // the traffic on the avenues of the middle city: beads of light going slowly, red where they drive away, white where they come
+  // (the line of sight is taken back to the ground it was baked from)
+  let gp: vec2f = vec2f(sin(ba), cos(ba)) * dist - vec2f(${f(M.DC[0])}, ${f(M.DC[1])});
+  let gg: vec2f = vec2f(gp.x * ${f(Math.cos(0.07))} + gp.y * ${f(Math.sin(0.07))}, -gp.x * ${f(Math.sin(0.07))} + gp.y * ${f(Math.cos(0.07))});
+  let pix: f32 = 2.0 * U.camRight.w * U.res.w * dist; let pal: f32 = pix / max(s, 0.05);
+  var cars: vec3f = vec3f(0.0);
+  {
+    let dax: f32 = (fract(gg.x / 720.0 + 0.5) - 0.5) * 720.0; let lane: f32 = floor(gg.x / 720.0 + 0.5);
+    let ml: f32 = exp(-sq(dax / max(14.0, 0.7 * pix)));
+    let L: f32 = max(90.0, 2.5 * pal);
+    let p1: f32 = (gg.y - 26.0 * U.camPos.w) / L + lane * 0.37; let p2: f32 = (gg.y + 26.0 * U.camPos.w) / (L * 1.3) + lane * 0.61;
+    let b1: f32 = step(0.45, hash21(vec2f(floor(p1), lane + 7.0))) * exp(-sq((fract(p1) - 0.5) * 3.2));
+    let b2: f32 = step(0.45, hash21(vec2f(floor(p2), lane + 91.0))) * exp(-sq((fract(p2) - 0.5) * 3.2));
+    cars += (vec3f(1.0, 0.10, 0.05) * (b1 * 3.0) + vec3f(1.0, 0.93, 0.80) * (b2 * 2.2)) * ml;
+    let day: f32 = (fract(gg.y / 960.0 + 0.5) - 0.5) * 960.0; let lan2: f32 = floor(gg.y / 960.0 + 0.5);
+    let m2: f32 = exp(-sq(day / max(14.0, 0.7 * pal)));
+    let L2: f32 = max(90.0, 2.5 * pix);
+    let p3: f32 = (gg.x - 24.0 * U.camPos.w) / L2 + lan2 * 0.53; let p4: f32 = (gg.x + 24.0 * U.camPos.w) / (L2 * 1.2) + lan2 * 0.29;
+    let b3: f32 = step(0.5, hash21(vec2f(floor(p3), lan2 + 3.0))) * exp(-sq((fract(p3) - 0.5) * 3.2));
+    let b4: f32 = step(0.5, hash21(vec2f(floor(p4), lan2 + 57.0))) * exp(-sq((fract(p4) - 0.5) * 3.2));
+    cars += (vec3f(1.0, 0.10, 0.05) * (b3 * 2.6) + vec3f(1.0, 0.93, 0.80) * (b4 * 2.0)) * m2;
+  }
+  // (only where a lit road lies under the eye: not on towers, water, the hills, or the far boroughs whose streets run otherwise)
+  cars *= (1.0 - saturate(E.a)) * (1.0 - A.a) * saturate(luma(E.rgb) * 0.9) * (1.0 - smoothstep(6200.0, 7000.0, length(gp))) * smoothstep(9300.0, 10200.0, dist);
+  var c: vec3f = (mix(A.rgb * lit + nightGround, A.rgb * lit * 0.6 + mir, A.a) + (Ec * mix(tw, 1.0, E.a) + cars) * (night * ${f(M.lamp)})) * ex;
   // the air: by night a deep blue that the city warms a little, thickening toward the rim
   let air: vec3f = mix(haze, vec3f(0.035, 0.06, 0.16) + vec3f(0.10, 0.07, 0.05) * luma(E.rgb), night * 0.85);
   c = mix(air, c, exp(-dist / mix(34000.0, 52000.0, night)));
