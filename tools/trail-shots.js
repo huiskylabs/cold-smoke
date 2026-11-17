@@ -32,7 +32,7 @@ fs.mkdirSync(out, { recursive: true });
       while (G.runT - t0 < 200) { __ski.sim(0.05, f, { draw: false }); __rings.frame(); const c = __rings.rings.find(r => r.pass < 0 && !r.skip); if (__rings.passed + __rings.missed >= 2 && c && c.s + G.s.p[2] < 14) return; await new Promise(r => setTimeout(r, 0)); }
     });
     // then a frame at a time, drawn, shooting at set distances to the ring
-    const marks = [5, 2, 0, -2.5, -5];
+    const marks = [4, 2, 0.5, -1, -2.5];
     for (const m of marks) {
       await pg.evaluate(async m => {
         const f = __pilot(), G = __ski.game();
@@ -40,7 +40,7 @@ fs.mkdirSync(out, { recursive: true });
         for (let k = 0; k < 400; k++) { __ski.sim(1 / 60, f); if (ring.s + G.s.p[2] <= m) break; await new Promise(r => requestAnimationFrame(r)); }
       }, m);
       await pg.waitForTimeout(60);
-      const file = path.join(out, v + '_' + String(marks.indexOf(m) + 1).padStart(2, '0') + '_' + (m > 0 ? '离圈' + m + '米' : m === 0 ? '穿过' : '过圈' + (-m) + '米') + '.png');
+      const file = path.join(out, v + '_' + String(marks.indexOf(m) + 1).padStart(2, '0') + '_' + (m > 0 ? '离圈' + m + '米' : '过圈' + (-m) + '米') + '.png');
       await pg.screenshot({ path: file }); console.log('shot', file);
     }
     console.log(v, 'ghosts', await pg.evaluate(() => __rings.ghosts ? __rings.ghosts() : -1), 'errors:', errs.length ? errs.join(' | ') : 'none');
