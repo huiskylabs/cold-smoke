@@ -82,7 +82,7 @@ ${isC ? `  let ln: f32 = pN(p / 5600.0 + vec2f(2.7, 6.1));
   let gl: f32 = pRidge(qd * 4.5 + q / 11000.0 + vec2f(2.0, 9.0), n);
   pk = PHP * (0.10 * fk + 0.90 * pow(fk, 1.7)) * (1.0 + (0.16 * (gl - 0.42) + 0.20 * (rib - 0.40)) * (1.0 - 0.75 * fk) * (0.5 + 0.5 * smoothstep(0.0, 0.25, fk)));
   // (its rim is not level: bumps and summits round it, notches where gullies bite in, as Fuji's eight peaks)
-  let top: f32 = PHP * (${isC ? '0.80' : '0.925'} + 0.060 * (vnoise2(qd * 2.6 + vec2f(4.0, 1.0)) - 0.5) + 0.032 * (vnoise2(qd * 9.0 + vec2f(1.0, 6.0)) - 0.5) + 0.014 * (vnoise2(qd * 26.0 + vec2f(7.0, 2.0)) - 0.5) - 0.025 * smoothstep(0.55, 0.85, gl));
+  let top: f32 = ${isC ? 'PHP * 0.80' : f(Math.min(0.925 * P.HP, 8400))} + PHP * (0.060 * (vnoise2(qd * 2.6 + vec2f(4.0, 1.0)) - 0.5) + 0.032 * (vnoise2(qd * 9.0 + vec2f(1.0, 6.0)) - 0.5) + 0.014 * (vnoise2(qd * 26.0 + vec2f(7.0, 2.0)) - 0.5) - 0.025 * smoothstep(0.55, 0.85, gl));
   if (pk > top) { pk = top - min(1.3 * (pk - top), 380.0); }
   var h: f32 = max(own, flr + max(rng, pk));${isC ? '' : `
   // (and it lies down into the water on a low shelf of gravel and flats, a beach, a delta, not a wall)
@@ -331,7 +331,7 @@ fn pkTerrS(p: vec2f) -> f32 {
   let q: vec2f = p - vec2f(${f(P.PC[0])}, ${f(P.PC[1])}); let rp: f32 = length(q); let pa: f32 = atan2(q.x, q.y);
   let R: f32 = ${f(P.PR)} * (1.0 + 0.20 * cos(3.0 * pa + 0.6) + 0.09 * cos(7.0 * pa + 2.0));
   let fk: f32 = saturate(1.0 - rp / R);
-  let pk: f32 = min(${f(P.HP)} * (0.10 * fk + 0.90 * pow(fk, 1.7)), ${f((isC ? 0.8 : 0.925) * P.HP)});
+  let pk: f32 = min(${f(P.HP)} * (0.10 * fk + 0.90 * pow(fk, 1.7)), ${f(isC ? 0.8 * P.HP : Math.min(0.925 * P.HP, 8400))});
   return max(rng, pk);
 }
 // how much of the sun the land hides from the point p (bake metres) h0 m over the lake: 0 in the sun .. 1 in shadow. The march takes
