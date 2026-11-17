@@ -60,7 +60,10 @@ ${isC ? `  let ln: f32 = pN(p / 5600.0 + vec2f(2.7, 6.1));
   let opn: f32 = smoothstep(1.0, 1.7, ell);`}
   // the lesser ranges: to either side, and far off
   let env: f32 = saturate(0.80 * smoothstep(11000.0, 30000.0, r) + 1.0 * smoothstep(0.50, 1.05, abs(az)) * smoothstep(4500.0, 13000.0, r));
-  let rng: f32 = 3900.0 * rg * rg * env * opn;
+  ${isC ? `let rng: f32 = 3900.0 * rg * rg * env * opn;` : `// (金色雪旗: not knife ridges but long rolling ranges, their slopes slow, rising and falling in swells many km long, with only a
+  // little broken rock on their crests)
+  let rs: f32 = 0.62 * pN(p / 11000.0 + vec2f(3.1, 8.2)) + 0.28 * pN(p / 4200.0 + vec2f(1.0, 6.0)) + 0.10 * rg;
+  let rng: f32 = 3300.0 * pow(smoothstep(0.22, 0.86, rs), 1.6) * env * opn * (0.92 + 0.16 * vnoise2(p / 1400.0));`}
   // the great peak: a horn, its faces hollow, its ridges running down to the lake
   let q: vec2f = p - vec2f(${f(P.PC[0])}, ${f(P.PC[1])}); let rp: f32 = length(q); let pa: f32 = atan2(q.x, q.y);
   let R: f32 = ${f(P.PR)} * (1.0 + 0.20 * cos(3.0 * pa + 0.6) + 0.09 * cos(7.0 * pa + 2.0));
@@ -72,8 +75,9 @@ ${isC ? `  let ln: f32 = pN(p / 5600.0 + vec2f(2.7, 6.1));
   // and the top itself cut off level, a crater with a ragged rim)
   let qd: vec2f = q / max(rp, 1.0);
   let gl: f32 = pRidge(qd * 4.5 + q / 11000.0 + vec2f(2.0, 9.0), n);
-  pk = PHP * (0.10 * fk + 0.90 * pow(fk, 1.7)) * (1.0 + (0.16 * (gl - 0.42) + 0.20 * (rib - 0.40)) * (1.0 - fk) * (0.5 + 0.5 * smoothstep(0.0, 0.25, fk)));
-  let top: f32 = PHP * (0.80 + 0.030 * (vnoise2(qd * 2.6 + vec2f(4.0, 1.0)) - 0.5) + 0.016 * (vnoise2(qd * 9.0 + vec2f(1.0, 6.0)) - 0.5));
+  pk = PHP * (0.10 * fk + 0.90 * pow(fk, 1.7)) * (1.0 + (0.16 * (gl - 0.42) + 0.20 * (rib - 0.40)) * (1.0 - 0.75 * fk) * (0.5 + 0.5 * smoothstep(0.0, 0.25, fk)));
+  // (its rim is not level: bumps and summits round it, notches where gullies bite in, as Fuji's eight peaks)
+  let top: f32 = PHP * (0.80 + 0.060 * (vnoise2(qd * 2.6 + vec2f(4.0, 1.0)) - 0.5) + 0.032 * (vnoise2(qd * 9.0 + vec2f(1.0, 6.0)) - 0.5) + 0.014 * (vnoise2(qd * 26.0 + vec2f(7.0, 2.0)) - 0.5) - 0.025 * smoothstep(0.55, 0.85, gl));
   if (pk > top) { pk = top - min(1.3 * (pk - top), 380.0); }
   var h: f32 = max(own, flr + max(rng, pk));${isC ? '' : `
   // (金色雪旗: the shore is never a line drawn round the lake. Points and bays a few hundred metres to a couple of km across, small
@@ -196,6 +200,9 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   let qv: vec2f = p / PK - vec2f(${f(P.PC[0])}, ${f(P.PC[1])}); let qn: vec2f = qv / max(length(qv), 1.0);
   let tong: f32 = pRidge(qn * 11.0 + vec2f(3.0, 1.0), 3) + 0.5 * (dn - 0.5);
   let bare: f32 = (1.0 - smoothstep(-0.05, 0.05, tH / PHP - 0.44 + 0.30 * (tong - 0.35))) * smoothstep(0.02, 0.10, tH / PHP) * step(length(qv), ${f(P.PR)});
+  // (up high, dark ribs of rock stand out of the snow between the gullies, thickest about the rim: the snow is not a smooth cap)
+  let tg2: f32 = pRidge(qn * 26.0 + vec2f(9.0, 4.0), 3) + 0.35 * (dn - 0.5);
+  let ribs: f32 = smoothstep(0.50, 0.66, tg2) * smoothstep(0.50, 0.70, tH / PHP) * step(length(qv), ${f(P.PR)}) * ${isC ? '0.0' : '0.75'};
   let wood: f32 = (1.0 - smoothstep(650.0, 1500.0, tH + 500.0 * (pN(p / (1900.0 * PK)) - 0.5))) * smoothstep(0.60, 0.85, N.y) * step(2.0, tH);
   var alb: vec3f = mix(vec3f(0.90, 0.93, 1.0), vec3f(0.11, 0.15, 0.15), wood * (0.55 + 0.35 * dn));${isC ? '' : `
   // (金色雪旗: a dark band of spruce close about the lake, as round Peyto and Maligne. The trees have shed their snow; against them the
@@ -217,7 +224,7 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   let beach: f32 = (1.0 - smoothstep(bw * 0.6, bw, tH + 3.0 * (vnoise2(pq / 60.0) - 0.5))) * step(0.2, tH);
   let wet: f32 = 1.0 - smoothstep(0.3, 1.2, tH);
 `}
-  alb = mix(alb, vec3f(0.19, 0.17, 0.17) * (0.6 + 0.5 * dn + 0.5 * vnoise2(vec2f(tH / 45.0, dot(p, vec2f(0.0007, 0.0004))))), max(max(rock, bare * 0.9), band * 0.6) * 0.92);
+  alb = mix(alb, vec3f(0.19, 0.17, 0.17) * (0.6 + 0.5 * dn + 0.5 * vnoise2(vec2f(tH / 45.0, dot(p, vec2f(0.0007, 0.0004))))), max(max(max(rock, bare * 0.9), band * 0.6), ribs) * 0.92);
 ${isC ? '' : `  // (over the rock too: spruce clings to the steep lake shore, as round Peyto)
   // (on it the forest, over the bare lava too; under the trees a little snow shows through)
   alb = mix(alb, vec3f(0.050, 0.085, 0.068) * (0.70 + 0.6 * dn), shoreW * 0.92);
@@ -318,7 +325,10 @@ fn pkTerrS(p: vec2f) -> f32 {
   let lq: vec2f = (p - vec2f(${f(P.LC[0])}, ${f(P.LC[1])})) / vec2f(${f(P.LR[0])}, ${f(P.LR[1])});
   let opn: f32 = smoothstep(1.0, 1.7, length(lq) + 0.30 * (pkN(p / 3600.0 + vec2f(1.0, 5.0)) - 0.5) + 0.34 * (pkN(p / 8500.0 + vec2f(4.0, 2.0)) - 0.5));
   let env: f32 = saturate(0.80 * smoothstep(11000.0, 30000.0, r) + 1.0 * smoothstep(0.50, 1.05, abs(az)) * smoothstep(4500.0, 13000.0, r));
-  let rng: f32 = 3900.0 * rg * rg * env * opn;
+  ${isC ? `let rng: f32 = 3900.0 * rg * rg * env * opn;` : `// (金色雪旗: not knife ridges but long rolling ranges, their slopes slow, rising and falling in swells many km long, with only a
+  // little broken rock on their crests)
+  let rs: f32 = 0.62 * pkN(p / 11000.0 + vec2f(3.1, 8.2)) + 0.28 * pkN(p / 4200.0 + vec2f(1.0, 6.0)) + 0.10 * rg;
+  let rng: f32 = 3300.0 * pow(smoothstep(0.22, 0.86, rs), 1.6) * env * opn * (0.92 + 0.16 * vnoise2(p / 1400.0));`}
   let q: vec2f = p - vec2f(${f(P.PC[0])}, ${f(P.PC[1])}); let rp: f32 = length(q); let pa: f32 = atan2(q.x, q.y);
   let R: f32 = ${f(P.PR)} * (1.0 + 0.20 * cos(3.0 * pa + 0.6) + 0.09 * cos(7.0 * pa + 2.0));
   let fk: f32 = saturate(1.0 - rp / R);
