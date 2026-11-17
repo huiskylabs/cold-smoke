@@ -80,7 +80,9 @@ const Rings = (() => {
     if (L.id) {
       const sE = lineEnd();
       if (L.fin) { RG.rings.push({ id: serial++, s: 1e9, skip: true }); return; }
-      if (s > sE - 25 || s0 + 60 > sE - 25) {
+      // (用户 21:18 UTC: 最后一个圈要跟倒数第二个离得远一点): a ring that would stand within 70 m of the finish is left out, so the finish
+      // ring stands on its own, a long straight run in after the last ring
+      if (s > sE - 70) {
         const c = Course.at(sE, pc), r = 6.0; L.fin = true;          // (用户 18:54 UTC: 终点是更大的白圈)
         RG.rings.push({ id: serial++, s: sE, u: 0, x: c.cx, y: floatY(c.cx, sE, r, -1e9), r, tag: '终点', fin: true, air: false, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sE, u: 0 }; return;
       }
