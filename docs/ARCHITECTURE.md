@@ -29,6 +29,7 @@ Chromium with SwiftShader runs both backends headless (Playwright works), so the
 - The page exposes `window.__ski` for scripts: `sim(seconds, steerFn, {draw})`, `pilot(amplitude, period)`, `tod(name)` (day, golden, sunset, dusk, night, dawn, sunrise), `view(pos, target, fov)`, `set("Sky.rate", 0)`, `reset(distance)`, and `m` (all the modules).
 - `test/smoke.html` exercises the rendering layer alone: open it through the local server as `/test/smoke.html?backend=webgl2` or `?backend=webgpu`.
 - Director mode renders frames for video: see [`director/README.md`](../director/README.md).
+- How the skier moves has a ruler and a gate: `npm run motion` plays 17 scripted runs, counts the moves no body could make, the places the figure passes through itself and how the shins sit in the boots, compares with `tools/motion/baseline.json` and exits 1 if anything got worse. Run it before merging a change to the figure's motion. See [`tools/motion/README.md`](../tools/motion/README.md) (in Chinese), which also has the four rules such a change keeps: the legs have one owner (knees are always solved from hip, ankle and the boot rule), one clock for one body, whoever moves a joint last runs the constraints again, and no stacked springs.
 
 ## 小红书 小工具 package
 
