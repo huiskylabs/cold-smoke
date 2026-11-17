@@ -2,7 +2,7 @@
 const App = { state: { speed: 0, lean: 0 }, ready: false, t: 0, lookYaw: null, lampTilt: 0.07 };
 const QS = new URLSearchParams(location.search);
 // ?dev, or a path ending in /dev, is the test harness and the developer menu. The 小红书 build sets COLD_SMOKE.noDev and never opens it.
-const DEV = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (QS.has('dev') || /(?:^|\/)dev\/?$/.test(location.pathname) || !!(self.COLD_SMOKE && self.COLD_SMOKE.dev));      // (COLD_SMOKE.dev: a test file opened as it is, with no address to put ?dev in)
+const DEV = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (QS.has('dev') || /(?:^|\/)dev\/?$/.test(location.pathname) || !!(self.COLD_SMOKE && self.COLD_SMOKE.dev));
 
 // Start-up runs in stages with a breath between them, so the loading page can show where it has got to
 Variants.def('bootq', '开机顺序', [['a', '全部编好再开'], ['b', '先编第一眼要的']], 'b');
