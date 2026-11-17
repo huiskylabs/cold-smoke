@@ -1006,14 +1006,11 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   const CLOTH = { a: [0, 0, 0], b: [1, 1, 1], c: [1.7, 1, 0.7] }, clo = { p: [0, 0, 0, 0], q: [0, 0, 1, 1], h: 1, t: -1 }, HEMP = [0, 0.08, 0.05];
   Variants.def('body', '人物模型', [['a', '原来'], ['b', '新的']], 'b');
   Variants.def('cloth', '衣服', [['a', '平整'], ['b', '自然'], ['c', '厚实']], 'b');
-  // (the glove: a = the squarish fist of the body's own mesh; b = a glove with fingers closed round the grip, see gloveMesh. Developer mode only for
-  // now: without ?dev it is a, whatever an address or an earlier pick says)
+  // (the glove: a = the squarish fist of the body's own mesh; b = a glove with fingers closed round the grip, see gloveMesh)
   Variants.def('hand', '手套', [['a', '原来'], ['b', '手指握杖']], 'b');
   // (and the clothes' finer details, as real ski clothes are made: stitching beside the seams, a cargo pocket on the thigh, scuff guards inside the
   // ankles, zip pulls and hem toggles, a dusting of snow on what faces up, boots with buckles and a power strap: see SKIER_FS, kit)
   Variants.def('kit', '衣服细节', [['a', '原来'], ['b', '更细']], 'b');
-  { let dev = false; try { dev = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (/[?&]dev(=|&|$)/.test(location.search) || /\/dev\/?$/.test(location.pathname) || !!(self.COLD_SMOKE && self.COLD_SMOKE.dev)); } catch (e) { }
-    if (!dev) { Variants.val.hand = 'a'; Variants.val.kit = 'a'; } }
   function cloth(J) {
     const bd = (a, b, c) => sat(0.8 * (1 - v3.dot(v3.norm(v3.sub(b, a)), v3.norm(v3.sub(c, b))))), up = v3.norm(v3.sub(J.chest, J.pelvis)), hf = (h, k) => sat(0.5 + 0.5 * v3.dot(up, v3.norm(v3.sub(k, h))));
     clo.p = [bd(J.shL, J.elbowL, J.gripL), bd(J.shR, J.elbowR, J.gripR), bd(J.hipL, J.kneeL, J.ankleL), bd(J.hipR, J.kneeR, J.ankleR)];
