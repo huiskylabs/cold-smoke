@@ -82,7 +82,7 @@ ${isC ? `  let ln: f32 = pN(p / 5600.0 + vec2f(2.7, 6.1));
   let gl: f32 = pRidge(qd * 4.5 + q / 11000.0 + vec2f(2.0, 9.0), n);
   pk = PHP * (0.10 * fk + 0.90 * pow(fk, 1.7)) * (1.0 + (0.16 * (gl - 0.42) + 0.20 * (rib - 0.40)) * (1.0 - 0.75 * fk) * (0.5 + 0.5 * smoothstep(0.0, 0.25, fk)));
   // (its rim is not level: bumps and summits round it, notches where gullies bite in, as Fuji's eight peaks)
-  let top: f32 = PHP * (${isC ? '0.80' : '0.86'} + 0.070 * (vnoise2(qd * 2.6 + vec2f(4.0, 1.0)) - 0.5) + 0.032 * (vnoise2(qd * 9.0 + vec2f(1.0, 6.0)) - 0.5) + 0.014 * (vnoise2(qd * 26.0 + vec2f(7.0, 2.0)) - 0.5) - 0.025 * smoothstep(0.55, 0.85, gl));
+  let top: f32 = PHP * (${isC ? '0.80' : '0.925'} + 0.060 * (vnoise2(qd * 2.6 + vec2f(4.0, 1.0)) - 0.5) + 0.032 * (vnoise2(qd * 9.0 + vec2f(1.0, 6.0)) - 0.5) + 0.014 * (vnoise2(qd * 26.0 + vec2f(7.0, 2.0)) - 0.5) - 0.025 * smoothstep(0.55, 0.85, gl));
   if (pk > top) { pk = top - min(1.3 * (pk - top), 380.0); }
   var h: f32 = max(own, flr + max(rng, pk));${isC ? '' : `
   // (and it lies down into the water on a low shelf of gravel and flats, a beach, a delta, not a wall)
@@ -213,13 +213,13 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   // to a ragged edge some 450 m over the lake, and higher on the volcano's foot, where it climbs the lava between the gullies (as
   // Aokigahara on Fuji's flank) and gives out in scattered trees before the bare lava; pale avalanche tracks run down through it)
   let onPk: f32 = 1.0 - smoothstep(0.70, 1.0, length(qv) / ${f(P.PR)});
-  let tl: f32 = mix(650.0, 1250.0, onPk) + 220.0 * (pN(pq / 1100.0 + vec2f(2.0, 8.0)) - 0.5) + 90.0 * (vnoise2(pq / 260.0 + vec2f(5.0, 1.0)) - 0.5) + 260.0 * onPk * (tong - 0.35);
+  let tl: f32 = mix(650.0, 1900.0, onPk) + 220.0 * (pN(pq / 1100.0 + vec2f(2.0, 8.0)) - 0.5) + 90.0 * (vnoise2(pq / 260.0 + vec2f(5.0, 1.0)) - 0.5) + 260.0 * onPk * (tong - 0.35);
   let fzT: f32 = 1.0 - smoothstep(tl - 260.0, tl, tH);
   let aval: f32 = smoothstep(0.80, 0.90, vnoise2(vec2f(atan2(lqW.x, lqW.y) * 38.0, tH / 1600.0) + vec2f(3.0, 7.0))) * smoothstep(60.0, 200.0, tH);
   let dens: f32 = saturate(0.80 + 0.45 * (vnoise2(pq / 90.0 + vec2f(1.0, 2.0)) - 0.5) + 0.25 * (vnoise2(pq / 30.0 + vec2f(4.0, 6.0)) - 0.5));
   let shoreW: f32 = fzT * smoothstep(0.40, 0.58, N.y + 0.10 * (dn - 0.5)) * dens * (1.0 - 0.85 * aval) * smoothstep(${f(9000 / 2.2)}, ${f(11000 / 2.2)}, length(pq)) * (1.0 - 0.35 * onPk * smoothstep(tl - 600.0, tl, tH)) * step(0.2, tH);
   // (the beach: a narrow strip of pale gravel and sand at the water's edge, wider on the flats and the deltas, darker where it is wet)
-  let bw: f32 = 3.0 + 16.0 * smoothstep(0.58, 0.78, pN(pq / 2300.0 + vec2f(8.0, 8.0)));
+  let bw: f32 = 6.0 + 24.0 * smoothstep(0.58, 0.78, pN(pq / 2300.0 + vec2f(8.0, 8.0)));
   let beach: f32 = (1.0 - smoothstep(bw * 0.6, bw, tH + 3.0 * (vnoise2(pq / 60.0) - 0.5))) * step(0.2, tH);
   let wet: f32 = 1.0 - smoothstep(0.3, 1.2, tH);
 `}
@@ -331,7 +331,7 @@ fn pkTerrS(p: vec2f) -> f32 {
   let q: vec2f = p - vec2f(${f(P.PC[0])}, ${f(P.PC[1])}); let rp: f32 = length(q); let pa: f32 = atan2(q.x, q.y);
   let R: f32 = ${f(P.PR)} * (1.0 + 0.20 * cos(3.0 * pa + 0.6) + 0.09 * cos(7.0 * pa + 2.0));
   let fk: f32 = saturate(1.0 - rp / R);
-  let pk: f32 = min(${f(P.HP)} * (0.10 * fk + 0.90 * pow(fk, 1.7)), ${f((isC ? 0.8 : 0.86) * P.HP)});
+  let pk: f32 = min(${f(P.HP)} * (0.10 * fk + 0.90 * pow(fk, 1.7)), ${f((isC ? 0.8 : 0.925) * P.HP)});
   return max(rng, pk);
 }
 // how much of the sun the land hides from the point p (bake metres) h0 m over the lake: 0 in the sun .. 1 in shadow. The march takes
