@@ -1,6 +1,7 @@
 dist/
 dist-xhs/
 dist-xhs.zip
+tools/motion/out/
 node_modules/
 .claude/
 .DS_Store

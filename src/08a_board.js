@@ -67,7 +67,7 @@ const Board = (() => {
       if (over <= -0.02) break; H -= (over >= 0.02 ? over : (over + 0.02) * (over + 0.02) / 0.08) * 1.1;
     }
     if (LB && LB.w > 0) {
-      const lp = v3.add(aM, v3.mul(LB.pel, LabMo.LEG)); lp[1] += -0.30 * (c - LB.cref); lp[0] += -0.07 * fa;
+      const lp = v3.add(aM, v3.mul(LB.pel, LabMo.LEG)); lp[1] += -0.30 * (c - LB.cref); lp[0] += -0.07 * fa; lp[1] += (pel[1] - lp[1]) * Math.min(1, Math.max(0, p.drive || 0));
       pel = v3.lerp(pel, lp, LB.w);
       for (let it = 0; it < 3; it++) {
         hipL = v3.add(v3.mad(pel, pb.X, -L.hipW), v3.mul(pb.Y, -L.hipD)); hipR = v3.add(v3.mad(pel, pb.X, L.hipW), v3.mul(pb.Y, -L.hipD));
