@@ -13,7 +13,7 @@ const Metro = (() => {
   // H: how far below the eye the city lies (m); RE: the radius of its little planet (the horizon dips, and curves, far more than the earth's);
   // AZ: the panorama covers bearings +-AZ about the city's; ta, tb: its rows, packed toward the horizon (drop = ta v + tb v^4);
   // bend: how much farther the ground falls away to either side than straight ahead (rad at 90 degrees: the planet's curve, overdrawn)
-  const M = { H: 2200, RE: 9.0e5, AZ: 1.3, ta: 0.33, tb: 0.97, bend: 0.34, lift: 0.17, ak: 0.42, W: 2048, Hh: 1024, R1: 10500, DC: [500, 12500], lamp: 0.42, cloud: false, samples: 4, done: false, E: null, A: null, pipes: [] };
+  const M = { H: 2200, RE: 9.0e5, AZ: 1.3, t0: -0.11, ta: 0.44, tb: 0.97, bend: 0.34, lift: 0.17, ak: 0.42, W: 2048, Hh: 1024, R1: 10500, DC: [500, 12500], lamp: 0.42, cloud: false, samples: 4, done: false, E: null, A: null, pipes: [] };
   M.on = () => Variants.val.world === 'b';
   let gfx, pipe, tE, tA;
   M.init = function (g, res) {
@@ -36,7 +36,7 @@ const Metro = (() => {
       gfx.draw(pipe, { u: { r: [0, k / N, 1, (k + 1) / N], t: [0, k / N, 1, (k + 1) / N], m: [mode, M.samples, M.W, M.Hh] }, tex: {}, count: 4 });
       gfx.endPass();
       M.step++;
-    } while (whole && M.step < 2 * N);
+    } while (whole && M.step < 2 * N && M.step % 8 !== 0);      // (the director: eight bands a frame)
     if (M.step >= 2 * N) { gfx.genMips(M.E); gfx.genMips(M.A); M.done = true; }
   };
   Variants.on((n, v, init) => { if (n === 'world' && !init && typeof Clouds !== 'undefined') Clouds.baked = false; });
@@ -48,6 +48,30 @@ const metroF = x => { const t = String(+(+x).toFixed(7)); return /[.e]/.test(t) 
 function metroBakeFS() {
   const f = metroF, M = Metro, H = M.H, DC = M.DC;
   // the quarters with tall towers: [u, w, radius, height of the tallest]
+  // the landmarks: a few towers far out of scale (taller than the mountain the skier stands on, they pierce the rim and stand
+  // against the stars), each of a shape of its own. c: where, rot, col: its light; tiers [half x, half y, from, to (m), kind]:
+  // kind 0 a windowed wall, 1 a mast or deck all alight, 2 a face of coloured light
+  const HEROES = [
+    { c: [500, 12900], rot: 0.07, col: [1.0, 0.86, 0.70], t: [[260, 260, 0, 1100, 0], [190, 190, 1100, 1900, 0], [120, 120, 1900, 2500, 0], [55, 55, 2500, 2850, 0], [12, 12, 2850, 3500, 1]] },
+    { c: [-1720, 12300], rot: 0.07, col: [0.20, 0.85, 1.0], t: [[130, 170, 0, 2300, 0], [14, 14, 2300, 2750, 1]] },
+    { c: [-1280, 12300], rot: 0.07, col: [0.20, 0.85, 1.0], t: [[130, 170, 0, 2300, 0], [14, 14, 2300, 2750, 1]] },
+    { c: [-1500, 12300], rot: 0.07, col: [0.20, 0.85, 1.0], t: [[90, 26, 1500, 1570, 1]] },
+    { c: [2500, 11700], rot: 0.0, col: [1.0, 0.22, 0.14], t: [[50, 50, 0, 1900, 0], [210, 210, 1900, 2040, 2], [10, 10, 2040, 2750, 1]] },
+    { c: [1900, 13900], rot: 0.6, col: [0.25, 0.45, 1.0], t: [[190, 130, 0, 2100, 2], [120, 80, 2100, 2600, 2]] },
+    { c: [-300, 14100], rot: 0.07, col: [1.0, 0.70, 0.30], t: [[300, 300, 0, 500, 0], [225, 225, 500, 950, 0], [155, 155, 950, 1350, 0], [85, 85, 1350, 1700, 0], [28, 28, 1700, 1950, 1]] },
+    { c: [-5200, 9000], rot: 0.3, col: [0.30, 1.0, 0.70], t: [[130, 130, 0, 1500, 0], [70, 70, 1500, 1800, 0], [10, 10, 1800, 2350, 1]] },
+    { c: [6800, 14500], rot: 0.07, col: [0.70, 0.45, 1.0], t: [[160, 160, 0, 1800, 0], [90, 90, 1800, 2200, 2], [10, 10, 2200, 2750, 1]] }];
+  // (as the concept picture has them: the tallest reach about to the rim, no higher; so the heights above are brought down, and a
+  // dozen plainer big towers are stood among them, so that downtown has its few great ones, a crowd of middling ones, and the low city)
+  HEROES.forEach(h => h.t.forEach(t => { t[2] *= 0.60; t[3] *= 0.60; if (t[0] > 30) { t[0] *= 1.25; t[1] *= 1.25; } }));
+  { let sd = 20261117; const rnd = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+    const cols = [[1.0, 0.80, 0.55], [0.20, 0.85, 1.0], [1.0, 0.30, 0.75], [1.0, 0.70, 0.30], [0.55, 0.65, 1.0], [1.0, 0.86, 0.70]];
+    for (let i = 0; i < 8; i++) {
+      const a = rnd() * 6.283, r = 350 + 1500 * Math.sqrt(rnd()), hx = 85 + 80 * rnd(), hy = 85 + 80 * rnd(), ht = 600 + 700 * rnd() * (1 - r / 2600), cut = ht * (0.62 + 0.25 * rnd());
+      HEROES.push({ c: [DC[0] + r * Math.cos(a), DC[1] + 300 + r * Math.sin(a) * 0.8], rot: rnd() < 0.7 ? 0.07 : rnd() * 1.5, col: cols[i % cols.length],
+        t: [[hx, hy, 0, cut, rnd() < 0.2 ? 2 : 0], [hx * 0.62, hy * 0.62, cut, ht, 0]] });
+    } }
+  const TIERS = []; HEROES.forEach(h => h.t.forEach(t => TIERS.push({ h, t })));
   const CORES = [[DC[0], DC[1], 1250, 900], [-5200, 9000, 800, 420], [3900, 7300, 620, 330], [-1500, 6900, 520, 300], [6800, 14500, 900, 460], [-7600, 16500, 1000, 480], [1200, 19500, 900, 420], [-3200, 13800, 600, 340]];
   return `
 const MH: f32 = ${f(H)}; const MRE: f32 = ${f(M.RE)}; const MR1: f32 = ${f(M.R1)}; const MCS: f32 = 120.0;
@@ -234,13 +258,69 @@ fn mCloud(p: vec2f, y: f32) -> f32 {
   let top: f32 = 180.0 + heap * (140.0 + 900.0 * smoothstep(0.25, 0.80, bil));
   return saturate((top - y) / 60.0) * saturate((y - 150.0) / 60.0) * smoothstep(0.02, 0.25, heap);
 }
+// a landmark's tier against the line of sight: (0 nothing / 1 a wall across / 2 a wall along / 3 a roof, how far out, how high, where
+// across the face -1 .. 1)
+fn mBox(c: vec2f, rc: f32, rs: f32, hsz: vec2f, base: f32, top: f32, dl: vec2f, s: f32, xmax: f32) -> vec4f {
+  let o: vec2f = vec2f(-c.x * rc - c.y * rs, c.x * rs - c.y * rc);
+  var d: vec2f = vec2f(dl.x * rc + dl.y * rs, -dl.x * rs + dl.y * rc);
+  if (abs(d.x) < 1e-4) { d.x = 1e-4; }
+  if (abs(d.y) < 1e-4) { d.y = 1e-4; }
+  let lo: vec2f = (-hsz - o) / d; let hi: vec2f = (hsz - o) / d;
+  let t1: vec2f = min(lo, hi); let t2: vec2f = max(lo, hi);
+  let te: f32 = max(max(t1.x, t1.y), 0.0); let tx: f32 = min(t2.x, t2.y);
+  if (te < tx && te < xmax) {
+    let he: f32 = mRayH(te, s);
+    if (he < top && he >= base) {
+      let pp: vec2f = o + d * te;
+      if (t1.x > t1.y) { return vec4f(2.0, te, he, pp.y / hsz.y); }
+      return vec4f(1.0, te, he, pp.x / hsz.x);
+    }
+    let hx: f32 = mRayH(tx, s);
+    if (he >= top && hx < top) { return vec4f(3.0, mix(te, tx, (he - top) / max(he - hx, 1e-3)), top, 0.0); }
+  }
+  return vec4f(0.0);
+}
+// the nearest landmark along the line of sight, before xmax: (kind of hit + 4 x which tier, how far, how high, where across)
+fn mHero(dl: vec2f, s: f32, xmax: f32) -> vec4f {
+  var best: vec4f = vec4f(0.0, xmax, 0.0, 0.0);
+${TIERS.map((e, k) => `  if (abs(${f(e.h.c[0])} * dl.y - ${f(e.h.c[1])} * dl.x) < ${f(Math.hypot(e.t[0], e.t[1]) + 5)}) { let r: vec4f = mBox(vec2f(${f(e.h.c[0])}, ${f(e.h.c[1])}), ${f(Math.cos(e.h.rot))}, ${f(Math.sin(e.h.rot))}, vec2f(${f(e.t[0])}, ${f(e.t[1])}), ${f(e.t[2])}, ${f(e.t[3])}, dl, s, best.y); if (r.x > 0.5 && r.y < best.y) { best = vec4f(r.x + ${f(4 * k)}, r.y, r.z, r.w); } }`).join('\n')}
+  return best;
+}
+// what a landmark shows where the line of sight meets it
+fn mHeroShade(r: vec4f, mode: f32, dAz: f32, dTh: f32) -> vec3f {
+  let idx: i32 = i32(r.x / 4.0); let kind: f32 = r.x - 4.0 * f32(idx);
+  var hsz: vec2f = vec2f(100.0); var base: f32 = 0.0; var top: f32 = 1000.0; var tk: f32 = 0.0; var hc: vec3f = vec3f(1.0);
+${TIERS.map((e, k) => `  if (idx == ${k}) { hsz = vec2f(${f(e.t[0])}, ${f(e.t[1])}); base = ${f(e.t[2])}; top = ${f(e.t[3])}; tk = ${f(e.t[4])}; hc = vec3f(${e.h.col.map(f).join(', ')}); }`).join('\n')}
+  let along: f32 = step(1.5, kind) * step(kind, 2.5); let hf: f32 = mix(hsz.x, hsz.y, along); let fc: f32 = mix(1.0, 0.42, along);
+  if (kind > 2.5) {
+    if (mode < 0.5) { return hc * (0.5 + 2.5 * step(0.5, tk)); }
+    return vec3f(0.60, 0.66, 0.80);
+  }
+  if (mode > 0.5) { return vec3f(0.09, 0.12, 0.19) * (0.6 + 0.7 * (1.0 - along)); }
+  if (tk > 1.5) {
+    // a face of coloured light, its colour turning as it climbs, floor by floor
+    let g: f32 = saturate((r.z - base) / max(top - base, 1.0));
+    return mix(hc, vec3f(0.95, 0.35, 0.80), 0.75 * g) * ((0.35 + 1.1 * step(0.55, fract(r.z / 44.0))) * fc * (0.55 + 0.7 * step(0.5, hash21(floor(vec2f(r.w * hf / 26.0, r.z / 44.0)) + vec2f(f32(idx), 5.0)))));
+  }
+  if (tk > 0.5) { return hc * 7.0; }
+  let dist: f32 = sqrt(r.y * r.y + sq(MH - r.z));
+  let wsz: vec2f = max(vec2f(7.0, 4.5), vec2f(dist * dAz, dist * dTh) * 4.8);
+  let wq: vec2f = vec2f(r.w * hf / wsz.x, r.z / wsz.y); let wc: vec2f = floor(wq); let wf: vec2f = fract(wq);
+  let fl: f32 = hash21(vec2f(wc.y, f32(idx) * 91.0));
+  let on: f32 = step(0.50 - 0.35 * step(0.80, fl), hash21(wc + vec2f(f32(idx) * 177.0, 53.0))) * step(0.14, wf.x) * step(wf.x, 0.86) * step(0.22, wf.y) * step(wf.y, 0.80);
+  var em: vec3f = mix(vec3f(1.0, 0.66, 0.30), hc, 0.30) * (on * (0.8 + 1.4 * hash21(wc + vec2f(3.0, 3.0))) * 2.2 * fc);
+  // its corners run with light from foot to crown, and every setback wears a band of it
+  em += hc * (1.4 * step(0.93, abs(r.w)) + 5.0 * smoothstep(top - 40.0, top - 16.0, r.z));
+  em += vec3f(1.0, 0.70, 0.36) * (0.9 * exp(-r.z / 60.0));
+  return em;
+}
 // what the eye sees along (bearing az from the city's, dropping th below level): mode 0 light, mode 1 matter
 fn mScene(az: f32, th: f32, mode: f32, dAz: f32, dTh: f32) -> vec4f {
   let dl: vec2f = vec2f(sin(az), cos(az)); let s: f32 = tan(th);
   // the plain, on its little planet
   let disc: f32 = s * s - 2.0 * MH / MRE;
   var xg: f32 = 2.0e5; var onG: f32 = 0.0;
-  if (disc > 0.0) { xg = 2.0 * MH / (s + sqrt(disc)); onG = 1.0; }
+  if (disc > 0.0 && s > 0.0) { xg = 2.0 * MH / (s + sqrt(disc)); onG = 1.0; }
   // the foothills first (they are nearer)
   var hit: i32 = 0; var xh: f32 = 0.0;
   if (s > 0.16) {
@@ -253,6 +333,7 @@ fn mScene(az: f32, th: f32, mode: f32, dAz: f32, dTh: f32) -> vec4f {
     }
   }
   var col: vec4f = vec4f(0.0); var xs: f32 = xg; var tflag: f32 = 0.0;
+  let hr0: vec4f = mHero(dl, s, 60000.0);
   if (hit == 1) {
     xs = xh; let u: f32 = dl.x * xh; let w: f32 = dl.y * xh; let hl: f32 = mHills(u, w);
     col = mHillShade(u, w, hl, mode);
@@ -277,11 +358,11 @@ ${CORES.map(c => `    { let t0: f32 = dot(vec2f(${f(c[0])}, ${f(c[1])}), dl); le
       // the tower of this cell, if it has one
       let cc: vec2f = (c + 0.5) * MCS; let cu: f32 = cc.x * gc - cc.y * gs + ${f(DC[0])}; let cw: f32 = cc.x * gs + cc.y * gc + ${f(DC[1])};
       let h3: vec3f = hash33(vec3f(c.x, c.y, 7.0)); let ch: f32 = mCoreH(cu, cw);
-      let hero: f32 = step(abs(c.x), 0.5) * step(abs(c.y), 0.5);
+      let hero: f32 = 0.0;
       if (h3.x < 0.10 + 0.46 * saturate(ch / 420.0) + hero) {
         let Ld: vec4f = mLand(cu, cw);
-        let ht: f32 = mix(ch * (0.16 + 1.0 * h3.y * h3.y * h3.y) + 110.0 * Ld.x * (0.25 + h3.z) * step(0.35, Ld.x), 1300.0, hero);
-        let hs: f32 = mix(0.15 + 0.15 * h3.z, 0.30, hero);
+        let ht: f32 = mix(ch * (0.16 + 0.80 * h3.y * h3.y) + 110.0 * Ld.x * (0.25 + h3.z) * step(0.35, Ld.x), 1300.0, hero);
+        let hs: f32 = mix(0.17 + 0.22 * h3.z, 0.30, hero);
         if (ht > 28.0 && mRiver(cu, cw) > 40.0 && mHills(cu, cw) < 15.0 && (Ld.z < 0.5 || ch > 150.0)) {
           let lo: vec2f = (c + 0.5 - hs - g0) / gd; let hi: vec2f = (c + 0.5 + hs - g0) / gd;
           let t1: vec2f = min(lo, hi); let t2: vec2f = max(lo, hi);
@@ -300,7 +381,11 @@ ${CORES.map(c => `    { let t0: f32 = dot(vec2f(${f(c[0])}, ${f(c[1])}), dl); le
       }
       if (tm.x < tm.y) { th0 = tm.x; tm.x += inv.x; c.x += st.x; } else { th0 = tm.y; tm.y += inv.y; c.y += st.y; }
     }
-    if (tw > 0) {
+    // the landmarks stand before all of it
+    var xmh: f32 = xg; if (tw > 0) { xmh = tx; }
+    let hr: vec4f = hr0;
+    if (hr.x > 0.5 && hr.y < xmh) { tw = 3; tflag = 1.0; xs = hr.y; col = vec4f(mHeroShade(hr, mode, dAz, dTh), 0.0); }
+    if (tw > 0 && tw < 3) {
       tflag = 1.0; xs = tx; let u: f32 = dl.x * tx; let w: f32 = dl.y * tx; let Lw: vec4f = mLand(u, w);
       let th1: f32 = fract(tinfo.y * 7.31 + tinfo.w * 3.7); let tint: vec3f = mTint(mix(th1 * 0.66, 0.87 + 0.13 * th1, step(0.86, th1) * Lw.y));
       let tall: f32 = saturate(tinfo.x / 600.0);
@@ -334,10 +419,16 @@ ${CORES.map(c => `    { let t0: f32 = dot(vec2f(${f(c[0])}, ${f(c[1])}), dl); le
         if (mode < 0.5) { col = vec4f(tint * (0.04 + 1.6 * tall * step(0.84, tinfo.w)) + vec3f(1.0, 0.2, 0.1) * (2.0 * step(0.90, tinfo.z) * tall), 0.0); }
         else { col = vec4f(vec3f(0.58, 0.64, 0.78), 0.0); }
       }
-    } else {
+    }
+    if (tw == 0) {
       let u: f32 = dl.x * xg; let w: f32 = dl.y * xg; let dist: f32 = sqrt(xg * xg + MH * MH);
       col = mGround(u, w, dl, dist * dTh / max(s - xg / MRE, 0.004), dist * dAz, mode);
     }
+  }
+  // (over the rim there is nothing but the landmarks, against the sky)
+  if (hit == 0 && onG < 0.5) {
+    let hr: vec4f = hr0;
+    if (hr.x > 0.5) { tflag = 1.0; xs = hr.y; col = vec4f(mHeroShade(hr, mode, dAz, dTh), 1.0); }
   }
   if (mode < 0.5) { col = vec4f(col.rgb, tflag); }
   // ---- banks of cloud lying low where the foothills meet the city, and a few farther out: lit from below by what they lie over
@@ -372,7 +463,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
       // (the columns are packed toward straight ahead, where the eye looks, as the rows are toward the rim)
       let xw: f32 = 2.0 * uv.x - 1.0; let az: f32 = ${f(M.AZ)} * (${f(M.ak)} * xw + ${f(1 - M.ak)} * xw * xw * xw);
       let dAz: f32 = ${f(2 * M.AZ)} * (${f(M.ak)} + ${f(3 * (1 - M.ak))} * xw * xw) / M.m.z; let vv: f32 = saturate(uv.y);
-      let th: f32 = ${f(M.ta)} * vv + ${f(M.tb)} * vv * vv * vv * vv;
+      let th: f32 = ${f(M.t0)} + ${f(M.ta)} * vv + ${f(M.tb)} * vv * vv * vv * vv;
       let dTh: f32 = (${f(M.ta)} + ${f(4 * M.tb)} * vv * vv * vv) / M.m.w;
       sum += mScene(az, th + 1e-4, M.m.x, dAz * 0.5, dTh * 0.5);
     }
@@ -391,7 +482,7 @@ fn metroUV(d: vec3f) -> vec3f {
   let az: f32 = atan2(d.x, -d.z) - ${f(V.cityAz)};
   let a: f32 = atan2(sin(az), cos(az));
   let th: f32 = atan2(-d.y, length(d.xz)) + ${f(M.lift)} - ${f(M.bend)} * (1.0 - cos(a));
-  let tc: f32 = max(th, ${f(dip)});
+  let tc: f32 = max(th, ${f(M.t0)}) - ${f(M.t0)};
   var v: f32 = min(tc / ${f(M.ta)}, 1.0);
   for (var i: i32 = 0; i < 4; i++) { let c: f32 = v * v * v; v -= (${f(M.ta)} * v + ${f(M.tb)} * c * v - tc) / (${f(M.ta)} + ${f(4 * M.tb)} * c); }
   let xa: f32 = clamp(a / ${f(M.AZ)}, -1.0, 1.0); var x: f32 = xa;
@@ -400,16 +491,16 @@ fn metroUV(d: vec3f) -> vec3f {
 }
 fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
   let q: vec3f = metroUV(d); let ba0: f32 = atan2(d.x, -d.z) - ${f(V.cityAz)}; let ba: f32 = atan2(sin(ba0), cos(ba0)); let xq: f32 = 2.0 * q.x - 1.0; let night: f32 = U.skyP.z;
-  // above the rim: only the air (metroDome adds its glow)
-  if (q.z <= 0.0) { return haze; }
   let s: f32 = tan(min(q.z + ${f(dip)}, 1.4));
-  let dist: f32 = 2.0 * ${f(M.H)} / (s + sqrt(max(s * s - ${f(2 * M.H / M.RE)}, 0.0)));
+  let dist: f32 = 2.0 * ${f(M.H)} / max(s + sqrt(max(s * s - ${f(2 * M.H / M.RE)}, 0.0)), 0.03);
   let lod: f32 = max(log2(2.0 * U.camRight.w * U.res.w / (${f(2 * M.AZ / M.W)} * (${f(M.ak)} + ${f(3 * (1 - M.ak))} * xq * xq))), 0.0);
   let ex: f32 = 1.0 - smoothstep(${f(M.AZ - 0.08)}, ${f(M.AZ)}, abs(ba));
   let E: vec4f = texLod(tSeaA, q.xy, lod); let A: vec4f = texLod(tSeaB, q.xy, lod);
   // the lights shimmer in the air between: each a little, never together
   let tw: f32 = 0.82 + 0.72 * texLod(tDetail, q.xy * vec2f(37.0, 19.0) + vec2f(U.camPos.w * 0.021, U.camPos.w * 0.013), 0.0).a * texLod(tDetail, q.xy * vec2f(23.0, 41.0) - vec2f(U.camPos.w * 0.017, 0.0), 0.0).a;
   let lit: vec3f = (U.sunCol.rgb * (saturate(U.sunDir.y + 0.15) * 0.9) + U.ambSky.rgb * 1.1 + U.twi.rgb * 0.3) * (1.0 - 0.80 * night);
+  // above the rim: the air, and against it the landmarks that stand taller than the mountain (E.a marks them)
+  if (q.z <= 0.0) { return mix(haze, A.rgb * (lit + vec3f(0.016, 0.024, 0.07) * night) + E.rgb * (night * ${f(M.lamp)}), saturate(E.a) * ex); }
   // water: a dark mirror for the sky, with a sheen toward the horizon
   let mir: vec3f = (vistaHaze(vec3f(d.x, -d.y, d.z)) + vec3f(0.02, 0.05, 0.14) * night) * (0.25 + 0.55 * pow(1.0 - saturate(s), 6.0)) + vec3f(0.018, 0.04, 0.12) * night;
   // the lights are points, not a paste: over the baked glow, two sizes of sparks (a few of them far brighter than the rest), each
