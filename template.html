@@ -388,6 +388,24 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #app.en.wide #title .tag { font-size: clamp(16px, 3.2vmin, 28px); }
 #app.en #go { letter-spacing: .3em; text-indent: .3em; font-size: 20px; text-transform: uppercase; }
 #app.en.wide #go { font-size: clamp(16px, 3.1vmin, 22px); }
+/* (Variants 'tbtn' b: the title's buttons stand in one column under the name, rounded squares rather than pills, all one width.
+   出发 is the first and a little taller, with the gold hairline; the rest keep the plain hairline. Short screens tighten the column) */
+#app.vbtn .cta .act { flex-direction: column; flex-wrap: nowrap; align-items: stretch; width: clamp(190px, 34vmin, 260px); gap: clamp(6px, 1.3vmin, 10px); }
+#app.vbtn .cta .more { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: clamp(6px, 1.3vmin, 10px); }
+#app.vbtn #go, #app.vbtn .cta .more button { box-sizing: border-box; width: 100%; min-width: 0; margin: 0; border-radius: 12px; justify-content: center; }
+#app.vbtn #go { display: flex; align-items: center; height: clamp(44px, 10.5vmin, 60px); padding: 0 16px; font-size: clamp(16px, 3vmin, 21px); letter-spacing: .8em; text-indent: .8em; }
+#app.vbtn #go::after { border-radius: 16px; inset: -5px; }
+#app.vbtn .cta .more button { height: clamp(38px, 8.6vmin, 50px); padding: 0 16px; }
+#app.vbtn.wide.short #title { gap: clamp(10px, calc(var(--ch) * .04), 22px); padding-bottom: calc(var(--gb) + var(--ch) * .07); }
+/* (held in the hands the mountain's name shows for a moment at the top of this column, so the column starts under it and the buttons tighten) */
+#app.vbtn.wide:not(.desk) #title { justify-content: flex-start; gap: clamp(10px, calc(var(--ch) * .035), 20px); padding-top: calc(var(--gt) + 50px); padding-bottom: calc(var(--gb) + 10px); }
+#app.vbtn.wide:not(.desk) .mark .cn { font-size: clamp(40px, 11.5vmin, 96px); }
+#app.vbtn.wide:not(.desk) #title .mark .rule { margin: clamp(8px, 2.4vmin, 20px) 0 clamp(8px, 2.2vmin, 18px); }
+#app.vbtn.wide:not(.desk) #title .tag { margin-top: clamp(8px, 2.6vmin, 22px); }
+#app.vbtn:not(.desk) #go { height: 42px; } #app.vbtn:not(.desk) .cta .more button { height: 36px; }
+#app.vbtn:not(.desk) .cta .act, #app.vbtn:not(.desk) .cta .more { gap: 6px; }
+#app.vbtn.wide:not(.desk) .cta .how { margin-top: 10px; }
+#app.en.vbtn #go { letter-spacing: .3em; text-indent: .3em; }
 #app.en .cta .how, #app.en .cta .fine, #app.en #hint span, #app.en #say b { letter-spacing: .06em; }
 #app.en #seg b { letter-spacing: .04em; font-weight: 500; font-size: clamp(30px, 8.6vmin, 42px); }
 #app.en.wide #seg b { font-size: clamp(28px, 7vmin, 52px); }

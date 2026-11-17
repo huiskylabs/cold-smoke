@@ -109,8 +109,9 @@ const UI = (() => {
   // the gold of the interface: a, the start button and the picked chip filled amber (as delivered); b, a hairline of gold round dark glass, the
   // way the rest of the interface wears it (the clock's rule, the view cards). The owner: the identity is the thin gold line, filled gold looked bad
   if (typeof Variants !== 'undefined') Variants.def('gold', '金色按钮', [['a', '实心'], ['b', '细描边']], 'b');
-  function goldLine() { if (el && typeof Variants !== 'undefined') el.app.classList.toggle('line', Variants.val.gold !== 'a'); }
-  if (typeof Variants !== 'undefined') Variants.on(n => { if (n === 'gold') goldLine(); });
+  if (typeof Variants !== 'undefined') Variants.def('tbtn', '标题按钮', [['a', '横排胶囊'], ['b', '竖排方块']], 'a');
+  function goldLine() { if (el && typeof Variants !== 'undefined') { el.app.classList.toggle('line', Variants.val.gold !== 'a'); el.app.classList.toggle('vbtn', Variants.val.tbtn === 'b'); } }
+  if (typeof Variants !== 'undefined') Variants.on(n => { if (n === 'gold' || n === 'tbtn') goldLine(); });
   U.stage = function (f, name) { if (!el) return; el.fill.style.transform = 'scaleX(' + f.toFixed(3) + ')'; if (name) el.stage.textContent = T(name); };
   // first frame is on the canvas: let it come up out of the dark, then set the title over it
   U.ready = function () {
@@ -561,7 +562,7 @@ const UI = (() => {
   // ---- the versions the owner picks between: their own page of the menu, not part of the game. One row for each choice in Variants, in
   // groups (a choice this list does not know yet goes under 新加的), the current version filled, the recommended one marked with a grain of
   // amber. A press switches at once (each module eases its own change); 恢复推荐 puts every choice back to the recommended version
-  const VGROUP = [['画面与音乐（11 月 16 日评审）', ['glint', 'gold', 'nebday', 'nebnight', 'mlevel', 'tmusic', 'lsnow', 'plume', 'wbal', 'vary']], ['镜头', ['cam', 'wood', 'shots', 'tips', 'fptuck', 'edge', 'chatter', 'buffet']], ['人物与动作', ['body', 'cloth', 'poles', 'motion']],
+  const VGROUP = [['画面与音乐（11 月 16 日评审）', ['glint', 'gold', 'tbtn', 'nebday', 'nebnight', 'mlevel', 'tmusic', 'lsnow', 'plume', 'wbal', 'vary']], ['镜头', ['cam', 'wood', 'shots', 'tips', 'fptuck', 'edge', 'chatter', 'buffet']], ['人物与动作', ['body', 'cloth', 'poles', 'motion']],
     ['画面', ['ghost', 'hi', 'nspray', 'nsky', 'cu']], ['雪', ['spray', 'curtain', 'sparkle', 'clumps', 'lens', 'pdepth', 'drift']], ['场景与天气', ['tpass', 'tgrain', 'tvar', 'rock', 'moon', 'aurora', 'snow', 'rtree', 'flag', 'sink', 'wind']], ['手感', ['keys']]];
   let vSig = null, wxSig = null;
   const varMod = () => { try { return typeof Variants !== 'undefined' && Variants && Array.isArray(Variants.defs) ? Variants : null; } catch (e) { return null; } };
