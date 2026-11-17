@@ -13,7 +13,7 @@ const Metro = (() => {
   // H: how far below the eye the city lies (m); RE: the radius of its little planet (the horizon dips, and curves, far more than the earth's);
   // AZ: the panorama covers bearings +-AZ about the city's; ta, tb: its rows, packed toward the horizon (drop = ta v + tb v^4);
   // bend: how much farther the ground falls away to either side than straight ahead (rad at 90 degrees: the planet's curve, overdrawn)
-  const M = { H: 2200, RE: 9.0e5, AZ: 1.3, ta: 0.33, tb: 0.97, bend: 0.34, lift: 0.17, W: 2048, Hh: 1024, R1: 10500, DC: [500, 12500], lamp: 0.42, samples: 4, done: false, E: null, A: null, pipes: [] };
+  const M = { H: 2200, RE: 9.0e5, AZ: 1.3, ta: 0.33, tb: 0.97, bend: 0.34, lift: 0.17, ak: 0.42, W: 2048, Hh: 1024, R1: 10500, DC: [500, 12500], lamp: 0.42, samples: 4, done: false, E: null, A: null, pipes: [] };
   M.on = () => Variants.val.world === 'b';
   let gfx, pipe, tE, tA;
   M.init = function (g, res) {
@@ -350,14 +350,16 @@ ${CORES.map(c => `    { let t0: f32 = dot(vec2f(${f(c[0])}, ${f(c[1])}), dl); le
   return col;
 }
 fn frag(v: VOut) -> FOut { var o: FOut;
-  let dAz: f32 = ${f(2 * M.AZ)} / M.m.z; let n: i32 = i32(M.m.y);
+  let n: i32 = i32(M.m.y);
   var sum: vec4f = vec4f(0.0);
   for (var i: i32 = 0; i < 4; i++) {
     if (i < n) {
       var j: vec2f = (vec2f(f32(i & 1), f32(i / 2)) - 0.5) * 0.5;
       if (n == 1) { j = vec2f(0.0); }
       let uv: vec2f = v.uv + j / M.m.zw;
-      let az: f32 = (uv.x - 0.5) * ${f(2 * M.AZ)}; let vv: f32 = saturate(uv.y);
+      // (the columns are packed toward straight ahead, where the eye looks, as the rows are toward the rim)
+      let xw: f32 = 2.0 * uv.x - 1.0; let az: f32 = ${f(M.AZ)} * (${f(M.ak)} * xw + ${f(1 - M.ak)} * xw * xw * xw);
+      let dAz: f32 = ${f(2 * M.AZ)} * (${f(M.ak)} + ${f(3 * (1 - M.ak))} * xw * xw) / M.m.z; let vv: f32 = saturate(uv.y);
       let th: f32 = ${f(M.ta)} * vv + ${f(M.tb)} * vv * vv * vv * vv;
       let dTh: f32 = (${f(M.ta)} + ${f(4 * M.tb)} * vv * vv * vv) / M.m.w;
       sum += mScene(az, th + 1e-4, M.m.x, dAz * 0.5, dTh * 0.5);
@@ -380,16 +382,18 @@ fn metroUV(d: vec3f) -> vec3f {
   let tc: f32 = max(th, ${f(dip)});
   var v: f32 = min(tc / ${f(M.ta)}, 1.0);
   for (var i: i32 = 0; i < 4; i++) { let c: f32 = v * v * v; v -= (${f(M.ta)} * v + ${f(M.tb)} * c * v - tc) / (${f(M.ta)} + ${f(4 * M.tb)} * c); }
-  return vec3f(a / ${f(2 * M.AZ)} + 0.5, saturate(v), th - ${f(dip)});
+  let xa: f32 = clamp(a / ${f(M.AZ)}, -1.0, 1.0); var x: f32 = xa;
+  for (var i: i32 = 0; i < 5; i++) { x -= (${f(M.ak)} * x + ${f(1 - M.ak)} * x * x * x - xa) / (${f(M.ak)} + ${f(3 * (1 - M.ak))} * x * x); }
+  return vec3f(0.5 * x + 0.5, saturate(v), th - ${f(dip)});
 }
 fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
-  let q: vec3f = metroUV(d); let night: f32 = U.skyP.z;
+  let q: vec3f = metroUV(d); let ba0: f32 = atan2(d.x, -d.z) - ${f(V.cityAz)}; let ba: f32 = atan2(sin(ba0), cos(ba0)); let xq: f32 = 2.0 * q.x - 1.0; let night: f32 = U.skyP.z;
   // above the rim: only the air (metroDome adds its glow)
   if (q.z <= 0.0) { return haze; }
   let s: f32 = tan(min(q.z + ${f(dip)}, 1.4));
   let dist: f32 = 2.0 * ${f(M.H)} / (s + sqrt(max(s * s - ${f(2 * M.H / M.RE)}, 0.0)));
-  let lod: f32 = max(log2(2.0 * U.camRight.w * U.res.w / ${f(2 * M.AZ / M.W)}), 0.0);
-  let ex: f32 = 1.0 - smoothstep(${f(M.AZ - 0.08)}, ${f(M.AZ)}, abs((q.x - 0.5) * ${f(2 * M.AZ)}));
+  let lod: f32 = max(log2(2.0 * U.camRight.w * U.res.w / (${f(2 * M.AZ / M.W)} * (${f(M.ak)} + ${f(3 * (1 - M.ak))} * xq * xq))), 0.0);
+  let ex: f32 = 1.0 - smoothstep(${f(M.AZ - 0.08)}, ${f(M.AZ)}, abs(ba));
   let E: vec4f = texLod(tSeaA, q.xy, lod); let A: vec4f = texLod(tSeaB, q.xy, lod);
   // the lights shimmer in the air between: each a little, never together
   let tw: f32 = 0.82 + 0.72 * texLod(tDetail, q.xy * vec2f(37.0, 19.0) + vec2f(U.camPos.w * 0.021, U.camPos.w * 0.013), 0.0).a * texLod(tDetail, q.xy * vec2f(23.0, 41.0) - vec2f(U.camPos.w * 0.017, 0.0), 0.0).a;
@@ -398,7 +402,7 @@ fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
   let mir: vec3f = (vistaHaze(vec3f(d.x, -d.y, d.z)) + vec3f(0.02, 0.05, 0.14) * night) * (0.25 + 0.55 * pow(1.0 - saturate(s), 6.0)) + vec3f(0.03, 0.065, 0.20) * night;
   // the lights are points, not a paste: over the baked glow, two sizes of sparks (a few of them far brighter than the rest), each
   // fixed to its bearing so that it stays put
-  let sa: vec2f = vec2f((q.x - 0.5) * ${f(2 * M.AZ)}, q.z);
+  let sa: vec2f = vec2f(ba, q.z);
   var spark: f32 = 0.0;
   for (var i: i32 = 0; i < 2; i++) {
     let cs: f32 = mix(0.0021, 0.0052, f32(i)); let g: vec2f = sa / cs + vec2f(f32(i) * 37.0, 11.0);
