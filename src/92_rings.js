@@ -487,7 +487,7 @@ const Rings = (() => {
   function chalButton() {
     if (RG.cb || typeof document === 'undefined') return;
     const more = document.getElementById('more'); if (!more) return;
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'dev-only'; b.innerHTML = RING_ICON + '挑战';
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'dev-only'; b.innerHTML = RING_ICON + (typeof I18N !== 'undefined' ? I18N.t('挑战') : '挑战');
     b.addEventListener('click', e => { e.stopPropagation(); pickOpen(true); });
     more.insertBefore(b, more.firstChild); RG.cb = b;
   }
