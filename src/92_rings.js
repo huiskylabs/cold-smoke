@@ -286,8 +286,8 @@ const Rings = (() => {
   const PEN = { a: 2, b: 4, c: 5 }, DNAME = { a: '轻松', b: '标准', c: '难' }, DNEXT = { a: 'b', b: 'c' };
   const L = { id: null, diff: null, st: 'idle', seed: 1, fin: false, sEnd: 0, segs: null, cut: [], names: [], split: [], ci: 0, pen: 0, missSeen: 0, cT: 0, lastF: 0, el: null, rec: null };
   const diffKey = () => (typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b';
-  const fmt = t => { t = Math.max(0, t); const m = Math.floor(t / 60), r = t - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(1); };
-  const sgn = d => Math.abs(d) < 0.05 ? '持平' : (d < 0 ? '−' : '+') + Math.abs(d).toFixed(1);
+  const fmt = t => { t = Math.max(0, t); const m = Math.floor(t / 60), r = t - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(2); };          // (用户 21:25 UTC: 计时精确到 2 位)
+  const sgn = d => Math.abs(d) < 0.005 ? '持平' : (d < 0 ? '−' : '+') + Math.abs(d).toFixed(2);
   function lineEnd() {
     if (L.sEnd && L.segs === Course.segs && L.seg0 === Course.segs[0]) return L.sEnd;
     const n = LINES[L.id].n, segs = Course.segs;
@@ -381,23 +381,23 @@ const Rings = (() => {
     try { if (typeof Cards !== 'undefined' && Cards.emit) Cards.emit('ring.line', { line: 'speed', full: miss === 0, t: L.tEnd, missed: miss }); } catch (e) { }          // (集卡: the card system picks it up when it is there)
     setTxt('tm', fmt(score)); L.q('tm').classList.add('fin'); setTxt('sub', '光圈 ' + RG.passed + ' / ' + tot + (miss ? ' · 罚时 +' + miss * p + ' 秒' : ' · 全部穿过'));
     const ban = L.q('ban'); ban.querySelector('b').textContent = fmt(score);
-    ban.querySelector('i').textContent = isNew ? (best ? '新纪录！快了 ' + (best.score - score).toFixed(1) + ' 秒' : '第一次完成') : '比最好慢 ' + (score - best.score).toFixed(1) + ' 秒';
+    ban.querySelector('i').textContent = isNew ? (best ? '新纪录！快了 ' + (best.score - score).toFixed(2) + ' 秒' : '第一次完成') : '比最好慢 ' + (score - best.score).toFixed(2) + ' 秒';
     ban.classList.add('on'); setTimeout(() => ban.classList.remove('on'), 1400);          // (gone before the card slides in)
     beep(880, 0.25, 0.18); setTimeout(() => beep(1320, 0.6, 0.16), 140);
     // the card: what this run was, against the best before it
     let worst = -1, wd = 0;
     const rows = seg.map((d, i) => { const b = segBest[i]; const df = b != null ? d - b : null; if (df != null && df >= 0.3 && df > wd) { wd = df; worst = i; } return { n: L.names[i] || (i + 1) + '', d, b, df }; });
-    const td = r => '<td>' + (r.b != null ? fmt(r.b) : '—') + '</td><td class="' + (r.df == null || Math.abs(r.df) < 0.05 ? '' : r.df < 0 ? 'g' : 'r') + '">' + (r.df == null ? '' : sgn(r.df)) + '</td>';
+    const td = r => '<td>' + (r.b != null ? fmt(r.b) : '—') + '</td><td class="' + (r.df == null || Math.abs(r.df) < 0.005 ? '' : r.df < 0 ? 'g' : 'r') + '">' + (r.df == null ? '' : sgn(r.df)) + '</td>';
     const fs = items => '<div class="fs">' + items.map(([v, k, c]) => '<div><b' + (c ? ' class="' + c + '"' : '') + '>' + v + '</b><span>' + k + '</span></div>').join('') + '</div>';
     L.q('card').innerHTML = '<h3><em>' + LINES[L.id].name + '</em>' + DNAME[L.diff] + '</h3><div class="big">' + fmt(score) + '</div><div class="rule"></div>'
-      + '<div class="dl ' + (isNew ? 'g' : 'r') + '">' + (isNew ? (best ? '新纪录，快了 ' + (best.score - score).toFixed(1) + ' 秒' : '第一次完成，这就是你的纪录') : '比最好慢 ' + (score - best.score).toFixed(1) + ' 秒') + '</div>'
+      + '<div class="dl ' + (isNew ? 'g' : 'r') + '">' + (isNew ? (best ? '新纪录，快了 ' + (best.score - score).toFixed(2) + ' 秒' : '第一次完成，这就是你的纪录') : '比最好慢 ' + (score - best.score).toFixed(2) + ' 秒') + '</div>'
       + fs([[fmt(L.tEnd), '用时'], [RG.passed + ' / ' + tot, '光圈'], [miss ? '+' + miss * p : '0', '罚时', miss ? 'r' : '']])
       + '<table><tr><th>分站</th><th>本局</th><th>之前最好</th><th></th></tr>' + rows.map((r, i) => '<tr' + (i === worst ? ' class="worst"' : '') + '><td>' + r.n + '</td><td>' + fmt(r.d) + '</td>' + td(r) + '</tr>').join('') + '</table>'
-      + '<div class="tip">' + [miss ? '漏了 ' + miss + ' 个圈，罚时 +' + miss * p + ' 秒' : '', worst >= 0 ? '最慢的一站：' + rows[worst].n + '，比最好慢 ' + wd.toFixed(1) + ' 秒' : ''].filter(Boolean).join('；') + '</div>'
+      + '<div class="tip">' + [miss ? '漏了 ' + miss + ' 个圈，罚时 +' + miss * p + ' 秒' : '', worst >= 0 ? '最慢的一站：' + rows[worst].n + '，比最好慢 ' + wd.toFixed(2) + ' 秒' : ''].filter(Boolean).join('；') + '</div>'
       + fs([[fmt(rec.best.score), '个人最好'], ['…', '全部最好', 'gtop'], ['…', '排名', 'grank']])
       + '<div class="bt"><button class="p" data-a="again">再来一局<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">增加难度</button>' : '') + '<button data-a="free">继续滑<kbd>Esc</kbd></button></div>';
     board(score);
-    clearTimeout(L.cardT); L.cardT = setTimeout(() => { if (L.st === 'done') L.q('card').classList.add('on'); }, 1500);
+    clearTimeout(L.cardT); L.cardT = setTimeout(() => { if (L.st === 'done') L.q('card').classList.add('on'); }, 350);          // (用户 21:25 UTC: 停下来那一瞬间菜单就弹出来)
   }
   // the boards (小红书 only): the best of everyone and this player's place, filled in when they come back
   function board(score) {
@@ -410,7 +410,7 @@ const Rings = (() => {
   function brake(on) {
     if (typeof Input === 'undefined') return;
     if (!on) { if (L.braking) { Input.script = null; Input.faScript = null; L.braking = 0; } park(false); return; }
-    const S = Game.s; L.braking = (S.v[0] || 0) >= 0 ? 1 : -1; L.brakeT = 0;
+    const S = Game.s; L.braking = (S.v[0] || 0) >= 0 ? 1 : -1; L.brakeT = 0; L.brakeV0 = null;
   }
   function park(on) {
     if (typeof Game === 'undefined' || !Game.s) return;
@@ -432,14 +432,19 @@ const Rings = (() => {
     // tall and quiet, until 继续滑 or 再来一局. Game.mode 'park' is neither a run nor the title: the pose and the camera still update
     if (L.braking && typeof Input !== 'undefined') {
       if (L.st === 'done' && Game.mode === 'run') {
-        // (用户 21:12 UTC: 冲过终点还是没停下来，直接甩尾刹车停下来就行): a hockey stop. Steering held right over with the weight forward
-        // asks the game for its full skid (the skis come round across the line and scrape), and the scrape is given the bite of a hard
-        // stop: about 1 g along the way the skier is going, so from 90 km/h it is over in some 2.5 s and 30 m. Below 1.2 m/s: parked
-        Input.script = L.braking; Input.faScript = 1;
+        // (用户 21:12 UTC: 冲过终点直接甩尾刹车停下来; 21:25 UTC: 菜单马上弹出来，人不要马上停住，缓 2-3 秒慢慢停下来，整个动作要自然).
+        // A hockey stop, eased: the steering comes over in a third of a second (not snapped to full lock), the weight goes forward so the
+        // game skids the skis across, and the speed follows a smooth curve from what it was at the line down to nothing over 2-3 s
+        // (faster lines take the longer time): no jolt as the stop begins, none as it ends. The game's own skid only ever slows it more.
+        // Under 0.3 m/s at the end of it: parked, standing.
         L.brakeT = (L.brakeT || 0) + dt;
         const S = Game.s, v = Math.hypot(S.v[0], S.v[1], S.v[2]);
-        if (!S.air && v > 1e-3) { const k = Math.max(0, v - 9.5 * dt) / v; S.v[0] *= k; S.v[1] *= k; S.v[2] *= k; }
-        if (Game.s.speed < 1.2 || L.brakeT > 5) park(true);
+        if (L.brakeV0 == null) { L.brakeV0 = Math.max(v, 0.5); L.brakeDur = cl(L.brakeV0 / 11, 2, 3); }
+        const u = cl(L.brakeT / L.brakeDur, 0, 1), eas = u * u * (3 - 2 * u);
+        Input.script = L.braking * Math.min(1, L.brakeT / 0.35); Input.faScript = Math.min(1, L.brakeT / 0.5);
+        const vt = L.brakeV0 * (1 - eas);
+        if (!S.air && v > vt && v > 1e-3) { const k = vt / v; S.v[0] *= k; S.v[1] *= k; S.v[2] *= k; }
+        if (u >= 1 || (u > 0.5 && Game.s.speed < 0.3)) park(true);
       } else if (L.st !== 'done') brake(false);
     }
     ui();
