@@ -62,8 +62,16 @@ function metroBakeFS() {
   // the river: it comes in from the far left, swings down and to the right in a long S before downtown, and leaves to the right;
   // a second arm joins it from the left. [x, y of the picture, half its width (m)]
   const RIVERS = [
-    [[0, 345, 300], [150, 336, 320], [300, 335, 340], [430, 345, 380], [560, 375, 440], [700, 414, 500], [860, 430, 520], [1020, 428, 500], [1180, 416, 460], [1330, 402, 430], [1536, 392, 400]],
-    [[150, 300, 220], [330, 296, 240], [470, 310, 260], [560, 340, 300], [600, 380, 320]]];
+    // the great river: out of the far country under the rim it snakes toward the mountain in long loops, swells into a lake before
+    // downtown, then swings away across the whole view to the left
+    [[1265, 200, 150], [1215, 214, 190], [1290, 232, 240], [1175, 252, 280], [1320, 276, 330], [1160, 304, 380], [1335, 340, 430], [1215, 388, 520], [1040, 426, 640], [900, 420, 700],
+      [760, 416, 520], [620, 398, 420], [480, 352, 380], [340, 346, 360], [200, 372, 380], [70, 352, 360], [-80, 330, 340]],
+    // its second channel round the long island
+    [[1040, 426, 200], [930, 462, 230], [780, 468, 240], [650, 440, 230], [620, 398, 220]],
+    // a tributary winding in from the far left
+    [[215, 206, 110], [300, 224, 150], [205, 246, 180], [345, 272, 220], [240, 300, 250], [340, 346, 280]],
+    // and one from the far middle
+    [[720, 205, 100], [770, 226, 130], [700, 252, 160], [790, 285, 190], [720, 330, 220], [760, 416, 260]]];
   const SEGS = []; RIVERS.forEach(r => { for (let n = 0; n + 1 < r.length; n++) { const a = cg(r[n][0], r[n][1]), b = cg(r[n + 1][0], r[n + 1][1]); SEGS.push([a[0], a[1], b[0], b[1], r[n][2] * M.K * 0.8, r[n + 1][2] * M.K * 0.8]); } });
   // the ridges of the mountain's foot, as the picture has them: crest lines [x1, y1, x2, y2, height, half width (m)]
   const RIDGES = [[250, 520, 620, 650, 430, 950], [300, 455, 560, 520, 300, 750], [480, 565, 760, 700, 380, 800], [1050, 600, 1400, 560, 430, 950], [1000, 520, 1300, 482, 280, 700], [1150, 700, 1500, 640, 500, 1000]]
@@ -80,7 +88,7 @@ fn mLine(x: f32, f: f32, w: f32) -> f32 {
 fn mBand(s: f32, hw: f32, fw: f32) -> f32 { let w: f32 = max(fw, 0.5); return saturate((min(s + hw, 0.5 * w) - max(s - hw, -0.5 * w)) / w); }
 fn mFoot(n: vec2f, dh: vec2f, fr: f32, fa: f32) -> f32 { let c: f32 = dot(n, dh); return abs(c) * fr + sqrt(max(1.0 - c * c, 0.0)) * fa; }
 // the road that winds down from the mountain to the city: where it lies (u) at w
-fn mRoadU(ww: f32) -> f32 { let w: f32 = ww / MK; let k: f32 = 1.0 - smoothstep(5200.0, 9000.0, w); return MK * (-0.17 * w + (520.0 * sin(w / 760.0 + 0.6) + 260.0 * sin(w / 310.0)) * k * smoothstep(300.0, 1500.0, w) + 160.0); }
+fn mRoadU(ww: f32) -> f32 { let w: f32 = ww / MK; let k: f32 = 1.0 - smoothstep(5200.0, 9000.0, w); return MK * (-0.17 * w + (820.0 * sin(w / 720.0 + 0.6) + 330.0 * sin(w / 290.0)) * k * smoothstep(200.0, 1200.0, w) + 160.0); }
 // the river of the concept picture: signed distance to its bank (m, < 0 on the water)
 fn mSeg(p: vec2f, a: vec2f, b: vec2f, ra: f32, rb: f32) -> f32 { let pa: vec2f = p - a; let ba: vec2f = b - a; let h: f32 = saturate(dot(pa, ba) / dot(ba, ba)); return length(pa - ba * h) - mix(ra, rb, h); }
 fn mRiver(u: f32, w: f32) -> f32 {
@@ -103,7 +111,7 @@ fn mHills(uu: f32, ww: f32) -> f32 {
   let p: vec2f = vec2f(u, w); var rdg: f32 = 0.0;
 ${RIDGES.map(g => `  rdg = max(rdg, ${f(g[4])} * pow(saturate(1.0 - mSeg(p, vec2f(${f(g[0])}, ${f(g[1])}), vec2f(${f(g[2])}, ${f(g[3])}), 0.0, 0.0) / ${f(g[5])}), 1.25));`).join('\n')}
   rdg *= (1.0 + 0.7 * det) * (0.25 + 0.75 * val) * (1.0 - smoothstep(MR1 - 1400.0, MR1, r));
-  return MK * max(max(old * 0.55, rdg), 0.0);
+  return MK * max(max(old * 0.80, rdg * 1.5), 0.0);
 }
 // how tall the towers of a quarter may stand at a spot
 fn mCoreH(u: f32, w: f32) -> f32 {
@@ -206,11 +214,11 @@ fn mHillShade(u: f32, w: f32, hl: f32, mode: f32) -> vec4f {
   let nx: f32 = mHills(u + e, w) - mHills(u - e, w); let nz: f32 = mHills(u, w + e) - mHills(u, w - e);
   let N: vec3f = normalize(vec3f(-nx, 2.0 * e, -nz));
   let steep: f32 = 1.0 - N.y;
-  let fo: f32 = smoothstep(0.42, 0.60, fbm2(vec2f(u, w) / 260.0) + 1.3 * steep - 0.25 * smoothstep(200.0 * MK, 1200.0 * MK, hl));
-  let rd: f32 = abs(u - mRoadU(w)) / sqrt(1.0 + sq((mRoadU(w + 20.0) - mRoadU(w - 20.0)) / 40.0));
+  let fo: f32 = 0.7 * smoothstep(0.42, 0.60, fbm2(vec2f(u, w) / 260.0) + 1.3 * steep - 0.25 * smoothstep(200.0 * MK, 1200.0 * MK, hl));
+  let rd: f32 = abs(u - mRoadU(w)) / sqrt(1.0 + sq((mRoadU(w + 20.0) - mRoadU(w - 20.0)) / 40.0)) / MK;
   // the towns in the valleys: clusters of warm lights low down, thinning up the slopes
   let low: f32 = (1.0 - smoothstep(60.0 * MK, 520.0 * MK, hl)) * smoothstep(2200.0 * MK, 4200.0 * MK, length(vec2f(u, w)));
-  let tn: f32 = smoothstep(0.50, 0.72, fbm2(vec2f(u, w) / (700.0 * MK) + vec2f(5.0, 2.0))) * low + 0.8 * exp(-rd / 500.0) * smoothstep(900.0 * MK, 2500.0 * MK, w);
+  let tn: f32 = smoothstep(0.50, 0.72, fbm2(vec2f(u, w) / (700.0 * MK) + vec2f(5.0, 2.0))) * low + 1.0 * exp(-rd / 300.0) * smoothstep(900.0 * MK, 2500.0 * MK, w);
   if (mode < 0.5) {
     let k: vec2f = floor(vec2f(u, w) / 22.0); let on: f32 = step(1.0 - 0.34 * saturate(tn), hash21(k + vec2f(7.0, 19.0)));
     let fp: vec2f = fract(vec2f(u, w) / 22.0) - 0.5;
@@ -219,9 +227,9 @@ fn mHillShade(u: f32, w: f32, hl: f32, mode: f32) -> vec4f {
     let rk: f32 = smoothstep(500.0 * MK, 1500.0 * MK, w);
     // (as roads look by night from the air: lamps in a row down either side and their pools of light on the snow, a dark carriageway
     // between, and on it the cars: a white stream coming, a red one going)
-    let sd: f32 = (u - mRoadU(w)) / sqrt(1.0 + sq((mRoadU(w + 20.0) - mRoadU(w - 20.0)) / 40.0));
-    let lamps: f32 = (1.0 - smoothstep(4.0, 11.0, abs(rd - 30.0))) * exp(-sq((fract(w / 80.0) - 0.5) * 4.0));
-    em += vec3f(1.0, 0.64, 0.28) * (lamps * 8.0 + 1.1 * exp(-rd / 80.0) * smoothstep(14.0, 30.0, rd) + 0.22 * exp(-rd / 380.0)) * rk;
+    let sd: f32 = (u - mRoadU(w)) / sqrt(1.0 + sq((mRoadU(w + 20.0) - mRoadU(w - 20.0)) / 40.0)) / MK;
+    let lamps: f32 = (1.0 - smoothstep(4.0, 11.0, abs(rd - 30.0))) * exp(-sq((fract(w / (80.0 * MK)) - 0.5) * 4.0));
+    em += vec3f(1.0, 0.64, 0.28) * (lamps * 8.0 + 2.0 * exp(-rd / 90.0) * smoothstep(14.0, 30.0, rd) + 0.45 * exp(-rd / 420.0)) * rk;
     em += (vec3f(1.0, 0.92, 0.78) * ((1.0 - smoothstep(4.0, 10.0, abs(sd - 9.0))) * 4.5) + vec3f(1.0, 0.12, 0.06) * ((1.0 - smoothstep(4.0, 10.0, abs(sd + 9.0))) * 5.0)) * rk;
     em += vec3f(1.0, 0.56, 0.24) * (0.34 * saturate(tn));
     return vec4f(em, 0.0);
@@ -343,7 +351,7 @@ fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
   // above the rim: the air, and against it the landmarks that stand taller than the mountain (E.a marks them)
   if (q.z <= 0.0) { return mix(haze, A.rgb * (lit + vec3f(0.016, 0.024, 0.07) * night) + E.rgb * (night * ${f(M.lamp)}), saturate(E.a) * ex); }
   // water: a dark mirror for the sky, with a sheen toward the horizon
-  let mir: vec3f = (vistaHaze(vec3f(d.x, -d.y, d.z)) + vec3f(0.02, 0.05, 0.14) * night) * (0.25 + 0.55 * pow(1.0 - saturate(s), 6.0)) + vec3f(0.018, 0.04, 0.12) * night;
+  let mir: vec3f = (vistaHaze(vec3f(d.x, -d.y, d.z)) + vec3f(0.02, 0.05, 0.14) * night) * (0.14 + 0.40 * pow(1.0 - saturate(s), 6.0)) + vec3f(0.010, 0.022, 0.07) * night;
   // the lights are points, not a paste: over the baked glow, two sizes of sparks (a few of them far brighter than the rest), each
   // fixed to its bearing so that it stays put
   let sa: vec2f = vec2f(ba, q.z);
@@ -360,7 +368,7 @@ fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
   let farK: f32 = smoothstep(5000.0 * ${f(M.K)}, 16000.0 * ${f(M.K)}, dist);
   let warmK: f32 = saturate((E.r - E.b) / max(El, 0.001) * 2.5) * (1.0 - A.a) * (1.0 - E.a);
   let Ec: vec3f = mix(E.rgb, vec3f(1.0, 0.50, 0.13) * El * 1.3, 0.62 * warmK) * mix(mix(0.85 + 0.4 * spark, 0.36 + spark, farK), 1.0, E.a);
-  let nightGround: vec3f = A.rgb * vec3f(0.016, 0.024, 0.07) * night;
+  let nightGround: vec3f = A.rgb * vec3f(0.016, 0.024, 0.07) * (night * (1.0 + 5.0 * smoothstep(0.30, 0.80, luma(A.rgb))));
   // the traffic on the avenues of the middle city: beads of light going slowly, red where they drive away, white where they come
   // (the line of sight is taken back to the ground it was baked from)
   let gp: vec2f = vec2f(sin(ba), cos(ba)) * dist - vec2f(${f(M.DC[0])}, ${f(M.DC[1])});
