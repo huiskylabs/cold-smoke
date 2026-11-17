@@ -225,7 +225,11 @@ const Skier = (() => {
     const leanT = lean * (fbT ? lerp(0.66, 0.48, smooth(0.2, 0.9, Math.abs(lean))) : lerp(0.74, 0.40, smooth(0.25, 0.72, Math.abs(lean)))) * (1 - 0.4 * (p.quiet || 0)) + sec.roll + gS * 0.26 + (id ? 0.03 * ish + id.sx : 0) + (fbT ? 0 : p.tilt || 0), sep = (p.sep || 0) + sec.yaw + (id ? id.ty : 0);
     const up2 = Math.min(hinge * 1.15 + 0.06 + crunch - 0.035 * ibr, 1.74);      // (a breath drawn straightens the upper back...)
     let t1 = basis(sep * 0.7, hinge, leanT), t2 = basis(sep, up2, leanT * 0.82);
-    if (L && L.w > 0) { t1 = LabMo.mixB(t1, L.t1, L.w); t2 = LabMo.mixB(t2, L.t2, L.w); }
+    // (mo3 b, 07_game.js: in a mogul field (p.quiet) the lab's trunk is a fifth of the mix and the quiet trunk above keeps the rest; and the head
+    // below stays the game's own. The lab's trunk and head had replaced both rules outright: the head rolled with the shoulders, 20 degrees
+    // either way, and the trunk swung from side to side over the bumps)
+    const MO3 = typeof Variants !== 'undefined' && Variants.val.mo3 === 'b';
+    if (L && L.w > 0) { const wq = MO3 ? L.w * (1 - 0.8 * (p.quiet || 0)) : L.w; t1 = LabMo.mixB(t1, L.t1, wq); t2 = LabMo.mixB(t2, L.t2, wq); }
     J.chest = v3.mad(pel, t1.Y, LEN.spine + 0.004 * ibr); J.neck = v3.mad(J.chest, t2.Y, LEN.chest);
     // (shoulders come forward and together when the arms are in front of the face)
     const prot = 0.035 * tuck + 0.02 * gM;
@@ -234,7 +238,7 @@ const Skier = (() => {
     // head: eyes stay near level and look where the skier is going; folded right over, the neck cranes back as far as a neck goes
     const hp = Math.max(0.05 + 0.10 * cT + 0.02 * tuck + sec.head + (id ? id.hp : 0), up2 - 1.0);
     let hb = basis((p.sep || 0) + (p.headYaw || 0) + (id ? id.hy : 0), hp, lean * 0.10);
-    if (L && L.w > 0) hb = LabMo.mixB(hb, L.hb, L.w);
+    if (L && L.w > 0 && !MO3) hb = LabMo.mixB(hb, L.hb, L.w);
     const nY = v3.norm(v3.add(t2.Y, hb.Y));
     J.skull = v3.mad(J.neck, nY, LEN.neck); J.head = v3.add(v3.mad(J.skull, hb.Y, LEN.head), v3.mul(hb.Z, -0.015));
     // body shapes the hands and the poles have to stay out of
@@ -392,13 +396,19 @@ const Skier = (() => {
     J.wristL = v3.mad(J.elbowL, v3.norm(v3.sub(J.gripL, J.elbowL)), LEN.farm); J.wristR = v3.mad(J.elbowR, v3.norm(v3.sub(J.gripR, J.elbowR)), LEN.farm);
     // (the lab's arms, except while a pole is being planted or held in the snow, or in a double-pole stroke: those are the game's own)
     if (!(L && L.w > 0)) { ez(sec, 'wa0', 0, 18); ez(sec, 'wa1', 0, 18); }
+    // (mo2 b, 07_game.js: whoever moves the hand last keeps the rules that hang on it. The lab's hand is carried on the outer side of its own
+    // leg's plane, 0.17 m clear of it, the rule hand() keeps above; and the pole is aimed again from the hand where it ended up, at the tip
+    // hand() had found for it, which is outside the body and above the snow already. Before, the hand moved and the pole kept its old
+    // direction: the shaft went through the thigh in four on-snow frames of ten)
+    const MO2 = typeof Variants !== 'undefined' && Variants.val.mo2 === 'b';
     if (L && L.w > 0) for (let k = 0; k < 2; k++) { const sd = k ? 'R' : 'L', h = k ? hR : hL, side = k ? 1 : -1;
       const wa = ez(sec, 'wa' + k, L.w * (1 - Math.max(sat((k ? p.plantR : p.plantL) * 1.5 || 0), sat(h.planted * 2))) * (1 - dpw), 18); if (!(wa > 1e-4)) continue;      // (handed over eased, never in a frame)
-      const sh = J['sh' + sd], le = v3.mad(sh, L.ua[k], LEN.uarm), lg = pushOut(v3.mad(le, L.fa[k], LEN.farm + LEN.grip), 0.045, side);
+      const sh = J['sh' + sd], le = v3.mad(sh, L.ua[k], LEN.uarm); let lg = pushOut(v3.mad(le, L.fa[k], LEN.farm + LEN.grip), 0.045, side);
+      if (MO2) { const hpS = k ? hipR : hipL, anS = k ? J.ankleR : J.ankleL, lgV = v3.sub(hpS, anS), nlq = v3.norm([side * lgV[1], -side * lgV[0], 0]), oq = v3.dot(v3.sub(lg, anS), nlq); lg = v3.mad(lg, nlq, -smin(-oq, -0.17, 0.06) - oq); }
       const e = v3.mad(sh, v3.norm(v3.sub(v3.lerp(J['elbow' + sd], le, wa), sh)), LEN.uarm), g = v3.mad(e, v3.norm(v3.sub(v3.lerp(J['grip' + sd], lg, wa), e)), LEN.farm + LEN.grip);
-      J['elbow' + sd] = e; J['grip' + sd] = g; h.e = e; h.w = g;
+      const g0 = J['grip' + sd]; J['elbow' + sd] = e; J['grip' + sd] = g; h.e = e; h.w = g;
       // (the pole trails from the hand where it is now; its tip kept a little off the snow)
-      let d = h.d; if (g[1] + d[1] * PL < 0.03) { const hz = Math.hypot(d[0], d[2]) || 1, dy = clamp((0.03 - g[1]) / PL, -1, 1), k2 = Math.sqrt(1 - dy * dy) / hz; d = [d[0] * k2, dy, d[2] * k2]; }
+      let d = MO2 && h.planted < 1 ? v3.norm(v3.sub(v3.mad(g0, h.d, PL), g)) : h.d; if (g[1] + d[1] * PL < 0.03) { const hz = Math.hypot(d[0], d[2]) || 1, dy = clamp((0.03 - g[1]) / PL, -1, 1), k2 = Math.sqrt(1 - dy * dy) / hz; d = [d[0] * k2, dy, d[2] * k2]; }
       h.d = d; J['poleD' + sd] = d; }
     J.wristL = v3.mad(J.elbowL, v3.norm(v3.sub(J.gripL, J.elbowL)), LEN.farm); J.wristR = v3.mad(J.elbowR, v3.norm(v3.sub(J.gripR, J.elbowR)), LEN.farm);
     J.tipL = v3.mad(J.gripL, hL.d, PL); J.tipR = v3.mad(J.gripR, hR.d, PL); J.plantedL = hL.planted; J.plantedR = hR.planted;

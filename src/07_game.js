@@ -177,6 +177,22 @@ const Game = (() => {
   // b: shoulders and head stay on the fall line while the legs turn under them, a flex-and-rise through each edge change, a landing that is
   // soaked up and comes back past level once, a little chatter from the snow at speed
   if (typeof Variants !== 'undefined') Variants.def('motion', '人物动作', [['a', '原来'], ['b', '新的']], 'b');
+  // the 2026-11-16 motion review: four corrections to the figure, each behind its own row so they can be compared one at a time (measured
+  // with tools/motion, which is also the gate a change to the figure has to pass). None of them touches the physics: the skier goes down the
+  // same line to the frame. Developer mode only for now, like the board (08a_board.js): without ?dev every row is a, whatever an address or an
+  // earlier pick in this browser asks for.
+  //   mo1   b: the lab posture is chosen for the lean of this instant instead of an eighth of a second late (08f_labmo.js, phase; skis), and the
+  //            ski tip's look-ahead goes the way the ski goes, not the way the body does (tipClear below). It wants medge b with it: under
+  //            a trunk that is on time and edges that are late the thighs cross in a deep edge change, in 5% of the frames;
+  //   medge b: the edges roll over with the body, to the same instant (updatePose; a is feel b's "the body goes first");
+  //   mo2   b: the lab's hand stays outside its own leg and the pole is aimed again from where the hand ended up (08_skier.js, solve);
+  //   mo3   b: the head keeps the game's own rule (level eyes) and a mogul field its quiet trunk (08_skier.js, solve)
+  if (typeof Variants !== 'undefined') {
+    Variants.def('mo1', '动作·时序', [['a', '现在的'], ['b', '修正']], 'a'); Variants.def('medge', '板刃时序', [['a', '身体先走'], ['b', '和身体同步']], 'a');
+    Variants.def('mo2', '动作·雪杖', [['a', '现在的'], ['b', '修正']], 'a'); Variants.def('mo3', '动作·头和上身', [['a', '现在的'], ['b', '修正']], 'a');
+    let dev = false; try { dev = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (/[?&]dev(=|&|$)/.test(location.search) || /\/dev\/?$/.test(location.pathname)); } catch (e) { }
+    if (!dev) for (const n of ['mo1', 'medge', 'mo2', 'mo3']) Variants.val[n] = 'a';
+  }
   // (the lens among trees is the owner's to choose. a: as it was. b: it closes up, and a tree in its way fades before it is reached.
   // c: it stays where it was, and only the fading is early. 14_trees.js reads the same choice for the fading)
   if (typeof Variants !== 'undefined') Variants.def('wood', '林间镜头', [['a', '现在的'], ['b', '贴近'], ['c', '原位淡树']], 'b');
@@ -770,13 +786,20 @@ const Game = (() => {
     fl.tcL = fl.tcL || 0; fl.tcR = fl.tcR || 0;
     const W = typeof Skier !== 'undefined' && Skier.world, o = Render.origin;
     if (!W || !W.seg || !o || dt <= 0) return;
-    const ce = Math.max(Math.cos(pose.edge || 0), 0.35);
+    const ce = Math.max(Math.cos(pose.edge || 0), 0.35), MO1 = typeof Variants !== 'undefined' && Variants.val.mo1 === 'b';
     for (let k = 0; k < 2; k++) {
       const tip = W.seg[k][1], sf = (x, z) => Course.height(x, z, 0.5) + (typeof Tracks !== 'undefined' && Tracks.lift ? Tracks.lift(x, z) : 0);
       // (and where the tip will be in the next few hundredths of a second, carried on at the speed it goes: at 80 km/h a mogul's face comes at it
       // faster than it could be seen and answered after the fact)
+      // (mo1 b: carried on the way the ski goes, not the body. The body's own fall says nothing about the ski: on the snow the boot rides the snow
+      // while the legs take the body's sinking up, and coming down to a landing the body is still falling into its legs after the ski has
+      // stopped on the snow. Carried on at the body's speed the tip was seen a hand deep in snow it never reached, kicked up 23 degrees just
+      // before every landing, and the tail dug in a third of a metre. So: ahead on the snow, the boot's height changes as the snow under the
+      // boot does; in the air, at the body's speed less the legs' own (fl.LV), and never below the snow)
       let pen = -1;
-      for (const a of [0, 0.04, 0.08]) { const x = tip[0] + o[0] + S.v[0] * a, z = tip[2] + o[2] + S.v[2] * a; pen = Math.max(pen, sf(x, z) - (tip[1] + o[1] + S.v[1] * a)); }
+      if (MO1) { const tl = W.seg[k][0], bq = 0.4535, bx0 = tl[0] + (tip[0] - tl[0]) * bq + o[0], by0 = tl[1] + (tip[1] - tl[1]) * bq + o[1], bz0 = tl[2] + (tip[2] - tl[2]) * bq + o[2], g0 = sf(bx0, bz0), vyS = S.v[1] - (fl.LV || 0);      // (the boot: 45% of the way from the tail to the tip)
+        for (const a of [0, 0.04, 0.08]) { const x = tip[0] + o[0] + S.v[0] * a, z = tip[2] + o[2] + S.v[2] * a, gb = sf(bx0 + S.v[0] * a, bz0 + S.v[2] * a), dy = !a ? 0 : S.air ? Math.max(by0 + vyS * a, gb) - by0 : gb - g0; pen = Math.max(pen, sf(x, z) - (tip[1] + o[1] + dy)); } }
+      else for (const a of [0, 0.04, 0.08]) { const x = tip[0] + o[0] + S.v[0] * a, z = tip[2] + o[2] + S.v[2] * a; pen = Math.max(pen, sf(x, z) - (tip[1] + o[1] + S.v[1] * a)); }
       // (in deep powder the shovel planes well up out of it: a hand's breadth of tip shows; owner 2026-11-12)
       pen += 0.02 + 0.06 * (typeof Tracks !== 'undefined' ? Tracks.deep || 0 : 0); const key = k ? 'tcR' : 'tcL', cur = fl[key];
       const want = clamp(cur + pen / (0.94 * ce), 0, 0.5);
@@ -836,7 +859,10 @@ const Game = (() => {
     const Lv = fl.lb * cy * (1 - 0.7 * q.own * w), sL = Math.sin(Lv); pose.lean = Lv;
     // (feel b: the body goes first. The hips cross over into the new turn and the edges follow them a tenth of a second or so later, through a
     // critically damped spring, instead of rolling with the body to the same instant)
-    { const eT = clamp(Lv * 1.12 + S.beta * 0.25 * cy, -1.3, 1.3); if (FB && !first) { fl.edB = spring(fl, 'edB', eT, lerp(30, 16, (1 - w) * (1 - sat(crash * 5))), kd); pose.edge = clamp(fl.edB, -1.3, 1.3); } else { fl.edB = eT; fl.edBV = 0; pose.edge = eT; } }
+    // (medge b: to the same instant after all. A ski boot holds the shin square to the ski sideways, so an edge a tenth of a second behind the
+    // body was a shin leaning 18 degrees inside its boot at every edge change, knees pointing 46 degrees apart, and half of the poles through
+    // the thighs. Only the drawing: the physics never read this edge)
+    { const eT = clamp(Lv * 1.12 + S.beta * 0.25 * cy, -1.3, 1.3); if (FB && !first && !(typeof Variants !== 'undefined' && Variants.val.medge === 'b')) { fl.edB = spring(fl, 'edB', eT, lerp(30, 16, (1 - w) * (1 - sat(crash * 5))), kd); pose.edge = clamp(fl.edB, -1.3, 1.3); } else { fl.edB = eT; fl.edBV = 0; pose.edge = eT; } }
     // legs. The hips ride where the physics has the body, set lower by how the skier is standing (Xs); the legs are whatever it takes to
     // get from there to the skis. fl.l is how far they are folded (below 0) or reached out (above), in metres, measured from the hips;
     // fl.L the same counted as the physics counts its own (S.leg): the skis are at P.y - L, always. The figure draws the knee bend it
