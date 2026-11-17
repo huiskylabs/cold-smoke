@@ -13,7 +13,7 @@ const Peak = { K: 2.2, H: 3600, AZ: 1.3, t0: -0.30, ta: 0.60, tb: 0.95, ak: 0.42
 // 金色雪旗: how far off the volcano stands and how wide the lake lies before it (the owner: the peak farther, far more water, so that
 // the lake can carry the aurora). Three to choose from; 云下之城 keeps the numbers above
 Variants.def('lake', '湖的大小 (金色雪旗)', [['a', '大湖'], ['b', '更大'], ['c', '一望无际']], 'b');
-Variants.def('wcol', '水的颜色 (金色雪旗)', [['a', '镜面'], ['b', '冰川湖碧绿'], ['c', '九寨翠蓝']], 'b');
+Variants.def('wcol', '水的颜色 (金色雪旗)', [['a', '镜面'], ['b', '冰川湖碧绿'], ['c', '九寨翠蓝'], ['d', '深湖绿（一点碧色）']], 'd');
 Variants.def('wrip', '水面的风 (金色雪旗)', [['a', '平静'], ['b', '阵风'], ['c', '满湖波纹']], 'b');
 Variants.def('boats', '湖上的船 (金色雪旗)', [['a', '没有'], ['b', '几只'], ['c', '一队']], 'b');
 Peak.sets = {
@@ -486,13 +486,19 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     milky = mix(milky, vec3f(0.10, 0.78, 0.76), 0.30 * smoothstep(0.45, 0.75, pat) * (1.0 - shoal));       // drifts of rock flour
     var jade: vec3f = mix(mix(vec3f(0.02, 0.36, 0.30), vec3f(0.05, 0.50, 0.62), smoothstep(0.35, 0.65, pat)), vec3f(0.42, 0.80, 0.62), smoothstep(0.62, 0.80, fbm2(wp / ${f(1300 * P.K)} + vec2f(1.0, 9.0))) * 0.7);
     jade = mix(jade, vec3f(0.56, 0.90, 0.78), 0.60 * smoothstep(0.86, 1.02, shoal));
+    // (d, the owner's pick 2026-11-17: a lake's ordinary deep green, darker in the middle, with only a hint of the glacier jade in it and a
+    // little paler over the shallows; no milky turquoise)
+    var deep: vec3f = mix(vec3f(0.035, 0.150, 0.125), vec3f(0.060, 0.230, 0.190), smoothstep(0.0, 0.70, shoal));
+    deep = mix(deep, vec3f(0.050, 0.230, 0.215), 0.35 * smoothstep(0.40, 0.75, pat) * (1.0 - shoal));
+    deep = mix(deep, vec3f(0.20, 0.38, 0.32), 0.50 * smoothstep(0.86, 1.02, shoal));
+    if (U.world.z > 2.5) { jade = deep; }
     // the light inside the water: the sun goes down into it and comes back coloured, so by day the lake glows brighter than the land about
     // it; with the sun low little goes in, and the water is a mirror for the sky again (no day-green lake under a gold sky)
     let sunK: f32 = smoothstep(0.03, 0.34, U.sunDir.y) * (1.0 - dark);
     // (in the shadow of the peak or of a cloud only the sky's light goes in: the colour stays, darker and bluer)
     let sunIn: f32 = (1.0 - shS) * (1.0 - 0.22 * shC);
     let skyN: vec3f = vec3f(luma(U.ambSky.rgb)) * vec3f(0.92, 1.0, 1.04);
-    let body: vec3f = 2.55 * mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * (0.80 * sunIn) + skyN * 0.95) * (1.0 - 0.14 * wind);
+    let body: vec3f = 2.55 * mix(milky, jade, step(1.5, U.world.z)) * mix(1.0, 0.85, step(2.5, U.world.z)) * (U.sunCol.rgb * (0.80 * sunIn) + skyN * 0.95) * (1.0 - 0.14 * wind);
     // what the eye gets from the water is the mirror weighed by Fresnel (a few per cent looking down into it, nearly all of it at a graze)
     // and the light coming up out of the water with the rest. So from a height the colour is the water's own and the mirror lies on it
     // only where what it mirrors is bright, cloud and snow, as at Peyto; far off, at a graze, the lake turns to sky and mountain
