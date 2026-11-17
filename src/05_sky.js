@@ -74,7 +74,7 @@ const Sky = (() => {
         // the aurora: out when the stars are (a clear dark sky), behind everything that stands or floats in front of the sky
         // (over the lake worlds: the ribbons, auroraR)
         if (M.au.x * U.skyP.w > 0.002) {
-          if (U.world.x > 2.5) { col += auroraR(d, M.au.w, 28) * (M.au.x * U.skyP.w); }
+          if (U.world.x > 2.5) { col += auroraR(d, M.au.w, 3) * (M.au.x * U.skyP.w); }
           else { col += aurora(d, M.au.y, M.au.z, M.au.w) * (M.au.x * U.skyP.w); }
         }
         col += nbc * (M.p.x * skyL + M.p.y) * smoothstep(-0.01, 0.15, d.y) * smoothstep(0.04, mix(0.12, 0.26, U.sunDir.w), ang) * U.fx.z * M.nu.w;
@@ -282,30 +282,31 @@ fn aurora(d: vec3f, b0: f32, sh: f32, tm: f32) -> vec3f {
   let band: f32 = 0.25 + 0.75 * smoothstep(-0.5, 0.9, sin(a * 1.7 + 0.7)) * (0.6 + 0.8 * vnoise2(vec2f(a * 2.2, 5.3)));
   return (vec3f(0.10, 1.0, 0.42) * fall + vec3f(0.62, 0.16, 0.78) * (tall - fall) * 0.6) * lower * rays * band;
 }
-// another aurora (the lake worlds): not one curtain along the horizon but several ribbons that wind and curl across the whole sky, as they
-// are when a strong one stands overhead. Each ribbon is a thin sheet hanging from far above down to one level: the line of sight is walked
-// up through those heights (n steps), so a sheet seen from the side stands as tall rays and one seen from under is a bright curling line.
-// Green along the lower edge, violet and magenta in the tall rays above it
+// another aurora (the lake worlds): not one curtain along the horizon but three ribbons, one over the other, that swing up and down
+// the sky in great waves. Each has a hard bright lower edge, green, and tall rays above it that go over into violet or magenta; each is
+// lit in stretches with dark sky between, brightest where its edge turns steeply (there the sheet is seen edge on, a fold)
 fn auroraR(d: vec3f, tm: f32, n: i32) -> vec3f {
-  if (d.y < 0.03) { return vec3f(0.0); }
+  if (d.y < 0.0) { return vec3f(0.0); }
+  let e: f32 = asin(clamp(d.y, 0.0, 1.0)); let a: f32 = atan2(d.z, d.x) + tm * 0.0035;
   var s: vec3f = vec3f(0.0);
-  let dit: f32 = hash21(d.xz * 5000.0 + vec2f(d.y * 3777.0, 3.0));
-  for (var i: i32 = 0; i < 32; i++) {
-    if (i >= n) { break; }
-    let t: f32 = (f32(i) + dit) / f32(n);
-    let p: vec2f = d.xz * ((1.0 + 1.5 * t) / d.y);
-    let w0: vec2f = p + vec2f(1.3 * sin(p.y * 0.45 + tm * 0.020) + 0.5 * sin(p.y * 1.3 + 2.0), 1.1 * sin(p.x * 0.5 + 1.0 + tm * 0.015));
-    let w: vec2f = w0 + 1.8 * (vec2f(vnoise2(w0 * 0.35 + vec2f(tm * 0.010, 0.0)), vnoise2(w0 * 0.35 + vec2f(7.0, 3.0))) - 0.5);
-    let f: f32 = w.y * 0.55 + 0.6 * sin(w.x * 0.4);
-    let id: f32 = floor(f);
-    let band: f32 = exp(-sq((f - id - 0.5) / 0.075));
-    let mask: f32 = smoothstep(0.30, 0.58, vnoise2(vec2f(id * 3.7 + 1.0, w.x * 0.25 + tm * 0.006)));
-    let ray: f32 = 0.35 + 1.5 * sq(vnoise2(vec2f(w.x * 7.0 + tm * 0.25, id * 5.0)));
-    let prof: f32 = smoothstep(0.0, 0.06, t) * exp(-t * 2.6);
-    let hue: vec3f = mix(vec3f(0.12, 1.0, 0.45), vec3f(0.75, 0.22, 1.0), smoothstep(0.15, 0.70, t));
-    s += hue * (band * mask * ray * prof * exp(-length(p) * 0.035));
+  for (var i: i32 = 0; i < 3; i++) {
+    let fi: f32 = f32(i);
+    let k1: f32 = 1.7 + 0.6 * fi; let p1: f32 = a * k1 + 2.1 * fi + tm * 0.010; let p2: f32 = a * 4.3 + 1.7 * fi - tm * 0.013;
+    let base: f32 = 0.11 + 0.10 * fi + 0.085 * sin(p1) + 0.040 * sin(p2) + 0.07 * (vnoise2(vec2f(a * 2.5 + fi * 9.0, tm * 0.010)) - 0.5);
+    let turn: f32 = abs(0.085 * k1 * cos(p1) + 0.172 * cos(p2));
+    let h: f32 = e - base;
+    if (h > -0.02) {
+      let tall: f32 = 0.09 + 0.16 * vnoise2(vec2f(a * 3.0 + fi * 5.0, 3.0 + tm * 0.008));
+      let r: f32 = fbm2(vec2f((a + 0.5 * h * sin(a * 2.0 + fi)) * 55.0 + 4.0 * vnoise2(vec2f(a * 5.0, fi + tm * 0.02)), fi * 7.0 + h * 1.5 + tm * 0.05));
+      let rays: f32 = 0.22 + 1.7 * r * r * r;
+      let lower: f32 = smoothstep(-0.014, 0.003, h);
+      let fall: f32 = exp(-max(h, 0.0) / (0.22 * tall)); let up: f32 = exp(-max(h, 0.0) / tall);
+      let lit: f32 = smoothstep(0.30, 0.62, vnoise2(vec2f(a * 1.3 + fi * 4.0, 1.0 + tm * 0.004))) * (0.75 + 3.0 * turn);
+      let hue: vec3f = mix(vec3f(0.55, 0.20, 1.0), vec3f(1.0, 0.18, 0.62), step(0.5, fi) * step(fi, 1.5));
+      s += (vec3f(0.10, 1.0, 0.42) * fall + hue * ((up - fall) * 0.95)) * (lower * rays * lit);
+    }
   }
-  return s * (12.0 / f32(n)) * smoothstep(0.03, 0.14, d.y);
+  return s * smoothstep(0.0, 0.05, d.y);
 }`;
 const NIGHT_SSL = `
 // one star's own row of random numbers, read off at its own pace and smoothed from each to the next: an irregular flutter, never a sine
