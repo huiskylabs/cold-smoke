@@ -13,9 +13,9 @@
   const title = $('div', 'font-size:17px;font-weight:600;margin-bottom:6px', box); title.textContent = '雪迹 · 性能测量页';
   const info = $('div', 'opacity:.8;margin-bottom:10px', box); info.textContent = '点「开始」后请保持屏幕常亮、不要切走，约 1–3 分钟。结束后点「复制结果」，把文字贴给 Claude。';
   // 第一批优化的三个开关（地形滚动分摊、模糊采样数、脚下网格密度）：地址里带 v-xxx=a 就是关掉（旧做法）。页面上给一个一键切换
-  const SW = ['pslice', 'mbtap', 'patchd'], OLD = SW.every(n => new RegExp('[?&]v-' + n + '=a\\b').test(location.search));
+  const SW = ['pslice', 'mbtap', 'patchd'], OLD = SW.every(n => window.__int && window.__int.Variants.val[n] === 'a');
   { const ln = $('div', 'margin-bottom:10px', box), a = $('a', 'color:#9fe;text-decoration:underline', ln); ln.insertBefore(document.createTextNode(OLD ? '现在测的是：旧做法（三条优化关掉）。' : '现在测的是：新做法（三条优化打开）。'), a);
-    a.textContent = OLD ? '换成新做法再测一遍' : '换成旧做法再测一遍'; a.href = location.pathname + '?' + location.search.replace(/^\?/, '').split('&').filter(x => x && !/^v-(pslice|mbtap|patchd)=/.test(x)).concat(OLD ? [] : SW.map(n => 'v-' + n + '=a')).join('&'); }
+    a.textContent = OLD ? '换成新做法再测一遍' : '换成旧做法再测一遍'; a.href = location.pathname + '?' + location.search.replace(/^\?/, '').split('&').filter(x => x && !/^v-(pslice|mbtap|patchd)=/.test(x)).concat(SW.map(n => 'v-' + n + (OLD ? '=b' : '=a'))).join('&'); }
   const btn = $('button', 'font-size:17px;padding:10px 26px;border-radius:8px;border:0;background:#7A3FFF;color:#fff;margin-right:10px', box); btn.textContent = '开始'; btn.id = 'bench-go';
   const copy = $('button', 'font-size:17px;padding:10px 26px;border-radius:8px;border:0;background:#018081;color:#fff;display:none', box); copy.textContent = '复制结果';
   const stat = $('div', 'margin:10px 0;color:#9fe', box); stat.id = 'bench-stat';
