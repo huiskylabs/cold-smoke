@@ -20,8 +20,8 @@ const Metro = (() => {
   // (c 云下之城 and d 金色雪旗 are baked here too, by their own ray caster: 16c_peak.js)
   M.kind = () => Variants.val.world; M.on = () => M.kind() !== 'a'; M.index = () => 'abcde'.indexOf(M.kind());
   let gfx, pipe, tE, tA; const pipesBy = {};
-  const pipeFor = k => pipesBy[k] || (pipesBy[k] = gfx.pipeline({ name: 'metroBake' + k, lib: [SL.common, SL.hash, SL.noise], topology: 'strip', buffers: [], varyings: { uv: 'vec2f' }, uniforms: { r: 'vec4f', t: 'vec4f', m: 'vec4f' },
-    textures: {}, colorFormat: 'rgba16f', depth: false, depthTest: false, cull: 'none', vs: CLOUD_RECT_VS, fs: k === 'b' ? metroBakeFS() : peakBakeFS(k) }));
+  const pipeFor = k0 => { const k = k0 === 'd' ? k0 + Variants.val.lake : k0; return pipesBy[k] || (pipesBy[k] = gfx.pipeline({ name: 'metroBake' + k, lib: [SL.common, SL.hash, SL.noise], topology: 'strip', buffers: [], varyings: { uv: 'vec2f' }, uniforms: { r: 'vec4f', t: 'vec4f', m: 'vec4f' },
+    textures: {}, colorFormat: 'rgba16f', depth: false, depthTest: false, cull: 'none', vs: CLOUD_RECT_VS, fs: k === 'b' ? metroBakeFS() : peakBakeFS(k0) })); };
   M.init = function (g, res) {
     gfx = g; if (res) { M.W = res; M.Hh = res >> 1; }
     M.E = gfx.texture({ w: M.W, h: M.Hh, format: 'rgba16f', filter: 'linear', wrap: 'clamp', mips: true }); tE = gfx.target({ color: M.E });
@@ -45,7 +45,7 @@ const Metro = (() => {
     } while (whole && M.step < 2 * N && M.step % 8 !== 0);      // (the director: eight bands a frame)
     if (M.step >= 2 * N) { gfx.genMips(M.E); gfx.genMips(M.A); M.done = true; }
   };
-  Variants.on((n, v, init) => { if (n === 'world' && !init) { M.done = false; M.step = 0; if (typeof Clouds !== 'undefined') Clouds.baked = false; } });
+  Variants.on((n, v, init) => { if ((n === 'world' || n === 'lake') && !init) { M.done = false; M.step = 0; if (typeof Clouds !== 'undefined') Clouds.baked = false; } });
   return M;
 })();
 const metroF = x => { const t = String(+(+x).toFixed(7)); return /[.e]/.test(t) ? t : t + '.0'; };

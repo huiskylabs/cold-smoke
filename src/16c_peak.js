@@ -9,9 +9,18 @@
 //   E = x: how it faces a low sun (or, under 0: water; -1 mirroring the sky, -2 mirroring land), y: how it faces a high sun (on water:
 //       how the mirrored land faces the light), z: lamps, w: how much air lies before it
 // (K: the land is this many times bigger and farther than its numbers below say; streets and windows keep their true size)
-const Peak = { K: 2.2, H: 3600, AZ: 1.3, t0: -0.30, ta: 0.60, tb: 0.95, ak: 0.42, lift: -0.02, PC: [1800, 30000], HP: 7800, LC: [-600, 11200], LR: [11500, 5000], far: 75000, haze: 46000 };
+const Peak = { K: 2.2, H: 3600, AZ: 1.3, t0: -0.30, ta: 0.60, tb: 0.95, ak: 0.42, lift: -0.02, PC: [1800, 30000], HP: 7800, PR: 12500, LC: [-600, 11200], LR: [11500, 5000], far: 75000, haze: 46000 };
+// 金色雪旗: how far off the volcano stands and how wide the lake lies before it (the owner: the peak farther, far more water, so that
+// the lake can carry the aurora). Three to choose from; 云下之城 keeps the numbers above
+Variants.def('lake', '湖的大小 (金色雪旗)', [['a', '大湖'], ['b', '更大'], ['c', '一望无际']], 'b');
+Peak.sets = {
+  a: { PC: [2000, 38000], HP: 9200, PR: 13500, LC: [-600, 15500], LR: [15000, 9000], haze: 70000 },
+  b: { PC: [2500, 48000], HP: 11000, PR: 15500, LC: [-600, 20500], LR: [20000, 14000], haze: 85000 },
+  c: { PC: [3000, 58000], HP: 12500, PR: 17000, LC: [-600, 26000], LR: [30000, 19500], haze: 100000, far: 95000 },
+};
+function peakP(kind) { return kind === 'd' ? Object.assign({}, Peak, Peak.sets[Variants.val.lake] || Peak.sets.b) : Peak; }
 function peakBakeFS(kind) {
-  const f = metroF, isC = kind === 'c', P = Peak;
+  const f = metroF, isC = kind === 'c', P = peakP(kind);
   // (the light keeps one bearing all day; the land is drawn as if it came more from the left than it does, so that the faces turned to
   // the eye are not all in shadow)
   const la = Sky.az - Vista.cityAz - 0.75;
@@ -51,7 +60,7 @@ ${isC ? `  let ln: f32 = pN(p / 5600.0 + vec2f(2.7, 6.1));
   let rng: f32 = 3900.0 * rg * rg * env * opn;
   // the great peak: a horn, its faces hollow, its ridges running down to the lake
   let q: vec2f = p - vec2f(${f(P.PC[0])}, ${f(P.PC[1])}); let rp: f32 = length(q); let pa: f32 = atan2(q.x, q.y);
-  let R: f32 = 12500.0 * (1.0 + 0.20 * cos(3.0 * pa + 0.6) + 0.09 * cos(7.0 * pa + 2.0));
+  let R: f32 = ${f(P.PR)} * (1.0 + 0.20 * cos(3.0 * pa + 0.6) + 0.09 * cos(7.0 * pa + 2.0));
   let fk: f32 = saturate(1.0 - rp / R);
   // (its faces are cut by ribs and gullies, deepest low down; the horn itself stays clean)
   let rib: f32 = pRidge(q / 3300.0 + vec2f(6.0, 2.0), n);
@@ -169,7 +178,7 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   // it the dark lava stands bare between them)
   let qv: vec2f = p / PK - vec2f(${f(P.PC[0])}, ${f(P.PC[1])}); let qn: vec2f = qv / max(length(qv), 1.0);
   let tong: f32 = pRidge(qn * 11.0 + vec2f(3.0, 1.0), 3) + 0.5 * (dn - 0.5);
-  let bare: f32 = (1.0 - smoothstep(-0.05, 0.05, tH / PHP - 0.44 + 0.30 * (tong - 0.35))) * smoothstep(0.02, 0.10, tH / PHP) * step(length(qv), 12500.0);
+  let bare: f32 = (1.0 - smoothstep(-0.05, 0.05, tH / PHP - 0.44 + 0.30 * (tong - 0.35))) * smoothstep(0.02, 0.10, tH / PHP) * step(length(qv), ${f(P.PR)});
   let wood: f32 = (1.0 - smoothstep(650.0, 1500.0, tH + 500.0 * (pN(p / (1900.0 * PK)) - 0.5))) * smoothstep(0.60, 0.85, N.y) * step(2.0, tH);
   var alb: vec3f = mix(vec3f(0.90, 0.93, 1.0), vec3f(0.11, 0.15, 0.15), wood * (0.55 + 0.35 * dn));
   alb = mix(alb, vec3f(0.19, 0.17, 0.17) * (0.6 + 0.5 * dn + 0.5 * vnoise2(vec2f(tH / 45.0, dot(p, vec2f(0.0007, 0.0004))))), max(max(rock, bare * 0.9), band * 0.6) * 0.92);
@@ -220,8 +229,8 @@ fn frag(v: VOut) -> FOut { var o: FOut;
 
 // ---- every frame, in the sky shader (after the sky, its aurora and its moon are known: the lake mirrors them)
 function peakSSL() {
-  const V = Vista, f = metroF, P = Peak;
-  const sa = Math.atan2(P.PC[0], P.PC[1]), bt0 = Math.atan((P.H - 2900) / (Math.hypot(P.PC[0], P.PC[1]) - 6500)) + P.lift;      // the peak's bearing; where the cloud about its waist lies
+  const V = Vista, f = metroF, P = peakP(Metro.kind());
+  const sa = Math.atan2(P.PC[0], P.PC[1]), bt0 = Math.atan((P.H - 2900) / (Math.hypot(P.PC[0], P.PC[1]) - 0.52 * P.PR)) + P.lift;      // the peak's bearing; where the cloud about its waist lies
   return `
 // a sheet of cloud lying h m over the lake, where the line of sight (bearing dl, slope s, the eye PH up) goes down through it:
 // x = how much of what lies behind it hides, y = how thick it is there (0 its edge .. 1), z = how far off. cov: the share of sky it covers
@@ -296,7 +305,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     let ce: f32 = cos(el); let dr: vec3f = vec3f(d.x / hl * ce, sin(el), d.z / hl * ce);
     var w1: vec3f = skyLut(dr);
     if (M.au.x * U.skyP.w > 0.002) {
-      if (U.world.x > 2.5) { w1 += auroraR(dr, M.au.w, 3) * (1.15 * M.au.x * U.skyP.w); }
+      if (U.world.x > 2.5) { w1 += auroraR(dr, M.au.w, 3) * (1.7 * M.au.x * U.skyP.w); }
       else { w1 += aurora(dr, M.au.y, M.au.z, M.au.w) * (1.6 * M.au.x * U.skyP.w); }
     }
     w1 += moonDisc(normalize(dr + vec3f(0.05 * rp2 * rough, 0.03 * rp * rough, 0.0))) * (0.7 + 0.6 * rough);
