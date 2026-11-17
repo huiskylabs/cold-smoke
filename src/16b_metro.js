@@ -13,7 +13,7 @@ const Metro = (() => {
   // H: how far below the eye the city lies (m); RE: the radius of its little planet (the horizon dips, and curves, far more than the earth's);
   // AZ: the panorama covers bearings +-AZ about the city's; ta, tb: its rows, packed toward the horizon (drop = ta v + tb v^4);
   // bend: how much farther the ground falls away to either side than straight ahead (rad at 90 degrees: the planet's curve, overdrawn)
-  const M = { H: 2200, RE: 9.0e5, AZ: 1.3, ta: 0.33, tb: 0.97, bend: 0.34, lift: 0.17, ak: 0.42, W: 2048, Hh: 1024, R1: 10500, DC: [500, 12500], lamp: 0.42, samples: 4, done: false, E: null, A: null, pipes: [] };
+  const M = { H: 2200, RE: 9.0e5, AZ: 1.3, ta: 0.33, tb: 0.97, bend: 0.34, lift: 0.17, ak: 0.42, W: 2048, Hh: 1024, R1: 10500, DC: [500, 12500], lamp: 0.42, cloud: false, samples: 4, done: false, E: null, A: null, pipes: [] };
   M.on = () => Variants.val.world === 'b';
   let gfx, pipe, tE, tA;
   M.init = function (g, res) {
@@ -48,7 +48,7 @@ const metroF = x => { const t = String(+(+x).toFixed(7)); return /[.e]/.test(t) 
 function metroBakeFS() {
   const f = metroF, M = Metro, H = M.H, DC = M.DC;
   // the quarters with tall towers: [u, w, radius, height of the tallest]
-  const CORES = [[DC[0], DC[1], 2100, 1450], [-5200, 9000, 800, 420], [3900, 7300, 620, 330], [-1500, 6900, 520, 300], [6800, 14500, 900, 460], [-7600, 16500, 1000, 480], [1200, 19500, 900, 420], [-3200, 13800, 600, 340]];
+  const CORES = [[DC[0], DC[1], 1250, 900], [-5200, 9000, 800, 420], [3900, 7300, 620, 330], [-1500, 6900, 520, 300], [6800, 14500, 900, 460], [-7600, 16500, 1000, 480], [1200, 19500, 900, 420], [-3200, 13800, 600, 340]];
   return `
 const MH: f32 = ${f(H)}; const MRE: f32 = ${f(M.RE)}; const MR1: f32 = ${f(M.R1)}; const MCS: f32 = 120.0;
 fn mLine(x: f32, f: f32, w: f32) -> f32 {
@@ -278,10 +278,10 @@ ${CORES.map(c => `    { let t0: f32 = dot(vec2f(${f(c[0])}, ${f(c[1])}), dl); le
       let cc: vec2f = (c + 0.5) * MCS; let cu: f32 = cc.x * gc - cc.y * gs + ${f(DC[0])}; let cw: f32 = cc.x * gs + cc.y * gc + ${f(DC[1])};
       let h3: vec3f = hash33(vec3f(c.x, c.y, 7.0)); let ch: f32 = mCoreH(cu, cw);
       let hero: f32 = step(abs(c.x), 0.5) * step(abs(c.y), 0.5);
-      if (h3.x < 0.16 + 0.62 * saturate(ch / 260.0) + hero) {
+      if (h3.x < 0.10 + 0.46 * saturate(ch / 420.0) + hero) {
         let Ld: vec4f = mLand(cu, cw);
-        let ht: f32 = mix(ch * (0.30 + 0.85 * h3.y * h3.y) + 130.0 * Ld.x * (0.25 + h3.z) * step(0.35, Ld.x), 2100.0, hero);
-        let hs: f32 = mix(0.21 + 0.15 * h3.z + 0.10 * saturate(ch / 900.0), 0.46, hero);
+        let ht: f32 = mix(ch * (0.16 + 1.0 * h3.y * h3.y * h3.y) + 110.0 * Ld.x * (0.25 + h3.z) * step(0.35, Ld.x), 1300.0, hero);
+        let hs: f32 = mix(0.15 + 0.15 * h3.z, 0.30, hero);
         if (ht > 28.0 && mRiver(cu, cw) > 40.0 && mHills(cu, cw) < 15.0 && (Ld.z < 0.5 || ch > 150.0)) {
           let lo: vec2f = (c + 0.5 - hs - g0) / gd; let hi: vec2f = (c + 0.5 + hs - g0) / gd;
           let t1: vec2f = min(lo, hi); let t2: vec2f = max(lo, hi);
@@ -303,15 +303,15 @@ ${CORES.map(c => `    { let t0: f32 = dot(vec2f(${f(c[0])}, ${f(c[1])}), dl); le
     if (tw > 0) {
       tflag = 0.35; xs = tx; let u: f32 = dl.x * tx; let w: f32 = dl.y * tx; let Lw: vec4f = mLand(u, w);
       let th1: f32 = fract(tinfo.y * 7.31 + tinfo.w * 3.7); let tint: vec3f = mTint(mix(th1 * 0.66, 0.87 + 0.13 * th1, step(0.86, th1) * Lw.y));
-      let tall: f32 = saturate(tinfo.x / 900.0);
+      let tall: f32 = saturate(tinfo.x / 600.0);
       if (tw == 1) {
         // a wall: lit windows in blocks, lit floors, the glow of the street at its foot, a lit top on the tall ones
         let q: f32 = dot(vec2f(u, w), vec2f(-tn.y, tn.x));
         let wsz: vec2f = mix(vec2f(9.0, 7.0), vec2f(14.0, 18.0), tall); let wc: vec2f = floor(vec2f(q / wsz.x, tq / wsz.y)); let fl: f32 = hash21(vec2f(floor(tq / wsz.y), tinfo.z * 91.0));
         let fc: f32 = mix(1.0, 0.38, step(0.5, abs(tn.x)));
-        let on: f32 = step(mix(0.62, 0.30, tall) - 0.25 * step(0.72, fl), hash21(wc + vec2f(tinfo.y * 177.0, tinfo.z * 53.0)));
+        let on: f32 = step(mix(0.66, 0.52, tall) - 0.25 * step(0.72, fl), hash21(wc + vec2f(tinfo.y * 177.0, tinfo.z * 53.0)));
         if (mode < 0.5) {
-          var em: vec3f = tint * (on * (0.6 + 1.5 * hash21(wc + vec2f(3.0, 3.0))) * mix(1.0, 1.5, tall)) + tint * (0.10 + 0.25 * tall);
+          var em: vec3f = tint * (on * (0.6 + 1.5 * hash21(wc + vec2f(3.0, 3.0))) * mix(1.0, 1.3, tall)) + tint * 0.05;
           em *= fc;
           em += vec3f(1.0, 0.70, 0.36) * (1.0 * exp(-tq / 45.0));
           em += mix(tint, vec3f(1.0, 0.35, 0.9), step(0.9, tinfo.w)) * (2.5 * tall * smoothstep(0.94, 1.0, tq / tinfo.x));
@@ -334,7 +334,7 @@ ${CORES.map(c => `    { let t0: f32 = dot(vec2f(${f(c[0])}, ${f(c[1])}), dl); le
   // ---- banks of cloud lying low where the foothills meet the city, and a few farther out: lit from below by what they lie over
   let xa: f32 = 2.0 * (MH - 1000.0) / (s + sqrt(max(s * s - 2.0 * (MH - 1000.0) / MRE, 0.0)));
   let xb: f32 = min(2.0 * (MH - 180.0) / (s + sqrt(max(s * s - 2.0 * (MH - 180.0) / MRE, 0.0))), xs);
-  if (xb > xa && s > 0.03) {
+  if (xb > xa && s > ${f(M.cloud ? 0.03 : 99)}) {
     var T: f32 = 1.0; var acc: vec3f = vec3f(0.0); let dx: f32 = (xb - xa) / 30.0;
     for (var i: i32 = 0; i < 30; i++) {
       let x: f32 = xa + (f32(i) + 0.5) * dx; let p: vec2f = dl * x; let y: f32 = mRayH(x, s);
