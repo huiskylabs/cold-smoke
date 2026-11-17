@@ -21,7 +21,8 @@ const XHS = self.XHS = (() => {
 
   // ---- settings kept in the container's storage: one JSON object of the same keys the page keeps in localStorage
   const prefs = {}; let dirty = 0, saveT = null;
-  const OURS = k => /^cs\.v\./.test(k) || /^cs\.q\./.test(k) || k === 'coldsmoke.lang';
+  // (the settings, and every key 00d_store.js holds as the player's own: 滑过的山, 今日之山, 卡册)
+  const OURS = k => /^cs\.v\./.test(k) || /^cs\.q\./.test(k) || k === 'coldsmoke.lang' || (typeof Store !== 'undefined' && Store.isDurable(k));
   function put(k, v) { if (prefs[k] === v) return; prefs[k] = v; try { localStorage.setItem(k, v); } catch (e) { } dirty++; if (!saveT) saveT = setTimeout(save, 1500); }
   function save() {
     saveT = null; if (!dirty || !has('setStorage')) return; dirty = 0;
@@ -44,6 +45,7 @@ const XHS = self.XHS = (() => {
     }
     Variants.on((n, id, first) => { if (!first) put('cs.v.' + n, id); });
     Quality.keep = (k, v) => put(k, v);                                  // (the picked or learned Quality level, 00c_quality.js)
+    if (typeof Store !== 'undefined') Store.keep = (k, v) => put(k, v);    // (what the player has earned, 00d_store.js)
     I18N.on(l => put('coldsmoke.lang', l));
     document.addEventListener('visibilitychange', () => { if (document.hidden && saveT) { clearTimeout(saveT); save(); } });
   };

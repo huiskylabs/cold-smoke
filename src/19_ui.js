@@ -464,6 +464,7 @@ const UI = (() => {
     el.pane.scrollTop = 0; paint();
     if (s === 'rank' && typeof Rank !== 'undefined') Rank.show();
     if (s === 'share' && typeof XHS !== 'undefined') XHS.show();
+    if (s === 'cards' && typeof CardBook !== 'undefined') CardBook.show();
   }
   // U.menu(): open or close; U.menu('view'): open at that part (or, open at it already, close)
   U.menu = function (on) {
@@ -716,15 +717,15 @@ const UI = (() => {
 
   // ---- 滑过的山: every official mountain that is released, or that this player has skied, kept on this device with their bests there
   // (the farthest in one go from 出发, the top speed, the longest flight). A later mountain is another entry in Course.mountains.
-  const MKEY = 'coldsmoke.skied';
+  const MKEY = Store.durable('coldsmoke.skied');
   let MB = null, mtnSaved = 0, mtnSig = '';
   function mtnAll() {
     if (MB) return MB; MB = {};
-    try { const o = JSON.parse(localStorage.getItem(MKEY) || 'null'); if (o && typeof o === 'object' && !Array.isArray(o)) MB = o; } catch (e) { }
+    const o = Store.getJSON(MKEY, null); if (o && typeof o === 'object' && !Array.isArray(o)) MB = o;
     return MB;
   }
   function mtnRec(all, id) { const b = all[id]; return b && typeof b === 'object' ? b : null; }
-  function mtnSave(force) { if (!MB) return; const t = performance.now(); if (!force && t - mtnSaved < 10000) return; mtnSaved = t; try { localStorage.setItem(MKEY, JSON.stringify(MB)); } catch (e) { } }
+  function mtnSave(force) { if (!MB) return; const t = performance.now(); if (!force && t - mtnSaved < 10000) return; mtnSaved = t; Store.setJSON(MKEY, MB); }
   function mtnListed() { const all = mtnAll(), reg = (typeof Course !== 'undefined' && Course.mountains) || []; return reg.filter(m => m && m.id && (m.released || mtnRec(all, m.id))); }
   function mtnFigs(b) {
     if (!b) return ''; const dist = +b.dist || 0, v = +b.v || 0, air = +b.air || 0, f = [];
@@ -770,10 +771,10 @@ const UI = (() => {
     if (isDaily()) { say('今日之山', dayLabel()); return true; }
     return U.newMountain(App.dailySeed());
   };
-  const DKEY = 'coldsmoke.daily';
+  const DKEY = Store.durable('coldsmoke.daily');
   let DB = null, dbSaved = 0;
-  function dbLoad() { const d = App.today(); if (DB && DB.d === d) return DB; DB = { d, seed: App.dailySeed(d), dist: 0, v: 0, air: 0, v3: 0, t3: 0 }; try { const o = JSON.parse(localStorage.getItem(DKEY) || 'null'); if (o && o.d === d && o.seed === DB.seed) Object.assign(DB, { dist: +o.dist || 0, v: +o.v || 0, air: +o.air || 0, v3: +o.v3 || 0, t3: +o.t3 || 0 }); } catch (e) { } if (DB.v3 > 0) SP.d3 = { d, v: DB.v3 }; return DB; }
-  function dbSave(force) { if (!DB) return; const t = performance.now(); if (!force && t - dbSaved < 10000) return; dbSaved = t; try { localStorage.setItem(DKEY, JSON.stringify(DB)); } catch (e) { } }
+  function dbLoad() { const d = App.today(); if (DB && DB.d === d) return DB; DB = { d, seed: App.dailySeed(d), dist: 0, v: 0, air: 0, v3: 0, t3: 0 }; { const o = Store.getJSON(DKEY, null); if (o && o.d === d && o.seed === DB.seed) Object.assign(DB, { dist: +o.dist || 0, v: +o.v || 0, air: +o.air || 0, v3: +o.v3 || 0, t3: +o.t3 || 0 }); } if (DB.v3 > 0) SP.d3 = { d, v: DB.v3 }; return DB; }
+  function dbSave(force) { if (!DB) return; const t = performance.now(); if (!force && t - dbSaved < 10000) return; dbSaved = t; Store.setJSON(DKEY, DB); }
   // (from the run so far: while it is on today's mountain. A run is one go from 出发; a change of mountain starts measuring afresh)
   function dbTick() { if (!isDaily() || Game.mode !== 'run') return; const b = dbLoad(), R = SP.run; let up = false; if (R.dist > b.dist) { b.dist = R.dist; up = true; } if (R.v > b.v) { b.v = R.v; up = true; } if (R.air > b.air) { b.air = R.air; up = true; } if (up) dbSave(false); }
   function paintDaily() {

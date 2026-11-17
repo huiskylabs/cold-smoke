@@ -122,6 +122,7 @@ function tick(dt, draw) {
   Render.computeGlobals(App.t, dt, st);
   for (const ev of Game.events) {
     Sound.event(ev);
+    if (typeof Cards !== 'undefined') Cards.gameEvent(ev);                // (集卡: the game's own events, as 'game.<type>', 19e_cards.js)
     if (ev.type === 'land') Spray.slap(App.t, Game.root.pos, S.v, S.n, clamp(ev.v / 5, 0.3, 2.2));
     else if (ev.type === 'pole') Spray.poles(App.t, Game.root, Game.pose.stance);
     // snow knocked off the boughs
@@ -356,6 +357,7 @@ window.__ski = {
 };
 App.fit = fit;
 window.__ski.gates = Gates;
+if (typeof Cards !== 'undefined') window.__ski.cards = Cards;
 addEventListener('resize', () => { if (typeof UI !== 'undefined' && UI.layout) UI.layout(); if (App.ready && !QS.get('w')) fit(); });
 // (interface) a run set down keeps its last picture on the canvas; when the frame changes shape meanwhile that picture is drawn once more to fit
 App.redraw = () => {
@@ -367,5 +369,5 @@ addEventListener('resize', () => App.redraw());
 if (QS.has('manual') && !QS.has('ui')) document.getElementById('app').classList.add('bare');
 else {
   UI.init();
-  boot(UI.stage).then(() => { UI.ready(); lastT = performance.now(); requestAnimationFrame(loop); if (QS.has('autostart')) UI.go(); }).catch(e => { if (!retryOnWebGL2(e)) reportError(e); });
+  boot(UI.stage).then(() => { UI.ready(); if (typeof Cards !== 'undefined') Cards.start(); lastT = performance.now(); requestAnimationFrame(loop); if (QS.has('autostart')) UI.go(); }).catch(e => { if (!retryOnWebGL2(e)) reportError(e); });
 }
