@@ -16,7 +16,7 @@ const [out = 'metro-shots', tods = 'night', W = '1920', Hh = '1080'] = process.a
   for (const t of tods.split(',')) {
     await page.evaluate(([t, sh]) => { const a = JSON.parse(sh); a[0].tod = t; Director.shots = a; Director.begin(0, 5, {}); }, [t, JSON.stringify(shots)]);
     for (let k = 0; k < 10; k++) await page.evaluate(() => { Director.step(); });
-    for (let n = 0; n < 3; n++) {
+    for (let n = 0; n < 1; n++) {
       for (let k = 0; k < (n ? 9 : 0); k++) await page.evaluate(() => { Director.step(); });
       const d = await page.evaluate(() => { Director.step(); return Director.frame(); });
       fs.writeFileSync(path.join(out, `metro_${t}_${n}.png`), Buffer.from(d.split(',')[1], 'base64'));
