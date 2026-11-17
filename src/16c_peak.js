@@ -578,11 +578,11 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     // height, and lower wisps clinging to the walls either side; never over the open water (there they read as sandbars)
     let tm2: f32 = U.camPos.w;
     let aa: f32 = abs(a);
-    let c1: f32 = -0.075 + ${f(P.lift)} + 0.030 * (fbm2(vec2f(a * 3.0, 1.0)) - 0.5);
+    let c1: f32 = 0.075 + ${f(P.lift)} + 0.030 * (fbm2(vec2f(a * 3.0, 1.0)) - 0.5);
     let w1: f32 = 0.012 + 0.020 * fbm2(vec2f(a * 9.0 + tm2 * 0.002, 4.0));
     let v1: f32 = (th - c1) / w1;
     let cov1: f32 = smoothstep(0.40, 0.66, fbm2(vec2f(a * 16.0 + tm2 * 0.004, th * 55.0 + 3.0)));
-    let c2: f32 = -0.20 + ${f(P.lift)} + 0.06 * (fbm2(vec2f(a * 2.2, 6.0)) - 0.5);
+    let c2: f32 = 0.15 + ${f(P.lift)} + 0.06 * (fbm2(vec2f(a * 2.2, 6.0)) - 0.5);
     let w2: f32 = 0.020 + 0.030 * fbm2(vec2f(a * 6.0 - tm2 * 0.002, 8.0));
     let v2: f32 = (th - c2) / w2;
     let cov2: f32 = smoothstep(0.45, 0.70, fbm2(vec2f(a * 11.0 - tm2 * 0.003, th * 40.0 + 7.0))) * smoothstep(0.40, 0.70, aa);

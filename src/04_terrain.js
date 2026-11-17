@@ -1004,6 +1004,18 @@ fn frag(v: VOut) -> FOut {
       col += ll * (mix(albedo, vec3f(0.16, 0.15, 0.14), rock) * (nl * trW * lk) + sl.rgb * (26.0 * U.fx.y * spFade * (1.0 - rock)));
     }
   }
+  // (金色雪旗: mist lying on the valley walls past the near trees, as in a Rockies valley after snow: torn banks at about half the walls'
+  // height that drift slowly and let the forest through in holes; it climbs with distance, so it clings to the walls and never lies on the run)
+  if (U.world.x > 2.5) {
+    let mv: vec3f = wp - U.camPos.xyz; let md: f32 = length(mv);
+    let hc: f32 = 30.0 + 0.16 * md; let hw: f32 = 35.0 + 0.05 * md;
+    let mdr: vec2f = vec2f(U.camPos.w * 0.9, U.camPos.w * 0.35);
+    let mn: f32 = tex(tNoise, (wxz + mdr) / 520.0 + vec2f(0.13, 0.41)).z * 0.6 + tex(tNoise, (wxz - mdr) / 170.0 + vec2f(0.57, 0.22)).z * 0.4;
+    let vb: f32 = (mv.y - hc - 60.0 * (mn - 0.5)) / hw;
+    let mk: f32 = exp(-vb * vb * 1.4) * smoothstep(0.42, 0.68, mn) * smoothstep(320.0, 600.0, md) * smoothstep(0.02, 0.12, mnt);
+    let mc: vec3f = vec3f(0.92, 0.94, 0.98) * (U.sunCol.rgb * 0.50 + amb * 1.1);
+    col = mix(col, mc, saturate(mk) * 0.75);
+  }
   col = applyFog(col, wp);
   o.color = vec4f(col, 1.0);
   return o;
