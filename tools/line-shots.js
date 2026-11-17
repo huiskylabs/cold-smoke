@@ -8,7 +8,7 @@ const out = path.resolve(process.argv[2] || 'line-shots'), line = process.argv[3
 fs.mkdirSync(out, { recursive: true });
 (async () => {
   const b = await chromium.launch({ headless: true, args: ['--enable-unsafe-webgpu', '--enable-gpu', '--ignore-gpu-blocklist'] });
-  const pg = await b.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2 });
+  const pg = await b.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2, locale: 'zh-CN' });
   const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => { if (m.type() === 'error' || /line:|rings/.test(m.text())) errs.push(m.text().slice(0, 200)); });
   const url = 'file://' + path.resolve(__dirname, '../dist/dev.html') + '?dev&v-rline=' + line + '&v-ringdiff=' + diff;
   await pg.goto(url);
@@ -58,6 +58,9 @@ fs.mkdirSync(out, { recursive: true });
   await shot('前方终点圈');
   await ride(99, "L.st !== 'go'"); await settle(300); await shot('过终点_成绩');
   await settle(1800); await shot('成绩页');
+  // (用户 18:54 UTC: 结束后就停下来): the skier brakes by himself; the game runs on in real time until he stands still
+  await pg.waitForFunction(() => __ski.game().s.speed < 0.6, null, { timeout: 15000 }).catch(() => console.log('did not stop, speed', 0));
+  console.log('speed after finish', await pg.evaluate(() => __ski.game().s.speed.toFixed(2))); await shot('刹停');
   await pg.evaluate(() => document.querySelector('#rline [data-a=free]').click()); await settle(800); await shot('继续滑');
   console.log('errors:', errs.length ? errs.join(' | ') : 'none');
   await b.close();

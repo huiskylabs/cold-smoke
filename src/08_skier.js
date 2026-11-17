@@ -928,8 +928,31 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
       name: 'skierShadow', lib: [SL.common, SKIN_SSL], buffers, varyings: {}, uniforms: { p: 'vec4f' }, textures: { tBones: 'fetch' }, colorFormat: null, cull: 'none', depthBias: 0, depthBiasSlope: 0,
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let s: SkinV = skinVertex(a.pos, a.nrm, a.bw); v.clip = U.shadowVP * vec4f(s.wp + s.n * 0.03, 1.0); return v; }`, fs: null,   // (poles and limbs are thinner than a texel of the map: fattened 3 cm so they still cast
     });
-    K.pipes = [pipe, pipeShadow]; K.ready = true;
+    // (残影, 92_rings.js 穿圈拖影: the body again as it was a moment ago, from a copy of the bones taken then: see-through, brighter at the
+    // rim where the body turns away from the lens, the way a figure left on a long exposure is thin in the middle and holds its outline)
+    for (let i = 0; i < GN; i++) gTex.push(gfx.texture({ w: 4, h: 32, format: 'rgba32f', filter: 'nearest' }));
+    gPipe = gfx.pipeline({
+      name: 'skierGhost', lib: [SL.common, SKIN_SSL], buffers, varyings: { wp: 'vec3f', nrm: 'vec3f' }, uniforms: { p: 'vec4f', q: 'vec4f' }, textures: { tBones: 'fetch' },
+      cull: 'none', blend: 'premul', depthWrite: false, depthFunc: 'lequal',
+      vs: `fn vert(a: VIn) -> VOut { var v: VOut; let s: SkinV = skinVertex(a.pos, a.nrm, a.bw); v.wp = s.wp + M.p.xyz; v.nrm = s.n; v.clip = U.viewProj * vec4f(v.wp, 1.0); return v; }`,
+      fs: `fn frag(v: VOut) -> FOut { var o: FOut;
+  let vd: vec3f = normalize(U.camPos.xyz - v.wp); let nd: f32 = abs(dot(normalize(v.nrm), vd));
+  let rim: f32 = pow(1.0 - nd, 2.0);
+  let a: f32 = M.p.w * (0.18 + 0.82 * rim);
+  let e: f32 = 1.0 / max(U.ambSky.w, 1e-4);
+  o.color = vec4f(M.q.rgb * e * M.q.w * a, a); return o; }`,
+    });
+    K.pipes = [pipe, pipeShadow, gPipe]; K.ready = true;
   };
+  const GN = 16; const gTex = []; let gPipe = null, gHead = 0;
+  // take a copy of the bones as they stand now (origin: the render origin they are relative to); returns the copy, or null
+  K.ghostSnap = function (origin, t) {
+    if (!gfx || !gPipe) return null;
+    const tex = gTex[gHead++ % GN]; gfx.updateTexture(tex, 0, 0, 4, 32, boneData);
+    return { tex, o: [origin[0], origin[1], origin[2]], t };
+  };
+  // draw copies: each {tex, p: [offset xyz (render space), alpha], q: [r, g, b, brightness]}
+  K.drawGhosts = function (list) { if (!gPipe || !count) return; for (const g of list) gfx.draw(gPipe, { u: { p: g.p, q: g.q }, tex: { tBones: g.tex }, vb: [vb, vb2], ib, count }); };
 
   // ---- between the poses it is asked for the body has a little life of its own: the trunk trails the legs into a turn and folds after them when they
   // are driven up under it, hands and pack ride on, and all of it settles again within a few tenths of a second (game time: App.t)

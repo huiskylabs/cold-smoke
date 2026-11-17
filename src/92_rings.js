@@ -81,7 +81,7 @@ const Rings = (() => {
       const sE = lineEnd();
       if (L.fin) { RG.rings.push({ id: serial++, s: 1e9, skip: true }); return; }
       if (s > sE - 25 || s0 + 60 > sE - 25) {
-        const c = Course.at(sE, pc), r = 4.2; L.fin = true;
+        const c = Course.at(sE, pc), r = 6.0; L.fin = true;          // (用户 18:54 UTC: 终点是更大的白圈)
         RG.rings.push({ id: serial++, s: sE, u: 0, x: c.cx, y: floatY(c.cx, sE, r, -1e9), r, tag: '终点', fin: true, air: false, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sE, u: 0 }; return;
       }
     }
@@ -160,10 +160,11 @@ const Rings = (() => {
     for (const r of RG.rings) {
       const dist = Math.hypot(r.x - cam[0], r.y - cam[1], -r.s - cam[2]), ord = r.pass >= 0 ? 0 : ahead.indexOf(r);
       const sz = Math.sqrt(r.r / 4.5), near = Math.pow(cl(1 - (dist - 25) / 170, 0.04, 1), 1.6);
+      if (r.fin && r.grow < 0) r.grow = r.born - 1;          // (the finish is a whole white ring from the moment it is there, never a flame)
       const grown = r.grow >= 0 ? cl((T - r.grow) / 0.9, 0, 1) : 0;
       const dis = r.splash >= 0 ? cl((T - r.splash) / 2.2, 0, 1) : 0;
       const ordK = ord <= 1 ? 1 : ord === 2 ? 0.62 : 0.4;
-      const flameA = (grown < 1 ? (1 - cl((grown - 0.35) / 0.35, 0, 1)) : 0) * near * ordK * cl((T - r.born) / 0.6, 0, 1);
+      const flameA = r.fin ? 0 : (grown < 1 ? (1 - cl((grown - 0.35) / 0.35, 0, 1)) : 0) * near * ordK * cl((T - r.born) / 0.6, 0, 1);
       const open = grown > 0.3 ? ease((grown - 0.3) / 0.6) : 0, A = cl((grown - 0.3) / 0.3, 0, 1) * Math.max(0.35, near);
       const c = [r.x - o[0], r.y - o[1], -r.s - o[2]];
       drawList.push({ r, dist, c, sz, near, grown, dis, open, A, flameA, night, ord, flameSc: (1 + 1.6 * ease(grown / 0.35)) * (ord <= 1 ? 1 : ord === 2 ? 0.85 : 0.72), tint: ord <= 1 ? 0 : ord === 2 ? 1 : 2, hitK: r.hit || r.splash < 0 ? 1 : 0.5 });
@@ -177,7 +178,7 @@ const Rings = (() => {
   }
 
   // ---- the GPU side
-  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, 0, d.grown, 0], e: [Math.round(5200 * d.sz), Math.round(500 * d.sz), 0, 0] });
+  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, 0], e: [Math.round(5200 * d.sz), Math.round(500 * d.sz), 0, 0] });
   const ringLive = d => d.grown > 0.3 && d.dis < 1 && d.open > 0.01;
   RG.init = function (g) {
     gfx = g;
@@ -229,6 +230,39 @@ const Rings = (() => {
     }
   };
 
+  // ---- 穿圈拖影 (用户 18:51 UTC: 钻进光圈的时候来一个延迟摄影、拖影子的效果，试一下，只是一个分支; 18:53 UTC: 每隔比如 0.5 米留一个残影).
+  // Like a sequence photo of a skier: from a few metres before a ring until just after it, every 0.5 m the skier leaves a see-through copy of
+  // himself (his pose at that moment), which fades in about half a second. Only the body, never the camera or the time: the game runs on as is.
+  if (typeof Variants !== 'undefined') Variants.def('rtrail', '穿圈拖影', [['off', '关'], ['a', '残影·白'], ['b', '残影·光圈色']], 'off');
+  const TR = { list: [], last: null, now: 0, done: 0, passT: null, STEP: 0.5, LIFE: 0.55, BEFORE: 7, AFTER: 0.4 };
+  function trail() {
+    const mode = typeof Variants !== 'undefined' ? Variants.val.rtrail : 'off', T = Game.runT || 0;          // (game time: a pause or a test stepping frame by frame keeps them as they were)
+    TR.list = TR.list.filter(g => T - g.t < TR.LIFE && T >= g.t); TR.now = T;
+    if (!mode || mode === 'off' || typeof Skier === 'undefined' || !Skier.ghostSnap) { TR.list.length = 0; TR.last = null; return; }
+    const S = Game.s, s = -S.p[2], done = RG.passed + RG.missed;
+    if (done !== TR.done) { TR.done = done; TR.passT = T; }
+    const cur = RG.rings.find(r => r.pass < 0 && !r.skip);
+    const on = (cur && cur.s - s < TR.BEFORE) || (TR.passT != null && T - TR.passT < TR.AFTER);
+    if (!on) { TR.last = null; return; }
+    const p = [S.p[0], S.p[1], S.p[2]];
+    if (TR.last && Math.hypot(p[0] - TR.last[0], p[1] - TR.last[1], p[2] - TR.last[2]) < TR.STEP) return;
+    TR.last = p;
+    const g = Skier.ghostSnap(Render.origin, T); if (!g) return;
+    TR.list.push(g); while (TR.list.length > 15) TR.list.shift();          // (the bone copies are a ring of 16: never draw one already written over)
+  }
+  RG.ghosts = () => TR.list.length;          // (for test scripts)
+  RG.drawGhosts = function () {
+    if (!TR.list.length || !RG.on || typeof Game === 'undefined' || !Game.s || !Skier.drawGhosts) return;
+    const o = Render.origin, mode = Variants.val.rtrail, n = TR.list.length, out = [];
+    for (let i = 0; i < n - 1; i++) {          // oldest first; the newest one sits in the skier, left out
+      const g = TR.list[i], age = cl((TR.now - g.t) / TR.LIFE, 0, 1), a = Math.pow(1 - age, 1.5) * 0.5;
+      if (a < 0.01) continue;
+      const q = mode === 'b' ? [0.25 + 0.4 * age, 1.0 - 0.6 * age, 0.7 + 0.3 * age, 0.85] : [0.85, 0.93, 1.0, 0.8];
+      out.push({ tex: g.tex, p: [g.o[0] - o[0], g.o[1] - o[1], g.o[2] - o[2], a], q });
+    }
+    Skier.drawGhosts(out);
+  };
+
   // ---- 光圈路线 (用户 17:18 UTC: 先按速降线、探索线的光圈路线做一个；开始要不要倒计时、结束怎么提示、成绩页都要先想清楚).
   // The first line is a downhill line (速降线) over the designed run: its rings stand in the same places every time (a fixed seed for each
   // line and 光圈难度), so it can be learnt. Start: from the gate the skier is held while 3, 2, 1, 出发 counts down, the rings ahead already
@@ -239,11 +273,11 @@ const Rings = (() => {
   // Backspace starts the line again from the gate; on the card Enter = 再来一局, Esc = 继续滑. Records stay on this device.
   if (typeof Variants !== 'undefined') Variants.def('rline', '光圈路线', [['off', '关'], ['a', '速降·整圈'], ['b', '速降·前三站']], 'off');
   const LINES = { a: { n: 12, name: '速降线 · 整圈' }, b: { n: 3, name: '速降线 · 前三站' } };
-  const PEN = { a: 2, b: 4, c: 5 }, DNAME = { a: '轻松', b: '标准', c: '难' };
+  const PEN = { a: 2, b: 4, c: 5 }, DNAME = { a: '轻松', b: '标准', c: '难' }, DNEXT = { a: 'b', b: 'c' };
   const L = { id: null, diff: null, st: 'idle', seed: 1, fin: false, sEnd: 0, segs: null, cut: [], names: [], split: [], ci: 0, pen: 0, missSeen: 0, cT: 0, lastF: 0, el: null, rec: null };
   const diffKey = () => (typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b';
   const fmt = t => { t = Math.max(0, t); const m = Math.floor(t / 60), r = t - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(1); };
-  const sgn = d => (d < 0 ? '−' : '+') + Math.abs(d).toFixed(1);
+  const sgn = d => Math.abs(d) < 0.05 ? '持平' : (d < 0 ? '−' : '+') + Math.abs(d).toFixed(1);
   function lineEnd() {
     if (L.sEnd && L.segs === Course.segs && L.seg0 === Course.segs[0]) return L.sEnd;
     const n = LINES[L.id].n, segs = Course.segs;
@@ -283,11 +317,12 @@ const Rings = (() => {
       + '#rline .card .big{font:700 34px/1.1 system-ui,sans-serif;font-variant-numeric:tabular-nums}#rline .card .dl{font-weight:600;margin:2px 0 8px}'
       + '#rline .card .row{display:flex;gap:12px;opacity:.85;margin-bottom:8px}#rline table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}'
       + '#rline td,#rline th{padding:3px 2px;text-align:right;font-weight:500}#rline th{opacity:.55;font-size:11px}#rline td:first-child,#rline th:first-child{text-align:left}'
-      + '#rline tr.worst td{background:rgba(255,120,120,.14)}#rline .tip{margin-top:6px;opacity:.75}'
+      + '#rline tr.worst td{background:rgba(255,120,120,.14)}#rline .tip{margin-top:6px;opacity:.75}#rline .tip:empty{display:none}'
+      + '#rline .cmp{display:flex;gap:6px;margin-top:10px}#rline .cmp div{flex:1;background:rgba(255,255,255,.07);border-radius:8px;padding:6px 8px}#rline .cmp span{display:block;font-size:10px;opacity:.6;letter-spacing:.08em}#rline .cmp b{display:block;font:600 15px/1.3 system-ui,sans-serif;font-variant-numeric:tabular-nums}'
       + '#rline .bt{display:flex;gap:8px;margin-top:12px}#rline button{flex:1;border:0;border-radius:9px;padding:9px 0;font:600 13px system-ui,sans-serif;cursor:pointer;background:rgba(255,255,255,.14);color:#fff}#rline button.p{background:#7dffb0;color:#0b1a12}</style>'
       + '<div class="tm"></div><div class="sub"></div><div class="pop"></div><div class="spl"></div><div class="cd"></div><div class="ban"><b></b><i></i></div><div class="card"></div>';
     document.body.appendChild(d); L.el = d;
-    d.addEventListener('click', e => { const a = e.target && e.target.dataset && e.target.dataset.a; if (a === 'again') lineRestart(); else if (a === 'free') lineFree(); });
+    d.addEventListener('click', e => { const a = e.target && e.target.dataset && e.target.dataset.a; if (a === 'again') lineRestart(); else if (a === 'harder') lineHarder(); else if (a === 'free') lineFree(); });
     L.q = k => d.querySelector('.' + k);
     return d;
   }
@@ -315,7 +350,7 @@ const Rings = (() => {
   }
   function lineFinish() {
     if (L.st !== 'go') return;
-    L.st = 'done'; L.tEnd = Game.runT; L.split.push(L.tEnd);
+    L.st = 'done'; L.tEnd = Game.runT; L.split.push(L.tEnd); brake(true);
     const p = PEN[L.diff] || 4, miss = RG.missed, score = L.tEnd + miss * p, tot = RG.passed + RG.missed;
     const seg = L.split.map((t, i) => t - (i ? L.split[i - 1] : 0));
     const old = L.rec, best = old && old.best, segBest = old && old.seg || [];
@@ -326,26 +361,43 @@ const Rings = (() => {
     setTxt('tm', fmt(score)); L.q('tm').classList.add('fin'); setTxt('sub', '光圈 ' + RG.passed + ' / ' + tot + (miss ? ' · 罚时 +' + miss * p + ' 秒' : ' · 全部穿过'));
     const ban = L.q('ban'); ban.querySelector('b').textContent = fmt(score);
     ban.querySelector('i').textContent = isNew ? (best ? '新纪录！快了 ' + (best.score - score).toFixed(1) + ' 秒' : '第一次完成') : '比最好慢 ' + (score - best.score).toFixed(1) + ' 秒';
-    ban.classList.add('on'); setTimeout(() => ban.classList.remove('on'), 2600);
+    ban.classList.add('on'); setTimeout(() => ban.classList.remove('on'), 1400);          // (gone before the card slides in)
     beep(880, 0.25, 0.18); setTimeout(() => beep(1320, 0.6, 0.16), 140);
     // the card: what this run was, against the best before it
     let worst = -1, wd = 0;
-    const rows = seg.map((d, i) => { const b = segBest[i]; const df = b != null ? d - b : null; if (df != null && df > wd) { wd = df; worst = i; } return { n: L.names[i] || (i + 1) + '', d, b, df }; });
+    const rows = seg.map((d, i) => { const b = segBest[i]; const df = b != null ? d - b : null; if (df != null && df >= 0.3 && df > wd) { wd = df; worst = i; } return { n: L.names[i] || (i + 1) + '', d, b, df }; });
     const td = r => '<td>' + (r.b != null ? fmt(r.b) : '—') + '</td><td class="' + (r.df == null ? '' : r.df <= 0 ? 'g' : 'r') + '">' + (r.df == null ? '' : sgn(r.df)) + '</td>';
     L.q('card').innerHTML = '<h3>' + LINES[L.id].name + ' · ' + DNAME[L.diff] + '</h3><div class="big">' + fmt(score) + '</div>'
       + '<div class="dl ' + (isNew ? 'g' : 'r') + '">' + (isNew ? (best ? '新纪录 · 快了 ' + (best.score - score).toFixed(1) + ' 秒' : '第一次完成 · 这就是你的纪录') : '最好 ' + fmt(best.score) + ' · 慢了 ' + (score - best.score).toFixed(1) + ' 秒') + '</div>'
       + '<div class="row"><span>用时 ' + fmt(L.tEnd) + '</span><span>光圈 ' + RG.passed + ' / ' + tot + '</span><span>罚时 ' + (miss ? '+' + miss * p + ' 秒' : '0') + '</span></div>'
       + '<table><tr><th>分站</th><th>本局</th><th>之前最好</th><th></th></tr>' + rows.map((r, i) => '<tr' + (i === worst ? ' class="worst"' : '') + '><td>' + r.n + '</td><td>' + fmt(r.d) + '</td>' + td(r) + '</tr>').join('') + '</table>'
-      + (worst >= 0 ? '<div class="tip">最亏的一站：' + rows[worst].n + '，下次从这里提速</div>' : '')
-      + '<div class="bt"><button class="p" data-a="again">再来一局 ⏎</button><button data-a="free">继续滑 Esc</button></div>';
+      + '<div class="tip">' + [miss ? '漏了 ' + miss + ' 个圈，罚时 +' + miss * p + ' 秒' : '', worst >= 0 ? '最慢的一站：' + rows[worst].n + '（比最好慢 ' + wd.toFixed(1) + ' 秒）' : ''].filter(Boolean).join('；') + '</div>'
+      + '<div class="cmp"><div><span>个人最好</span><b>' + fmt(rec.best.score) + '</b></div><div><span>全部最好</span><b class="gtop">…</b></div><div><span>排名</span><b class="grank">…</b></div></div>'
+      + '<div class="bt"><button class="p" data-a="again">再来一局 ⏎</button>' + (DNEXT[L.diff] ? '<button data-a="harder">增加难度 ↑</button>' : '') + '<button data-a="free">继续滑 Esc</button></div>';
+    board(score);
     clearTimeout(L.cardT); L.cardT = setTimeout(() => { if (L.st === 'done') L.q('card').classList.add('on'); }, 1500);
   }
+  // the boards (小红书 only): the best of everyone and this player's place, filled in when they come back
+  function board(score) {
+    const set = (a, b) => { const c = L.q('card'), x = c.querySelector('.gtop'), y = c.querySelector('.grank'); if (x) x.textContent = a; if (y) y.textContent = b; };
+    if (typeof Rank === 'undefined' || !Rank.line || !Rank.on || L.diff !== 'b' || L.id !== 'a') { set('—', '—'); return; }
+    Rank.line(score).then(r => { if (L.st !== 'done') return; if (!r) { set('—', '—'); return; } set(r.top != null ? fmt(r.top) : '—', r.rank != null ? (typeof r.rank === 'number' ? '第 ' + r.rank + ' 名' : r.rank) : '—'); });
+  }
+  // (用户 18:54 UTC: 结束后就可以停下来): through the finish the skier stops by himself, the way a skier does: held right over into a turn
+  // across the hill until the skis stand still (the game's own turning brake, nothing pulls him), until 继续滑 or 再来一局 gives the skis back
+  function brake(on) {
+    if (typeof Input === 'undefined') return;
+    if (!on) { if (L.braking) { Input.script = null; Input.faScript = null; L.braking = 0; } return; }
+    const S = Game.s; L.braking = (S.v[0] || 0) >= 0 ? 1 : -1;
+  }
+  function lineHarder() { const n = DNEXT[L.diff]; if (!n) return; Variants.set('ringdiff', n); lineRestart(); }
   function lineRestart() {
-    hideAll(); L.st = 'idle';
+    brake(false); hideAll(); L.st = 'idle';
     if (typeof UI !== 'undefined' && UI.toTop && UI.toTop()) setTimeout(() => { if (UI.state === 'title') UI.go(); }, 800);
   }
-  function lineFree() { L.q('card').classList.remove('on'); L.st = 'free'; setTxt('tm', ''); setTxt('sub', ''); }
+  function lineFree() { brake(false); L.q('card').classList.remove('on'); L.st = 'free'; setTxt('tm', ''); setTxt('sub', ''); }
   function lineFrame(T) {
+    if (L.braking && typeof Input !== 'undefined') { if (L.st === 'done' && Game.mode === 'run') { Input.script = L.braking; Input.faScript = 0.6; } else brake(false); }
     const dt = cl(T - (L.lastF || T), 0, 0.1); L.lastF = T;
     ui();
     const G = Game, title = G.mode === 'title';
@@ -375,7 +427,7 @@ const Rings = (() => {
       }
       setTxt('tm', fmt(G.runT + L.pen));
       const cur = RG.rings.find(r => r.pass < 0 && !r.skip);
-      setTxt('sub', '光圈 ' + RG.passed + ' / ' + (RG.passed + RG.missed) + (L.pen ? ' · 罚时 +' + L.pen + ' 秒' : '') + (cur && cur.fin ? ' · 前方终点' : ''));
+      setTxt('sub', '穿过 ' + RG.passed + (RG.missed ? ' · 漏 ' + RG.missed + ' · 罚时 +' + L.pen + ' 秒' : '') + (cur && cur.fin ? ' · 前方终点' : ''));
     }
   }
   RG.line = L; if (typeof window !== 'undefined') window.__rings = RG;          // (for test scripts)
@@ -400,7 +452,7 @@ const Rings = (() => {
     if (RG.on && typeof Game !== 'undefined' && Game.mode === 'hold' && !counting) return;
     if (!RG.on || typeof Game === 'undefined' || !Game.s || (Game.mode !== 'run' && !counting)) { drawList = []; if (RG.hud) RG.hud.style.display = 'none'; return; }
     lastT = T;
-    RG.n++; try { update(T); prep(T); hud(); } catch (e) { drawList = []; if (!RG.err) { RG.err = 1; console.warn('rings:', e); } }
+    RG.n++; try { update(T); prep(T); hud(); trail(); } catch (e) { drawList = []; if (!RG.err) { RG.err = 1; console.warn('rings:', e); } }
   };
   // hang on the game's own draw: the rings are worked out just before each frame, drawn inside it by the render passes
   if (typeof Render !== 'undefined') {
@@ -410,6 +462,7 @@ const Rings = (() => {
     const safe = f => R => { try { f(R); } catch (e) { if (!RG.gerr) { RG.gerr = 1; console.warn('rings draw:', e && e.message ? e.message : e); } } };
     Render.passes.shadow.push(safe(R => RG.drawShadow(R)));
     Render.passes.transparent.push(safe(R => RG.drawScene(R)));
+    Render.passes.transparent.push(safe(R => RG.drawGhosts(R)));
     Render.passes.fx.push(safe(R => RG.drawLight(R)));
   }
   return RG;
@@ -511,7 +564,7 @@ fn dustGrain(i: u32) -> DG {
   }
   let ro: f32 = rr * open;
   g.p = C + vec3f(cos(ang) * ro, sin(ang) * ro + dy, dz);
-  g.b = b * A; g.wsz = wsz; g.minPx = minPx; g.up = up; g.col = col;
+  g.b = b * A; g.wsz = wsz; g.minPx = minPx; g.up = up; g.col = mix(col, vec3f(1.0, 0.97, 0.9), M.d.y);
   return g;
 }
 `;

@@ -183,6 +183,19 @@ const Rank = self.Rank = (() => {
     }
     s.appendChild(node('p', 'note', T(view === 'd3' ? '今日之山：从山顶一口气滑完前三段的平均速度，北京时间零点换山。每人只留最好的一次。' : view === 'time' ? '滑雪时长只算总榜，一直累计。' : '今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。')));
   }
+  // ---- 光圈速降线 (dev, 用户 18:54 UTC 成绩页跟个人最好、全部最好比，还有排名): board 4, all time, the 标准 line only. A shorter time is
+  // better but the platform keeps each player's highest, so a time goes up as 6000 − seconds (to a tenth) and comes back the same way.
+  // Returns { top, mine, rank } (top: the best time of all players; rank: this player's place, or '500+'), or null outside the container.
+  R.line = async function (t) {
+    if (!R.on || !mt) return null;
+    const sc = Math.round((6000 - t) * 10) / 10, back = v => Math.round((6000 - v) * 10) / 10;
+    try {
+      if (t > 0 && t < 3000) await mt.submitScore({ board: 4, score: sc });
+      delete cache['4:all'];
+      const r = await read(4, 'all'), top = r.list[0], me = r.me;
+      return { top: top ? back(+top.score) : null, topName: top ? who(top.nickname) : '', mine: me.status === 'EXACT' ? back(+me.score) : null, rank: me.status === 'EXACT' ? me.rank : me.status === 'OVER_LIMIT' ? '500+' : null };
+    } catch (e) { if (fatal(code(e))) off(e); return null; }
+  };
   R.show = function () { if (el && R.on) render(); };
 
   // ---- the day card: today's places, if they come back while the card is still up
