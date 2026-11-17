@@ -247,6 +247,8 @@ fn frag(v: VOut) -> FOut { var o: FOut;
 // ---- every frame, in the sky shader (after the sky, its aurora and its moon are known: the lake mirrors them)
 function peakSSL() {
   const V = Vista, f = metroF, P = peakP(Metro.kind());
+  // (金色雪旗's own grade: how much of the far air by day, 09_post.js Post.grades)
+  const hzD = (typeof Variants !== 'undefined' && Variants.val.grade === 'a') ? 1 : Post.grades.d.haze;
   const sa = Math.atan2(P.PC[0], P.PC[1]), bt0 = Math.atan((P.H - 2900) / (Math.hypot(P.PC[0], P.PC[1]) - 0.52 * P.PR)) + P.lift;      // the peak's bearing; where the cloud about its waist lies
   // (and where the same cloud lies in the lake: an object h m up and D m off is seen in the water atan((H + h) / D) under the horizon)
   const bt1 = Math.atan((P.H + 2900) / (Math.hypot(P.PC[0], P.PC[1]) - 0.52 * P.PR)) + P.lift;
@@ -498,7 +500,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     }
   }
   // the air between
-  c = mix(c, vistaHaze(d) + vec3f(0.10, 0.07, 0.05) * (glow * lampK), saturate(E.w) * 0.88 * (1.0 - 0.85 * water * step(2.5, U.world.x) * smoothstep(0.03, 0.34, U.sunDir.y)));
+  c = mix(c, vistaHaze(d) + vec3f(0.10, 0.07, 0.05) * (glow * lampK), saturate(E.w) * 0.88 * (1.0 - 0.85 * water * step(2.5, U.world.x) * smoothstep(0.03, 0.34, U.sunDir.y)) * mix(1.0, ${f(hzD)}, step(2.5, U.world.x) * smoothstep(0.03, 0.34, U.sunDir.y)));
   let ex: f32 = 1.0 - smoothstep(${f(P.AZ - 0.08)}, ${f(P.AZ)}, abs(a));
   var res: vec3f = mix(sky, c, saturate(A.a) * ex);
   // ---- the clouds, over all of it: a sea of low cloud (most of the lowland in 云下之城, a few banks in 金色雪旗), and a belt of it
