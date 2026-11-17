@@ -72,9 +72,11 @@ const Sky = (() => {
         // stars come out as the sky lets them; where the nebula glows they sink into it
         if (U.skyP.w > 0.003) { col += stars(d) * (U.skyP.w * smoothstep(-0.01, 0.10, d.y) / (1.0 + 2.5 * luma(nb.rgb) * M.nu.w)); }
         // the aurora: out when the stars are (a clear dark sky), behind everything that stands or floats in front of the sky
-        if (M.au.x * U.skyP.w > 0.002) { col += aurora(d, M.au.y, M.au.z, M.au.w) * (M.au.x * U.skyP.w); }
-        // (异星: a second curtain, violet, higher and wider, over the green one)
-        if (U.world.x > 3.5 && M.au.x * U.skyP.w > 0.002) { col += aurora(normalize(d * vec3f(1.0, 0.8, 1.0) + vec3f(0.0, -0.06, 0.0)), M.au.y + 0.16, M.au.z * 1.7 + 2.0, M.au.w).zxy * (1.3 * M.au.x * U.skyP.w); }
+        // (over the lake worlds: the ribbons, auroraR)
+        if (M.au.x * U.skyP.w > 0.002) {
+          if (U.world.x > 2.5) { col += auroraR(d, M.au.w, 28) * (M.au.x * U.skyP.w); }
+          else { col += aurora(d, M.au.y, M.au.z, M.au.w) * (M.au.x * U.skyP.w); }
+        }
         col += nbc * (M.p.x * skyL + M.p.y) * smoothstep(-0.01, 0.15, d.y) * smoothstep(0.04, mix(0.12, 0.26, U.sunDir.w), ang) * U.fx.z * M.nu.w;
         col += moonDisc(d);
         col += meteor(d);
@@ -225,6 +227,8 @@ const Sky = (() => {
   Variants.def('aurora', '极光', [['a', '和星云轮流'], ['b', '随机'], ['c', '关']], 'b');
   S.auroraK = 0.35;
   S.show = function () {
+    // (the lake worlds, 金色雪旗 and 异星, always fly the aurora: so their nights are aurora nights, and the nebula stays away like on any other)
+    if (typeof Metro !== 'undefined' && (Metro.kind() === 'd' || Metro.kind() === 'e')) return 'aurora';
     const v = Variants.val.aurora; if (v === 'c') return 'nebula';
     const n = Math.floor((S.clock - S.times.day) / S.cycle), sd = typeof Course !== 'undefined' ? Course.seed % 9973 : 0;
     const h = (k) => { const q = Math.sin(k * 127.1 + 311.7) * 43758.5453; return q - Math.floor(q); };
@@ -238,7 +242,7 @@ const Sky = (() => {
   // the aurora's strength breathes slowly; the curtain drifts along the sky and its rays shimmer. How bright it is at all is S.auroraK
   S.aurora = function (t) {
     const lake = typeof Metro !== 'undefined' && (Metro.kind() === 'd' || Metro.kind() === 'e');      // (金色雪旗: the aurora is always out over the lake)
-    if (S.show() !== 'aurora' && !lake) return 0;
+    if (S.show() !== 'aurora') return 0;
     const n = (x) => { const i = Math.floor(x), f = x - i, h = (k) => { const q = Math.sin(k * 127.1 + 311.7) * 43758.5453; return q - Math.floor(q); }; return lerp(h(i), h(i + 1), f * f * (3 - 2 * f)); };
     const breathe = 0.7 + 0.3 * n(t / 23) + 0.15 * Math.sin(t * 0.21);
     return (lake ? Math.max(S.auroraK, 0.7) : S.auroraK) * breathe;
@@ -277,6 +281,31 @@ fn aurora(d: vec3f, b0: f32, sh: f32, tm: f32) -> vec3f {
   let tall: f32 = exp(-max(h, 0.0) * 1.6);
   let band: f32 = 0.25 + 0.75 * smoothstep(-0.5, 0.9, sin(a * 1.7 + 0.7)) * (0.6 + 0.8 * vnoise2(vec2f(a * 2.2, 5.3)));
   return (vec3f(0.10, 1.0, 0.42) * fall + vec3f(0.62, 0.16, 0.78) * (tall - fall) * 0.6) * lower * rays * band;
+}
+// another aurora (the lake worlds): not one curtain along the horizon but several ribbons that wind and curl across the whole sky, as they
+// are when a strong one stands overhead. Each ribbon is a thin sheet hanging from far above down to one level: the line of sight is walked
+// up through those heights (n steps), so a sheet seen from the side stands as tall rays and one seen from under is a bright curling line.
+// Green along the lower edge, violet and magenta in the tall rays above it
+fn auroraR(d: vec3f, tm: f32, n: i32) -> vec3f {
+  if (d.y < 0.03) { return vec3f(0.0); }
+  var s: vec3f = vec3f(0.0);
+  let dit: f32 = hash21(d.xz * 5000.0 + vec2f(d.y * 3777.0, 3.0));
+  for (var i: i32 = 0; i < 32; i++) {
+    if (i >= n) { break; }
+    let t: f32 = (f32(i) + dit) / f32(n);
+    let p: vec2f = d.xz * ((1.0 + 1.5 * t) / d.y);
+    let w0: vec2f = p + vec2f(1.3 * sin(p.y * 0.45 + tm * 0.020) + 0.5 * sin(p.y * 1.3 + 2.0), 1.1 * sin(p.x * 0.5 + 1.0 + tm * 0.015));
+    let w: vec2f = w0 + 1.8 * (vec2f(vnoise2(w0 * 0.35 + vec2f(tm * 0.010, 0.0)), vnoise2(w0 * 0.35 + vec2f(7.0, 3.0))) - 0.5);
+    let f: f32 = w.y * 0.55 + 0.6 * sin(w.x * 0.4);
+    let id: f32 = floor(f);
+    let band: f32 = exp(-sq((f - id - 0.5) / 0.075));
+    let mask: f32 = smoothstep(0.30, 0.58, vnoise2(vec2f(id * 3.7 + 1.0, w.x * 0.25 + tm * 0.006)));
+    let ray: f32 = 0.35 + 1.5 * sq(vnoise2(vec2f(w.x * 7.0 + tm * 0.25, id * 5.0)));
+    let prof: f32 = smoothstep(0.0, 0.06, t) * exp(-t * 2.6);
+    let hue: vec3f = mix(vec3f(0.12, 1.0, 0.45), vec3f(0.75, 0.22, 1.0), smoothstep(0.15, 0.70, t));
+    s += hue * (band * mask * ray * prof * exp(-length(p) * 0.035));
+  }
+  return s * (12.0 / f32(n)) * smoothstep(0.03, 0.14, d.y);
 }`;
 const NIGHT_SSL = `
 // one star's own row of random numbers, read off at its own pace and smoothed from each to the next: an irregular flutter, never a sine
