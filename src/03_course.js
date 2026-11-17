@@ -779,7 +779,10 @@ const Course = ((vn1, vn2, h2U) => {
       }
       // (an island between the run and a lane is forest, thick enough that the two read as two ways)
       if (LV && _lb > 0) d = Math.max(d, c.forest * 0.9 * _lb * smooth(2, 5, e) * smooth(-0.35, 0.1, patch - 0.42));
-      d *= 1 - smooth(260, 620, e * SH[u > 0 ? 1 : 0].kx + 120 * vnoise2(x / 300, z / 300, 22));       // tree line: bare snow and rock higher up the walls
+      // tree line: bare snow and rock higher up the walls. (金色雪旗: a Rockies valley, where the spruce climbs far up the walls, thinning
+      // to a ragged line high above the run, so the walls are wooded as far as the eye goes, not bare a few hundred metres off)
+      const wD = typeof Metro !== 'undefined' && Metro.kind() === 'd';
+      d *= 1 - smooth(wD ? 650 : 260, wD ? 1400 : 620, e * SH[u > 0 ? 1 : 0].kx + (wD ? 260 : 120) * vnoise2(x / 300, z / 300, 22));
       d *= 1 - c.ridge * smooth(0, 30, e);
     }
     // (经典编排) a lane through the forest: the trees stand close at its edges, a wall of trunks either side, deep and unbroken (enc)
