@@ -9,7 +9,7 @@
 //   E = x: how it faces a low sun (or, under 0: water; -1 mirroring the sky, -2 mirroring land), y: how it faces a high sun (on water:
 //       how the mirrored land faces the light), z: lamps, w: how much air lies before it
 // (K: the land is this many times bigger and farther than its numbers below say; streets and windows keep their true size)
-const Peak = { K: 2.2, H: 3000, AZ: 1.3, t0: -0.30, ta: 0.60, tb: 0.95, ak: 0.42, lift: 0.08, PC: [1800, 24000], HP: 6500, LC: [-600, 12800], LR: [11500, 5200], far: 75000, haze: 46000 };
+const Peak = { K: 2.2, H: 3000, AZ: 1.3, t0: -0.30, ta: 0.60, tb: 0.95, ak: 0.42, lift: 0.02, PC: [1800, 24000], HP: 6500, LC: [-600, 11200], LR: [11500, 5000], far: 75000, haze: 46000 };
 function peakBakeFS(kind) {
   const f = metroF, P = Peak, isC = kind === 'c', isE = kind === 'e';
   // (the light keeps one bearing all day; the land is drawn as if it came more from the left than it does, so that the faces turned to
@@ -55,14 +55,14 @@ ${isC ? `  let ln: f32 = pN(p / 5600.0 + vec2f(2.7, 6.1));
   let fk: f32 = saturate(1.0 - rp / R);
   // (its faces are cut by ribs and gullies, deepest low down; the horn itself stays clean)
   let rib: f32 = pRidge(q / 3300.0 + vec2f(6.0, 2.0), n);
-  var pk: f32 = PHP * (0.15 * fk + 0.85 * pow(fk, ${f(isE ? 3.4 : 2.3)})) * (1.0 + (1.1 * (rib - 0.40) + 0.3 * (rg - 0.42)) * (1.0 - fk) * (0.35 + 0.65 * smoothstep(0.0, 0.25, fk)));
-${isE ? `  // (异星: not one horn but a crown of needles, far thinner and steeper than rock stands on earth)
-  for (var i: i32 = 0; i < 5; i++) {
-    let fi: f32 = f32(i);
-    let c: vec2f = vec2f(${f(P.PC[0])}, ${f(P.PC[1])}) + vec2f(sin(fi * 2.4 + 0.7), cos(fi * 2.4 + 0.7) * 0.7) * (5200.0 + 1900.0 * sin(fi * 1.7));
-    let rr: f32 = length(p - c); let fn2: f32 = saturate(1.0 - rr / (2600.0 + 500.0 * sin(fi * 3.1)));
-    pk = max(pk, (3600.0 + 1500.0 * sin(fi * 2.9 + 1.0)) * (0.10 * fn2 + 0.90 * pow(fn2, 2.6)) * (0.9 + 0.5 * (rib - 0.4) * (1.0 - fn2)) + 0.6 * pk);
-  }` : ''}
+  var pk: f32 = PHP * (0.15 * fk + 0.85 * pow(fk, 2.3)) * (1.0 + (1.1 * (rib - 0.40) + 0.3 * (rg - 0.42)) * (1.0 - fk) * (0.35 + 0.65 * smoothstep(0.0, 0.25, fk)));
+${isE ? `  // (异星: a great volcano, as Fuji stands over its lakes: long hollow flanks scored by gullies that run straight down from the top,
+  // and the top itself cut off level, a crater with a ragged rim)
+  let qd: vec2f = q / max(rp, 1.0);
+  let gl: f32 = pRidge(qd * 5.5 + vec2f(2.0 + rp / 16000.0, 9.0), n);
+  pk = PHP * (0.10 * fk + 0.90 * pow(fk, 2.7)) * (1.0 + (0.55 * (gl - 0.42) + 0.35 * (rib - 0.40)) * (1.0 - fk) * (0.5 + 0.5 * smoothstep(0.0, 0.25, fk)));
+  let top: f32 = PHP * (0.80 + 0.030 * (vnoise2(qd * 2.6 + vec2f(4.0, 1.0)) - 0.5) + 0.016 * (vnoise2(qd * 9.0 + vec2f(1.0, 6.0)) - 0.5));
+  if (pk > top) { pk = top - min(1.3 * (pk - top), 380.0); }` : ''}
   return max(own, flr + max(rng, pk));
 }
 fn pTerr(p: vec2f, n: i32) -> f32 { return PK * pTerr0(p / PK, n); }
@@ -86,6 +86,12 @@ fn pCloudTop0(p: vec2f) -> f32 {
 // (not used: a cloud drawn as a height stands like a wall when seen from the side. The clouds are laid in every frame instead, as
 // soft sheets at their heights: peakDeck in peakSSL)
 fn pCloudTop(p: vec2f) -> f32 { return -400.0; }
+// the land as the shading sees it: the same, with the small broken forms of rock on it (crags, ribs, hollows a few hundred metres
+// across), which the march has no need of
+fn pTerrD(p: vec2f) -> f32 {
+  let h: f32 = pTerr(p, 5);
+  return h + PK * 75.0 * (pRidge(p / (PK * 560.0) + vec2f(9.0, 4.0), 3) - 0.40) * smoothstep(120.0 * PK, 900.0 * PK, h);
+}
 fn pField(p: vec2f, n: i32) -> f32 { return max(max(pTerr(p, n), pCloudTop(p)), 0.0); }
 // along a line of sight that stands ya m over the lake at xa m out and climbs k m a metre: where it first meets land, cloud or water
 // (under 0: nowhere)
@@ -114,8 +120,8 @@ fn pTown0(p: vec2f) -> f32 {
 ${isC ? `  let d: f32 = saturate(0.45 + 2.4 * (pN(p / 7400.0 + vec2f(9.1, 4.4)) - 0.42)) + 0.9 * exp(-dot(p - vec2f(2500.0, 13500.0), p - vec2f(2500.0, 13500.0)) / 1.6e7);
   return d * smoothstep(6000.0, 9000.0, length(p));`
     : `  var d: f32 = 0.0;
-  d += exp(-dot(p - vec2f(-2600.0, 8300.0), p - vec2f(-2600.0, 8300.0)) / 5.0e5);
-  d += exp(-dot(p - vec2f(3400.0, 8900.0), p - vec2f(3400.0, 8900.0)) / 3.2e5);
+  d += exp(-dot(p - vec2f(-2000.0, 6300.0), p - vec2f(-2000.0, 6300.0)) / 5.0e5);
+  d += exp(-dot(p - vec2f(2400.0, 6500.0), p - vec2f(2400.0, 6500.0)) / 3.2e5);
   d += 0.8 * exp(-dot(p - vec2f(7200.0, 16500.0), p - vec2f(7200.0, 16500.0)) / 6.0e5);
   return d;`}
 }
@@ -126,8 +132,8 @@ fn pShade(p: vec2f, x: f32, mode: f32, fa: f32, fr: f32) -> vec4f {
   let e: f32 = max(16.0, 0.0035 * x);
   let tR: f32 = pTerr(p, 5); let tH: f32 = tR / PK; let cH: f32 = pCloudTop(p) / PK;
   let cl: f32 = step(max(tH, 0.0) + 0.5, cH);
-  let hu: f32 = max(pTerr(p + vec2f(e, 0.0), 5), pCloudTop(p + vec2f(e, 0.0))) - max(pTerr(p - vec2f(e, 0.0), 5), pCloudTop(p - vec2f(e, 0.0)));
-  let hw: f32 = max(pTerr(p + vec2f(0.0, e), 5), pCloudTop(p + vec2f(0.0, e))) - max(pTerr(p - vec2f(0.0, e), 5), pCloudTop(p - vec2f(0.0, e)));
+  let hu: f32 = pTerrD(p + vec2f(e, 0.0)) - pTerrD(p - vec2f(e, 0.0));
+  let hw: f32 = pTerrD(p + vec2f(0.0, e)) - pTerrD(p - vec2f(0.0, e));
   let N: vec3f = normalize(vec3f(-hu, 2.0 * e, -hw));
   var n0: f32 = saturate(dot(N, vec3f(${Ld(0.10)}))); var n1: f32 = saturate(dot(N, vec3f(${Ld(0.55)})));
   let town: f32 = pTown(p);
@@ -153,10 +159,11 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   }
   // matter: snow; rock where it is too steep to hold snow; dark forest on the lower slopes; cloud
   let dn: f32 = vnoise2(p / 240.0 + vec2f(3.0, 1.0));
-  let rock: f32 = 1.0 - smoothstep(0.52, 0.76, N.y + 0.14 * (dn - 0.5));
+  // (snow lies on all but the steepest rock, and the more the higher: the gullies and ledges hold it, the crags between stand bare)
+  let rock: f32 = 1.0 - smoothstep(0.40, 0.60, N.y + 0.16 * (dn - 0.5) + 0.14 * smoothstep(0.25, 0.75, tH / PHP));
   let wood: f32 = (1.0 - smoothstep(650.0, 1500.0, tH + 500.0 * (pN(p / (1900.0 * PK)) - 0.5))) * smoothstep(0.60, 0.85, N.y) * step(2.0, tH);
   var alb: vec3f = mix(vec3f(0.90, 0.93, 1.0), vec3f(0.11, 0.15, 0.15), wood * (0.55 + 0.35 * dn));
-  alb = mix(alb, vec3f(0.19, 0.18, 0.19) * (0.7 + 0.6 * dn), rock * 0.9);
+  alb = mix(alb, ${isE ? 'vec3f(0.17, 0.12, 0.11)' : 'vec3f(0.19, 0.18, 0.19)'} * (0.6 + 0.5 * dn + 0.5 * vnoise2(vec2f(tH / 45.0, dot(p, vec2f(0.0007, 0.0004))))), rock * 0.92);
   alb = mix(alb, vec3f(0.96, 0.97, 1.0) * (0.84 + 0.16 * pN(p / 300.0)), cl);
   return vec4f(alb, 1.0);
 }
@@ -297,19 +304,31 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   let land: vec3f = alb * lit + lamps;
   // the lake: a mirror for the sky (its aurora, its moon), for the land that stands over it, and for the lamps on its shore;
   // drawn out in long streaks by the ripples
-  let rp: f32 = texLod(tDetail, vec2f(a * 9.0, th * 70.0 + U.camPos.w * 0.01), 0.0).a - 0.5;
-  let el: f32 = max(th - ${f(P.lift)}, 0.004) * (1.0 + 0.5 * rp) + 0.004;
-  let hl: f32 = max(length(d.xz), 1e-4); let ce: f32 = cos(el);
-  let dr: vec3f = vec3f(d.x / hl * ce, sin(el), d.z / hl * ce);
-  var ws: vec3f = skyLut(dr);
-  if (M.au.x * U.skyP.w > 0.002) { ws += (aurora(dr, M.au.y, M.au.z, M.au.w) + aurora(normalize(dr + vec3f(0.0, 0.05, 0.0)), M.au.y, M.au.z, M.au.w)) * (0.8 * M.au.x * U.skyP.w); }
-  ws += moonDisc(normalize(dr + vec3f(0.0, 0.03 * rp, 0.0))) * 0.7;
-  if (U.world.x > 3.5) {
-    let pl: vec4f = peakPlanet(dr); ws = ws * (1.0 - pl.a * 0.8) + pl.rgb;
-    ws += aurora(normalize(dr * vec3f(1.0, 0.8, 1.0) + vec3f(0.0, -0.06, 0.0)), M.au.y + 0.16, M.au.z * 1.7 + 2.0, M.au.w).zxy * (1.3 * M.au.x * U.skyP.w);
+  // (where on the water: so that the wind can lie on it in patches. Where it is calm the mirror is clean; where the wind ruffles it the
+  // picture is drawn out into long streaks, dimmer, and the moon breaks up into a path of glints)
+  let wx: f32 = ${f(P.H * P.K)} / max(tan(clamp(th, 0.01, 1.4)), 0.01); let wp: vec2f = vec2f(sin(a), cos(a)) * wx;
+  let wind: f32 = smoothstep(0.38, 0.62, fbm2(wp / ${f(2600 * P.K)} + vec2f(U.camPos.w * 0.003, 4.0)));
+  let rp: f32 = texLod(tDetail, vec2f(wp.x / 900.0, wp.y / 260.0 + U.camPos.w * 0.02), 0.0).a - 0.5;
+  let rp2: f32 = texLod(tDetail, vec2f(wp.x / 190.0 - U.camPos.w * 0.03, wp.y / 70.0), 0.0).a - 0.5;
+  let rough: f32 = 0.10 + 0.90 * wind;
+  let el0: f32 = max(th - ${f(P.lift)}, 0.004);
+  let hl: f32 = max(length(d.xz), 1e-4);
+  var ws: vec3f = vec3f(0.0);
+  for (var i: i32 = 0; i < 3; i++) {
+    let el: f32 = el0 * (1.0 + rough * (0.9 * rp + 0.55 * (f32(i) - 1.0))) + 0.004 + 0.02 * rough * (f32(i) - 1.0 + rp2);
+    let ce: f32 = cos(el); let dr: vec3f = vec3f(d.x / hl * ce, sin(el), d.z / hl * ce);
+    var w1: vec3f = skyLut(dr);
+    if (M.au.x * U.skyP.w > 0.002) {
+      if (U.world.x > 2.5) { w1 += auroraR(dr, M.au.w, 10) * (1.15 * M.au.x * U.skyP.w); }
+      else { w1 += aurora(dr, M.au.y, M.au.z, M.au.w) * (1.6 * M.au.x * U.skyP.w); }
+    }
+    w1 += moonDisc(normalize(dr + vec3f(0.10 * rp2 * rough, 0.05 * rp * rough, 0.0))) * (0.7 + 2.5 * rough);
+    if (U.world.x > 3.5) { let pl: vec4f = peakPlanet(dr); w1 = w1 * (1.0 - pl.a * 0.8) + pl.rgb; }
+    ws += w1 / 3.0;
   }
-  let fres: f32 = 0.32 + 0.68 * pow(1.0 - saturate(sin(max(th - ${f(P.lift)}, 0.0))), 5.0);
-  let wcol: vec3f = mix(ws, alb * lit * 0.85 + lamps, mirrorLand) * fres + vec3f(0.004, 0.011, 0.024) * (0.3 + luma(amb));
+  ws *= 1.0 - 0.22 * wind;
+  let fres: f32 = 0.42 + 0.68 * pow(1.0 - saturate(sin(max(th - ${f(P.lift)}, 0.0))), 5.0);
+  let wcol: vec3f = mix(ws, mix(alb * lit * 0.85, ws * 0.6 + alb * lit * 0.35, 0.6 * wind * (0.5 + rp)) + lamps, mirrorLand) * fres + vec3f(0.004, 0.011, 0.024) * (0.3 + luma(amb));
   var c: vec3f = mix(land, wcol, water);
   // the air between
   c = mix(c, vistaHaze(d) + vec3f(0.10, 0.07, 0.05) * (glow * lampK), saturate(E.w) * 0.88);
