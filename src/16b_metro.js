@@ -64,7 +64,7 @@ function metroBakeFS() {
   const RIVERS = [
     [[0, 345, 300], [150, 336, 320], [300, 335, 340], [430, 345, 380], [560, 375, 440], [700, 414, 500], [860, 430, 520], [1020, 428, 500], [1180, 416, 460], [1330, 402, 430], [1536, 392, 400]],
     [[150, 300, 220], [330, 296, 240], [470, 310, 260], [560, 340, 300], [600, 380, 320]]];
-  const SEGS = []; RIVERS.forEach(r => { for (let n = 0; n + 1 < r.length; n++) { const a = cg(r[n][0], r[n][1]), b = cg(r[n + 1][0], r[n + 1][1]); SEGS.push([a[0], a[1], b[0], b[1], r[n][2] * M.K * 0.5, r[n + 1][2] * M.K * 0.5]); } });
+  const SEGS = []; RIVERS.forEach(r => { for (let n = 0; n + 1 < r.length; n++) { const a = cg(r[n][0], r[n][1]), b = cg(r[n + 1][0], r[n + 1][1]); SEGS.push([a[0], a[1], b[0], b[1], r[n][2] * M.K * 0.8, r[n + 1][2] * M.K * 0.8]); } });
   // the ridges of the mountain's foot, as the picture has them: crest lines [x1, y1, x2, y2, height, half width (m)]
   const RIDGES = [[250, 520, 620, 650, 430, 950], [300, 455, 560, 520, 300, 750], [480, 565, 760, 700, 380, 800], [1050, 600, 1400, 560, 430, 950], [1000, 520, 1300, 482, 280, 700], [1150, 700, 1500, 640, 500, 1000]]
     .map(r => { const a = cg(r[0], r[1]), b = cg(r[2], r[3]); return [a[0] / M.K, a[1] / M.K, b[0] / M.K, b[1] / M.K, r[4], r[5]]; });
@@ -157,8 +157,8 @@ fn mGround(u: f32, w: f32, dh: vec2f, fr: f32, fa: f32, mode: f32) -> vec4f {
   let pcol: vec3f = mix(mTint(hash21(pk + vec2f(91.0, 33.0)) * (0.70 + 0.22 * L.y)), vec3f(1.0, 0.70, 0.36), many);
   // the avenues: every 6th street away from the eye, every 8th across; lines of light with a glow about them
   let ax: f32 = floor(g.x / (6.0 * P) + 0.5); let ay: f32 = floor(g.y / (8.0 * P) + 0.5);
-  let kax: f32 = mix(0.35 + 1.0 * step(0.45, hashu(u32(i32(ax) * 131 + 7))), 0.9, smoothstep(0.3, 1.0, wg.x / (6.0 * P)));
-  let kay: f32 = mix(0.30 + 1.0 * step(0.55, hashu(u32(i32(ay) * 173 + 3))), 0.75, smoothstep(0.3, 1.0, wg.y / (8.0 * P)));
+  let kax: f32 = mix(0.08 + 1.0 * step(0.55, hashu(u32(i32(ax) * 131 + 7))), 0.9, smoothstep(0.3, 1.0, wg.x / (6.0 * P)));
+  let kay: f32 = mix(0.08 + 1.0 * step(0.60, hashu(u32(i32(ay) * 173 + 3))), 0.75, smoothstep(0.3, 1.0, wg.y / (8.0 * P)));
   let dax: f32 = (fract(g.x / (6.0 * P) + 0.5) - 0.5) * 6.0 * P; let day: f32 = (fract(g.y / (8.0 * P) + 0.5) - 0.5) * 8.0 * P;
   let avx: f32 = (mBand(dax, 9.0, wg.x) * 1.0 + 0.05 * exp(-abs(dax) / 60.0)) * kax;
   let avy: f32 = (mBand(day, 9.0, wg.y) * 1.0 + 0.05 * exp(-abs(day) / 60.0)) * kay;
@@ -181,13 +181,13 @@ fn mGround(u: f32, w: f32, dh: vec2f, fr: f32, fa: f32, mode: f32) -> vec4f {
   let core: f32 = saturate(mCoreH(u, w) / 380.0);
   let land: f32 = L.x * (1.0 - 0.85 * L.z) * mix(0.30 + 1.25 * sbk * sbk, 1.6, core);
   // the foot of the mountain: no city on the slopes, only what lies in the valleys
-  let hl: f32 = mHills(u, w); let flt: f32 = 1.0 - smoothstep(20.0 * MK, 160.0 * MK, hl);
+  let hl: f32 = mHills(u, w); let flt: f32 = (1.0 - smoothstep(20.0 * MK, 160.0 * MK, hl)) * smoothstep(0.50 * MR1, 0.80 * MR1, length(vec2f(u, w)));
   let gold: vec3f = vec3f(1.0, 0.66, 0.30); let warm: vec3f = vec3f(1.0, 0.80, 0.52); let led: vec3f = vec3f(0.90, 0.93, 1.0);
   if (mode < 0.5) {
     let cs: vec3f = mix(gold, warm, 0.1 + 0.4 * L.y);
     var em: vec3f = (cs * (street * 5.0 * land) + mix(pcol, mix(led, mTint(0.86 + 0.14 * sbk), 0.45), 0.7 * core) * (pts * 7.0 * mix(0.25, 1.0, land) * (1.0 + 3.0 * core))) * (1.0 - water);
     let brd: f32 = (avx * 1.3 + avy) * mix(0.3, 1.0, L.x);
-    em += mix(gold * 1.1, led, 0.10 + 0.25 * L.y) * ((brd * (1.0 - water)) * 1.5) + mix(gold, led, 0.25) * (mw * 0.45 * (1.0 - water)) + warm * (bank * 4.0);
+    em += mix(gold * 1.1, led, 0.10 + 0.25 * L.y) * ((brd * (1.0 - water)) * 0.55) + mix(gold, led, 0.25) * (mw * 0.30 * (1.0 - water)) + warm * (bank * 4.0);
     // the water mirrors what stands on its banks: long shimmering streaks
     let sh: f32 = exp(min(rs, 0.0) / 260.0) * (0.5 + 0.9 * vnoise2(vec2f(u / 34.0, w / 600.0)));
     em += mix(gold, vec3f(1.0, 0.45, 0.55), vnoise2(vec2f(u / 400.0, 3.0))) * (water * sh * 0.22 * mix(0.4, 1.0, L.x));
