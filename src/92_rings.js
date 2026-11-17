@@ -576,8 +576,8 @@ const Rings = (() => {
     // The count-down at the gate holds the skier the same way, but the rings ahead are already there and alive, so the line can be read
     const counting = L.st === 'count';
     if (RG.on && typeof Game !== 'undefined' && Game.mode === 'hold' && !counting) return;
-    if (!RG.on || typeof Game === 'undefined' || !Game.s || (Game.mode !== 'run' && Game.mode !== 'park' && !counting))          // (park: stopped past the finish, the rings stay where they are) { drawList = []; if (RG.hud) RG.hud.style.display = 'none'; return; }
-    lastT = T;
+    if (!RG.on || typeof Game === 'undefined' || !Game.s || (Game.mode !== 'run' && Game.mode !== 'park' && !counting)) { drawList = []; if (RG.hud) RG.hud.style.display = 'none'; return; }
+    lastT = T;          // (park: stopped past the finish, the rings stay where they are and keep moving)
     RG.n++; try { update(T); prep(T); hud(); trail(); } catch (e) { drawList = []; if (!RG.err) { RG.err = 1; console.warn('rings:', e); } }
   };
   // hang on the game's own draw: the rings are worked out just before each frame, drawn inside it by the render passes
