@@ -80,13 +80,13 @@ function metroBakeFS() {
   const BRIDGES = [[330, 338], [650, 400], [900, 430], [1250, 409]].map(b => {
     const c = cg(b[0], b[1]); let best = null, bd = 1e9;
     for (const g of SEGS.slice(0, RIVERS[0].length - 1)) { const mx = (g[0] + g[2]) / 2, my = (g[1] + g[3]) / 2, d = Math.hypot(mx - c[0], my - c[1]); if (d < bd) { bd = d; best = g; } }
-    const tl = Math.hypot(best[2] - best[0], best[3] - best[1]), n = [-(best[3] - best[1]) / tl, (best[2] - best[0]) / tl], L = best[4] + best[5] + 500;
+    const tl = Math.hypot(best[2] - best[0], best[3] - best[1]), n = [-(best[3] - best[1]) / tl, (best[2] - best[0]) / tl], L = best[4] + best[5] + 1100;
     return { c: [c[0], c[1]], n, L, rot: Math.atan2(n[1], n[0]) };
   });
   BRIDGES.forEach(b => {
     const col = [1.0, 0.86, 0.66];
-    HEROES.push({ c: b.c, rot: b.rot, col, t: [[b.L / 2, 17, 46, 60, 3]] });
-    for (const sg of [-1, 1]) HEROES.push({ c: [b.c[0] + sg * 0.27 * b.L * b.n[0], b.c[1] + sg * 0.27 * b.L * b.n[1]], rot: b.rot, col, t: [[13, 22, 0, 235, 4]] });
+    HEROES.push({ c: b.c, rot: b.rot, col, t: [[b.L / 2, 26, 70, 92, 3]] });
+    for (const sg of [-1, 1]) HEROES.push({ c: [b.c[0] + sg * 0.27 * b.L * b.n[0], b.c[1] + sg * 0.27 * b.L * b.n[1]], rot: b.rot, col, t: [[22, 34, 0, 430, 4]] });
   });
   // the ridges of the mountain's foot, as the picture has them: crest lines [x1, y1, x2, y2, height, half width (m)]
   const RIDGES = [[250, 520, 620, 650, 430, 950], [300, 455, 560, 520, 300, 750], [480, 565, 760, 700, 380, 800], [1050, 600, 1400, 560, 430, 950], [1000, 520, 1300, 482, 280, 700], [1150, 700, 1500, 640, 500, 1000]]
@@ -206,7 +206,7 @@ fn mGround(u: f32, w: f32, dh: vec2f, fr: f32, fa: f32, mode: f32) -> vec4f {
     let cs: vec3f = mix(gold, warm, 0.1 + 0.4 * L.y);
     var em: vec3f = (cs * (street * 5.0 * land) + pcol * (pts * 7.0 * mix(0.25, 1.0, land))) * (1.0 - water);
     let brd: f32 = (avx * 1.3 + avy) * mix(0.3, 1.0, L.x);
-    em += mix(gold * 1.1, led, 0.10 + 0.25 * L.y) * ((brd * (1.0 - water)) * 1.5) + mix(gold, led, 0.25) * (mw * 1.3 * (1.0 - water)) + warm * (bank * 4.0);
+    em += mix(gold * 1.1, led, 0.10 + 0.25 * L.y) * ((brd * (1.0 - water)) * 1.5) + mix(gold, led, 0.25) * (mw * 0.45 * (1.0 - water)) + warm * (bank * 4.0);
     // the water mirrors what stands on its banks: long shimmering streaks
     let sh: f32 = exp(min(rs, 0.0) / 260.0) * (0.5 + 0.9 * vnoise2(vec2f(u / 34.0, w / 600.0)));
     em += mix(gold, vec3f(1.0, 0.45, 0.55), vnoise2(vec2f(u / 400.0, 3.0))) * (water * sh * 0.22 * mix(0.4, 1.0, L.x));
@@ -242,8 +242,8 @@ fn mHillShade(u: f32, w: f32, hl: f32, mode: f32) -> vec4f {
     // between, and on it the cars: a white stream coming, a red one going)
     let sd: f32 = (u - mRoadU(w)) / sqrt(1.0 + sq((mRoadU(w + 20.0) - mRoadU(w - 20.0)) / 40.0));
     let lamps: f32 = (1.0 - smoothstep(4.0, 11.0, abs(rd - 30.0))) * exp(-sq((fract(w / 80.0) - 0.5) * 4.0));
-    em += vec3f(1.0, 0.64, 0.28) * (lamps * 7.0 + 0.55 * exp(-rd / 50.0) * smoothstep(14.0, 30.0, rd) + 0.10 * exp(-rd / 320.0)) * rk;
-    em += (vec3f(1.0, 0.92, 0.78) * ((1.0 - smoothstep(2.5, 7.0, abs(sd - 8.0))) * 3.2) + vec3f(1.0, 0.12, 0.06) * ((1.0 - smoothstep(2.5, 7.0, abs(sd + 8.0))) * 3.6)) * rk;
+    em += vec3f(1.0, 0.64, 0.28) * (lamps * 8.0 + 1.1 * exp(-rd / 80.0) * smoothstep(14.0, 30.0, rd) + 0.22 * exp(-rd / 380.0)) * rk;
+    em += (vec3f(1.0, 0.92, 0.78) * ((1.0 - smoothstep(4.0, 10.0, abs(sd - 9.0))) * 4.5) + vec3f(1.0, 0.12, 0.06) * ((1.0 - smoothstep(4.0, 10.0, abs(sd + 9.0))) * 5.0)) * rk;
     em += vec3f(1.0, 0.56, 0.24) * (0.34 * saturate(tn));
     return vec4f(em, 0.0);
   }
@@ -292,11 +292,11 @@ ${BRIDGES.map(b => `  { let c: vec2f = vec2f(${f(b.c[0])}, ${f(b.c[1])}); let n:
     let dn: f32 = dot(dl, m);
     if (abs(dn) > 1e-3) {
       let x: f32 = dot(c, m) / dn; let a: f32 = abs(dot(dl * x - c, n)); let hh: f32 = mRayH(x, s); let t0: f32 = ${f(0.27 * b.L)}; let hl: f32 = ${f(0.5 * b.L)};
-      if (x > 0.0 && x < xmax && a < hl && hh > 40.0 && hh < 260.0) {
-        var yc: f32 = 62.0 + 173.0 * sq(a / t0);
-        if (a > t0) { yc = mix(235.0, 60.0, (a - t0) / (hl - t0)); }
-        let tk: f32 = max(5.0, x * dTh * 5.0);
-        e += exp(-sq((hh - yc) / tk)) * (0.55 + 0.45 * step(0.5, fract(a / 22.0))) * 3.0 + 0.10 * step(hh, yc) * step(0.72, fract(a / 26.0));
+      if (x > 0.0 && x < xmax && a < hl && hh > 60.0 && hh < 470.0) {
+        var yc: f32 = 100.0 + 330.0 * sq(a / t0);
+        if (a > t0) { yc = mix(430.0, 92.0, (a - t0) / (hl - t0)); }
+        let tk: f32 = max(9.0, x * dTh * 7.0);
+        e += exp(-sq((hh - yc) / tk)) * (0.55 + 0.45 * step(0.5, fract(a / 34.0))) * 4.0 + 0.16 * step(hh, yc) * step(92.0, hh) * step(0.70, fract(a / 44.0));
       }
     } }`).join('\n')}
   return vec3f(1.0, 0.88, 0.70) * e;
