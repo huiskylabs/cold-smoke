@@ -1005,8 +1005,11 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   // (the glove: a = the squarish fist of the body's own mesh; b = a glove with fingers closed round the grip, see gloveMesh. Developer mode only for
   // now: without ?dev it is a, whatever an address or an earlier pick says)
   Variants.def('hand', '手套', [['a', '原来'], ['b', '手指握杖']], 'b');
+  // (and the clothes' finer details, as real ski clothes are made: stitching beside the seams, a cargo pocket on the thigh, scuff guards inside the
+  // ankles, zip pulls and hem toggles, a dusting of snow on what faces up, boots with buckles and a power strap: see SKIER_FS, kit)
+  Variants.def('kit', '衣服细节', [['a', '原来'], ['b', '更细']], 'b');
   { let dev = false; try { dev = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (/[?&]dev(=|&|$)/.test(location.search) || /\/dev\/?$/.test(location.pathname) || !!(self.COLD_SMOKE && self.COLD_SMOKE.dev)); } catch (e) { }
-    if (!dev) Variants.val.hand = 'a'; }
+    if (!dev) { Variants.val.hand = 'a'; Variants.val.kit = 'a'; } }
   function cloth(J) {
     const bd = (a, b, c) => sat(0.8 * (1 - v3.dot(v3.norm(v3.sub(b, a)), v3.norm(v3.sub(c, b))))), up = v3.norm(v3.sub(J.chest, J.pelvis)), hf = (h, k) => sat(0.5 + 0.5 * v3.dot(up, v3.norm(v3.sub(k, h))));
     clo.p = [bd(J.shL, J.elbowL, J.gripL), bd(J.shR, J.elbowR, J.gripR), bd(J.hipL, J.kneeL, J.ankleL), bd(J.hipR, J.kneeR, J.ankleR)];
@@ -1119,7 +1122,8 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     wantBody();
     const want = CLOTH[Variants.val.cloth] || CLOTH.b, now = performance.now() / 1000, de = now - clo.t, e = clo.t < 0 || de > 0.1 ? 1 : 1 - Math.exp(-Math.max(de, 0) * 6); clo.t = now;
     clo.q[2] += (want[1] - clo.q[2]) * e; clo.q[3] += (want[0] - clo.q[3]) * e; clo.h += (want[2] - clo.h) * e;
-    nite[0] = typeof Sky !== 'undefined' && Sky.night === Sky.night ? smooth(0.35, 1, Sky.night) : 0;      // (from deep dusk on: dusk itself stays as it was)
+    nite[0] = typeof Sky !== 'undefined' && Sky.night === Sky.night ? smooth(0.35, 1, Sky.night) : 0;
+    nite[3] = Variants.val.kit === 'b' && nite[1] > 0 ? 1 : 0;      // (the finer details of the clothes, Variants 'kit' b: new body only)      // (from deep dusk on: dusk itself stays as it was)
     gfx.draw(pipe, { u: { p: clo.p, q: clo.q, r: nite }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count });
   };
   K.drawShadow = function () { wantBody(); gfx.draw(pipeShadow, { u: { p: [0, 0, 0, 0] }, tex: { tBones: boneTex }, vb: [vb, vb2], ib, count }); };
@@ -1190,7 +1194,7 @@ fn frag(v: VOut) -> FOut {
   if (id < 1.5) { id = 1.0; if (hemV > 0.006 && (hemV < 0.05 || v.mat.z > -0.012)) { id = 0.0; } }
   // sleeve or gauntlet (Variants 'hand' b): by the gauntlet's edge, a line round the forearm GAUNT.len short of the wrist. Decided per triangle the
   // edge was a sawtooth (the body's grid is 13.5 mm). The fine glove's own pixels (mat.z > 0) keep what they are
-  let hb: f32 = M.r.z;
+  let hb: f32 = M.r.z; let kit: f32 = M.r.w;
   if (hb > 0.5 && armF > 0.10 && ((id > 1.5 && id < 2.5 && v.mat.z < 0.05) || (id < 0.5 && v.mat.w < 0.0))) { id = select(0.0, 2.0, armF > gEdge); }
   // trousers or boot: by the line of the trouser hem, down the shin
   // (nb: the new body (Variants 'body' b), whose trousers hang lower over the boot and whose sleeve runs into the shoulder without an armhole seam)
@@ -1269,6 +1273,23 @@ fn frag(v: VOut) -> FOut {
     fold = mix(fold, -0.003, strap) + 0.001 * (strapEdge - strap);
     alb *= 1.0 - kz * (0.10 * smoothstep(0.036, 0.032, hemV) * onTorso + 0.85 * smoothstep(0.0034, 0.0020, zipD));
     dark = 0.42 * smoothstep(0.040, 0.008, pkD); shell = 1.0 - 0.6 * strap;
+    if (kit > 0.5) {
+      // (kit b) stitching: a pale thread a few millimetres either side of every seam, the way a shell is top-stitched; gone once a pixel is wider than it
+      let stF: f32 = saturate(1.6 - px * 500.0) * (1.0 - strap);
+      let st: f32 = smoothstep(0.0010, 0.0003, abs(min(sd, zipD) - 0.0042)) * stF;
+      alb = mix(alb, alb * 1.35 + 0.02, st * 0.6); fold += st * 0.0002;
+      // the zip's pull at the top of the front, under the chin, and the chest pocket's at the top of its zip
+      let pull: f32 = smoothstep(0.0012, 0.0, max(abs(tl.x - 0.016) - 0.0035, abs(tl.y - 0.150) - 0.013)) * smoothstep(0.03, -0.05, tl.z) * onTorso;
+      let pull2: f32 = smoothstep(0.0012, 0.0, max(abs(tl.x + 0.058) - 0.0030, abs(tl.y - 0.150) - 0.010)) * smoothstep(0.03, -0.05, tl.z) * onTorso;
+      alb = mix(alb, vec3f(0.05, 0.055, 0.06), max(pull, pull2)); specS = mix(specS, 0.4, max(pull, pull2)); fold += 0.0015 * max(pull, pull2);
+      // the hem's drawcord toggles, at the front either side
+      let tg: f32 = smoothstep(0.0065, 0.0045, length(vec2f(abs(pl.x) - 0.125, hemV - 0.022))) * smoothstep(0.0, -0.06, pl.z) * onTorso;
+      alb = mix(alb, vec3f(0.04, 0.045, 0.05), tg); fold += 0.003 * tg; specS = mix(specS, 0.3, tg);
+      // a dusting of snow on what faces up (shoulders, the tops of the arms), patchy, never a coat of it
+      let fineJ: vec4f = texLod(tDetail, bp.xy * 11.0 + bp.zz * vec2f(7.0, 5.0), log2(max(px * 5600.0, 1.0)));
+      let snJ: f32 = smoothstep(0.55, 0.92, bn.y) * smoothstep(0.62, 0.90, fineJ.w * 0.65 + weave.z * 0.45) * (1.0 - strap);
+      alb = mix(alb, vec3f(0.80, 0.85, 0.92), snJ * 0.55); cloth = mix(cloth, 0.3, snJ);
+    }
   } else if (id < 1.5) {     // trousers: slate shell (not black: the seat and the legs have to show their form), a dusting of snow at the hems
     alb = vec3f(0.066, 0.082, 0.108);
     // their cloth: creased behind the knee and across the lap (the more the leg is folded the deeper), stacked in rings above the boot, long soft folds between
@@ -1296,6 +1317,25 @@ fn frag(v: VOut) -> FOut {
     let snowy: f32 = mix(smoothstep(0.31, 0.235, bp.y), smoothstep(0.30, 0.17, bp.y), nb) * smoothstep(0.55, 0.85, fine.w * 0.6 + weave.z * 0.5 + smoothstep(0.28, 0.235, bp.y) * 0.2 + kz * 0.25 * saturate(-fold * 120.0));
     alb = mix(alb, vec3f(0.78, 0.83, 0.90), snowy * mix(0.5, 0.22, nb));     // (new body: a fainter, patchier dusting with no edge to it)
     sheen = mix(0.35, 0.28, nb); cloth = 1.0; specS = mix(0.04, 0.035, nb); shell = mix(0.45, 0.42, nb);     // (new body: a soft sheen on the waterproof face)
+    if (kit > 0.5) {
+      // (kit b) a cargo pocket on the outside of the thigh, just in front of the side seam, a flap over its top and a snap; ...
+      let pq: vec2f = vec2f(thU - 0.230, rl.z + 0.030); let pkB: vec2f = abs(pq) - vec2f(0.070, 0.036);
+      let pkd: f32 = length(max(pkB, vec2f(0.0))) + min(max(pkB.x, pkB.y), 0.0);
+      let onP: f32 = smoothstep(0.03, 0.05, rl.x) * step(legS, -0.04);
+      let flap: f32 = step(pkd, 0.0) * step(thU, 0.192) * onP;
+      fold += onP * (0.0018 * smoothstep(0.004, 0.0, -pkd) * step(pkd, 0.0) - 0.0016 * exp(-abs(pkd) * 600.0) - 0.0014 * exp(-abs(thU - 0.192) * 700.0) * step(pkd, 0.0));
+      alb *= 1.0 - onP * 0.35 * smoothstep(0.012, 0.0, thU - 0.192) * step(0.192, thU) * step(pkd, 0.0);      // (the shade under the flap)
+      let snap: f32 = smoothstep(0.0045, 0.0030, length(vec2f(thU - 0.177, rl.z + 0.030))) * onP;
+      alb = mix(alb, vec3f(0.11, 0.115, 0.12), snap); specS = mix(specS, 0.5, snap);
+      // ... stitching beside the seams and round the pocket ...
+      let stF: f32 = saturate(1.6 - px * 500.0);
+      let st: f32 = smoothstep(0.0010, 0.0003, abs(min(sd, abs(pkd) + 1.0 - onP) - 0.0040)) * stF * inL;
+      alb = mix(alb, alb * 1.45 + 0.015, st * 0.6);
+      // ... and the scuff guards: a tougher, darker, glossier patch inside each ankle, where the other ski's edge catches
+      let scuff: f32 = smoothstep(0.022, 0.012, bm.x - 0.115) * smoothstep(hemS - 0.105, hemS - 0.090, legS) * smoothstep(hemS + 0.004, hemS - 0.004, legS);
+      alb = mix(alb, vec3f(0.030, 0.033, 0.038), scuff); specS = mix(specS, 0.12, scuff); specP = mix(specP, 40.0, scuff); cloth = mix(cloth, 0.6, scuff);
+      fold -= 0.0015 * exp(-abs(bm.x - 0.115 - 0.017) * 500.0) * smoothstep(hemS - 0.105, hemS - 0.090, legS) * step(legS, hemS);
+    }
   } else if (id < 2.5) {     // gloves
     alb = ${V(L.glove.alb)}; sheen = ${F(L.glove.sheen)}; specS = ${F(L.glove.specS)}; specP = ${F(L.glove.specP)};
     if (hb > 0.5 && v.mat.z > 0.05) {
@@ -1328,7 +1368,23 @@ fn frag(v: VOut) -> FOut {
   } else if (id < 3.5) {     // boots: graphite shell (pale ones are lost against the snow and the legs seem to end at the hem), orange buckles
     alb = vec3f(0.055, 0.058, 0.066);
     let bk: f32 = smoothstep(0.012, 0.006, abs(fract(bp.y * 14.0) - 0.5) * 0.07) * step(0.14, bp.y) * step(bp.z, 0.02);
-    alb = mix(alb, orange, bk * 0.9);
+    alb = mix(alb, orange, bk * 0.9 * (1.0 - kit));
+    if (kit > 0.5) {
+      // (kit b) as alpine boots are: two buckles over the forefoot and two round the cuff, levers on the outside, orange; a black power strap round the top
+      let bx: f32 = bm.x - 0.155; let outB: f32 = smoothstep(0.012, 0.030, bx);
+      var lev: f32 = 0.0;
+      lev = max(lev, smoothstep(0.0015, 0.0, max(abs(bp.y - 0.115) - 0.007, abs(bp.z + 0.105) - 0.017)));
+      lev = max(lev, smoothstep(0.0015, 0.0, max(abs(bp.y - 0.150) - 0.007, abs(bp.z + 0.040) - 0.017)));
+      lev = max(lev, smoothstep(0.0015, 0.0, max(abs(bp.y - 0.225) - 0.007, abs(bp.z + 0.005) - 0.018)));
+      lev = max(lev, smoothstep(0.0015, 0.0, max(abs(bp.y - 0.285) - 0.007, abs(bp.z + 0.000) - 0.018)));
+      lev *= outB;
+      alb = mix(alb, orange, lev * 0.95); specS = mix(0.35, 0.5, lev); fold += 0.0025 * lev;
+      // (the shell's own seam: the overlap of the cuff over the lower shell, a line from the instep down to behind the ankle)
+      let ov: f32 = smoothstep(0.0025, 0.0, abs(bp.y - 0.165 - 0.35 * (bp.z + 0.02))) * step(0.06, bp.y);
+      fold -= 0.0015 * ov; alb *= 1.0 - 0.35 * ov;
+      let ps: f32 = smoothstep(0.336, 0.340, bp.y) * smoothstep(0.372, 0.368, bp.y);
+      alb = mix(alb, vec3f(0.018, 0.018, 0.020), ps); specS = mix(specS, 0.06, ps); fold += 0.0015 * ps;
+    }
     let sole: f32 = step(bp.y, 0.060); alb = mix(alb, vec3f(0.02), sole);
     specS = 0.35; specP = 60.0; gloss = 0.06;
   } else if (id < 4.5) {     // helmet: matte white with an orange centre stripe
