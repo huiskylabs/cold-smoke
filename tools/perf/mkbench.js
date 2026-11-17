@@ -5,7 +5,7 @@
 const fs = require('fs'), path = require('path');
 const src = path.join(__dirname, 'tmp/dev-perf.html'), out = path.join(__dirname, 'tmp/perf-bench.html');
 let html = fs.readFileSync(src, 'utf8');
-const head = `<meta name="robots" content="noindex"><script>if(!/[?&]manual\\b/.test(location.search)||!/[?&]bench\\b/.test(location.search)){var q=location.search.replace(/^\\?/,'');location.replace(location.pathname+'?dev&manual&gov=0&backend=webgl2&bench'+(q?'&'+q:''));}</script>`;
+const head = `<meta name="robots" content="noindex"><script>if(!/[?&]manual\\b/.test(location.search)||!/[?&]bench\\b/.test(location.search)){var q=location.search.replace(/^\\?/,'');location.replace(location.pathname+'?dev&manual&gov=0'+(/boottest/.test(q)?'':'&backend=webgl2')+'&bench'+(q?'&'+q:''));}</script>`;
 const i = html.indexOf('<head>'); if (i < 0) throw new Error('no <head>');
 html = html.slice(0, i + 6) + head + html.slice(i + 6);
 const k = html.lastIndexOf('</body>'); if (k < 0) throw new Error('no </body>');

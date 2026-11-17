@@ -25,10 +25,13 @@
   const pct = (a, p) => { const s = Array.from(a).sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(s.length * p))]; };
   const f1 = x => (Math.round(x * 10) / 10).toFixed(1), f2 = x => (Math.round(x * 100) / 100).toFixed(2);
   const QUICK = /[?&]quick\b/.test(location.search);
+  // 开机测试（地址带 boottest）：只量开机，走正式版会走的后端（不强制 WebGL2）。再带 cold：每条着色器末尾加一段随机注释，
+  // 浏览器的着色器缓存就认不出来，等于"第一次打开"
+  const BOOT = /[?&]boottest\b/.test(location.search), COLD = /[?&]cold\b/.test(location.search);
   copy.onclick = async () => { out.select(); let ok = false; try { await navigator.clipboard.writeText(out.value); ok = true; } catch (e) { try { ok = document.execCommand('copy'); } catch (x) { } } copy.textContent = ok ? '已复制' : '复制失败，请长按文本框全选复制'; };
 
   async function run() {
-    btn.disabled = true; btn.style.opacity = .4; const R = window.__benchR = { v: 3, when: new Date().toISOString() }, L = [];
+    btn.disabled = true; btn.style.opacity = .4; const R = window.__benchR = { v: 4, when: new Date().toISOString() }, L = [];
     try {
       // ---------- 环境
       R.ua = navigator.userAgent; R.dpr = devicePixelRatio; R.screen = [screen.width, screen.height]; R.inner = [innerWidth, innerHeight];
@@ -45,7 +48,13 @@
         m.init = function () { const a = performance.now(), n0 = P.pipes.length; try { return f.apply(this, arguments); } finally { inits.push([k, performance.now() - a, P.pipes.length - n0]); } }; m.init.__t = 1; }
       await I.boot((f, name) => { if (name) st.push([name, performance.now() - t0]); });
       R.inits = inits.filter(x => x[1] >= 5).sort((x, y) => y[1] - x[1]).map(x => [x[0], Math.round(x[1]), x[2]]);
+      R.loadMs = Math.round(t0);       // 从开始加载页面到开机开始（下载、解析这 2 MB 的脚本）
       const total = performance.now() - t0; R.boot = { total: Math.round(total), stages: st.map((s, i) => [s[0], Math.round((i + 1 < st.length ? st[i + 1][1] : total) - s[1])]) };
+      if (BOOT) {
+        R.caps = { backend: I.App.gfx.caps.backend, renderer: I.Quality.gpu }; R.cold = COLD; R.quality = { tier: I.Quality.tier, why: I.Quality.why, gpu: I.Quality.gpu };
+        const fr = []; for (let i = 0; i < 5; i++) { const a = performance.now(); window.__ski.frame(); await new Promise(r => requestAnimationFrame(r)); fr.push(Math.round(performance.now() - a)); }
+        R.firstFrames = fr;
+      } else {
       const gl = P.gl, g = P.gfx, dbg = gl.getExtension('WEBGL_debug_renderer_info');
       R.caps = { backend: g.caps.backend, hdr: g.caps.hdr, r32fTarget: g.caps.r32fTarget, maxTex: g.caps.maxTex, renderer: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : '?', timerExt: !!gl.getExtension('EXT_disjoint_timer_query_webgl2'), parallelCompile: !!gl.getExtension('KHR_parallel_shader_compile'), aniso: !!gl.getExtension('EXT_texture_filter_anisotropic'), maxTexUnits: gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS), maxVertTexUnits: gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) };
       R.quality = { tier: I.Quality.tier, why: I.Quality.why, gpu: I.Quality.gpu };
@@ -94,14 +103,17 @@
         await new Promise(res => { const tick = now => { if (last) iv.push(now - last); last = now; frame(); if (iv.length < n) requestAnimationFrame(tick); else res(); }; requestAnimationFrame(tick); });
         iv.splice(0, 20); R.pace = { n: iv.length, p50: +f2(med(iv)), p95: +f2(pct(iv, .95)), p99: +f2(pct(iv, .99)), max: +f1(pct(iv, 1)), fps: +f1(1000 / (iv.reduce((s, x) => s + x, 0) / iv.length)), over20: iv.filter(x => x > 20).length, over34: iv.filter(x => x > 34).length, over50: iv.filter(x => x > 50).length }; }
       box.style.background = 'rgba(10,14,20,.86)';
+      }
     } catch (e) { R.error = String(e && e.message ? e.message : e).slice(0, 2000); }
     // ---------- 结果
-    L.push('=== 雪迹性能测量 v3 ' + R.when + ' ===');
+    L.push('=== 雪迹性能测量 v4 ' + R.when + ' ===');
     L.push('浏览器: ' + R.ua); L.push(`屏幕 ${R.screen} 窗口 ${R.inner} 像素比 ${R.dpr} 内存 ${R.mem} GB 核 ${R.cores}`);
     L.push('WebGPU: ' + (R.webgpu ? '有（' + R.gpuAdapter + '）' : '没有'));
     if (R.caps) { L.push('显卡: ' + R.caps.renderer); L.push(`WebGL2 能力: 浮点渲染目标 ${R.caps.hdr ? '有' : '没有'}，GPU 计时 ${R.caps.timerExt ? '有' : '没有'}，并行编译 ${R.caps.parallelCompile ? '有' : '没有'}，各向异性 ${R.caps.aniso ? '有' : '没有'}，最大贴图 ${R.caps.maxTex}，贴图单元 ${R.caps.maxTexUnits}/顶点 ${R.caps.maxVertTexUnits}`); }
-    if (R.quality) L.push(`画质档 ${R.quality.tier}（${R.quality.why}）画布 ${R.size0 ? R.size0.join('×') : '?'} 阴影 ${R.shadow}；显存: 贴图 ${R.memGpu.texMiB} MiB + 缓冲 ${R.memGpu.bufMiB} MiB；管线 ${R.pipes} 条，编译 ${R.compileMs} ms`);
+    if (R.quality && R.memGpu) L.push(`画质档 ${R.quality.tier}（${R.quality.why}）画布 ${R.size0 ? R.size0.join('×') : '?'} 阴影 ${R.shadow}；显存: 贴图 ${R.memGpu.texMiB} MiB + 缓冲 ${R.memGpu.bufMiB} MiB；管线 ${R.pipes} 条，编译 ${R.compileMs} ms`);
     if (R.sw) L.push('优化开关（b = 新做法，a = 旧做法）: ' + SW.map(n => n + '=' + R.sw[n]).join(' '));
+    if (BOOT && R.quality) L.push(`画质档 ${R.quality.tier}（${R.quality.why}）`);
+    if (BOOT) L.push(`开机测试：${R.caps ? R.caps.backend : '?'}，${COLD ? '冷启动（假装第一次打开）' : '热启动（着色器已缓存）'}；页面加载到开机开始 ${R.loadMs} ms；开机后前 5 帧 ${R.firstFrames ? R.firstFrames.join(' / ') : '?'} ms`);
     if (R.boot) L.push(`A 开机 ${R.boot.total} ms: ` + R.boot.stages.map(s => s[0] + ' ' + s[1]).join(' | '));
     if (R.inits && R.inits.length) L.push('   各模块 init（ms，括号里是建的管线数）: ' + R.inits.map(x => x[0] + ' ' + x[1] + '（' + x[2] + '）').join(' | '));
     if (R.js) L.push(`B 每帧 JS（${R.js.n} 帧）: 中位 ${R.js.p50} p95 ${R.js.p95} p99 ${R.js.p99} 最大 ${R.js.max} 平均 ${R.js.mean} ms；>8ms ${R.js.over8} 帧，>16.7ms ${R.js.over16} 帧，>33ms ${R.js.over33} 帧；有地形滚动的帧 ${R.js.terrainFrames} 个（中位 ${R.js.terrainFrameMed} ms），没有的中位 ${R.js.plainFrameMed} ms`);
@@ -113,4 +125,5 @@
     out.value = L.join('\n'); out.style.display = 'block'; copy.style.display = 'inline-block'; say(R.error ? '中途出错了，但已有的结果仍然有用，请复制贴回。' : '完成。'); window.__benchResult = R; window.__benchText = out.value;
   }
   btn.onclick = run; window.__benchRun = run;
+  if (BOOT) { info.textContent = '开机测试：会自动开始，约 5 到 30 秒。结束后点「复制结果」贴给 Claude。'; setTimeout(run, 300); }
 })();

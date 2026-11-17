@@ -57,6 +57,9 @@
     return g;
   }
   { const cg = createGL; createGL = function (c, o) { return wrap(cg(c, o)); }; }
+  // 地址带 cold：每条着色器末尾加一段这次打开独有的注释，浏览器的着色器缓存就认不出来（等于第一次打开）
+  if (/[?&]cold\b/.test(location.search)) { const b0 = buildShader, tag = '\n// cold ' + Date.now().toString(36) + Math.random().toString(36).slice(2) + '\n';
+    buildShader = function (d, l) { const r = b0(d, l); if (r.code) r.code += tag; if (r.vs) r.vs += tag; if (r.fs) r.fs += tag; return r; }; }
   P.frameBegin = () => { P.passes = []; P.up = { texBytes: 0, texCalls: 0, bufBytes: 0, bufCalls: 0, globCalls: 0 }; P.rec = true; };
   P.frameEnd = () => { P.rec = false; return { passes: P.passes, up: P.up }; };
   P.timeBegin = () => { P.sect = {}; P.lastLabel = null; P.timing = true; P.mark('start'); };
