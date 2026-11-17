@@ -76,6 +76,15 @@ const Rings = (() => {
     const D = DIFF[(typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b'] || DIFF.b;
     const { pl } = station(s0 + 40);
     let s = s0 + (pl.gap[0] + (pl.gap[1] - pl.gap[0]) * rand()) * D.gap;
+    // (a line: its last ring is the finish, big and in the middle of the run; nothing comes after it)
+    if (L.id) {
+      const sE = lineEnd();
+      if (L.fin) { RG.rings.push({ id: serial++, s: 1e9, skip: true }); return; }
+      if (s > sE - 25 || s0 + 60 > sE - 25) {
+        const c = Course.at(sE, pc), r = 4.2; L.fin = true;
+        RG.rings.push({ id: serial++, s: sE, u: 0, x: c.cx, y: floatY(c.cx, sE, r, -1e9), r, tag: '终点', fin: true, air: false, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sE, u: 0 }; return;
+      }
+    }
     const f = kickerIn(s0 + 10, s + 20);
     const lvAir = cl(D.off, 0, 2);
     if (f) { const lip = lipOf(f), sr = lip.s + 8, c = Course.at(sr, pc), z = SIZES[lvAir]; RG.rings.push({ id: serial++, s: sr, u: f.u, x: c.cx + f.u, y: floatY(c.cx + f.u, sr, z[0], lip.y - 0.7), r: z[0], tag: z[1], air: true, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sr, u: f.u }; return; }
@@ -106,7 +115,7 @@ const Rings = (() => {
     let top = -1e9; for (let i = -6; i <= 6; i++) { const a = i / 6 * 1.2, dx = Math.sin(a) * r, dy = -Math.cos(a) * r; top = Math.max(top, Course.height(x + dx, -s, 0.5) - dy); }
     return Math.max(y, top + GAP);
   }
-  function reset() { RG.rings.length = 0; RG.passed = RG.missed = 0; rnd = 1 + Math.floor((Date.now() % 100000)); lastS = null; drawList = []; cursor = null; }
+  function reset() { RG.rings.length = 0; RG.passed = RG.missed = 0; rnd = L.id ? L.seed : 1 + Math.floor((Date.now() % 100000)); lastS = null; drawList = []; cursor = null; L.fin = false; }
 
   // ---- each frame, before the game draws
   function update(T) {
@@ -138,6 +147,7 @@ const Rings = (() => {
       const dy = (S.p[1] + 0.9) - cur.y, dx = S.p[0] - cur.x;
       cur.hit = cur.air ? (Math.hypot(dx, dy) < cur.r) : (Math.abs(dx) < cur.r * 0.85);          // (ground rings: judged across only, the skier rides through the lower part)
       if (cur.splash < 0) cur.splash = T;
+      if (cur.fin) { cur.hit = true; cur.pass = T; lineFinish(); return; }
       cur.pass = T; if (cur.hit) RG.passed++; else RG.missed++;
       if (ahead[1] && ahead[1].grow < 0) ahead[1].grow = T;
     }
@@ -162,7 +172,7 @@ const Rings = (() => {
   }
   function hud() {
     if (!RG.hud) { RG.hud = document.createElement('div'); RG.hud.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);font:500 13px/1 system-ui,sans-serif;letter-spacing:.12em;color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(0,0,0,.45);pointer-events:none;z-index:3'; document.body.appendChild(RG.hud); }
-    RG.hud.style.display = RG.on ? '' : 'none';
+    RG.hud.style.display = RG.on && !L.id ? '' : 'none'; if (L.id) return;
     const cur = RG.rings.find(r => r.pass < 0 && !r.skip), dn = { a: '轻松', b: '标准', c: '难' }[(typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b'] || '标准', t = '光圈（' + dn + '） ' + RG.passed + ' / ' + (RG.passed + RG.missed) + (cur && cur.tag ? '　·　这个圈 ' + cur.tag + ' 大' : ''); if (RG.hud.textContent !== t) RG.hud.textContent = t;
   }
 
@@ -219,13 +229,177 @@ const Rings = (() => {
     }
   };
 
+  // ---- 光圈路线 (用户 17:18 UTC: 先按速降线、探索线的光圈路线做一个；开始要不要倒计时、结束怎么提示、成绩页都要先想清楚).
+  // The first line is a downhill line (速降线) over the designed run: its rings stand in the same places every time (a fixed seed for each
+  // line and 光圈难度), so it can be learnt. Start: from the gate the skier is held while 3, 2, 1, 出发 counts down, the rings ahead already
+  // lit so the line can be read; on 出发 the skier pushes off and the clock starts (the same moment for everyone). In the run: the clock at the
+  // top (penalties already in it), rings and penalty below it, a red '+4' by the clock for a missed ring, each station's split flashed
+  // green or red against the best. The last ring is the finish, big and in the middle of the run: through it the clock stops and flares, the
+  // time comes up in the middle, and a card slides in from the right while the skier rides on (no rings after it: free skiing again).
+  // Backspace starts the line again from the gate; on the card Enter = 再来一局, Esc = 继续滑. Records stay on this device.
+  if (typeof Variants !== 'undefined') Variants.def('rline', '光圈路线', [['off', '关'], ['a', '速降·整圈'], ['b', '速降·前三站']], 'off');
+  const LINES = { a: { n: 12, name: '速降线 · 整圈' }, b: { n: 3, name: '速降线 · 前三站' } };
+  const PEN = { a: 2, b: 4, c: 5 }, DNAME = { a: '轻松', b: '标准', c: '难' };
+  const L = { id: null, diff: null, st: 'idle', seed: 1, fin: false, sEnd: 0, segs: null, cut: [], names: [], split: [], ci: 0, pen: 0, missSeen: 0, cT: 0, lastF: 0, el: null, rec: null };
+  const diffKey = () => (typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b';
+  const fmt = t => { t = Math.max(0, t); const m = Math.floor(t / 60), r = t - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(1); };
+  const sgn = d => (d < 0 ? '−' : '+') + Math.abs(d).toFixed(1);
+  function lineEnd() {
+    if (L.sEnd && L.segs === Course.segs && L.seg0 === Course.segs[0]) return L.sEnd;
+    const n = LINES[L.id].n, segs = Course.segs;
+    for (let k = 0; segs.length <= n && k < 40; k++) { const g = segs[segs.length - 1]; Course.segAt(g ? g.s0 + g.len + 10 : 10); }
+    L.segs = segs; L.seg0 = segs[0]; L.sEnd = segs[n].s0;
+    L.cut = segs.slice(1, n + 1).map(g => g.s0);
+    L.names = segs.slice(0, n).map((g, i) => (i + 1) + ' ' + ((typeof SEG_NAMES !== 'undefined' && SEG_NAMES[g.type]) || g.type));
+    return L.sEnd;
+  }
+  function beep(f, d, g) {
+    try { const A = Sound.ctx; if (!A || !Sound.on) return; const o = A.createOscillator(), v = A.createGain(), t = A.currentTime; o.type = 'sine'; o.frequency.value = f; v.gain.setValueAtTime(0, t); v.gain.linearRampToValueAtTime(g, t + 0.012); v.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(v); v.connect(A.destination); o.start(t); o.stop(t + d + 0.05); } catch (e) { }
+  }
+  const recKey = () => 'coldsmoke.line.' + L.id + '.' + diffKey();
+  // (records go through Store where it is there (00d_store.js): in the Xiaohongshu container it keeps them when the page's own storage is not kept)
+  const ST = () => typeof Store !== 'undefined' && Store.getJSON ? Store : null;
+  function recLoad() { try { const S = ST(); if (S) { if (S.durable) S.durable(recKey()); return S.getJSON(recKey()) || null; } return JSON.parse(localStorage.getItem(recKey()) || 'null'); } catch (e) { return null; } }
+  function recSave(r) { try { const S = ST(); if (S) { if (S.durable) S.durable(recKey()); S.setJSON(recKey(), r); return; } localStorage.setItem(recKey(), JSON.stringify(r)); } catch (e) { } }
+
+  // ---- what is on the screen
+  function ui() {
+    if (L.el) return L.el;
+    const d = document.createElement('div'); d.id = 'rline';
+    d.innerHTML = '<style>#rline{position:fixed;inset:0;pointer-events:none;z-index:4;font-family:system-ui,-apple-system,sans-serif;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5)}'
+      + '#rline .tm{position:absolute;top:10px;left:50%;transform:translateX(-50%);font:600 30px/1 system-ui,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.02em;transition:transform .25s,color .25s}'
+      + '#rline .tm.fin{color:#ffe9a8;transform:translateX(-50%) scale(1.25)}'
+      + '#rline .sub{position:absolute;top:46px;left:50%;transform:translateX(-50%);font:500 12px/1 system-ui,sans-serif;letter-spacing:.12em;opacity:.85;white-space:nowrap}'
+      + '#rline .pop{position:absolute;top:12px;left:calc(50% + 74px);font:700 18px/1 system-ui,sans-serif;color:#ff6b6b;opacity:0;transition:opacity .2s,transform .8s}'
+      + '#rline .pop.on{opacity:1;transform:translateY(-6px)}'
+      + '#rline .spl{position:absolute;top:66px;left:50%;transform:translateX(-50%);font:600 13px/1 system-ui,sans-serif;letter-spacing:.06em;opacity:0;transition:opacity .3s;white-space:nowrap}'
+      + '#rline .spl.on{opacity:1}#rline .g{color:#7dffb0}#rline .r{color:#ff8a8a}'
+      + '#rline .cd{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);font:700 96px/1 system-ui,sans-serif;opacity:0;transition:opacity .15s}'
+      + '#rline .cd.on{opacity:1}'
+      + '#rline .ban{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);text-align:center;opacity:0;transition:opacity .4s}'
+      + '#rline .ban.on{opacity:1}#rline .ban b{display:block;font:700 56px/1.05 system-ui,sans-serif;font-variant-numeric:tabular-nums;color:#ffe9a8}#rline .ban i{display:block;font:500 15px/1.6 system-ui,sans-serif;font-style:normal;letter-spacing:.1em}'
+      + '#rline .card{position:absolute;top:50%;right:16px;width:min(320px,44vw);max-height:84vh;overflow:auto;transform:translate(120%,-50%);transition:transform .45s cubic-bezier(.2,.8,.2,1);background:rgba(14,20,32,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:14px;padding:14px 16px;pointer-events:auto;text-shadow:none;font-size:12px}'
+      + '#rline .card.on{transform:translate(0,-50%)}#rline .card h3{margin:0 0 2px;font:600 12px/1.4 system-ui,sans-serif;letter-spacing:.12em;opacity:.7}'
+      + '#rline .card .big{font:700 34px/1.1 system-ui,sans-serif;font-variant-numeric:tabular-nums}#rline .card .dl{font-weight:600;margin:2px 0 8px}'
+      + '#rline .card .row{display:flex;gap:12px;opacity:.85;margin-bottom:8px}#rline table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}'
+      + '#rline td,#rline th{padding:3px 2px;text-align:right;font-weight:500}#rline th{opacity:.55;font-size:11px}#rline td:first-child,#rline th:first-child{text-align:left}'
+      + '#rline tr.worst td{background:rgba(255,120,120,.14)}#rline .tip{margin-top:6px;opacity:.75}'
+      + '#rline .bt{display:flex;gap:8px;margin-top:12px}#rline button{flex:1;border:0;border-radius:9px;padding:9px 0;font:600 13px system-ui,sans-serif;cursor:pointer;background:rgba(255,255,255,.14);color:#fff}#rline button.p{background:#7dffb0;color:#0b1a12}</style>'
+      + '<div class="tm"></div><div class="sub"></div><div class="pop"></div><div class="spl"></div><div class="cd"></div><div class="ban"><b></b><i></i></div><div class="card"></div>';
+    document.body.appendChild(d); L.el = d;
+    d.addEventListener('click', e => { const a = e.target && e.target.dataset && e.target.dataset.a; if (a === 'again') lineRestart(); else if (a === 'free') lineFree(); });
+    L.q = k => d.querySelector('.' + k);
+    return d;
+  }
+  function show(on) { const d = ui(); d.style.display = on ? '' : 'none'; }
+  function setTxt(k, t) { const e = L.q(k); if (e.textContent !== t) e.textContent = t; }
+  function flash(k, html, ms) { const e = L.q(k); e.innerHTML = html; e.classList.add('on'); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove('on'), ms); }
+  function hideAll() { if (!L.el) return; for (const k of ['pop', 'spl', 'cd', 'ban', 'card']) L.q(k).classList.remove('on'); L.q('tm').classList.remove('fin'); }
+
+  function lineSetup() {
+    L.diff = diffKey(); L.st = 'idle'; L.sEnd = 0; L.segs = null; L.fin = false;
+    L.seed = 1 + ((L.id || 'x').charCodeAt(0) * 7919 + L.diff.charCodeAt(0) * 104729) % 2147480000;
+    if (L.el) { hideAll(); show(!!L.id); setTxt('tm', ''); setTxt('sub', ''); }
+    reset();
+  }
+  // armed instead of pushing off: held at the gate, the count-down runs
+  function lineArm() {
+    lineSetup(); ui(); show(true); hideAll();
+    L.st = 'count'; L.cT = 0; L.lastK = 4; Game.mode = 'hold';
+    setTxt('tm', fmt(0)); setTxt('sub', LINES[L.id].name + ' · ' + DNAME[L.diff]);
+  }
+  function lineGo() {
+    L.st = 'go'; L.pen = 0; L.split = []; L.ci = 0; L.missSeen = 0; L.rec = recLoad();
+    Game.mode = 'title'; GS0.call(Game);          // (the game's own push-off: G.start sets the clock to 0 here)
+    lineEnd();
+  }
+  function lineFinish() {
+    if (L.st !== 'go') return;
+    L.st = 'done'; L.tEnd = Game.runT; L.split.push(L.tEnd);
+    const p = PEN[L.diff] || 4, miss = RG.missed, score = L.tEnd + miss * p, tot = RG.passed + RG.missed;
+    const seg = L.split.map((t, i) => t - (i ? L.split[i - 1] : 0));
+    const old = L.rec, best = old && old.best, segBest = old && old.seg || [];
+    const isNew = !best || score < best.score - 1e-6;
+    const rec = { best: isNew ? { score, t: L.tEnd, miss, tot, date: Date.now() } : best, seg: seg.map((d, i) => segBest[i] != null ? Math.min(segBest[i], d) : d), runs: ((old && old.runs) || 0) + 1 };
+    recSave(rec);
+    try { if (typeof Cards !== 'undefined' && Cards.emit) Cards.emit('ring.line', { line: 'speed', full: miss === 0, t: L.tEnd, missed: miss }); } catch (e) { }          // (集卡: the card system picks it up when it is there)
+    setTxt('tm', fmt(score)); L.q('tm').classList.add('fin'); setTxt('sub', '光圈 ' + RG.passed + ' / ' + tot + (miss ? ' · 罚时 +' + miss * p + ' 秒' : ' · 全部穿过'));
+    const ban = L.q('ban'); ban.querySelector('b').textContent = fmt(score);
+    ban.querySelector('i').textContent = isNew ? (best ? '新纪录！快了 ' + (best.score - score).toFixed(1) + ' 秒' : '第一次完成') : '比最好慢 ' + (score - best.score).toFixed(1) + ' 秒';
+    ban.classList.add('on'); setTimeout(() => ban.classList.remove('on'), 2600);
+    beep(880, 0.25, 0.18); setTimeout(() => beep(1320, 0.6, 0.16), 140);
+    // the card: what this run was, against the best before it
+    let worst = -1, wd = 0;
+    const rows = seg.map((d, i) => { const b = segBest[i]; const df = b != null ? d - b : null; if (df != null && df > wd) { wd = df; worst = i; } return { n: L.names[i] || (i + 1) + '', d, b, df }; });
+    const td = r => '<td>' + (r.b != null ? fmt(r.b) : '—') + '</td><td class="' + (r.df == null ? '' : r.df <= 0 ? 'g' : 'r') + '">' + (r.df == null ? '' : sgn(r.df)) + '</td>';
+    L.q('card').innerHTML = '<h3>' + LINES[L.id].name + ' · ' + DNAME[L.diff] + '</h3><div class="big">' + fmt(score) + '</div>'
+      + '<div class="dl ' + (isNew ? 'g' : 'r') + '">' + (isNew ? (best ? '新纪录 · 快了 ' + (best.score - score).toFixed(1) + ' 秒' : '第一次完成 · 这就是你的纪录') : '最好 ' + fmt(best.score) + ' · 慢了 ' + (score - best.score).toFixed(1) + ' 秒') + '</div>'
+      + '<div class="row"><span>用时 ' + fmt(L.tEnd) + '</span><span>光圈 ' + RG.passed + ' / ' + tot + '</span><span>罚时 ' + (miss ? '+' + miss * p + ' 秒' : '0') + '</span></div>'
+      + '<table><tr><th>分站</th><th>本局</th><th>之前最好</th><th></th></tr>' + rows.map((r, i) => '<tr' + (i === worst ? ' class="worst"' : '') + '><td>' + r.n + '</td><td>' + fmt(r.d) + '</td>' + td(r) + '</tr>').join('') + '</table>'
+      + (worst >= 0 ? '<div class="tip">最亏的一站：' + rows[worst].n + '，下次从这里提速</div>' : '')
+      + '<div class="bt"><button class="p" data-a="again">再来一局 ⏎</button><button data-a="free">继续滑 Esc</button></div>';
+    clearTimeout(L.cardT); L.cardT = setTimeout(() => { if (L.st === 'done') L.q('card').classList.add('on'); }, 1500);
+  }
+  function lineRestart() {
+    hideAll(); L.st = 'idle';
+    if (typeof UI !== 'undefined' && UI.toTop && UI.toTop()) setTimeout(() => { if (UI.state === 'title') UI.go(); }, 800);
+  }
+  function lineFree() { L.q('card').classList.remove('on'); L.st = 'free'; setTxt('tm', ''); setTxt('sub', ''); }
+  function lineFrame(T) {
+    const dt = cl(T - (L.lastF || T), 0, 0.1); L.lastF = T;
+    ui();
+    const G = Game, title = G.mode === 'title';
+    if (title && L.st !== 'idle' && L.st !== 'count') { L.st = 'idle'; hideAll(); }
+    show(L.st !== 'idle' && L.st !== 'free');
+    if (L.st === 'count') {
+      if (G.mode === 'run') G.mode = 'hold';          // (the menu let go during the count: the skier still waits for 出发)
+      const held = typeof UI !== 'undefined' && (UI.open || UI.paused);
+      if (!held) L.cT += dt;
+      const k = 3 - Math.floor(L.cT / 0.8), cd = L.q('cd');
+      if (k !== L.lastK) {
+        L.lastK = k;
+        if (k >= 1) { cd.textContent = k; cd.classList.add('on'); beep(660, 0.14, 0.16); }
+        else { cd.textContent = '出发'; cd.classList.add('on'); beep(1320, 0.35, 0.18); clearTimeout(cd._t); cd._t = setTimeout(() => cd.classList.remove('on'), 700); lineGo(); }
+      }
+      return;
+    }
+    if (L.st === 'go') {
+      const s = -G.s.p[2], p = PEN[L.diff] || 4;
+      if (RG.missed > L.missSeen) { L.missSeen = RG.missed; flash('pop', '+' + p, 900); beep(220, 0.22, 0.14); }
+      L.pen = RG.missed * p;
+      while (L.ci < L.cut.length - 1 && s >= L.cut[L.ci]) {
+        const t = G.runT, d = t - (L.ci ? L.split[L.ci - 1] : 0), b = L.rec && L.rec.seg && L.rec.seg[L.ci];
+        L.split.push(t);
+        flash('spl', (L.names[L.ci] || '') + '　' + fmt(d) + (b != null ? '　<span class="' + (d <= b ? 'g' : 'r') + '">' + sgn(d - b) + '</span>' : ''), 2200);
+        L.ci++;
+      }
+      setTxt('tm', fmt(G.runT + L.pen));
+      const cur = RG.rings.find(r => r.pass < 0 && !r.skip);
+      setTxt('sub', '光圈 ' + RG.passed + ' / ' + (RG.passed + RG.missed) + (L.pen ? ' · 罚时 +' + L.pen + ' 秒' : '') + (cur && cur.fin ? ' · 前方终点' : ''));
+    }
+  }
+  RG.line = L; if (typeof window !== 'undefined') window.__rings = RG;          // (for test scripts)
+  const GS0 = typeof Game !== 'undefined' ? Game.start : null;
+  if (GS0) Game.start = function () { if (L.id && Game.s) { if (L.st !== 'count') lineArm(); return; } return GS0.apply(this, arguments); };
+  if (typeof addEventListener !== 'undefined') addEventListener('keydown', e => {
+    if (!L.id || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    const card = L.el && L.q('card').classList.contains('on');
+    if (card && (e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); e.stopImmediatePropagation(); if (e.code === 'Enter') lineRestart(); else lineFree(); return; }
+    if (e.code === 'Backspace' && typeof UI !== 'undefined' && UI.state === 'run' && !UI.open) { e.preventDefault(); e.stopImmediatePropagation(); lineRestart(); }
+  }, true);
   RG.frame = function () {
-    const want = typeof Variants !== 'undefined' && Variants.val.rings === 'on' && devOn();
+    const lid = typeof Variants !== 'undefined' && devOn() && LINES[Variants.val.rline] ? Variants.val.rline : null;
+    if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); }
+    const want = typeof Variants !== 'undefined' && (Variants.val.rings === 'on' || !!L.id) && devOn();
     if (want !== RG.on) { RG.on = want; reset(); hud(); }
-    // (用户 05:16 UTC: 拍照时光圈不见了): held (the pause menu, 拍照) the world stands still, and so do the rings: drawn as they were, time stopped
-    if (RG.on && typeof Game !== 'undefined' && Game.mode === 'hold') return;
-    if (!RG.on || typeof Game === 'undefined' || !Game.s || Game.mode !== 'run') { drawList = []; if (RG.hud) RG.hud.style.display = 'none'; return; }
-    const T = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000; lastT = T;
+    const T = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+    if (L.id && typeof document !== 'undefined') try { lineFrame(T); } catch (e) { if (!RG.lerr) { RG.lerr = 1; console.warn('line:', e); } }
+    // (用户 05:16 UTC: 拍照时光圈不见了): held (the pause menu, 拍照) the world stands still, and so do the rings: drawn as they were, time stopped.
+    // The count-down at the gate holds the skier the same way, but the rings ahead are already there and alive, so the line can be read
+    const counting = L.st === 'count';
+    if (RG.on && typeof Game !== 'undefined' && Game.mode === 'hold' && !counting) return;
+    if (!RG.on || typeof Game === 'undefined' || !Game.s || (Game.mode !== 'run' && !counting)) { drawList = []; if (RG.hud) RG.hud.style.display = 'none'; return; }
+    lastT = T;
     RG.n++; try { update(T); prep(T); hud(); } catch (e) { drawList = []; if (!RG.err) { RG.err = 1; console.warn('rings:', e); } }
   };
   // hang on the game's own draw: the rings are worked out just before each frame, drawn inside it by the render passes
