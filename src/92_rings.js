@@ -395,8 +395,15 @@ const Rings = (() => {
   // across the hill until the skis stand still (the game's own turning brake, nothing pulls him), until 继续滑 or 再来一局 gives the skis back
   function brake(on) {
     if (typeof Input === 'undefined') return;
-    if (!on) { if (L.braking) { Input.script = null; Input.faScript = null; L.braking = 0; } return; }
-    const S = Game.s; L.braking = (S.v[0] || 0) >= 0 ? 1 : -1;
+    if (!on) { if (L.braking) { Input.script = null; Input.faScript = null; L.braking = 0; } park(false); return; }
+    const S = Game.s; L.braking = (S.v[0] || 0) >= 0 ? 1 : -1; L.brakeT = 0;
+  }
+  function park(on) {
+    if (typeof Game === 'undefined' || !Game.s) return;
+    if (on) {
+      const S = Game.s; S.v[0] = S.v[1] = S.v[2] = 0; S.speed = 0; S.tuck = 0; S.lean = 0; if ('leanV' in S) S.leanV = 0; if ('beta' in S) S.beta = 0; if ('charge' in S) S.charge = 0;
+      Input.script = 0; Input.faScript = 0; Game.mode = 'park'; L.parked = true;
+    } else if (L.parked) { L.parked = false; if (Game.mode === 'park') Game.mode = 'run'; }
   }
   function lineHarder() { const n = DNEXT[L.diff]; if (!n) return; Variants.set('ringdiff', n); lineRestart(); }
   function lineRestart() {
@@ -405,8 +412,17 @@ const Rings = (() => {
   }
   function lineFree() { brake(false); L.q('card').classList.remove('on'); L.st = 'free'; setTxt('tm', ''); setTxt('sub', ''); }
   function lineFrame(T) {
-    if (L.braking && typeof Input !== 'undefined') { if (L.st === 'done' && Game.mode === 'run') { Input.script = L.braking; Input.faScript = 0.6; } else brake(false); }
     const dt = cl(T - (L.lastF || T), 0, 0.1); L.lastF = T;
+    // (用户 20:57 UTC: 过终点后不要还在溜、做奇怪的动作，直接刹住停下来，站起来看着远方，直到玩家按继续滑): held round into a turn across
+    // the hill (no skid asked for) until under 2 m/s or 6 s, then parked: no more physics steps, the skier stands still where he stopped,
+    // tall and quiet, until 继续滑 or 再来一局. Game.mode 'park' is neither a run nor the title: the pose and the camera still update
+    if (L.braking && typeof Input !== 'undefined') {
+      if (L.st === 'done' && Game.mode === 'run') {
+        Input.script = L.braking; Input.faScript = 0;
+        L.brakeT = (L.brakeT || 0) + dt;
+        if (Game.s.speed < 2 || L.brakeT > 6) park(true);
+      } else if (L.st !== 'done') brake(false);
+    }
     ui();
     const G = Game, title = G.mode === 'title';
     if (title && L.st !== 'idle' && L.st !== 'count') { L.st = 'idle'; hideAll(); }

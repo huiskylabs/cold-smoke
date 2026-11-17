@@ -60,8 +60,10 @@ fs.mkdirSync(out, { recursive: true });
   await settle(1800); await shot('成绩页');
   // (用户 18:54 UTC: 结束后就停下来): the skier brakes by himself; the game runs on in real time until he stands still
   await pg.waitForFunction(() => __ski.game().s.speed < 0.6, null, { timeout: 15000 }).catch(() => console.log('did not stop, speed', 0));
-  console.log('speed after finish', await pg.evaluate(() => __ski.game().s.speed.toFixed(2))); await shot('刹停');
-  await pg.evaluate(() => document.querySelector('#rline [data-a=free]').click()); await settle(800); await shot('继续滑');
+  console.log('speed after finish', await pg.evaluate(() => __ski.game().s.speed.toFixed(2)), 'mode', await pg.evaluate(() => __ski.game().mode)); await shot('刹停');
+  const p0 = await pg.evaluate(() => __ski.game().s.p.slice()); await settle(3000);
+  console.log('moved while parked (m)', await pg.evaluate(p0 => Math.hypot(...__ski.game().s.p.map((v, i) => v - p0[i])).toFixed(3), p0)); await shot('停住_3秒后');
+  await pg.evaluate(() => document.querySelector('#rline [data-a=free]').click()); await settle(1500); console.log('after 继续滑 mode', await pg.evaluate(() => __ski.game().mode)); await shot('继续滑');
   console.log('errors:', errs.length ? errs.join(' | ') : 'none');
   await b.close();
 })().catch(e => { console.error(e); process.exit(1); });
