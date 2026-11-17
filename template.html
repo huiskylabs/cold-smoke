@@ -306,6 +306,11 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #jump::before { content: ""; position: absolute; inset: -6px; border-radius: 50%; background: conic-gradient(var(--sun) calc(var(--k, 0) * 1turn), rgba(244, 247, 251, 0) 0); opacity: 0; transition: opacity .2s ease;
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 1.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 1.5px)); }
 #jump.down::before { opacity: 1; }
+/* (at a keyboard there is no button to ring: while the jump key is held the same ring stands at the foot of the picture, under the skier. Variants 'kring') */
+#chg { position: absolute; left: 50%; bottom: calc(var(--gb, 0px) + 9%); width: 46px; height: 46px; margin-left: -23px; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity .2s ease;
+  background: conic-gradient(var(--sun) calc(var(--k, 0) * 1turn), rgba(244, 247, 251, .22) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 2.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 2.5px)); }
+#app.desk #chg.on { opacity: 1; } #app:not(.desk) #chg { display: none; }
 #app.desk #pad { display: none; }
 /* (under the open sheet of switches the two buttons step aside) */
 #pad button { transition: background .12s ease, color .12s ease, transform .12s ease, box-shadow .12s ease, opacity .3s ease; }
@@ -489,6 +494,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
     <div class="drop"><b id="drop">0</b><span class="unit">落差 M</span></div>
     <div id="clock"><div class="t"><svg id="clk-g" viewBox="0 0 16 16" aria-hidden="true"></svg><b id="clk-t">10:19</b></div><small class="sub" id="clk-s">小雪 · 上午</small></div>
     <div id="day"><small class="k" id="day-k"></small><b class="t" id="day-t"></b><i class="rule"></i><div class="fs" id="day-f"></div><small class="rk" id="day-r"></small></div>
+    <div id="chg" aria-hidden="true"></div>
     <div id="steer"><i class="l"></i><i class="v" id="steer-v"></i><i class="a"></i><i class="b"></i><i class="o"></i></div>
     <div id="pad"><button id="vw" type="button" aria-label="换视角"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="6" width="11" height="9" rx="2"/><path d="M13.5 9l4-2.2v7.4l-4-2.2"/></svg></button><button id="tuck" type="button" aria-label="加速">加速</button><button id="jump" type="button" aria-label="跳">跳</button></div>
   </section>

@@ -958,10 +958,10 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   }
   const FLOW = ['crouch', 'tuck', 'air', 'grabL', 'grabR', 'fa', 'fore', 'sep', 'swing', 'liftL', 'liftR', 'pitchL', 'pitchR', 'rollL', 'rollR', 'lead', 'stance', 'headYaw', 'bal'], FA = ['armL', 'armR'], fl = {};
   function flow(p, dt) {
-    const w = 26, e = Math.exp(-w * dt);
-    const go = (key, x) => { const q = fl[key]; if (!(dt > 0) || !q || !(x === x)) { fl[key] = [x, 0]; return x; }
-      const d = q[0] - x, b = (q[1] + w * d) * dt; q[0] = x + (d + b) * e; q[1] = (q[1] - w * b) * e; return q[0]; };
-    for (const k of FLOW) if (typeof p[k] === 'number') p[k] = go(k, p[k]);
+    const go = (key, x, w = 26) => { const q = fl[key]; if (!(dt > 0) || !q || !(x === x)) { fl[key] = [x, 0]; return x; }
+      const e = Math.exp(-w * dt), d = q[0] - x, b = (q[1] + w * d) * dt; q[0] = x + (d + b) * e; q[1] = (q[1] - w * b) * e; return q[0]; };
+    // (the knee bend in the first moments of a landing a little more closely: p.cfast, see the game's updatePose)
+    for (const k of FLOW) if (typeof p[k] === 'number') p[k] = go(k, p[k], k === 'crouch' ? 26 + 30 * sat(p.cfast || 0) : 26);
     // (the stroke's phase too, where it turns back (a stroke given up before the tips went in): the hands slow and come back, they do not bounce.
     // Not across the start of the next stroke, where the phase starts again from 0 by design, nor at the end of the last)
     { const d = typeof p.dp === 'number' ? p.dp : 0, q = fl.dp;

@@ -26,6 +26,8 @@ const SCN = [
   { id: 'brake', seg: 'bowl', s0: 60, dur: 30, ctl: 'brake', note: '加速后按住一个方向一直转到停，再松开重新出发' },
   { id: 'crash', seg: 'glade', s0: 60, dur: 40, ctl: 'crash', note: '林间：朝最近的树干撞过去（撞树后的反应和恢复）' },
   { id: 'foreaft', seg: 'bowl', s0: 60, dur: 40, ctl: 'fa', per: 2.6, note: '转弯时前压 / 后坐（前后重心）' },
+  { id: 'standjump', seg: null, s0: 14, dur: 24, ctl: 'charge', per: 3.0, hold: 0.6, note: '出发处几乎原地：按住跳蓄力 0.6 秒、松开，每 3 秒一次（蹲下、蹬起、落地）' },
+  { id: 'chargehop', seg: 'bowl', s0: 60, dur: 30, ctl: 'charge', per: 3.0, hold: 0.6, note: '直滑中按住跳蓄力 0.6 秒、松开，每 3 秒一次' },
   { id: 'tuckbtn', seg: 'steeps', s0: 60, dur: 30, ctl: 'tuck', note: '按住团身键，再松开转弯' },
 ];
 
@@ -48,6 +50,7 @@ const mkCtl = function (sc) {
       if (t > 4 && best) I.script = Math.max(-0.7, Math.min(0.7, (Math.atan2(best.x - p[0], -(best.z - p[2])) - Math.atan2(S.v[0], -S.v[2])) * 3)); else I.script = 0;
     },
     fa: t => { key(t < 3 ? 0 : (Math.floor((t - 3) / (sc.per / 2)) % 2 ? -1 : 1)); const k = Math.floor((t - 3) / (sc.per * 2)) % 3; I.faScript = t < 3 ? 0 : k === 0 ? 0 : k === 1 ? 1 : -1; },
+    charge: t => { key(0); I.script = 0; const u = (t - 2) % sc.per; I.btn.jump = t > 2 && u < sc.hold; },
     tuck: t => { I.btn.tuck = t > 3 && t < 14; key(t < 16 ? 0 : (Math.floor((t - 16) / 1.6) % 2 ? -1 : 1)); },
   }[sc.ctl];
 };

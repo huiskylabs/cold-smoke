@@ -1,6 +1,6 @@
 # 人物动作的尺子和门槛
 
-A ruler and a gate for how the skier moves. `npm run motion` plays 17 scripted runs headless, counts the moves no human body could make
+A ruler and a gate for how the skier moves. `npm run motion` plays 19 scripted runs headless, counts the moves no human body could make
 ("jolts"), the places the figure passes through itself, and how the shins sit in the boots, then compares with `baseline.json` and exits 1
 if anything got worse. It then prints a second ruler (`rom.js`): how far the joints move in landings, take-offs, moguls and turns, against
 ranges measured on people. Run it before merging any change to the figure's motion. The rest of this page is in Chinese.
@@ -31,7 +31,7 @@ npm run motion -- --baseline                              # 改动确认合并�
 ## 量的是什么
 
 `record.js` 用无头浏览器跑真实的游戏（`dist/dev.html`，不出图），按脚本操作，每秒 60 帧记下 25 个关节、姿态参数和物理状态。
-17 个场景共 12 分钟：键盘大中小弯、手指匀速左右、自动驾驶整条线、蘑菇地、波浪地、粉雪、跳台、连续小跳、急刹、擦树撞树、出发撑杖、团身、前后压板。
+19 个场景共 13 分钟：键盘大中小弯、手指匀速左右、自动驾驶整条线、蘑菇地、波浪地、粉雪、跳台、连续小跳、蓄力跳（几乎原地和直滑中）、急刹、擦树撞树、出发撑杖、团身、前后压板。
 
 `analyze.js` 算四样：
 
@@ -82,6 +82,7 @@ node tools/motion/rom.js <录制目录 A> <录制目录 B>                    # 
 4. **有尺有门槛，不叠弹簧。** 不新增平滑器；确实要加，先证明能删掉另一个。
 5. **髋的高度只有一本账。** 髋 = 物理算的身体高度，减去一串“压低”（倾斜、团身、高速站姿、起跳准备、落地前伸腿、转弯下沉……）。
    新加一项之前先看别的项已经压了多少，要的是“最后腿多长”，不是“再压多少”；它放开的时机跟物理走，不能自己另起一个钟。
+   改它的时候“快”和“慢”也要对：落地是快蹲慢起，起跳是看得见的蹬伸、离地后马上收腿。
    2026-11-17 的落地太浅就是这本账没人管：各项叠在一起，触雪时腿已经弯了 62°；落地前那一项又在触雪后七分之一秒内自己放掉，正好抵消了一半下沉。
 
 ## 现在的基线
