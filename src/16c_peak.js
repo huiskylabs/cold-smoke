@@ -76,7 +76,9 @@ fn pCloudTop0(p: vec2f) -> f32 {
   if (d2 > 0.0) { let k: f32 = saturate(d2 * 14.0); t2 = 1900.0 * k + 1500.0 * pow(d2 * 2.4, 0.6) + k * (360.0 * (b - 0.35) + 150.0 * (b2 - 0.5)); }
   return max(t1, t2);
 }
-fn pCloudTop(p: vec2f) -> f32 { return PK * pCloudTop0(p / PK); }
+// (not used: a cloud drawn as a height stands like a wall when seen from the side. The clouds are laid in every frame instead, as
+// soft sheets at their heights: peakDeck in peakSSL)
+fn pCloudTop(p: vec2f) -> f32 { return -400.0; }
 fn pField(p: vec2f, n: i32) -> f32 { return max(max(pTerr(p, n), pCloudTop(p)), 0.0); }
 // along a line of sight that stands ya m over the lake at xa m out and climbs k m a metre: where it first meets land, cloud or water
 // (under 0: nowhere)
@@ -212,6 +214,17 @@ fn peakBanner(a: f32, th: f32) -> vec4f {
   let lightK: vec3f = U.sunCol.rgb * (1.5 * (1.0 - 0.75 * U.skyP.z)) + U.ambSky.rgb * 0.8 + U.twi.rgb * 0.5 + vec3f(0.05, 0.07, 0.13) * U.skyP.z;
   return vec4f(lightK * dn, dn * 0.85);
 }
+// a sheet of cloud lying h m over the lake, where the line of sight (bearing dl, slope s, the eye PH up) goes down through it:
+// x = how much of what lies behind it hides, y = how thick it is there (0 its edge .. 1), z = how far off. cov: the share of sky it covers
+fn peakDeck(dl: vec2f, s: f32, h: f32, cov: f32, sc: f32) -> vec3f {
+  if (s < 0.004) { return vec3f(0.0); }
+  let x: f32 = (${f(P.H * P.K)} - h) / s;
+  let pw: vec2f = dl * x;
+  let n: f32 = fbm2(pw / sc + vec2f(U.camPos.w * 0.0040, U.camPos.w * 0.0015) + vec2f(h * 0.01, 3.0));
+  let t0: f32 = 1.0 - cov;
+  let k: f32 = smoothstep(t0 - 0.06, t0 + 0.16, n * 1.25);
+  return vec3f(k * (1.0 - smoothstep(${f(55000 * P.K)}, ${f(75000 * P.K)}, x)), smoothstep(t0, t0 + 0.34, n * 1.25), x);
+}
 // the land, the cloud and the lake below, over the sky that is already there. kind: 2 云下之城, 3 金色雪旗
 fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   let az0: f32 = atan2(d.x, -d.z) - ${f(V.cityAz)}; let a: f32 = atan2(sin(az0), cos(az0));
@@ -227,8 +240,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   let uv: vec2f = vec2f(0.5 * x + 0.5, saturate(v));
   let lod: f32 = max(log2(2.0 * U.camRight.w * U.res.w / (${f(2 * P.AZ / Metro.W)} * (${f(P.ak)} + ${f(3 * (1 - P.ak))} * x * x))), 0.0);
   let A: vec4f = texLod(tSeaB, uv, lod); let E0: vec4f = texLod(tSeaA, uv, lod);
-  if (A.a < 0.004) { return sky; }
-  let inv: f32 = 1.0 / A.a; let alb: vec3f = A.rgb * inv; let E: vec4f = E0 * inv;
+  let inv: f32 = 1.0 / max(A.a, 0.004); let alb: vec3f = A.rgb * inv; let E: vec4f = E0 * inv;
   let water: f32 = saturate(-E.x); let mirrorLand: f32 = saturate(-E.x - 1.0);
   let lampK: f32 = U.skyP.z; let dark: f32 = U.skyP.z;
   // the light of the hour on it
@@ -258,7 +270,32 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   // the air between
   c = mix(c, vistaHaze(d) + vec3f(0.10, 0.07, 0.05) * (glow * lampK), saturate(E.w) * 0.88);
   let ex: f32 = 1.0 - smoothstep(${f(P.AZ - 0.08)}, ${f(P.AZ)}, abs(a));
-  return mix(sky, c, saturate(A.a) * ex);
+  var res: vec3f = mix(sky, c, saturate(A.a) * ex);
+  // ---- the clouds, over all of it: a sea of low cloud (most of the lowland in 云下之城, a few banks in 金色雪旗), and a belt of it
+  // about the peak's waist. Each two sheets, one a little over the other, so that they have some body
+  let dl: vec2f = vec2f(sin(a), cos(a)); let sl: f32 = tan(clamp(th, -1.4, 1.4));
+  let far0: f32 = mix(1.0e7, -${f(P.haze * P.K)} * log(max(1.0 - saturate(E.w), 0.002)), step(0.5, A.a));      // how far off the land stands on this line of sight
+  let cloudLit: vec3f = U.sunCol.rgb * (0.80 * (1.0 - 0.80 * dark)) + (U.ambSky.rgb * 0.95 + U.twi.rgb * 0.45) + vec3f(0.016, 0.024, 0.060) * (dark * 2.2);
+  let isC: f32 = step(U.world.x, 2.5);
+  for (var i: i32 = 0; i < 4; i++) {
+    let waist: f32 = step(1.5, f32(i)); let up: f32 = f32(i & 1);
+    let hgt: f32 = mix(${f(520 * P.K)}, ${f(2250 * P.K)}, waist) + up * mix(${f(190 * P.K)}, ${f(260 * P.K)}, waist);
+    let dk: vec3f = peakDeck(dl, sl, hgt, mix(mix(0.30, 0.60, isC), 0.52, waist), mix(${f(5200 * P.K)}, ${f(2600 * P.K)}, waist));
+    if (dk.x > 0.002) {
+      let pw: vec2f = dl * dk.z;
+      // (the belt keeps to a ring about the peak; the sea keeps off our own mountain's foot)
+      let rq: vec2f = pw - vec2f(${f(P.PC[0] * P.K)}, ${f(P.PC[1] * P.K)});
+      let ring: f32 = exp(-sq((length(rq) - ${f(5600 * P.K)}) / ${f(1700 * P.K)}));
+      let keep: f32 = mix(smoothstep(${f(6500 * P.K)}, ${f(10000 * P.K)}, dk.z), ring, waist) * step(dk.z, far0 + ${f(500 * P.K)});
+      let body: f32 = 0.50 + 0.50 * dk.y;
+      var cc: vec3f = vec3f(0.97, 0.98, 1.0) * cloudLit * (0.55 + 0.45 * up) * body;
+      // 云下之城: the town under the sea of cloud lights it from inside, most where it is thin
+      cc += vec3f(1.0, 0.58, 0.24) * (glow * lampK * 3.2 * (1.0 - waist) * isC * (1.25 - 0.75 * dk.y));
+      cc = mix(cc, vistaHaze(d), (1.0 - exp(-dk.z / ${f(P.haze * P.K)})) * 0.85);
+      res = mix(res, cc, saturate(dk.x * keep * 1.15) * ex);
+    }
+  }
+  return res;
 }
 `;
 }
