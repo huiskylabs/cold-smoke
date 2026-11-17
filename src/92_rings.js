@@ -434,6 +434,43 @@ const Rings = (() => {
       setTxt('sub', '穿过 ' + RG.passed + (RG.missed ? ' · 漏 ' + RG.missed + ' · 罚时 +' + L.pen + ' 秒' : '') + (cur && cur.fin ? ' · 前方终点' : ''));
     }
   }
+  // ---- 光圈挑战 on the title page (dev; 用户 20:30 UTC: 可玩的版本要把可以玩的路线、选项、菜单都加上): pick a line and its difficulty right where
+  // 出发 is, see the best on this device, then 出发 runs the count-down. 自由滑 = no line (随机光圈 on or off).
+  const PICK = [['off', '自由滑', '不计时，随便滑'], ['a', '速降 · 整圈', '12 站，从山顶到山脚'], ['b', '速降 · 前三站', '3 站，一分钟上下']];
+  function pickUI() {
+    if (RG.pk) return RG.pk;
+    const d = document.createElement('div'); d.id = 'rpick';
+    d.innerHTML = '<style>#rpick{position:fixed;right:24px;bottom:64px;width:min(300px,40vw);z-index:4;background:rgba(10,14,24,.62);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px 14px;color:#fff;font:500 12px/1.4 system-ui,-apple-system,sans-serif;transition:opacity .3s}'
+      + '#rpick h4{margin:0 0 8px;font:600 11px/1 system-ui,sans-serif;letter-spacing:.2em;opacity:.65}#rpick .l{display:flex;flex-direction:column;gap:6px}'
+      + '#rpick button{all:unset;cursor:pointer;box-sizing:border-box;border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:7px 10px;background:rgba(255,255,255,.05)}#rpick button.on{border-color:#e8c787;background:rgba(232,199,135,.14)}'
+      + '#rpick .l button b{display:block;font:600 13px/1.3 system-ui,sans-serif}#rpick .l button i{font-style:normal;opacity:.6;font-size:11px}#rpick .l button em{float:right;font-style:normal;color:#e8c787;font-variant-numeric:tabular-nums}'
+      + '#rpick .r{display:flex;gap:6px;margin-top:8px}#rpick .r button{flex:1;text-align:center;padding:6px 0}#rpick .t{margin-top:8px;opacity:.6;font-size:11px}</style>'
+      + '<h4>光圈挑战</h4><div class="l"></div><div class="r d"></div><div class="r g"></div><div class="t"></div>';
+    document.body.appendChild(d); RG.pk = d;
+    d.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return; e.stopPropagation();
+      if (b.dataset.l) Variants.set('rline', b.dataset.l); else if (b.dataset.d) Variants.set('ringdiff', b.dataset.d); else if (b.dataset.g) Variants.set('rings', b.dataset.g);
+      pickDraw();
+    });
+    return d;
+  }
+  function bestOf(id, df) { try { const k = 'coldsmoke.line.' + id + '.' + df, S = ST(); const r = S ? S.getJSON(k) : JSON.parse(localStorage.getItem(k) || 'null'); return r && r.best ? r.best.score : null; } catch (e) { return null; } }
+  function pickDraw() {
+    const d = pickUI(), cur = Variants.val.rline || 'off', df = diffKey();
+    d.querySelector('.l').innerHTML = PICK.map(([id, n, t]) => { const b = id !== 'off' ? bestOf(id, df) : null; return '<button data-l="' + id + '" class="' + (cur === id ? 'on' : '') + '"><b>' + n + (b != null ? '<em>最好 ' + fmt(b) + '</em>' : '') + '</b><i>' + t + '</i></button>'; }).join('');
+    const dd = d.querySelector('.d'), gg = d.querySelector('.g');
+    dd.style.display = cur === 'off' ? 'none' : ''; gg.style.display = cur === 'off' ? '' : 'none';
+    dd.innerHTML = ['a', 'b', 'c'].map(k => '<button data-d="' + k + '" class="' + (df === k ? 'on' : '') + '">' + DNAME[k] + '</button>').join('');
+    gg.innerHTML = [['off', '不放光圈'], ['on', '随机光圈']].map(([k, n]) => '<button data-g="' + k + '" class="' + (Variants.val.rings === k ? 'on' : '') + '">' + n + '</button>').join('');
+    d.querySelector('.t').textContent = cur === 'off' ? '按出发直接滑' : '漏一个圈罚 ' + PEN[df] + ' 秒 · 按出发后倒数 3、2、1 · 途中 Backspace 重来';
+    RG.pkSig = cur + df + Variants.val.rings;
+  }
+  function pickFrame() {
+    const on = typeof Variants !== 'undefined' && devOn() && typeof Game !== 'undefined' && Game.mode === 'title' && L.st !== 'count' && typeof UI !== 'undefined' && UI.state === 'title' && !UI.open;
+    if (!on) { if (RG.pk) RG.pk.style.display = 'none'; return; }
+    const d = pickUI(); d.style.display = '';
+    if (RG.pkSig !== (Variants.val.rline || 'off') + diffKey() + Variants.val.rings || RG.pkDone !== L.st) { RG.pkDone = L.st; pickDraw(); }
+  }
   RG.line = L; if (typeof window !== 'undefined') window.__rings = RG;          // (for test scripts)
   const GS0 = typeof Game !== 'undefined' ? Game.start : null;
   if (GS0) Game.start = function () { if (L.id && Game.s) { if (L.st !== 'count') lineArm(); return; } return GS0.apply(this, arguments); };
@@ -444,6 +481,7 @@ const Rings = (() => {
     if (e.code === 'Backspace' && typeof UI !== 'undefined' && UI.state === 'run' && !UI.open) { e.preventDefault(); e.stopImmediatePropagation(); lineRestart(); }
   }, true);
   RG.frame = function () {
+    if (typeof document !== 'undefined') try { pickFrame(); } catch (e) { if (!RG.perr) { RG.perr = 1; console.warn('pick:', e); } }
     const lid = typeof Variants !== 'undefined' && devOn() && LINES[Variants.val.rline] ? Variants.val.rline : null;
     if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); }
     const want = typeof Variants !== 'undefined' && (Variants.val.rings === 'on' || !!L.id) && devOn();
