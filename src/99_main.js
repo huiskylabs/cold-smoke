@@ -29,6 +29,7 @@ async function boot(stage) {
   if (Variants.val.bootq !== 'a') gfx.hold = n => BOOT_LATER.test(n);
   Course.forceType = QS.get('seg') || null; Course.classic = QS.has('classic');      // dev: a mountain made of one kind of run; the runs in the order the first mountain had them
   Course.setSeed(DEV ? (seedInHash() || Math.floor(+QS.get('seed')) || Course.seed) : Course.seed);      // outside dev: always the home mountain (寒烟山)
+  if (Metro.on()) Sky.setClock(Sky.times.night);                    // (不夜城 opens at night, and stays there: see the clock below)
   if (QS.get('tod')) { const q = QS.get('tod'); Sky.setClock(q in Sky.times ? Sky.times[q] : +q || 0); }
   await step(0.08, '磨雪');
   makeNoiseTextures(gfx); makeSnowTexture(gfx, Sky.az); Terrain.setSun(Sky.az);
@@ -115,7 +116,7 @@ function tick(dt, draw) {
       st.lampDir = v3.norm([d[0] * ca - n[0] * sa, d[1] * ca - n[1] * sa, d[2] * ca - n[2] * sa]);
     } }
   // the day moves on while you ski (the title page stays in the afternoon)
-  if (Game.mode === 'run' && Sky.rate !== 0) Sky.setClock(Sky.clock + dt * (Sky.rate || 1));
+  if (Game.mode === 'run' && Sky.rate !== 0 && !Metro.on()) Sky.setClock(Sky.clock + dt * (Sky.rate || 1));
   Sky.updatePlane(App.t, dt, cp, Render.cam.fwd);
   Weather.update(dt);                                                   // clear, light or heavy snow: its clouds, wind, sun and lightning (05b_weather.js)
   Feel.update(dt);                                                     // speed in the lens, snow on the glass, the air of this run (reads Game.events: keep above the loop that clears them)

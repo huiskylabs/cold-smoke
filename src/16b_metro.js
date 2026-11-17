@@ -24,17 +24,20 @@ const Metro = (() => {
       textures: {}, colorFormat: 'rgba16f', depth: false, depthTest: false, cull: 'none', vs: CLOUD_RECT_VS, fs: metroBakeFS() });
     M.pipes = [pipe];
   };
-  // once, before the first frame that shows it (in bands, so that no single draw is long)
+  // once, before the first frame that shows it: in narrow bands, ONE a frame, so that no frame carries a long draw (all sixteen wide
+  // bands in a single frame lost the graphics device on a slow machine). The director, which steps frames by hand, takes it whole
+  M.step = 0; M.bands = 32;
   M.update = function () {
     if (M.done || !gfx || !M.on()) return;
-    const N = 8, t0 = performance.now();
-    for (const [tg, mode] of [[tE, 0], [tA, 1]]) {
-      gfx.beginPass(tg, { color: [0, 0, 0, 0] });
-      for (let i = 0; i < N; i++) gfx.draw(pipe, { u: { r: [0, i / N, 1, (i + 1) / N], t: [0, i / N, 1, (i + 1) / N], m: [mode, M.samples, M.W, M.Hh] }, tex: {}, count: 4 });
+    const N = M.bands, whole = typeof QS !== 'undefined' && QS.has('director');
+    do {
+      const k = M.step % N, mode = M.step < N ? 0 : 1;
+      gfx.beginPass(mode ? tA : tE, k === 0 ? { color: [0, 0, 0, 0] } : {});
+      gfx.draw(pipe, { u: { r: [0, k / N, 1, (k + 1) / N], t: [0, k / N, 1, (k + 1) / N], m: [mode, M.samples, M.W, M.Hh] }, tex: {}, count: 4 });
       gfx.endPass();
-    }
-    gfx.genMips(M.E); gfx.genMips(M.A);
-    M.done = true; M.ms = performance.now() - t0;
+      M.step++;
+    } while (whole && M.step < 2 * N);
+    if (M.step >= 2 * N) { gfx.genMips(M.E); gfx.genMips(M.A); M.done = true; }
   };
   Variants.on((n, v, init) => { if (n === 'world' && !init && typeof Clouds !== 'undefined') Clouds.baked = false; });
   return M;
