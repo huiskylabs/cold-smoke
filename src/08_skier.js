@@ -62,11 +62,12 @@ const Skier = (() => {
     const y = v3.norm(ydir); let x = v3.sub(xhint, v3.mul(y, v3.dot(xhint, y))); if (v3.len(x) < 1e-5) x = v3.cross(y, [0, 0, 1]); x = v3.norm(x);
     return m4.fromBasis(x, y, v3.cross(x, y), o);
   }
-  // a fist's frame at the grip: y up the pole, z toward the wrist (square to the pole), x = y cross z (out of the back of a right hand)
-  function fistFrame(g, pd, wr) {
+  // a fist's frame at the grip: y up the pole, z toward the wrist (square to the pole), x = y cross z (out of the back of a right hand; the left
+  // hand's glove is mirrored, so for both x is the body's right when the arms hang easy). With the forearm laid along the pole (a tuck: the shafts
+  // under the arms) "toward the wrist" is lost: there the body's right (rt) takes over, so the backs of the hands stay turned out and never flip
+  function fistFrame(g, pd, wr, rt) {
     const y = v3.norm(v3.mul(pd, -1)), w = v3.sub(wr, g), wz = v3.sub(w, v3.mul(y, v3.dot(w, y)));
-    if (v3.len(wz) < 1e-4) return frameXY(g, y, [1, 0, 0]);
-    return frameXY(g, y, v3.cross(y, v3.norm(wz)));
+    return frameXY(g, y, v3.add(v3.cross(y, wz), v3.mul(rt, 0.025)));
   }
   const fr = (b, x, y, z) => [b.X[0] * x + b.Y[0] * y + b.Z[0] * z, b.X[1] * x + b.Y[1] * y + b.Z[1] * z, b.X[2] * x + b.Y[2] * y + b.Z[2] * z];   // a vector given in a basis
   const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
@@ -426,7 +427,7 @@ const Skier = (() => {
     // (the pole's frame is also the fist's: y up the grip, x out of the back of the hand, z back toward the wrist, the same axes as the first-person
     // glove's hand space (07d_fpv.js), so the glove closed round the grip (Variants 'hand' b) rides on it and opens toward the forearm whichever way
     // the pole swings. The pole itself is round: turning its frame about the shaft changes nothing on it)
-    F[B.poleL] = fistFrame(J.gripL, J.poleDL, J.wristL); F[B.poleR] = fistFrame(J.gripR, J.poleDR, J.wristR);
+    { const rt = [F[B.chest][0], F[B.chest][1], F[B.chest][2]]; F[B.poleL] = fistFrame(J.gripL, J.poleDL, J.wristL, rt); F[B.poleR] = fistFrame(J.gripR, J.poleDR, J.wristR, rt); }
     // (what the stroke did this time: where the tips are held, how far along the hands are, whether a tip has gone out of reach)
     const dp = dpw > 0 && hL.T ? { T: [hL.T, hR.T], u: [hL.u, hR.u], out: dpOut || Math.max(hL.ur, hR.ur) > 1 } : null;
     return { J, F, hb, t1, t2, pb, fbL: fbl, fbR: fbr, caps, c, hinge, up2, dp, hp: [hL.hp, hR.hp], br: ibr };
