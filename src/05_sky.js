@@ -249,7 +249,7 @@ const Sky = (() => {
       sd: [S.disc[0], S.disc[1], S.disc[2], S.isMoon ? 0 : 1], mo: [md[0], md[1], md[2], S.moonVis], hi: [S.sunHi[0], S.sunHi[1], S.sunHi[2], S.night], fr: [S.sunFar[0] * wk, S.sunFar[1] * wk, S.sunFar[2] * wk, strobe + 0.5 * beacon],
       pa: PL.on ? [PL.x - cam[0], PL.z - cam[2], S.hiAlt, 1] : [0, 0, S.hiAlt, 0], pb: [PL.hx, PL.hz, PL.len, PL.v], pc: [PL.cut, S.glare, (Variants.val.moon === 'b' ? 1 : 0) * S.night, 0], cs: [Clouds.sea.f, Clouds.sea.oA, Clouds.sea.oB, 0], ab: S.anti, ns: [NSKY.step(Render.time)[0], NSKY.v[1], 0, 0],
       wa: wx ? wx.wa : [0, 0, 0, 0], wb: wx ? wx.wb : [0, 0, 0, 0], wc: wx ? wx.wc : [0, 0, 0, 0], wd: wx ? wx.wd : [0, 0, 0, 0], we: wx ? wx.we : [0, 0, 0, 0], wf: wx ? wx.wf : [0, 0, 0, 0], wg: wx ? wx.wg : [0, 0, 0, 0] },
-      tex: { tSky: lutTex, tNebA: Nebula.texA, tNebB: Nebula.texB, tDetail: Tex.detail, tFarA: Vista.farA, tFarB: Vista.farB, tCityA: Vista.cityA, tCityB: Vista.cityB, tCitySh: Vista.shTex, tSeaA: Metro.on() && Metro.done ? Metro.E : Clouds.sea.A, tSeaB: Metro.on() && Metro.done ? Metro.A : Clouds.sea.B }, count: 3 });
+      tex: { tSky: lutTex, tNebA: Nebula.texA, tNebB: Nebula.texB, tDetail: Tex.detail, tFarA: Vista.farA, tFarB: Vista.farB, tCityA: Vista.cityA, tCityB: Vista.cityB, tCitySh: Vista.shTex, tSeaA: Metro.on() ? Metro.E : Clouds.sea.A, tSeaB: Metro.on() ? Metro.A : Clouds.sea.B }, count: 3 });
   };
   return S;
 })();
