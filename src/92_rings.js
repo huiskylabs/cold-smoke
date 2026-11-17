@@ -83,7 +83,7 @@ const Rings = (() => {
       // (用户 21:18 UTC: 最后一个圈要跟倒数第二个离得远一点): a ring that would stand within 70 m of the finish is left out, so the finish
       // ring stands on its own, a long straight run in after the last ring
       if (s > sE - 70) {
-        const c = Course.at(sE, pc), r = 6.0; L.fin = true;          // (用户 18:54 UTC: 终点是更大的白圈)
+        const c = Course.at(sE, pc), r = 7.0; L.fin = true;          // (用户 18:54 UTC 终点是更大的圈; 21:33 UTC 不变颜色，还是绿色，更大、更密、动得更明显)
         RG.rings.push({ id: serial++, s: sE, u: 0, x: c.cx, y: floatY(c.cx, sE, r, -1e9), r, tag: '终点', fin: true, air: false, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sE, u: 0 }; return;
       }
     }
@@ -184,7 +184,7 @@ const Rings = (() => {
   }
 
   // ---- the GPU side
-  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, 0], e: [Math.round(9600 * d.sz), Math.round(800 * d.sz), 0, 0] });
+  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, 0], e: [Math.round(9600 * d.sz * (d.r.fin ? 2 : 1)), Math.round(800 * d.sz * (d.r.fin ? 2 : 1)), 0, 0] });
   const ringLive = d => d.grown > 0.3 && d.dis < 1 && d.open > 0.01;
   RG.init = function (g) {
     gfx = g;
@@ -646,10 +646,10 @@ fn dustGrain(i: u32) -> DG {
     // (用户 05:22 UTC: 整个圈要明显是点组成的，中间很密，点都在动、动得快，轻、飘): no solid tube any more. The grains crowd toward the
     // ring's middle line (rad ~ h.y squared), each running along the ring at its own pace one way or the other and jittering fast on its spot
     let rad: f32 = 0.36 * sz * h.y * h.y; let th: f32 = h.z * 6.2831853;
-    let jf: f32 = 3.0 + 4.0 * h2.x;
-    rr = R0 + rad * cos(th) + 0.035 * sz * sin(T * jf + h.x * 40.0);
-    dz = rad * sin(th) + 0.035 * sz * cos(T * jf * 0.83 + h.y * 40.0);
-    let flow: f32 = (0.5 + 1.4 * h2.y) * select(-1.0, 1.0, h2.z > 0.5) / max(R0, 1.0);
+    let fin: f32 = M.d.y; let jf: f32 = (3.0 + 4.0 * h2.x) * (1.0 + 0.6 * fin);          // (the finish ring (用户 21:33 UTC): the same green, but bigger, denser, brighter and livelier)
+    rr = R0 + rad * cos(th) + 0.035 * (1.0 + 1.8 * fin) * sz * sin(T * jf + h.x * 40.0);
+    dz = rad * sin(th) + 0.035 * (1.0 + 1.8 * fin) * sz * cos(T * jf * 0.83 + h.y * 40.0);
+    let flow: f32 = (0.5 + 1.4 * h2.y) * (1.0 + 1.2 * fin) * select(-1.0, 1.0, h2.z > 0.5) / max(R0, 1.0);
     ang = ang + flow * u * L + 0.02 * sin(T * jf * 1.3 + h.z * 40.0);
     let fade: f32 = min(1.0, min(u / 0.12, (1.0 - u) / 0.2));
     let blink: f32 = 0.45 + 0.55 * pow(0.5 + 0.5 * sin(T * (4.0 + 6.0 * h2.x) + h.y * 30.0), 3.0);
@@ -690,7 +690,7 @@ fn dustGrain(i: u32) -> DG {
   }
   let ro: f32 = rr * open;
   g.p = C + vec3f(cos(ang) * ro, sin(ang) * ro + dy, dz);
-  g.b = b * A; g.wsz = wsz; g.minPx = minPx; g.up = up; g.col = mix(col, vec3f(1.0, 0.97, 0.9), M.d.y);
+  g.b = b * A; g.wsz = wsz; g.minPx = minPx; g.up = up; g.col = col;
   return g;
 }
 `;
@@ -702,7 +702,7 @@ fn vert(a: VIn) -> VOut { var v: VOut;
   if (g.b < 0.003) { return v; }
   let q: RQ = ringQuad(corner, g.p, g.p + vec3f(0.0, g.up, 0.0), g.wsz, g.minPx);
   let fog: f32 = 1.0 - fogAmount(g.p);
-  let bright: f32 = g.b * M.b.w * mix(1.0, 1.2, M.d.x) * fog;
+  let bright: f32 = g.b * M.b.w * mix(1.0, 1.2, M.d.x) * (1.0 + 0.7 * M.d.y) * fog;
   v.clip = q.clip; v.uv = q.uv; v.sh = vec4f(q.hl, 0.0, 0.0, 0.0);
   v.col = vec4f(g.col * (bright * sqrt(q.k) * 11.0 * ringE()), mix(0.18, 0.0, M.d.x) * saturate(bright) * sqrt(q.k));
   return v; }
