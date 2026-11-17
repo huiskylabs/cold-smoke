@@ -145,6 +145,7 @@ const UI = (() => {
     // tilt has to be asked for from this tap (iOS shows its own prompt); where it is refused the finger takes over
     let asked = false; if (!XR.active) try { asked = await Promise.race([Input.requestTilt(), new Promise(r => setTimeout(() => r(false), 8000))]); } catch (e) { }
     Input.zeroPending = true; U.keepAwake();
+    if (App.later) await App.later;      // (the shaders held back at start-up: almost always done long before; see boot in 99_main.js)
     launch();
     U.state = 'run'; U.t0 = performance.now(); U.segIdx = -1; U.hintT = 0; U.hintKind = null; U.tiltAsked = asked;
     newRun();
@@ -562,7 +563,7 @@ const UI = (() => {
   // ---- the versions the owner picks between: their own page of the menu, not part of the game. One row for each choice in Variants, in
   // groups (a choice this list does not know yet goes under 新加的), the current version filled, the recommended one marked with a grain of
   // amber. A press switches at once (each module eases its own change); 恢复推荐 puts every choice back to the recommended version
-  const VGROUP = [['画面与音乐（11 月 16 日评审）', ['glint', 'gold', 'tbtn', 'nebday', 'nebnight', 'mlevel', 'tmusic', 'lsnow', 'plume', 'wbal', 'vary']], ['镜头', ['cam', 'wood', 'shots', 'tips', 'fptuck', 'edge', 'chatter', 'buffet']], ['人物与动作', ['body', 'cloth', 'poles', 'motion']],
+  const VGROUP = [['画面与音乐（11 月 16 日评审）', ['glint', 'gold', 'tbtn', 'nebday', 'nebnight', 'mlevel', 'tmusic', 'lsnow', 'plume', 'wbal', 'vary']], ['性能（11 月 17 日）', ['pslice', 'govjs', 'mbtap', 'patchd', 'bootq', 'tcull']], ['镜头', ['cam', 'wood', 'shots', 'tips', 'fptuck', 'edge', 'chatter', 'buffet']], ['人物与动作', ['body', 'cloth', 'poles', 'motion']],
     ['画面', ['ghost', 'hi', 'nspray', 'nsky', 'cu']], ['雪', ['spray', 'curtain', 'sparkle', 'clumps', 'lens', 'pdepth', 'drift']], ['场景与天气', ['tpass', 'tgrain', 'tvar', 'rock', 'moon', 'aurora', 'snow', 'rtree', 'flag', 'sink', 'wind']], ['手感', ['keys']]];
   let vSig = null, wxSig = null;
   const varMod = () => { try { return typeof Variants !== 'undefined' && Variants && Array.isArray(Variants.defs) ? Variants : null; } catch (e) { return null; } };
