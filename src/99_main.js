@@ -28,7 +28,7 @@ async function boot(stage) {
   // (Variants 'bootq' b): the far city's lights, the night sky's bake, animals, gates, crest plumes, light shafts, the first-person body
   if (Variants.val.bootq !== 'a') gfx.hold = n => BOOT_LATER.test(n);
   Course.forceType = QS.get('seg') || null; Course.classic = QS.has('classic');      // dev: a mountain made of one kind of run; the runs in the order the first mountain had them
-  Course.setSeed(DEV ? (seedInHash() || Math.floor(+QS.get('seed')) || Course.seed) : Course.seed);      // outside dev: always the home mountain (寒烟山)
+  Course.setSeed(DEV ? (seedInHash() || Math.floor(+QS.get('seed')) || (Metro.on() ? Metro.seed : Course.seed)) : (Metro.on() ? Metro.seed : Course.seed));      // outside dev: always the home mountain (寒烟山)
   if (Metro.on()) Sky.setClock(Sky.times.night);                    // (不夜城 opens at night, and stays there: see the clock below)
   if (QS.get('tod')) { const q = QS.get('tod'); Sky.setClock(q in Sky.times ? Sky.times[q] : +q || 0); }
   await step(0.08, '磨雪');
