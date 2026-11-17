@@ -317,7 +317,7 @@ fn pkCloudShade(pw: vec2f) -> f32 {
   var k: f32 = smoothstep(0.60, 0.70, cu + 0.10 * (vnoise2(pc / ${f(600 * P.K)}) - 0.5));
   let pd: vec2f = pw + s2 * (${f(520 * P.K)} / te);
   let n: f32 = fbm2(pd / ${f(5200 * P.K)} + vec2f(tm * 0.0040, tm * 0.0015) + vec2f(${f(520 * P.K)} * 0.01, 3.0));
-  k = max(k, smoothstep(0.79, 1.01, n * 1.25) * smoothstep(${f(6500 * P.K)}, ${f(10000 * P.K)}, length(pd)) * (1.0 - smoothstep(0.03, 0.20, U.sunDir.y)));
+  k = max(k, smoothstep(0.79, 1.01, n * 1.25) * smoothstep(${f(6500 * P.K)}, ${f(10000 * P.K)}, length(pd)) * (1.0 - smoothstep(-0.03, 0.05, U.sunDir.y)));
   return k;
 }
 // the land, the cloud and the lake below, over the sky that is already there. kind: 2 云下之城, 3 金色雪旗
@@ -416,7 +416,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     let pd: vec2f = wp + vec2f(sin(a), cos(a)) * (${f(520 * P.K)} / max(tan(elc), 0.01));
     let nd: f32 = fbm2(pd / ${f(5200 * P.K)} + vec2f(U.camPos.w * 0.0040, U.camPos.w * 0.0015) + vec2f(${f(520 * P.K)} * 0.01, 3.0));
     let kd: f32 = smoothstep(0.79, 1.01, nd * 1.25) * smoothstep(${f(6500 * P.K)}, ${f(10000 * P.K)}, length(pd)) * (1.0 - mirrorLand);
-    refl = mix(refl, vec3f(0.97, 0.98, 1.0) * cl0 * 0.62, kd * 0.85 * (1.0 - smoothstep(0.03, 0.20, U.sunDir.y)));
+    refl = mix(refl, vec3f(0.97, 0.98, 1.0) * cl0 * 0.62, kd * 0.85 * (1.0 - smoothstep(-0.03, 0.05, U.sunDir.y)));
   }
   let wcol: vec3f = refl * fres + vec3f(0.004, 0.011, 0.024) * (0.3 + luma(amb));
   // the water's own colour by day (U.world.z: 0 a plain mirror; 1 a glacier lake, milky turquoise from rock flour, as Peyto and the
@@ -443,7 +443,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     // (in the shadow of the peak or of a cloud only the sky's light goes in: the colour stays, darker and bluer)
     let sunIn: f32 = (1.0 - shS) * (1.0 - 0.50 * shC);
     let skyN: vec3f = vec3f(luma(U.ambSky.rgb)) * vec3f(0.92, 1.0, 1.04);
-    let body: vec3f = 1.85 * mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * (0.80 * sunIn) + skyN * 0.95) * (1.0 - 0.34 * wind);
+    let body: vec3f = 2.30 * mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * (0.80 * sunIn) + skyN * 0.95) * (1.0 - 0.34 * wind);
     // what the eye gets from the water is the mirror weighed by Fresnel (a few per cent looking down into it, nearly all of it at a graze)
     // and the light coming up out of the water with the rest. So from a height the colour is the water's own and the mirror lies on it
     // only where what it mirrors is bright, cloud and snow, as at Peyto; far off, at a graze, the lake turns to sky and mountain
@@ -489,7 +489,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     }
   }
   // the air between
-  c = mix(c, vistaHaze(d) + vec3f(0.10, 0.07, 0.05) * (glow * lampK), saturate(E.w) * 0.88 * (1.0 - 0.65 * water * step(2.5, U.world.x) * smoothstep(0.03, 0.34, U.sunDir.y)));
+  c = mix(c, vistaHaze(d) + vec3f(0.10, 0.07, 0.05) * (glow * lampK), saturate(E.w) * 0.88 * (1.0 - 0.85 * water * step(2.5, U.world.x) * smoothstep(0.03, 0.34, U.sunDir.y)));
   let ex: f32 = 1.0 - smoothstep(${f(P.AZ - 0.08)}, ${f(P.AZ)}, abs(a));
   var res: vec3f = mix(sky, c, saturate(A.a) * ex);
   // ---- the clouds, over all of it: a sea of low cloud (most of the lowland in 云下之城, a few banks in 金色雪旗), and a belt of it
@@ -514,7 +514,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
       cc += vec3f(1.0, 0.58, 0.24) * (glow * lampK * 3.2 * (1.0 - waist) * isC * (1.25 - 0.75 * dk.y));
       cc = mix(cc, vistaHaze(d), (1.0 - exp(-dk.z / ${f(P.haze * P.K)})) * 0.85);
       // (金色雪旗 by day: no low sheets. Seen from above against the lake in sunlight they read as sandbars painted on the water)
-      let dayOff: f32 = (1.0 - isC) * smoothstep(0.03, 0.20, U.sunDir.y);
+      let dayOff: f32 = (1.0 - isC) * smoothstep(-0.03, 0.05, U.sunDir.y);
       res = mix(res, cc, saturate(dk.x * keep * 1.15) * ex * (1.0 - dayOff));
     }
   }
