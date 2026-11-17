@@ -266,7 +266,7 @@ const Trees = (() => {
   // (how alike the trees are, the owner's choice 'tvar'. a: as it was: every tree of a kind the same shape and colour, the snow on all much
   // the same. b: no two alike: the needles' colour by stand and by tree, girth, how much snow each carries (see describe). c: as b, and a
   // mixed wood: larches bare for the winter and stone pines stand among the spruce in stands of their own. A change re-places the trees)
-  if (typeof Variants !== 'undefined') Variants.def('tvar', '树的多样', [['a', '现在的'], ['b', '每棵不同'], ['c', '混交林']], 'c');
+  if (typeof Variants !== 'undefined') Variants.def('tvar', '树的多样', [['a', '现在的'], ['b', '每棵不同'], ['c', '混交林'], ['d', '尖塔冷杉林'], ['e', '落叶松金林'], ['f', '雪怪林']], 'c');
   const vary = () => typeof Variants !== 'undefined' && Variants.val.tvar !== 'a';
   // (the owner's choice 'tgrain', 树林闪烁. The hand-overs between a tree's levels of detail, the soft outline of a far tree's card and the
   // see-through window round the skier are all cut with a grain of pixels. a: as it was, a new grain every frame: meant to read as a blend at
@@ -539,6 +539,11 @@ const Trees = (() => {
         if (r5 < smooth(-0.15, 0.35, nl) * 0.75) v = 8;
         else if (v !== 3 && hash2(q, 76) < smooth(-0.05, 0.4, np) * 0.7 * (1 - ridge)) v = 9;
       }
+      // (experiments for the lake world, a wood of one character each. d: a subalpine spire wood, every tree a slender fir loaded with
+      // snow. e: a larch wood, bare warm twigs, a few dark stone pines among them. f: snow monsters, stout pines buried in rime)
+      if (mode === 'd' && v !== 7) v = v === 4 ? 4 : 2;
+      if (mode === 'e' && v !== 7) v = hash2(q, 75) < 0.86 ? 8 : 9;
+      if (mode === 'f' && v !== 7) v = 9;
     }
     // none grew quite straight (and all lean a little down the hill, as the creeping snow has pushed them); on the ridge the wind has had its way
     const la = v === 7 ? 0.32 : r3 * TAU, lk = 0.012 + 0.05 * r4 * r4 + 0.03 * ridge;
@@ -555,6 +560,9 @@ const Trees = (() => {
       out[o + 10] = 0.64 + 0.78 * r1;
       out[o + 11] = clamp(0.62 + 0.60 * vnoise2(x / 55, z / 55, 31) + 0.65 * (r6 - 0.5) + 0.3 * ridge, 0.05, 1.15);
       if (v === 8) out[o + 11] = 0.3 + 0.2 * r6;
+      if (mode === 'd') { out[o + 10] = 0.46 + 0.26 * r1; out[o + 11] = clamp(0.92 + 0.3 * r6, 0.9, 1.15); out[o + 3] = h * (1.05 + 0.25 * r7); }
+      if (mode === 'e' && v === 8) { out[o + 10] = 0.7 + 0.5 * r1; out[o + 3] = h * (1.0 + 0.3 * r7); }
+      if (mode === 'f') { out[o + 10] = 1.18 + 0.26 * r1; out[o + 11] = 1.15; out[o + 3] = h * (0.72 + 0.2 * r7); }
     }
   }
   function chunk(cx, cz) {

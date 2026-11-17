@@ -13,6 +13,8 @@ const Peak = { K: 2.2, H: 3600, AZ: 1.3, t0: -0.30, ta: 0.60, tb: 0.95, ak: 0.42
 // 金色雪旗: how far off the volcano stands and how wide the lake lies before it (the owner: the peak farther, far more water, so that
 // the lake can carry the aurora). Three to choose from; 云下之城 keeps the numbers above
 Variants.def('lake', '湖的大小 (金色雪旗)', [['a', '大湖'], ['b', '更大'], ['c', '一望无际']], 'b');
+Variants.def('wcol', '水的颜色 (金色雪旗)', [['a', '镜面'], ['b', '冰川湖碧绿'], ['c', '九寨翠蓝']], 'b');
+Variants.def('wrip', '水面的风 (金色雪旗)', [['a', '平静'], ['b', '阵风'], ['c', '满湖波纹']], 'b');
 Variants.def('boats', '湖上的船 (金色雪旗)', [['a', '没有'], ['b', '几只'], ['c', '一队']], 'b');
 Peak.sets = {
   a: { PC: [2000, 38000], HP: 9200, PR: 13500, LC: [-600, 15500], LR: [15000, 9000], haze: 70000 },
@@ -298,7 +300,12 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   // (where on the water: so that the wind can lie on it in patches. Where it is calm the mirror is clean; where the wind ruffles it the
   // picture is drawn out into long streaks, dimmer, and the moon breaks up into a path of glints)
   let wx: f32 = ${f(P.H * P.K)} / max(tan(clamp(th, 0.01, 1.4)), 0.01); let wp: vec2f = vec2f(sin(a), cos(a)) * wx;
-  let wind: f32 = smoothstep(0.38, 0.62, fbm2(wp / ${f(2600 * P.K)} + vec2f(U.camPos.w * 0.003, 4.0)));
+  // (U.world.w: how much wind lies on the water, 0 calm .. 1 a breeze over most of it. The gusts are long bands lying across the
+  // line of sight, as cat's paws are seen from a height; they drift)
+  let wk: f32 = U.world.w;
+  let wind: f32 = smoothstep(0.62 - 0.34 * wk, 0.80 - 0.30 * wk, fbm2(vec2f(wp.x / ${f(5200 * P.K)}, wp.y / ${f(1500 * P.K)}) + vec2f(U.camPos.w * 0.004, 4.0 + U.camPos.w * 0.0015))) * (0.35 + 0.65 * wk);
+  // the fine lines of the ripples themselves inside a gust, running with it
+  let fine: f32 = (vnoise2(vec2f(wp.x / 420.0 + U.camPos.w * 0.05, wp.y / 46.0 - U.camPos.w * 0.30)) + 0.5 * vnoise2(vec2f(wp.x / 150.0, wp.y / 19.0 - U.camPos.w * 0.55)) - 0.75) / (1.0 + wx / ${f(5200 * P.K)});
   let near: f32 = 1.0 / (1.0 + wx / ${f(9000 * P.K)});
   let rp: f32 = (vnoise2(vec2f(wp.x / 1400.0, wp.y / 330.0 + U.camPos.w * 0.05)) - 0.5) * near;
   let rp2: f32 = (vnoise2(vec2f(wp.x / 520.0 - U.camPos.w * 0.07, wp.y / 150.0)) - 0.5) * near;
@@ -317,10 +324,22 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     w1 += moonDisc(normalize(dr + vec3f(0.05 * rp2 * rough, 0.03 * rp * rough, 0.0))) * (0.7 + 0.6 * rough);
     ws += w1 / 3.0;
   }
-  ws *= 1.0 - 0.22 * wind;
+  ws *= (1.0 - 0.22 * wind) * (1.0 + 1.1 * fine * wind * wk);
   let fres: f32 = 0.42 + 0.68 * pow(1.0 - saturate(sin(max(th - ${f(P.lift)}, 0.0))), 5.0);
   let wcol: vec3f = mix(ws, mix(alb * lit * 0.85, ws * 0.6 + alb * lit * 0.35, 0.6 * wind * (0.5 + rp)) + lamps, mirrorLand) * fres + vec3f(0.004, 0.011, 0.024) * (0.3 + luma(amb));
-  var c: vec3f = mix(land, wcol, water);
+  // the water's own colour by day (U.world.z: 0 a plain mirror; 1 a glacier lake, milky turquoise from rock flour, as Peyto and the
+  // lakes about Jasper; 2 clear jade and peacock blue in patches, shoals pale, as 九寨沟). Seen from a height the water shows more of
+  // itself than of the sky; a gust darkens it and breaks the mirror
+  var wc2: vec3f = wcol;
+  if (U.world.z > 0.5) {
+    let pat: f32 = fbm2(wp / ${f(3400 * P.K)} + vec2f(7.0, 2.0));
+    let milky: vec3f = mix(vec3f(0.10, 0.56, 0.60), vec3f(0.22, 0.74, 0.72), pat);
+    let jade: vec3f = mix(mix(vec3f(0.02, 0.36, 0.30), vec3f(0.05, 0.50, 0.62), smoothstep(0.35, 0.65, pat)), vec3f(0.42, 0.80, 0.62), smoothstep(0.62, 0.80, fbm2(wp / ${f(1300 * P.K)} + vec2f(1.0, 9.0))) * 0.7);
+    let body: vec3f = mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * (0.55 * (1.0 - dark)) + (U.ambSky.rgb * 0.75 + U.twi.rgb * 0.3) * (1.0 - 0.85 * dark));
+    let own: f32 = mix(0.80, 0.62, step(1.5, U.world.z)) * (1.0 - 0.45 * pow(1.0 - saturate(sin(max(th - ${f(P.lift)}, 0.0))), 5.0));
+    wc2 = wcol * (1.0 - own * (1.0 - dark)) * (1.0 + 0.0) + body * own * (1.0 - 0.30 * wind) * (1.0 + 0.9 * fine * wind * wk);
+  }
+  var c: vec3f = mix(land, wc2, water);
   // 金色雪旗: boats on the lake (U.world.y of them). Far too small to see at their true size, so each is drawn some hundreds of metres
   // long: a dark hull, one pale sail, a lantern at the stern that lies in the water under it as a long trembling streak. They drift.
   if (U.world.y > 0.5 && U.world.x > 2.5 && water > 0.2) {

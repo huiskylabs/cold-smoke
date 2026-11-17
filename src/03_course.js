@@ -58,7 +58,7 @@ if (typeof Variants !== 'undefined') {
   // b: 经典编排, the first lap is a set order of stations (ROUTE below) that alternates 藏 (a winding lane closed in by forest, a deep U
   // gully) and 露 (out onto a crest that looks down the valley at the city in the clouds), then the dealt runs carry on as before.
   // Live for everyone since 2026-11-17 (owner: 合并上线).
-  Variants.def('route', '雪道', [['a', '随机'], ['b', '经典编排']], 'b');
+  Variants.def('route', '雪道', [['a', '随机'], ['b', '经典编排'], ['c', '九曲十八弯'], ['d', '大回环']], 'b');
   // 雪道清障 (owner, 2026-11-17: no trees in the middle of the U gully). The lone groups of trees out on the run were placed knowing nothing of
   // the lines the run is built round, so they stood on the gully's floor, in a jump's run-in and landing and in the mogul field's smooth
   // channel. b keeps those lines clear. a: as it was
@@ -116,7 +116,7 @@ const Course = ((vn1, vn2, h2U) => {
     const tv = typeof Variants !== 'undefined' ? Variants.val : {};
     C.lv = TERR_LV[tv.tdiff] ? tv.tdiff : 'b'; LV = tv.terr === 'b' ? TERR_LV[C.lv] : null; C.rich = !!LV; C.isl = LV ? LV.isl : 1;
     trng = RNG((KEY ^ 0x7e4a11) + 131 * C.lv.charCodeAt(0));
-    C.route = tv.route === 'b'; C.rclear = tv.rclear === 'b';
+    C.route = tv.route === 'b' || tv.route === 'c' || tv.route === 'd'; ROUTE = ROUTES[tv.route] || ROUTES.b; C.ROUTE = ROUTE; C.rclear = tv.rclear === 'b';
     planTo(4000);
     return C.seed;
   };
@@ -137,7 +137,7 @@ const Course = ((vn1, vn2, h2U) => {
   // swings either way in its S bends, rad) and lam (metres from one bend to the next of the same hand); aim (the run turns to face the city);
   // U (the gully as a U with a flat floor and steep walls). After the last station the dealt runs carry on as on any mountain.
   const AIM = 0.14;        // the city in the clouds stands this far (rad) to the right of straight down the mountain (16_vista.js V.cityAz)
-  const ROUTE = [
+  const ROUTE_B = [
     { type: 'bowl' },                                            // 起点：开阔大坡，看得见云海和城（露），标题页也在这里
     { type: 'corridor', sec: 26, wind: 0.5, lam: 240 },          // 入林：窄道、S 弯、高树贴着道边（藏）
     { type: 'steeps', aim: 1 },                                  // 出林：坡顶一翻，整条山谷和城一下子都在眼前（露）
@@ -151,6 +151,40 @@ const Course = ((vn1, vn2, h2U) => {
     { type: 'rollers', enc: 0.3, wind: 0.2, lam: 300 },          // 林间起伏：每个坡顶一藏一露
     { type: 'steeps', enc: 0.6, wind: 0.32, lam: 300 },          // 收尾：林中陡槽，窄、急、看不远（藏），出去就是下一圈的开阔
   ];
+  // 九曲十八弯 (owner, 2026-11-17: the lake mountain's run must be nothing like 冷烟山's straight one): the run never goes straight. Lane after
+  // lane of tight S bends through the forest (藏), each let out onto a short open terrace that looks down on the lake (露), then in again
+  const ROUTE_C = [
+    { type: 'bowl', wind: 0.45, lam: 420 },                      // 起点：开阔坡，已经在摆
+    { type: 'corridor', sec: 30, wind: 0.80, lam: 260 },         // 第一段林道：连续 S 弯
+    { type: 'gully', U: 1, wind: 0.70, lam: 300, sec: 34 },      // 弯曲的 U 型雪槽
+    { type: 'ridge', aim: 1 },                                   // 观景台：正对湖和雪山（露）
+    { type: 'corridor', sec: 28, wind: 0.85, lam: 210 },         // 最急的一段：发卡弯一个接一个
+    { type: 'rollers', enc: 0.3, wind: 0.60, lam: 340 },         // 起伏的弯道
+    { type: 'glade', enc: 0.45, wind: 0.70, lam: 280 },          // 林间穿行
+    { type: 'powder', aim: 1 },                                  // 粉雪大坡：第二次看湖（露）
+    { type: 'corridor', sec: 30, wind: 0.80, lam: 240 },         // 第三段林道
+    { type: 'steeps', enc: 0.6, wind: 0.55, lam: 320 },          // 陡弯
+    { type: 'gully', U: 1, wind: 0.75, lam: 260, sec: 30 },      // 收尾：盘旋的雪槽
+    { type: 'kickers' },                                         // 出槽的跳台
+  ];
+  // 大回环: the opposite way of not being straight. Few bends, but each a great slow arc hundreds of metres long across open slopes, the
+  // lake swinging from one side of the picture to the other as the run turns
+  const ROUTE_D = [
+    { type: 'bowl', wind: 0.60, lam: 700 },
+    { type: 'powder', wind: 0.80, lam: 760, sec: 40 },
+    { type: 'rollers', wind: 0.80, lam: 640, sec: 36 },
+    { type: 'ridge', aim: 1 },
+    { type: 'steeps', wind: 0.70, lam: 600 },
+    { type: 'corridor', sec: 30, wind: 0.85, lam: 520 },
+    { type: 'bowl', wind: 0.85, lam: 800, sec: 40 },
+    { type: 'kickers' },
+    { type: 'gully', U: 1, wind: 0.80, lam: 560, sec: 36 },
+    { type: 'powder', aim: 1 },
+    { type: 'moguls', wind: 0.5, lam: 600 },
+    { type: 'steeps', enc: 0.5, wind: 0.75, lam: 560 },
+  ];
+  const ROUTES = { b: ROUTE_B, c: ROUTE_C, d: ROUTE_D };
+  let ROUTE = ROUTE_B;
   C.ROUTE = ROUTE;
   function routeType() { const st = ROUTE[C.segs.length]; dealt.push(st.type); hand = []; return st.type; }
   // which way the run heads at s (rad off straight down the mountain, + toward +x), for the designed mountain: a slow wander of its own, and on
