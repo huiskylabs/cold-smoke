@@ -47,7 +47,7 @@ const Sky = (() => {
         o.color = vec4f(c, 1.0); return o; }`,
     });
     pipeSky = gfx.pipeline({
-      name: 'sky', lib: [SL.common, SL.hash, SL.noise, SL.fog, NEBULA_SSL, vistaSSL(), metroSSL(), CLOUDSEA_SSL, CIRRUS_SSL, NIGHT_SSL, AURORA_SSL, CONTRAIL_SSL, ANTISOLAR_SSL, weatherSkySSL()], buffers: [], varyings: { uv: 'vec2f' },
+      name: 'sky', lib: [SL.common, SL.hash, SL.noise, SL.fog, NEBULA_SSL, vistaSSL(), metroSSL(), CLOUDSEA_SSL, CIRRUS_SSL, NIGHT_SSL, AURORA_SSL, peakSSL(), CONTRAIL_SSL, ANTISOLAR_SSL, weatherSkySSL()], buffers: [], varyings: { uv: 'vec2f' },
       uniforms: { au: 'vec4f', p: 'vec4f', nr: 'vec4f', nu: 'vec4f', nf: 'vec4f', sd: 'vec4f', mo: 'vec4f', hi: 'vec4f', fr: 'vec4f', pa: 'vec4f', pb: 'vec4f', pc: 'vec4f', cs: 'vec4f', ab: 'vec4f', ns: 'vec4f',
         wa: 'vec4f', wb: 'vec4f', wc: 'vec4f', wd: 'vec4f', we: 'vec4f', wf: 'vec4f', wg: 'vec4f' },
       textures: { tSky: '2d', tNebA: '2d', tNebB: '2d', tDetail: '2d', tFarA: '2d', tFarB: '2d', tCityA: '2d', tCityB: '2d', tCitySh: '2d', tSeaA: '2d', tSeaB: '2d' }, depthFunc: 'lequal', depthWrite: false, cull: 'none',
@@ -90,8 +90,9 @@ const Sky = (() => {
         col = overcast(d, mu, col);
         // beyond the mountain, nearest last: ranges on the horizon, the cloud deck, the city standing in it
         if (U.world.x < 0.5) { col = farRanges(d, col); }
-        if (U.world.x > 0.5) { col += metroDome(d); col = metroPlain(d, mu, col); }   // (不夜城: 16b_metro.js)
-        else { col = mix(col, cloudSea(d, mu, col), smoothstep(0.0, -0.006, d.y)); }
+        if (U.world.x > 1.5) { col = peakPlain(d, mu, col); }                         // (云下之城, 金色雪旗: 16c_peak.js)
+        if (U.world.x > 0.5 && U.world.x < 1.5) { col += metroDome(d); col = metroPlain(d, mu, col); }   // (不夜城: 16b_metro.js)
+        if (U.world.x < 0.5) { col = mix(col, cloudSea(d, mu, col), smoothstep(0.0, -0.006, d.y)); }
         if (U.world.x < 0.5) { let cb: vec3f = col; col = mix(cityLayer(d, col), cb, M.wf.w); }      // (behind heavy snow only a shape of it: 05b_weather.js)
         // ...and nearer than all of it, a bolt of lightning
         col += bolt(d);
@@ -240,10 +241,11 @@ const Sky = (() => {
   S.nebShow = function () { return S.show() === 'nebula' ? 1 : 1 - S.nebNightK; };
   // the aurora's strength breathes slowly; the curtain drifts along the sky and its rays shimmer. How bright it is at all is S.auroraK
   S.aurora = function (t) {
-    if (S.show() !== 'aurora') return 0;
+    const lake = typeof Metro !== 'undefined' && Metro.kind() === 'd';      // (金色雪旗: the aurora is always out over the lake)
+    if (S.show() !== 'aurora' && !lake) return 0;
     const n = (x) => { const i = Math.floor(x), f = x - i, h = (k) => { const q = Math.sin(k * 127.1 + 311.7) * 43758.5453; return q - Math.floor(q); }; return lerp(h(i), h(i + 1), f * f * (3 - 2 * f)); };
     const breathe = 0.7 + 0.3 * n(t / 23) + 0.15 * Math.sin(t * 0.21);
-    return S.auroraK * breathe;
+    return (lake ? Math.max(S.auroraK, 0.7) : S.auroraK) * breathe;
   };
   S.draw = function () {
     Vista.updateShadow(); const b = Nebula.basis(), md = S.moonDir(), cam = Render.cam.pos;
