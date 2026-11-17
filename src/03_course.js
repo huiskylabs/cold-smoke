@@ -782,7 +782,7 @@ const Course = ((vn1, vn2, h2U) => {
       // tree line: bare snow and rock higher up the walls. (金色雪旗: a Rockies valley, where the spruce climbs far up the walls, thinning
       // to a ragged line high above the run, so the walls are wooded as far as the eye goes, not bare a few hundred metres off)
       const wD = typeof Metro !== 'undefined' && Metro.kind() === 'd';
-      d *= 1 - smooth(wD ? 1100 : 260, wD ? 2200 : 620, e * SH[u > 0 ? 1 : 0].kx + (wD ? 260 : 120) * vnoise2(x / 300, z / 300, 22));
+      d *= 1 - smooth(wD ? 1600 : 260, wD ? 3200 : 620, e * SH[u > 0 ? 1 : 0].kx + (wD ? 260 : 120) * vnoise2(x / 300, z / 300, 22));
       d *= 1 - c.ridge * smooth(0, 30, e);
     }
     // (经典编排) a lane through the forest: the trees stand close at its edges, a wall of trunks either side, deep and unbroken (enc)
@@ -838,7 +838,7 @@ const Course = ((vn1, vn2, h2U) => {
     if ((h1 & 0xffff) / 65536 > d * 0.9) return out;
     const r2 = ((h1 >>> 16) & 0xff) / 255, r3 = (h1 >>> 24) / 255;
     // (old, tall forest along a lane: enc)
-    out.ok = true; out.x = x; out.z = z; out.h = (6.5 + 9.5 * r2 * r2 + 2.5 * r3) * (1 - 0.6 * _ridge) * (1 + 0.4 * _enc); out.r = out.h * 0.17; out.variant = (h0 >>> 5) % 5; out.rot = r3 * TAU; out.seed = h1;
+    out.ok = true; out.x = x; out.z = z; out.h = (6.5 + 9.5 * r2 * r2 + 2.5 * r3) * (1 - 0.6 * _ridge) * (1 + 0.4 * _enc) * ((typeof Metro !== 'undefined' && Metro.kind() === 'd') ? 1.7 : 1);   // (金色雪旗: old Rockies spruce, 15-30 m) out.r = out.h * 0.17; out.variant = (h0 >>> 5) % 5; out.rot = r3 * TAU; out.seed = h1;
     return out;
   };
   // closest-trunk query for collisions / AO (checks the 3x3 neighbourhood)
