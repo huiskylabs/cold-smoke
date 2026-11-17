@@ -234,10 +234,14 @@ const Rings = (() => {
   // Like a sequence photo of a skier: from a few metres before a ring until just after it, every 0.5 m the skier leaves a see-through copy of
   // himself (his pose at that moment), which fades in about half a second. Only the body, never the camera or the time: the game runs on as is.
   if (typeof Variants !== 'undefined') Variants.def('rtrail', '穿圈拖影', [['off', '关'], ['a', '残影·白'], ['b', '残影·光圈色']], 'off');
-  const TR = { list: [], last: null, now: 0, done: 0, passT: null, STEP: 0.5, LIFE: 0.55, BEFORE: 7, AFTER: 0.4 };
+  const TR = { list: [], last: null, now: 0, done: 0, passT: null, STEP: 0.5, LIFE: 0.8, REACH: 3.2, BEFORE: 7, AFTER: 0.4 };
   function trail() {
     const mode = typeof Variants !== 'undefined' ? Variants.val.rtrail : 'off', T = Game.runT || 0;          // (game time: a pause or a test stepping frame by frame keeps them as they were)
-    TR.list = TR.list.filter(g => T - g.t < TR.LIFE && T >= g.t); TR.now = T;
+    // (Mac 截图 19:00 UTC: at 90 km/h half a second of copies reached back past the camera and filled the screen with huge ghosts): the copies
+    // are kept only while they are within REACH metres of the skier, so the chase camera always looks at them from behind, never through them
+    const P0 = Game.s ? Game.s.p : [0, 0, 0];
+    for (const g of TR.list) g.d = Math.hypot(g.w[0] - P0[0], g.w[1] - P0[1], g.w[2] - P0[2]);
+    TR.list = TR.list.filter(g => T - g.t < TR.LIFE && T >= g.t && g.d < TR.REACH); TR.now = T;
     if (!mode || mode === 'off' || typeof Skier === 'undefined' || !Skier.ghostSnap) { TR.list.length = 0; TR.last = null; return; }
     const S = Game.s, s = -S.p[2], done = RG.passed + RG.missed;
     if (done !== TR.done) { TR.done = done; TR.passT = T; }
@@ -247,7 +251,7 @@ const Rings = (() => {
     const p = [S.p[0], S.p[1], S.p[2]];
     if (TR.last && Math.hypot(p[0] - TR.last[0], p[1] - TR.last[1], p[2] - TR.last[2]) < TR.STEP) return;
     TR.last = p;
-    const g = Skier.ghostSnap(Render.origin, T); if (!g) return;
+    const g = Skier.ghostSnap(Render.origin, T); if (!g) return; g.w = p; g.d = 0;
     TR.list.push(g); while (TR.list.length > 15) TR.list.shift();          // (the bone copies are a ring of 16: never draw one already written over)
   }
   RG.ghosts = () => TR.list.length;          // (for test scripts)
@@ -255,9 +259,9 @@ const Rings = (() => {
     if (!TR.list.length || !RG.on || typeof Game === 'undefined' || !Game.s || !Skier.drawGhosts) return;
     const o = Render.origin, mode = Variants.val.rtrail, n = TR.list.length, out = [];
     for (let i = 0; i < n - 1; i++) {          // oldest first; the newest one sits in the skier, left out
-      const g = TR.list[i], age = cl((TR.now - g.t) / TR.LIFE, 0, 1), a = Math.pow(1 - age, 1.5) * 0.5;
+      const g = TR.list[i], age = cl((TR.now - g.t) / TR.LIFE, 0, 1), far = cl(g.d / TR.REACH, 0, 1), a = Math.pow(1 - far, 1.3) * Math.pow(1 - age, 1.5) * 0.55;
       if (a < 0.01) continue;
-      const q = mode === 'b' ? [0.25 + 0.4 * age, 1.0 - 0.6 * age, 0.7 + 0.3 * age, 0.85] : [0.85, 0.93, 1.0, 0.8];
+      const q = mode === 'b' ? [0.25 + 0.4 * far, 1.0 - 0.6 * far, 0.7 + 0.3 * far, 0.85] : [0.85, 0.93, 1.0, 0.8];
       out.push({ tex: g.tex, p: [g.o[0] - o[0], g.o[1] - o[1], g.o[2] - o[2], a], q });
     }
     Skier.drawGhosts(out);

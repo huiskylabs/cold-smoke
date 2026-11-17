@@ -938,7 +938,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
       fs: `fn frag(v: VOut) -> FOut { var o: FOut;
   let vd: vec3f = normalize(U.camPos.xyz - v.wp); let nd: f32 = abs(dot(normalize(v.nrm), vd));
   let rim: f32 = pow(1.0 - nd, 2.0);
-  let a: f32 = M.p.w * (0.18 + 0.82 * rim);
+  let a: f32 = M.p.w * (0.08 + 0.92 * rim);
   let e: f32 = 1.0 / max(U.ambSky.w, 1e-4);
   o.color = vec4f(M.q.rgb * e * M.q.w * a, a); return o; }`,
     });
