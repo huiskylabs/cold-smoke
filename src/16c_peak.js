@@ -195,9 +195,11 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   let pq: vec2f = p / PK; let lqW: vec2f = (pq - vec2f(${f(P.LC[0])}, ${f(P.LC[1])})) / vec2f(${f(P.LR[0])}, ${f(P.LR[1])});
   let ellW: f32 = length(lqW) + 0.30 * (pN(pq / 3600.0 + vec2f(1.0, 5.0)) - 0.5) + 0.34 * (pN(pq / 8500.0 + vec2f(4.0, 2.0)) - 0.5) + 0.09 * (pN(pq / 1300.0 + vec2f(7.0, 3.0)) - 0.5);
   let shoreW: f32 = (1.0 - smoothstep(1.10, 1.30, ellW + 0.08 * (pN(pq / 700.0 + vec2f(2.0, 8.0)) - 0.5))) * (1.0 - smoothstep(700.0, 1100.0, tH)) * smoothstep(0.22, 0.45, N.y) * step(2.0, tH);
-  alb = mix(alb, vec3f(0.06, 0.10, 0.08) * (0.75 + 0.5 * dn), shoreW * 0.85);`}
+`}
   alb = mix(alb, vec3f(0.19, 0.17, 0.17) * (0.6 + 0.5 * dn + 0.5 * vnoise2(vec2f(tH / 45.0, dot(p, vec2f(0.0007, 0.0004))))), max(max(rock, bare * 0.9), band * 0.6) * 0.92);
-  alb = mix(alb, vec3f(0.96, 0.97, 1.0) * (0.84 + 0.16 * pN(p / 300.0)), cl);
+${isC ? '' : `  // (over the rock too: spruce clings to the steep lake shore, as round Peyto)
+  alb = mix(alb, vec3f(0.06, 0.10, 0.08) * (0.75 + 0.5 * dn), shoreW * 0.85 * (1.0 - bare));
+`}  alb = mix(alb, vec3f(0.96, 0.97, 1.0) * (0.84 + 0.16 * pN(p / 300.0)), cl);
   return vec4f(alb, 1.0);
 }
 fn pScene(az: f32, th: f32, mode: f32, dAz: f32, dTh: f32) -> vec4f {
