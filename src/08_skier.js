@@ -167,6 +167,7 @@ const Skier = (() => {
     if (L && L.w > 0) {
       const am = v3.lerp(J.ankleL, J.ankleR, 0.5), lp = v3.add(am, v3.mul(L.pel, LabMo.LEG));
       lp[1] += -0.38 * (c - L.cref) - 0.06 * faF - 0.085 * faA + (liftL + liftR) * 0.5; lp[2] += -(p.fore || 0) * 0.06 - 0.16 * faF + 0.13 * faA;
+      lp[1] += (pel[1] - lp[1]) * sat(p.drive || 0);      // (through a jump's drive the hips stand up with the game's legs, see the game's pose.drive)
       pel = v3.lerp(pel, lp, L.w); pb = LabMo.mixB(pb, L.pb, L.w);
       for (let it = 0; it < 3; it++) {
         hipL = v3.add(v3.mad(pel, pb.X, -LEN.hipW), v3.mul(pb.Y, -LEN.hipD)); hipR = v3.add(v3.mad(pel, pb.X, LEN.hipW), v3.mul(pb.Y, -LEN.hipD));

@@ -307,9 +307,11 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 1.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 1.5px)); }
 #jump.down::before { opacity: 1; }
 /* (at a keyboard there is no button to ring: while the jump key is held the same ring stands at the foot of the picture, under the skier. Variants 'kring') */
-#chg { position: absolute; left: 50%; bottom: calc(var(--gb, 0px) + 9%); width: 46px; height: 46px; margin-left: -23px; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity .2s ease;
-  background: conic-gradient(var(--sun) calc(var(--k, 0) * 1turn), rgba(244, 247, 251, .22) 0);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 2.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #000 calc(100% - 2.5px)); }
+#chg { position: absolute; left: 50%; bottom: calc(var(--gb, 0px) + 11%); width: 64px; height: 64px; margin-left: -32px; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity .12s ease;
+  background: rgba(5, 8, 13, .42); box-shadow: 0 2px 14px rgba(5, 8, 13, .35); }
+/* (on bright snow a pale ring on a pale ground was not seen at all: the ring sits on a dark disc, thick, its track still visible when empty) */
+#chg::before { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: conic-gradient(var(--sun) calc(var(--k, 0) * 1turn), rgba(244, 247, 251, .3) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px)); }
 #app.desk #chg.on { opacity: 1; } #app:not(.desk) #chg { display: none; }
 #app.desk #pad { display: none; }
 /* (under the open sheet of switches the two buttons step aside) */
