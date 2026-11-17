@@ -6,7 +6,7 @@ const { chromium } = require('playwright'), path = require('path'), fs = require
 const [extra = '', RATE = '1', NF = '1800', W = '640', H = '360'] = process.argv.slice(2);
 (async () => {
   const t0 = Date.now(), log = (...a) => console.error(...a);
-  const browser = await chromium.launch({ args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader', '--enable-features=Vulkan', '--enable-precise-memory-info', '--js-flags=--expose-gc'] });
+  const browser = await chromium.launch({ args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader', '--enable-features=Vulkan', '--enable-precise-memory-info', '--js-flags=--expose-gc'], channel: process.env.CHANNEL || undefined });
   const page = await browser.newPage({ viewport: { width: +W, height: +H }, deviceScaleFactor: 1 });
   page.on('pageerror', e => log('pageerror:', e.message));
   const cdp = await page.context().newCDPSession(page);

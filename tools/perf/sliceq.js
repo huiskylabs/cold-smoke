@@ -4,7 +4,7 @@
 const { chromium } = require('playwright'), path = require('path');
 const [NF = '1800', RATE = '1'] = process.argv.slice(2);
 (async () => {
-  const browser = await chromium.launch({ args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader', '--enable-features=Vulkan'] });
+  const browser = await chromium.launch({ args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader', '--enable-features=Vulkan'], channel: process.env.CHANNEL || undefined });
   const page = await browser.newPage({ viewport: { width: 640, height: 360 }, deviceScaleFactor: 1 });
   page.on('pageerror', e => console.error('pageerror:', e.message));
   await page.goto('file://' + path.resolve(__dirname, process.env.PAGE || 'tmp/dev-perf.html') + '?dev&manual&w=640&h=360&gov=0&backend=webgl2' + (process.env.Q ? '&' + process.env.Q : ''));

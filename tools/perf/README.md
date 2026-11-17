@@ -2,7 +2,7 @@
 
 这些脚本不改 `src/`，也不改 `dist/`：它们把一个测量钩子（`hook.js`）拼进 `dist/dev.html` 的副本，然后用无头浏览器去量。产物都在 `tools/perf/tmp/`（已忽略，不进仓库）。
 
-需要 Node 18+ 和 [Playwright](https://playwright.dev)（`npm i -D playwright`，或者用 `NODE_PATH` 指到别处装好的）。
+需要 Node 18+ 和 [Playwright](https://playwright.dev)（`npm i -D playwright`，或者用 `NODE_PATH` 指到别处装好的）。Playwright 自带的浏览器没装时，所有脚本都可以加 `CHANNEL=chrome` 改用系统里的 Chrome。
 
 ## 先生成带钩子的页面
 

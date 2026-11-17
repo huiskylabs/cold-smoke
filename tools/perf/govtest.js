@@ -10,7 +10,7 @@ const CASES = [
   ['显卡很慢，脚本也不快（每帧 50 ms，脚本 18 ms）', i => [50, 18]],
 ];
 (async () => {
-  const browser = await chromium.launch({ args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader', '--enable-features=Vulkan'] });
+  const browser = await chromium.launch({ args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader', '--enable-features=Vulkan'], channel: process.env.CHANNEL || undefined });
   console.log('# 调速器逻辑测试：60 秒后的清晰度和档位（清晰度 1 = 不缩；档位 0 高 / 1 均衡 / 2 流畅）');
   for (const q of ['v-govjs=a', '']) {
     console.log(q ? '原来的算法（v-govjs=a）' : '新算法（默认）');

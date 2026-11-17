@@ -4,7 +4,7 @@
 const { chromium } = require('playwright'), fs = require('fs');
 (async () => {
   const [a, b, out, cx, cy, cw, ch] = process.argv.slice(2);
-  const br = await chromium.launch(); const p = await br.newPage();
+  const br = await chromium.launch({ channel: process.env.CHANNEL || undefined }); const p = await br.newPage();
   const A = 'data:image/png;base64,' + fs.readFileSync(a).toString('base64'), B = 'data:image/png;base64,' + fs.readFileSync(b).toString('base64');
   const r = await p.evaluate(async ([A, B, R]) => {
     const ld = s => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = s; });

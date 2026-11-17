@@ -5,7 +5,7 @@ const { chromium } = require('playwright'), path = require('path');
 const [extra = '', simS = '12', W = '640', H = '360'] = process.argv.slice(2);
 (async () => {
   const t0 = Date.now(), log = (...a) => console.error(...a);
-  const browser = await chromium.launch({ args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader', '--enable-features=Vulkan', '--enable-precise-memory-info', '--js-flags=--expose-gc'] });
+  const browser = await chromium.launch({ args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader', '--enable-features=Vulkan', '--enable-precise-memory-info', '--js-flags=--expose-gc'], channel: process.env.CHANNEL || undefined });
   // 环境变量 PHONE=1：模拟手机横屏（触屏、无悬停、设备像素比 3），不强制画布尺寸，让游戏自己按画质档决定画多大
   const PHONE = !!process.env.PHONE;
   const page = await browser.newPage(PHONE ? { viewport: { width: +W, height: +H }, deviceScaleFactor: +(process.env.DPR || 3), isMobile: true, hasTouch: true } : { viewport: { width: +W, height: +H }, deviceScaleFactor: 1 });
