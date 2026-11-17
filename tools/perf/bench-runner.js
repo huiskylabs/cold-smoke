@@ -28,7 +28,7 @@
   copy.onclick = async () => { out.select(); let ok = false; try { await navigator.clipboard.writeText(out.value); ok = true; } catch (e) { try { ok = document.execCommand('copy'); } catch (x) { } } copy.textContent = ok ? '已复制' : '复制失败，请长按文本框全选复制'; };
 
   async function run() {
-    btn.disabled = true; btn.style.opacity = .4; const R = { v: 2, when: new Date().toISOString() }, L = [];
+    btn.disabled = true; btn.style.opacity = .4; const R = window.__benchR = { v: 3, when: new Date().toISOString() }, L = [];
     try {
       // ---------- 环境
       R.ua = navigator.userAgent; R.dpr = devicePixelRatio; R.screen = [screen.width, screen.height]; R.inner = [innerWidth, innerHeight];
@@ -40,7 +40,11 @@
       const I = window.__int, P = window.__perf, st = [];
       I.QS.delete('manual');           // 让开机像正式版那样每个阶段让出一帧（否则整个开机是一个长任务，手机浏览器可能判定页面无响应）；各阶段因此多出约 20 ms 的等待
       const t0 = performance.now();
+      // 每个模块的 init 各花了多久（开机某一段特别慢时，看是哪个模块），以及它建了几条管线
+      const inits = []; for (const k of Object.keys(I)) { const m = I[k]; if (!m || typeof m.init !== 'function' || m.init.__t) continue; const f = m.init;
+        m.init = function () { const a = performance.now(), n0 = P.pipes.length; try { return f.apply(this, arguments); } finally { inits.push([k, performance.now() - a, P.pipes.length - n0]); } }; m.init.__t = 1; }
       await I.boot((f, name) => { if (name) st.push([name, performance.now() - t0]); });
+      R.inits = inits.filter(x => x[1] >= 5).sort((x, y) => y[1] - x[1]).map(x => [x[0], Math.round(x[1]), x[2]]);
       const total = performance.now() - t0; R.boot = { total: Math.round(total), stages: st.map((s, i) => [s[0], Math.round((i + 1 < st.length ? st[i + 1][1] : total) - s[1])]) };
       const gl = P.gl, g = P.gfx, dbg = gl.getExtension('WEBGL_debug_renderer_info');
       R.caps = { backend: g.caps.backend, hdr: g.caps.hdr, r32fTarget: g.caps.r32fTarget, maxTex: g.caps.maxTex, renderer: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : '?', timerExt: !!gl.getExtension('EXT_disjoint_timer_query_webgl2'), parallelCompile: !!gl.getExtension('KHR_parallel_shader_compile'), aniso: !!gl.getExtension('EXT_texture_filter_anisotropic'), maxTexUnits: gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS), maxVertTexUnits: gl.getParameter(gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS) };
@@ -92,13 +96,14 @@
       box.style.background = 'rgba(10,14,20,.86)';
     } catch (e) { R.error = String(e && e.message ? e.message : e).slice(0, 2000); }
     // ---------- 结果
-    L.push('=== 雪迹性能测量 v2 ' + R.when + ' ===');
+    L.push('=== 雪迹性能测量 v3 ' + R.when + ' ===');
     L.push('浏览器: ' + R.ua); L.push(`屏幕 ${R.screen} 窗口 ${R.inner} 像素比 ${R.dpr} 内存 ${R.mem} GB 核 ${R.cores}`);
     L.push('WebGPU: ' + (R.webgpu ? '有（' + R.gpuAdapter + '）' : '没有'));
     if (R.caps) { L.push('显卡: ' + R.caps.renderer); L.push(`WebGL2 能力: 浮点渲染目标 ${R.caps.hdr ? '有' : '没有'}，GPU 计时 ${R.caps.timerExt ? '有' : '没有'}，并行编译 ${R.caps.parallelCompile ? '有' : '没有'}，各向异性 ${R.caps.aniso ? '有' : '没有'}，最大贴图 ${R.caps.maxTex}，贴图单元 ${R.caps.maxTexUnits}/顶点 ${R.caps.maxVertTexUnits}`); }
     if (R.quality) L.push(`画质档 ${R.quality.tier}（${R.quality.why}）画布 ${R.size0 ? R.size0.join('×') : '?'} 阴影 ${R.shadow}；显存: 贴图 ${R.memGpu.texMiB} MiB + 缓冲 ${R.memGpu.bufMiB} MiB；管线 ${R.pipes} 条，编译 ${R.compileMs} ms`);
     if (R.sw) L.push('优化开关（b = 新做法，a = 旧做法）: ' + SW.map(n => n + '=' + R.sw[n]).join(' '));
     if (R.boot) L.push(`A 开机 ${R.boot.total} ms: ` + R.boot.stages.map(s => s[0] + ' ' + s[1]).join(' | '));
+    if (R.inits && R.inits.length) L.push('   各模块 init（ms，括号里是建的管线数）: ' + R.inits.map(x => x[0] + ' ' + x[1] + '（' + x[2] + '）').join(' | '));
     if (R.js) L.push(`B 每帧 JS（${R.js.n} 帧）: 中位 ${R.js.p50} p95 ${R.js.p95} p99 ${R.js.p99} 最大 ${R.js.max} 平均 ${R.js.mean} ms；>8ms ${R.js.over8} 帧，>16.7ms ${R.js.over16} 帧，>33ms ${R.js.over33} 帧；有地形滚动的帧 ${R.js.terrainFrames} 个（中位 ${R.js.terrainFrameMed} ms），没有的中位 ${R.js.plainFrameMed} ms`);
     for (const K of R.knock || []) { L.push(`C 关一项看整帧 ${K.w}×${K.h}: 基准 ${K.base} ms`); for (const r of K.rows.slice(1)) L.push('   ' + String(r[1]).padStart(7) + ' ms  少 ' + String(r[2]).padStart(6) + '  ' + (K.base > 0 ? (100 * r[2] / K.base).toFixed(0) : '?').padStart(3) + '%  ' + r[0]); }
     if (R.knock && R.knock.length === 2) { const a = R.knock[0], b = R.knock[1], mp = (a.w * a.h - b.w * b.h) / 1e6, per = (a.base - b.base) / mp, fix = a.base - per * a.w * a.h / 1e6; L.push(`   拟合: 整帧 ≈ ${f2(fix)} ms 固定 + ${f2(per)} ms × 百万像素`); }
