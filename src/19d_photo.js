@@ -32,7 +32,8 @@ const Photo = self.Photo = (() => {
   function keepIn(p) {
     const s = Game.root.pos, dx = p[0] - s[0], dy = p[1] - s[1], dz = p[2] - s[2], d = Math.hypot(dx, dy, dz);
     if (d > REACH) { const k = REACH / d; p[0] = s[0] + dx * k; p[1] = s[1] + dy * k; p[2] = s[2] + dz * k; }
-    const h = Course.height(p[0], p[2], 0.5) + GROUND; if (p[1] < h) p[1] = h;
+    // (the snow round the lens, not only under it: 0.3 m over a 40-degree slope is less than the near corners of the picture reach, and they went in)
+    const h = Course.snowTop(p[0], p[2]) + GROUND; if (p[1] < h) p[1] = h;
     return p;
   }
   /*native{*/P.constrainPosition = keepIn;/*}native*/
@@ -102,6 +103,8 @@ const Photo = self.Photo = (() => {
     if (keys.KeyZ) c.roll = clamp(c.roll - 0.6 * dt, -0.7, 0.7); if (keys.KeyC) c.roll = clamp(c.roll + 0.6 * dt, -0.7, 0.7);
     if (keys.Minus || keys.NumpadSubtract) zoom(Math.exp(0.9 * dt)); if (keys.Equal || keys.NumpadAdd) zoom(Math.exp(-0.9 * dt));
     keepIn(c.pos);
+    // (and the near corners of the picture clear of the snow, whichever way it looks: Course.nearLift)
+    c.pos[1] += Course.nearLift(c.pos, fwd(c), c.fov, Render.W / Render.H, Render.cam.near, 0.05, c.roll);
   }
   function zoom(k) { cam.fov = clamp(cam.fov * k, FOV[0], FOV[1]); }
   function place() {

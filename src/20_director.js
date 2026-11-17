@@ -27,7 +27,7 @@ const Director = (() => {
   const off = (p, F, o) => [p[0] + F.r[0] * o[0] + F.f[0] * o[2], p[1] + o[1], p[2] + F.r[2] * o[0] + F.f[2] * o[2]];      // o = [right, up, ahead]
   const ease = x => x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x);
   const lerp3 = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
-  const above = (p, m) => { const h = Course.height(p[0], p[2], 0.5) + m; if (p[1] < h) p[1] = h; return p; };
+  const above = (p, m) => { const h = Course.snowTop(p[0], p[2]) + m; if (p[1] < h) p[1] = h; return p; };
   function freeCam(dt) {
     const c = free, sk = G.root.pos, u = c.dur > 0 ? clamp(c.t / c.dur, 0, 1) : 0, k = ease(u), F = c.F;
     let pos, tgt, fov = c.fov || 0.9, roll = 0;
@@ -47,7 +47,7 @@ const Director = (() => {
       tgt = [pos[0] + Math.sin(y) * Math.cos(p), pos[1] + Math.sin(p), pos[2] - Math.cos(y) * Math.cos(p)];
     }
     if (c.fov1 != null) fov = c.fov + (c.fov1 - c.fov) * k;
-    if (c.kind !== 'sky') above(pos, c.mg != null ? c.mg : 0.4);
+    if (c.kind !== 'sky') { above(pos, c.mg != null ? c.mg : 0.4); pos[1] += Course.nearLift(pos, v3.norm(v3.sub(tgt, pos)), fov, Render.W / Render.H, Render.cam.near, 0.05, roll); }
     Render.setCamera(pos, tgt, [0, 1, 0], fov, roll);
   }
   const baseViewCam = G.viewCam;

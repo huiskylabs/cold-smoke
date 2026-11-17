@@ -1222,6 +1222,9 @@ const Game = (() => {
     // (a tree gone by close, untouched: the lens ducks a finger's breadth and tips away from it, as 07c_feel.js has worked out; both
     // come and go without a corner, and the other viewpoints are handed the same lens)
     const fe = typeof Feel !== 'undefined' ? Feel : null, pos = [cam.pos[0] + rx * ox, cam.pos[1] + oy - (fe && fe.dip || 0), cam.pos[2] + rz * ox];
+    // (the last word, the same for every lens (Course.nearLift): whatever moved it - a jolt, the flinch past a tree, the floor above taken
+    // without the bumps of a mogul field - the corners of the picture stay out of the snow. It only ever lifts, never turns the lens)
+    pos[1] += Course.nearLift(pos, f, cam.fov, aspect, Render.cam.near || CAM_NEAR, 0.05, cam.roll);
     // other viewpoints (07b_views.js) take the lens over here; the chase camera above keeps running underneath, so switching back is seamless
     const viewOver = G.viewCam && G.viewCam(dt, cam, pos, f);
     /*native{*/G.hasViewOverride = viewOver;/*}native*/
