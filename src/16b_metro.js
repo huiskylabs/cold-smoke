@@ -72,7 +72,16 @@ function metroBakeFS() {
     [[215, 206, 110], [300, 224, 150], [205, 246, 180], [345, 272, 220], [240, 300, 250], [340, 346, 280]],
     // and one from the far middle
     [[720, 205, 100], [770, 226, 130], [700, 252, 160], [790, 285, 190], [720, 330, 220], [760, 416, 260]]];
-  const SEGS = []; RIVERS.forEach(r => { for (let n = 0; n + 1 < r.length; n++) { const a = cg(r[n][0], r[n][1]), b = cg(r[n + 1][0], r[n + 1][1]); SEGS.push([a[0], a[1], b[0], b[1], r[n][2] * M.K * 0.8, r[n + 1][2] * M.K * 0.8]); } });
+  // (rounded through its control points: each span in three pieces along a Catmull-Rom curve)
+  const SEGS = []; RIVERS.forEach(r => {
+    const P = r.map(q => { const g = cg(q[0], q[1]); return [g[0], g[1], q[2] * M.K * 0.8]; }), at = i => P[Math.max(0, Math.min(P.length - 1, i))], pts = [];
+    for (let n = 0; n + 1 < P.length; n++) for (let k = 0; k < 3; k++) {
+      const t = k / 3, a = at(n - 1), b = at(n), c = at(n + 1), d = at(n + 2);
+      pts.push([0, 1, 2].map(j => 0.5 * (2 * b[j] + (c[j] - a[j]) * t + (2 * a[j] - 5 * b[j] + 4 * c[j] - d[j]) * t * t + (3 * b[j] - a[j] - 3 * c[j] + d[j]) * t * t * t)));
+    }
+    pts.push(P[P.length - 1]);
+    for (let n = 0; n + 1 < pts.length; n++) SEGS.push([pts[n][0], pts[n][1], pts[n + 1][0], pts[n + 1][1], pts[n][2], pts[n + 1][2]]);
+  });
   // the ridges of the mountain's foot, as the picture has them: crest lines [x1, y1, x2, y2, height, half width (m)]
   const RIDGES = [[250, 520, 620, 650, 430, 950], [300, 455, 560, 520, 300, 750], [480, 565, 760, 700, 380, 800], [1050, 600, 1400, 560, 430, 950], [1000, 520, 1300, 482, 280, 700], [1150, 700, 1500, 640, 500, 1000]]
     .map(r => { const a = cg(r[0], r[1]), b = cg(r[2], r[3]); return [a[0] / M.K, a[1] / M.K, b[0] / M.K, b[1] / M.K, r[4], r[5]]; });
@@ -104,7 +113,7 @@ fn mHills(uu: f32, ww: f32) -> f32 {
   let az: f32 = atan2(u, max(w, 1.0));
   let n: f32 = vnoise2(vec2f(az * 8.0 + 0.35 * sin(r / 2100.0) + 3.0, r / 5200.0));
   let rg: f32 = (1.0 - abs(2.0 * n - 1.0)) * (0.72 + 0.40 * smoothstep(1500.0, 5000.0, r) * (1.0 - abs(2.0 * vnoise2(vec2f(az * 21.0 + 9.0, r / 2400.0)) - 1.0)));
-  let val: f32 = smoothstep(120.0, 1500.0 + 0.12 * r, abs(u - mRoadU(ww) / MK));
+  let val: f32 = smoothstep(120.0, 950.0 + 0.09 * r, abs(u - mRoadU(ww) / MK));
   let det: f32 = fbm2(vec2f(u, w) / 900.0) - 0.5;
   let old: f32 = env * (0.30 + 0.70 * pow(rg, 1.7)) * (0.16 + 0.84 * val) * (1.0 + 0.5 * det) + 70.0 * det * (1.0 - smoothstep(MR1 - 2500.0, MR1, r));
   // the picture's ridges: sharp crests falling away to either side, cut by the road's valley
@@ -122,7 +131,7 @@ ${CORES.map(c => `  h = max(h, ${f(c[3])} * exp(-(sq(u - ${f(c[0])}) + sq(w - ${
 // how built up the land is (0 .. 1), how white its light, park 0 .. 1, which grid
 fn mLand(u: f32, w: f32) -> vec4f {
   let p: vec2f = vec2f(u, w) / MK; let r: f32 = length(p - vec2f(${f(DC[0] / M.K)}, ${f(DC[1] / M.K)}));
-  let n1: f32 = fbm2(p / 15000.0 + vec2f(3.1, 7.7)); let n2: f32 = fbm2(p / 4200.0 + vec2f(9.7, 1.3)); let n3: f32 = vnoise2(p / 1300.0 + vec2f(0.5, 4.1));
+  let n1: f32 = fbm2(p / 15000.0 + vec2f(3.1, 7.7)); let n2: f32 = fbm2(p / 4200.0 + vec2f(9.7, 1.3)); let n3: f32 = vnoise2(p * MK / 1300.0 + vec2f(0.5, 4.1));
   let dens: f32 = saturate(0.52 + 0.70 * exp(-r / 9000.0) + 2.2 * (n1 - 0.5) + 1.6 * (n2 - 0.5));
   let white: f32 = saturate(0.8 * exp(-r / 3500.0) + 0.8 * (n2 - 0.6));
   let park: f32 = (1.0 - smoothstep(0.22, 0.30, n3)) * smoothstep(900.0, 2200.0, r);
@@ -198,7 +207,7 @@ fn mGround(u: f32, w: f32, dh: vec2f, fr: f32, fa: f32, mode: f32) -> vec4f {
     em += mix(gold * 1.1, led, 0.10 + 0.25 * L.y) * ((brd * (1.0 - water)) * 0.55) + mix(gold, led, 0.25) * (mw * 0.30 * (1.0 - water)) + warm * (bank * 4.0);
     // the water mirrors what stands on its banks: long shimmering streaks
     let sh: f32 = exp(min(rs, 0.0) / 260.0) * (0.5 + 0.9 * vnoise2(vec2f(u / 34.0, w / 600.0)));
-    em += mix(gold, vec3f(1.0, 0.45, 0.55), vnoise2(vec2f(u / 400.0, 3.0))) * (water * sh * 0.22 * mix(0.4, 1.0, L.x));
+    em += mix(gold, vec3f(1.0, 0.45, 0.55), vnoise2(vec2f(u / 400.0, 3.0))) * (water * sh * 0.55 * mix(0.4, 1.0, L.x));
     return vec4f(em * flt, water * flt);
   }
   // by day, and under the moon: snow on the roofs and the parks, dark streets, blue water
@@ -218,9 +227,9 @@ fn mHillShade(u: f32, w: f32, hl: f32, mode: f32) -> vec4f {
   let rd: f32 = abs(u - mRoadU(w)) / sqrt(1.0 + sq((mRoadU(w + 20.0) - mRoadU(w - 20.0)) / 40.0)) / MK;
   // the towns in the valleys: clusters of warm lights low down, thinning up the slopes
   let low: f32 = (1.0 - smoothstep(60.0 * MK, 520.0 * MK, hl)) * smoothstep(2200.0 * MK, 4200.0 * MK, length(vec2f(u, w)));
-  let tn: f32 = smoothstep(0.50, 0.72, fbm2(vec2f(u, w) / (700.0 * MK) + vec2f(5.0, 2.0))) * low + 1.0 * exp(-rd / 300.0) * smoothstep(900.0 * MK, 2500.0 * MK, w);
+  let tn: f32 = smoothstep(0.50, 0.72, fbm2(vec2f(u, w) / (700.0 * MK) + vec2f(5.0, 2.0))) * low + 1.3 * exp(-rd / 650.0) * smoothstep(900.0 * MK, 2500.0 * MK, w);
   if (mode < 0.5) {
-    let k: vec2f = floor(vec2f(u, w) / 22.0); let on: f32 = step(1.0 - 0.34 * saturate(tn), hash21(k + vec2f(7.0, 19.0)));
+    let k: vec2f = floor(vec2f(u, w) / 22.0); let on: f32 = step(1.0 - 0.50 * saturate(tn), hash21(k + vec2f(7.0, 19.0)));
     let fp: vec2f = fract(vec2f(u, w) / 22.0) - 0.5;
     var em: vec3f = mTint(hash21(k) * 0.78) * (on * exp(-dot(fp, fp) * 22.0) * 5.0);
     // the road down: two ribbons of light, and its glow on the snow beside it
@@ -231,7 +240,7 @@ fn mHillShade(u: f32, w: f32, hl: f32, mode: f32) -> vec4f {
     let lamps: f32 = (1.0 - smoothstep(4.0, 11.0, abs(rd - 30.0))) * exp(-sq((fract(w / (80.0 * MK)) - 0.5) * 4.0));
     em += vec3f(1.0, 0.64, 0.28) * (lamps * 8.0 + 2.0 * exp(-rd / 90.0) * smoothstep(14.0, 30.0, rd) + 0.45 * exp(-rd / 420.0)) * rk;
     em += (vec3f(1.0, 0.92, 0.78) * ((1.0 - smoothstep(4.0, 10.0, abs(sd - 9.0))) * 4.5) + vec3f(1.0, 0.12, 0.06) * ((1.0 - smoothstep(4.0, 10.0, abs(sd + 9.0))) * 5.0)) * rk;
-    em += vec3f(1.0, 0.56, 0.24) * (0.34 * saturate(tn));
+    em += vec3f(1.0, 0.56, 0.24) * (0.55 * saturate(tn));
     return vec4f(em, 0.0);
   }
   // snow under a light from the upper left, the hollows bluer; forest dark on the steeper ground
@@ -351,7 +360,7 @@ fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
   // above the rim: the air, and against it the landmarks that stand taller than the mountain (E.a marks them)
   if (q.z <= 0.0) { return mix(haze, A.rgb * (lit + vec3f(0.016, 0.024, 0.07) * night) + E.rgb * (night * ${f(M.lamp)}), saturate(E.a) * ex); }
   // water: a dark mirror for the sky, with a sheen toward the horizon
-  let mir: vec3f = (vistaHaze(vec3f(d.x, -d.y, d.z)) + vec3f(0.02, 0.05, 0.14) * night) * (0.14 + 0.40 * pow(1.0 - saturate(s), 6.0)) + vec3f(0.010, 0.022, 0.07) * night;
+  let mir: vec3f = (vistaHaze(vec3f(d.x, -d.y, d.z)) + vec3f(0.02, 0.05, 0.14) * night) * (0.06 + 0.22 * pow(1.0 - saturate(s), 6.0)) + vec3f(0.006, 0.012, 0.04) * night;
   // the lights are points, not a paste: over the baked glow, two sizes of sparks (a few of them far brighter than the rest), each
   // fixed to its bearing so that it stays put
   let sa: vec2f = vec2f(ba, q.z);
@@ -368,7 +377,7 @@ fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
   let farK: f32 = smoothstep(5000.0 * ${f(M.K)}, 16000.0 * ${f(M.K)}, dist);
   let warmK: f32 = saturate((E.r - E.b) / max(El, 0.001) * 2.5) * (1.0 - A.a) * (1.0 - E.a);
   let Ec: vec3f = mix(E.rgb, vec3f(1.0, 0.50, 0.13) * El * 1.3, 0.62 * warmK) * mix(mix(0.85 + 0.4 * spark, 0.36 + spark, farK), 1.0, E.a);
-  let nightGround: vec3f = A.rgb * vec3f(0.016, 0.024, 0.07) * (night * (1.0 + 5.0 * smoothstep(0.30, 0.80, luma(A.rgb))));
+  let nightGround: vec3f = A.rgb * vec3f(0.016, 0.024, 0.07) * (night * (1.0 + 5.0 * smoothstep(0.62, 0.90, luma(A.rgb))));
   // the traffic on the avenues of the middle city: beads of light going slowly, red where they drive away, white where they come
   // (the line of sight is taken back to the ground it was baked from)
   let gp: vec2f = vec2f(sin(ba), cos(ba)) * dist - vec2f(${f(M.DC[0])}, ${f(M.DC[1])});
