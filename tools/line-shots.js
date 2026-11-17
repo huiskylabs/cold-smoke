@@ -41,8 +41,10 @@ fs.mkdirSync(out, { recursive: true });
 
   // ---- run 1: leaves a record (title, count-down, first finish card)
   await shot('标题页');
-  await startCount(); await settle(250); await shot('倒数_3');
+  const first = () => pg.evaluate(() => { const r = __rings.rings.find(q => q.pass < 0); return r ? (r.grow < 0 ? 'flame' : 'ring') : 'none'; });
+  await startCount(); await settle(250); console.log('first ring during count', await first()); await shot('倒数_3');
   await pg.waitForFunction(() => __rings.line.st === 'go', null, { timeout: 10000 }); await settle(120); await shot('出发');
+  await settle(1300); console.log('first ring after 出发', await first()); await shot('出发_圈打开');
   await ride(-1, "L.st !== 'go'", 600);
   await settle(300); await shot('第一次_过终点');
   await settle(1800); await shot('第一次_成绩页');
