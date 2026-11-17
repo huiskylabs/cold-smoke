@@ -46,8 +46,8 @@ const Post = (() => {
   // measured sunlit snow ~240, darkest 2% ~10-29, a deep clean blue sky. a: one grade for every world, as before
   if (typeof Variants !== 'undefined') Variants.def('grade', '调色', [['a', '所有地图一样'], ['b', '每张地图自己的']], 'b');
   P.grades = {
-    base: { e: 1, veil: 0.06, wb: 1, sp: 1, so: 1, haze: 1, black: 0, sky: 1 },
-    d: { e: 1.42, veil: 0.02, wb: 0.25, sp: 1.12, so: 1.08, haze: 0.55, black: 0.022, sky: 1.55 },
+    base: { e: 1, veil: 0.06, wb: 1, sp: 1, so: 1, haze: 1, black: 0, sky: 1, milk: 1 },
+    d: { e: 1.42, veil: 0.02, wb: 0.25, sp: 1.12, so: 1.08, haze: 0.42, black: 0.022, sky: 1.55, milk: 0.2 },
   };
   P.grade = function () {
     if (typeof Variants === 'undefined' || Variants.val.grade === 'a' || typeof Metro === 'undefined') return P.grades.base;
