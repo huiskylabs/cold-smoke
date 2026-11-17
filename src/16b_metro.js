@@ -39,7 +39,7 @@ const Metro = (() => {
   Variants.on((n, v, init) => { if (n === 'world' && !init && typeof Clouds !== 'undefined') Clouds.baked = false; });
   return M;
 })();
-const metroF = x => (Number.isInteger(x) ? x.toFixed(1) : String(+x.toFixed(7)));
+const metroF = x => { const t = String(+(+x).toFixed(7)); return /[.e]/.test(t) ? t : t + '.0'; };
 
 // ---- the city itself, for the bake. Local axes: u to the right as seen from the mountain, w away from it (m from the eye)
 function metroBakeFS() {
@@ -153,7 +153,7 @@ fn mGround(u: f32, w: f32, dh: vec2f, fr: f32, fa: f32, mode: f32) -> vec4f {
   let bank: f32 = mBand(rs - 16.0, 7.0, rf) * (0.35 + 0.65 * mLine((u + w) / 24.0, 0.4, (fr + fa) / 24.0));
   let land: f32 = L.x * (1.0 - 0.85 * L.z);
   // the foot of the mountain: no city on the slopes, only what lies in the valleys
-  let hl: f32 = mHills(u, w); let flat: f32 = 1.0 - smoothstep(20.0, 160.0, hl);
+  let hl: f32 = mHills(u, w); let flt: f32 = 1.0 - smoothstep(20.0, 160.0, hl);
   let gold: vec3f = vec3f(1.0, 0.66, 0.30); let warm: vec3f = vec3f(1.0, 0.80, 0.52); let led: vec3f = vec3f(0.90, 0.93, 1.0);
   if (mode < 0.5) {
     let cs: vec3f = mix(gold, warm, 0.1 + 0.4 * L.y);
@@ -165,7 +165,7 @@ fn mGround(u: f32, w: f32, dh: vec2f, fr: f32, fa: f32, mode: f32) -> vec4f {
     em += mix(gold, vec3f(1.0, 0.45, 0.55), vnoise2(vec2f(u / 400.0, 3.0))) * (water * sh * 0.22 * mix(0.4, 1.0, L.x));
     // the great bridges: where a boulevard crosses, two lit pylons stand in the water
     em += vec3f(1.0, 0.86, 0.62) * (mBand(dax, 16.0, wg.x) * step(1.0, kax) * water * 10.0 * exp(-sq((rs + 150.0) / 55.0)));
-    return vec4f(em * flat, water * flat);
+    return vec4f(em * flt, water * flt);
   }
   // by day, and under the moon: snow on the roofs and the parks, dark streets, blue water
   let dst: f32 = saturate(lx + ly + avx + avy + mw);
