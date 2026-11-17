@@ -430,9 +430,14 @@ const Rings = (() => {
     // tall and quiet, until 继续滑 or 再来一局. Game.mode 'park' is neither a run nor the title: the pose and the camera still update
     if (L.braking && typeof Input !== 'undefined') {
       if (L.st === 'done' && Game.mode === 'run') {
-        Input.script = L.braking; Input.faScript = 0;
+        // (用户 21:12 UTC: 冲过终点还是没停下来，直接甩尾刹车停下来就行): a hockey stop. Steering held right over with the weight forward
+        // asks the game for its full skid (the skis come round across the line and scrape), and the scrape is given the bite of a hard
+        // stop: about 1 g along the way the skier is going, so from 90 km/h it is over in some 2.5 s and 30 m. Below 1.2 m/s: parked
+        Input.script = L.braking; Input.faScript = 1;
         L.brakeT = (L.brakeT || 0) + dt;
-        if (Game.s.speed < 2 || L.brakeT > 6) park(true);
+        const S = Game.s, v = Math.hypot(S.v[0], S.v[1], S.v[2]);
+        if (!S.air && v > 1e-3) { const k = Math.max(0, v - 9.5 * dt) / v; S.v[0] *= k; S.v[1] *= k; S.v[2] *= k; }
+        if (Game.s.speed < 1.2 || L.brakeT > 5) park(true);
       } else if (L.st !== 'done') brake(false);
     }
     ui();
