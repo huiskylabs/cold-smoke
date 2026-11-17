@@ -3,7 +3,7 @@ const UI = (() => {
   const U = { state: 'load', segIdx: -1, hintT: 0, hintKind: null, acc: 0, shown: { spd: -1, drop: -1 }, tod: 'auto', open: false };
   const $ = id => document.getElementById(id);
   const T = s => I18N.t(s), EN = () => I18N.en();          // (the words shown: see 00a_i18n.js)
-  const SEG_EN = { bowl: 'OPEN BOWL', steeps: 'THE STEEPS', glade: 'GLADE', rollers: 'ROLLERS', gully: 'GULLY', kickers: 'KICKERS', powder: 'DEEP POWDER', ridge: 'RIDGE', moguls: 'MOGULS' };
+  const SEG_EN = { bowl: 'OPEN BOWL', steeps: 'THE STEEPS', glade: 'GLADE', rollers: 'ROLLERS', gully: 'GULLY', kickers: 'KICKERS', powder: 'DEEP POWDER', ridge: 'RIDGE', moguls: 'MOGULS', corridor: 'FOREST LANE' };
   // the hours the day can be turned to, in the order the sun goes through them (keys of Sky.times)
   const TIMES = [['day', '白天'], ['golden', '傍晚'], ['sunset', '日落'], ['dusk', '黄昏'], ['night', '夜晚'], ['dawn', '黎明']];
   const mq = q => !!(window.matchMedia && matchMedia(q).matches);

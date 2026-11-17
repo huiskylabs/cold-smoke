@@ -48,7 +48,7 @@ const I18N = (() => {
     '空格 跳（按住蓄力） · ↓ 加速': 'Space to jump (hold to load up) · ↓ to tuck', '← →  或  A D  转弯': '← →  or  A D  to turn',
     '画面断开了': 'THE PICTURE WAS LOST', '点一下重新上山': 'Tap to ski again',
     // ---- the runs (Course: SEG_NAMES), the hours, the weather, the views, the animals
-    '开阔大坡': 'Open Bowl', '陡坡': 'The Steeps', '树林': 'Glade', '起伏': 'Rollers', '雪槽': 'Gully', '跳台': 'Kickers', '深粉雪': 'Deep Powder', '山脊': 'Ridge', '蘑菇': 'Moguls',
+    '开阔大坡': 'Open Bowl', '陡坡': 'The Steeps', '树林': 'Glade', '起伏': 'Rollers', '雪槽': 'Gully', '跳台': 'Kickers', '深粉雪': 'Deep Powder', '山脊': 'Ridge', '蘑菇': 'Moguls', '林道': 'Forest Lane',
     '自动': 'Auto', '白天': 'Day', '傍晚': 'Golden hour', '黄昏': 'Dusk', '夜晚': 'Night', '黎明': 'Dawn',
     '晴': 'Clear', '小雪': 'Light snow', '中雪': 'Snow', '大雪': 'Heavy snow', '雷暴雪': 'Thundersnow',
     '上午': 'Morning', '中午': 'Midday', '下午': 'Afternoon', '固定': 'Held',
