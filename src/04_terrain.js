@@ -1017,6 +1017,7 @@ fn frag(v: VOut) -> FOut {
     col = mix(col, mc, saturate(mk) * 0.75);
   }
   col = applyFog(col, wp);
+  ${typeof location !== 'undefined' && /dbgw/.test(location.search) ? 'col = mix(col, vec3f(1.0, 0.0, 1.0), 0.6 * saturate(carpet * 3.0)); if (carpet < 0.01) { col = mix(col, vec3f(0.0, 1.0, 0.0), 0.5 * smoothstep(400.0, 500.0, dist)); }' : ''}
   o.color = vec4f(col, 1.0);
   return o;
 }
