@@ -14,11 +14,13 @@ button.on{background:#18202a;color:#fff;border-color:#18202a}
 <canvas id="cv"></canvas>
 <div id="ui">
   <div class="row"><b>手套</b><button data-k="hand" data-v="a">a 原来</button><button data-k="hand" data-v="b">b 手指握杖</button></div>
-  <div class="row"><b>姿势</b><button data-k="pose" data-v="stand">站着</button><button data-k="pose" data-v="turnL">左转</button><button data-k="pose" data-v="turnR">右转</button><button data-k="pose" data-v="tuck">团身</button><button data-k="pose" data-v="plant">点杖</button><button data-k="pose" data-v="air">腾空</button><button data-k="pose" data-v="carve">连续转弯</button></div>
-  <div class="row"><b>看</b><button data-k="look" data-v="body">全身</button><button data-k="look" data-v="handR">右手</button><button data-k="look" data-v="handL">左手</button><button data-k="look" data-v="front">正面（追身镜头反过来）</button></div>
+  <div class="row"><b>衣服</b><button data-k="kit" data-v="a">a 原来</button><button data-k="kit" data-v="b">b 更细</button></div>
+  <div class="row"><b>姿势</b><button data-k="pose" data-v="stand">站着</button><button data-k="pose" data-v="turnL">左转</button><button data-k="pose" data-v="turnR">右转</button><button data-k="pose" data-v="semi">半团身</button><button data-k="pose" data-v="tuck">团身</button><button data-k="pose" data-v="plant">点杖</button><button data-k="pose" data-v="air">腾空</button><button data-k="pose" data-v="carve">连续转弯</button></div>
+  <div class="row"><b>看</b><button data-k="look" data-v="body">全身</button><button data-k="look" data-v="handR">右手</button><button data-k="look" data-v="handL">左手</button><button data-k="look" data-v="head">头盔</button><button data-k="look" data-v="pack">背包</button><button data-k="look" data-v="boot">雪靴</button><button data-k="look" data-v="front">正面</button></div>
+  <div class="row"><b>光</b><button data-k="sun" data-v="side">侧光</button><button data-k="sun" data-v="front">顺光</button><button data-k="sun" data-v="back">逆光</button><button data-k="sun" data-v="low">夕阳</button></div>
 </div>
 <div id="busy">正在用游戏的代码生成人物…</div>
-<div id="msg">拖动转视角 · 滚轮或两指缩放 · 这里是游戏里同一个人物模型和同一套姿势代码；衣服的细褶皱和缝线是游戏着色器画的，这页只有底色</div>
+<div id="msg">拖动转视角 · 滚轮或两指缩放 · 人物、姿势和着色器都是游戏里的同一套代码，只有雪地和天空是这页自己的</div>
 <script>
 var Game = { root: null }, App = { t: 0 };
 /*__GAME__*/

@@ -1,181 +1,132 @@
-// 人物实验室: draws the game's skier (Skier.build / Skier.skin, the game's own code) with WebGL2, skinned on the GPU the way the game skins it.
+// 人物实验室: the game's skier drawn by the game itself: Skier.build / Skier.update / Skier.draw and its own shader (cloth, seams, glove, helmet,
+// pack, boots, the 'kit' and 'hand' switches), through the game's own WebGL2 layer (01_gfx.js), with its own sun-side shadow map. Only the stage is
+// this page's: a patch of snow, a sky colour, a fixed exposure and a plain tone curve.
 (function () {
   const cv = document.getElementById('cv'), busy = document.getElementById('busy');
-  const gl = cv.getContext('webgl2', { antialias: true });
-  if (!gl) { busy.textContent = '这个浏览器不支持 WebGL2'; return; }
-  const L = Skier.LOOK, B = Skier.B;
-  const st = { hand: 'b', pose: 'stand', look: 'handR' };
-  try { const q = new URLSearchParams(location.search); for (const k of ['hand', 'pose', 'look']) if (q.get(k)) st[k] = q.get(k); } catch (e) {}
+  const st = { hand: 'b', kit: 'b', pose: 'stand', look: 'handR', sun: 'side' };
+  try { const q = new URLSearchParams(location.search); for (const k of Object.keys(st)) if (q.get(k)) st[k] = q.get(k); } catch (e) {}
+  const gfx = createGL(cv);
+  if (!gfx) { busy.textContent = '这个浏览器不支持 WebGL2'; return; }
+  App.gfx = gfx;
 
   const POSES = {
-    stand: () => ({}),
+    stand: () => ({ crouch: 0.21 }),
     turnL: () => ({ lean: -0.55, edge: -0.6, crouch: 0.35 }),
     turnR: () => ({ lean: 0.55, edge: 0.6, crouch: 0.35 }),
     tuck: () => ({ tuck: 1, crouch: 0.6 }),
+    semi: () => ({ tuck: 0.5, crouch: 0.45 }),
     plant: () => ({ plantL: 1, lean: -0.3, edge: -0.3, crouch: 0.3 }),
     air: () => ({ air: 1, crouch: 0.3 }),
-    carve: t => { const s = Math.sin(t * 1.6); return { lean: 0.55 * s, edge: 0.6 * s, crouch: 0.3 + 0.12 * Math.abs(Math.cos(t * 1.6)), plantL: Math.max(0, Math.cos(t * 1.6)) * 0.8 * (s < 0 ? 1 : 0), plantR: Math.max(0, -Math.cos(t * 1.6)) * 0.8 * (s > 0 ? 1 : 0) }; },
+    carve: t => { const a = t * 1.6, s = Math.sin(a), c = Math.cos(a); return { lean: 0.55 * s, edge: 0.6 * s, crouch: 0.3 + 0.12 * Math.abs(c), plantL: s < 0 ? Math.max(0, c) * 0.8 : 0, plantR: s > 0 ? Math.max(0, -c) * 0.8 : 0 }; },
   };
+  const SUNS = { side: [0.75, 0.55, -0.35], front: [0.15, 0.6, -0.8], back: [-0.2, 0.55, 0.8], low: [0.85, 0.22, -0.3] };
+  const pose = {}, root = { pos: [0, 0, 0], fwd: [0, 0, -1], nrm: [0, 1, 0] };
 
-  const VS = `#version 300 es
-precision highp float;
-layout(location=0) in vec3 pos; layout(location=1) in vec3 nrm; layout(location=2) in vec4 mat; layout(location=3) in vec4 bw;
-uniform mat4 uBones[28]; uniform mat4 uVP;
-out vec3 vN; out vec3 vBP; out vec4 vMat; out vec3 vW;
-mat4 bone(float i) { return uBones[int(i + 0.5)]; }
-void main() {
-  float b2 = floor(bw.w), w2 = bw.w - b2;
-  mat4 m0 = bone(bw.x), m1 = bone(bw.y), m2 = bone(b2);
-  vec3 p = mix(mix((m1 * vec4(pos, 1.0)).xyz, (m0 * vec4(pos, 1.0)).xyz, bw.z), (m2 * vec4(pos, 1.0)).xyz, w2);
-  vN = mix(mix((m1 * vec4(nrm, 0.0)).xyz, (m0 * vec4(nrm, 0.0)).xyz, bw.z), (m2 * vec4(nrm, 0.0)).xyz, w2);
-  vBP = pos; vMat = mat; vW = p;
-  gl_Position = uVP * vec4(p, 1.0);
-}`;
-  const c3 = a => 'vec3(' + a.map(v => (+v).toFixed(4)).join(',') + ')';
-  const FS = () => `#version 300 es
-precision highp float;
-in vec3 vN; in vec3 vBP; in vec4 vMat; in vec3 vW;
-uniform vec3 uEye; uniform float uHB; uniform vec3 uElbow; uniform vec3 uFore; uniform float uGEdge; uniform mat4 uPelInv;
-out vec4 o;
-void main() {
-  vec3 n = normalize(vN); vec3 V = normalize(uEye - vW); if (dot(n, V) < 0.0) n = -n;
-  float id = floor(vMat.x + 0.5); float ao = clamp(vMat.y, 0.0, 1.0);
-  vec3 bm = vec3(abs(vBP.x), vBP.y, vBP.z); float armF = dot(bm - uElbow, uFore);
-  if (id < 1.5) { vec3 pl = (uPelInv * vec4(vBP, 1.0)).xyz; float hemV = pl.y + 0.082 + 0.026 * clamp((pl.z + 0.02) / 0.14, 0.0, 1.0); id = 1.0; if (hemV > 0.006 && (hemV < 0.05 || vMat.z > -0.012)) id = 0.0; }
-  if (uHB > 0.5 && armF > 0.10 && ((id > 1.5 && id < 2.5 && vMat.z < 0.05) || (id < 0.5 && vMat.w < 0.0))) id = armF > uGEdge ? 2.0 : 0.0;
-  vec3 alb = vec3(0.5); float spec = 0.04, pw = 24.0;
-  if (id < 0.5) { alb = ${c3(L.jacket.alb)}; if (uHB < 0.5 && armF > 0.05 && vMat.w < 0.0) alb = ${c3(L.sleeveFore.alb)}; }
-  else if (id < 1.5) alb = vec3(0.066, 0.082, 0.108);
-  else if (id < 2.5) {
-    alb = ${c3(L.glove.alb)}; spec = 0.08; pw = 30.0;
-    if (uHB > 0.5 && vMat.z > 0.05) {
-      float fin = floor(vMat.z), hx = (fract(vMat.z) - 0.5) * 0.2, gu = vMat.w;
-      float lea = max(step(0.5, fin), smoothstep(0.022, 0.006, hx));
-      alb = mix(${c3(L.gloveBack.alb)}, ${c3(L.gloveLeather.alb)}, lea); spec = mix(0.04, 0.26, lea); pw = mix(24.0, 46.0, lea);
-      float rib = smoothstep(0.009, 0.006, abs(gu + 0.014)) * (1.0 - step(0.5, fin)); alb = mix(alb, ${c3(L.gloveBand.alb)}, rib);
-      float tab = smoothstep(0.0012, 0.0, max(abs(hx - 0.050) - 0.010, abs(gu + 0.006) - 0.010)) * (1.0 - step(0.5, fin)); alb = mix(alb, ${c3(L.gloveTab.alb)}, tab);
-      float seam = exp(-(abs(hx - 0.014) + step(0.5, fin)) * 260.0); alb *= 1.0 - 0.5 * seam;
-    } else if (uHB > 0.5) {
-      float e = armF - uGEdge; alb = ${c3(L.gloveBack.alb)}; alb = mix(alb, ${c3(L.gloveBand.alb)}, smoothstep(0.010, 0.0075, e));
-    }
+  const setVariants = () => { Variants.val.body = 'b'; Variants.val.hand = st.hand; Variants.val.kit = st.kit; if ('ride' in Variants.val) Variants.val.ride = 'a'; };
+  setVariants();
+
+  // ---- stage
+  let shadowTex, shadowT, skyTex, hdr, hdrDepth, hdrT, ground, gvb, gib, comp, W = 0, H = 0, SS = 2;
+  const G = new Float32Array(GLOBALS_SIZE);
+  function makeTargets() {
+    const w = Math.max(1, Math.round(cv.width * SS)), h = Math.max(1, Math.round(cv.height * SS));
+    if (hdrT) { gfx.destroyTarget(hdrT); gfx.destroyTexture(hdr); gfx.destroyTexture(hdrDepth); }
+    hdr = gfx.texture({ w, h, format: 'rgba16f', filter: 'linear' }); hdrDepth = gfx.texture({ w, h, format: 'depth', filter: 'nearest' });
+    hdrT = gfx.target({ color: hdr, depth: hdrDepth }); W = w; H = h;
   }
-  else if (id < 3.5) alb = vec3(0.055, 0.058, 0.066);
-  else if (id < 4.5) alb = vec3(0.80, 0.80, 0.77);
-  else if (id < 5.5) { alb = vec3(0.05, 0.04, 0.10); spec = 1.2; pw = 300.0; }
-  else if (id < 6.5) alb = vec3(0.02, 0.02, 0.025);
-  else if (id < 7.5) alb = vec3(0.022, 0.030, 0.045);
-  else if (id < 8.5) alb = vec3(0.045, 0.055, 0.070);
-  else if (id < 9.5) alb = ${c3(L.ski.alb)};
-  else if (id < 10.5) { alb = ${c3(L.pole.alb)}; spec = 0.6; pw = 80.0; if (vMat.z > -0.105) alb = ${c3(L.poleGrip.alb)}; else if (vMat.z < -1.025 && vMat.z > -1.06) alb = ${c3(L.poleBasket.alb)}; }
-  else alb = vec3(0.12, 0.12, 0.13);
-  vec3 sun = normalize(vec3(0.45, 0.8, 0.35)), H = normalize(sun + V);
-  float d = max(dot(n, sun), 0.0), sky = 0.5 + 0.5 * n.y, bounce = 0.5 - 0.5 * n.y;
-  float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0);
-  vec3 col = alb * (vec3(2.6, 2.45, 2.25) * d + (vec3(0.55, 0.65, 0.8) * sky + vec3(0.5, 0.52, 0.55) * bounce) * ao) + vec3(spec * pow(max(dot(n, H), 0.0), pw) * 2.0 * d) + alb * rim * 0.4 * ao;
-  col = col / (1.0 + col); col = pow(col, vec3(1.0 / 2.2) * 0.95);
-  o = vec4(col, 1.0);
-}`;
-  const GVS = `#version 300 es
-layout(location=0) in vec2 p; uniform mat4 uVP; out vec2 q; void main(){ q = p; gl_Position = uVP * vec4(p.x, 0.0, p.y, 1.0); }`;
-  const GFS = `#version 300 es
-precision highp float; in vec2 q; uniform vec2 uC; uniform vec3 uSh; out vec4 o;
-void main(){ float r = length(q); vec3 c = vec3(0.86, 0.9, 0.96); float s = length((q - uSh.xy) / vec2(0.32, 0.55));
-  c *= 1.0 - 0.35 * exp(-s * s * 2.5); c = mix(c, vec3(0.81, 0.85, 0.9), smoothstep(2.0, 6.0, r)); o = vec4(c, 1.0); }`;
-
-  function prog(vs, fs) {
-    const p = gl.createProgram();
-    for (const [t, s] of [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]]) { const sh = gl.createShader(t); gl.shaderSource(sh, s); gl.compileShader(sh); if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh)); gl.attachShader(p, sh); }
-    gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
-    const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i), nm = a.name.replace('[0]', ''); u[nm] = gl.getUniformLocation(p, a.name); }
-    return { p, u };
+  function stage() {
+    makeNoiseTextures(gfx);
+    shadowTex = gfx.texture({ w: 2048, h: 2048, format: 'depth', compare: true, filter: 'linear' }); shadowT = gfx.target({ depth: shadowTex });
+    const n = 4, sd = new Float32Array(n * n * 4); for (let i = 0; i < n * n; i++) sd.set([0.0032, 0.0048, 0.0078, 1], i * 4);
+    skyTex = gfx.texture({ w: n, h: n, format: 'rgba32f', filter: 'nearest', data: sd });
+    gvb = gfx.buffer(new Float32Array([-30, 0, -30, 30, 0, -30, 30, 0, 30, -30, 0, 30]), 'vertex'); gib = gfx.buffer(new Uint32Array([0, 2, 1, 0, 3, 2]), 'index');
+    ground = gfx.pipeline({ name: 'labGround', lib: [SL.common, SL.hash, SL.shadow], buffers: [{ attrs: [['pos', 'vec3f']] }], varyings: { wp: 'vec3f' }, uniforms: { p: 'vec4f' }, textures: { tShadow: 'shadow' }, cull: 'none',
+      vs: `fn vert(a: VIn) -> VOut { var v: VOut; v.wp = a.pos; v.clip = U.viewProj * vec4f(a.pos, 1.0); return v; }`,
+      fs: `fn frag(v: VOut) -> FOut { var o: FOut;
+  let sh: f32 = shadowAt(v.wp + vec3f(0.0, 0.004, 0.0), 0.0016);
+  let alb: vec3f = vec3f(0.86, 0.89, 0.93);
+  var col: vec3f = alb * (U.sunCol.rgb * sh * max(U.sunDir.y, 0.0) + U.ambSky.rgb * 0.9);
+  let r: f32 = length(v.wp.xz); col = mix(col, U.ambSky.rgb * 2.2, smoothstep(4.0, 25.0, r));
+  o.color = vec4f(col, 1.0); return o; }` });
+    comp = gfx.pipeline({ name: 'labOut', lib: [SL.common, SL.tonemap], buffers: [], varyings: { uv: 'vec2f' }, uniforms: { p: 'vec4f' }, textures: { tA: '2d' }, colorFormat: 'canvas', depth: false, depthTest: false, cull: 'none', vs: VS_FULLSCREEN,
+      fs: `fn frag(v: VOut) -> FOut { var o: FOut;
+  let d: vec2f = M.p.xy * 0.25;
+  let c: vec3f = (texLod(tA, v.uv + vec2f(-d.x, -d.y), 0.0).rgb + texLod(tA, v.uv + vec2f(d.x, -d.y), 0.0).rgb + texLod(tA, v.uv + vec2f(-d.x, d.y), 0.0).rgb + texLod(tA, v.uv + vec2f(d.x, d.y), 0.0).rgb) * 0.25;
+  o.color = vec4f(toSRGB(filmCurve(c * M.p.z)), 1.0); return o; }` });
   }
 
-  let P, G, ground;
-  const meshes = {};
-  function getMesh(hand) {
-    if (meshes[hand]) return meshes[hand];
-    Variants.val.hand = hand; Variants.val.body = 'b'; if ('ride' in Variants.val) Variants.val.ride = 'a';
-    const m = Skier.build('b');
-    const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
-    const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, m.V, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 40, 0);
-    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 40, 12);
-    gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.FLOAT, false, 40, 24);
-    const wb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, wb); gl.bufferData(gl.ARRAY_BUFFER, m.W, gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 4, gl.FLOAT, false, 16, 0);
-    const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, m.I, gl.STATIC_DRAW);
-    gl.bindVertexArray(null);
-    return (meshes[hand] = { vao, ni: m.ni, nv: m.nv, hasHand: m.hand === 'H' });
+  function globals(eye, at, fov, t) {
+    const aspect = cv.width / cv.height, near = 0.01, far = 80;
+    const proj = m4.perspective(fov, aspect, near, far), view = m4.lookAt(eye, at, [0, 1, 0]), vp = m4.mul(proj, view);
+    const f = v3.norm(v3.sub(at, eye)), r = v3.norm(v3.cross(f, [0, 1, 0])), u = v3.cross(r, f), th = Math.tan(fov / 2);
+    G.fill(0);
+    G.set(vp, GOFF.viewProj); G.set(m4.invert(vp), GOFF.invViewProj); G.set(vp, GOFF.prevViewProj);
+    G.set([eye[0], eye[1], eye[2], t], GOFF.camPos); G.set([...r, th], GOFF.camRight); G.set([...u, aspect], GOFF.camUp); G.set([...f, near], GOFF.camFwd);
+    const sun = v3.norm(SUNS[st.sun] || SUNS.side), low = st.sun === 'low';
+    G.set([...sun, 1], GOFF.sunDir); G.set(low ? [5.7, 4.3, 2.9, 260] : [5.4, 5.0, 4.5, 260], GOFF.sunCol);
+    G.set([0.30, 0.42, 0.70, 0.2], GOFF.ambSky); G.set([1.10, 1.06, 1.02, 0], GOFF.ambGnd);
+    G.set([0, 1 / 900, -700, 9000], GOFF.fogA); G.set([W, H, 1 / W, 1 / H], GOFF.res); G.set([0, 0, 0, Math.floor(t * 60)], GOFF.origin);
+    G.set([0, 0, 1 / 60, 1.4], GOFF.misc); G.set([0, 0, 0, 0], GOFF.player); G.set([0, 1, 0, 1], GOFF.fx); G.set([22, 0, 0, 0], GOFF.skyP);
+    G.set([0, 0, 0, 0.6], GOFF.cloudP); G.set([0, 0, 0, 0], GOFF.twi); G.set([0, 0, 0, 0], GOFF.lamp); G.set([0, -1, 0, 1], GOFF.lampDir);
+    // the sun's shadow map: a small box round the figure, so a texel is about a millimetre and a finger casts a shadow
+    const c = [0, 0.9, -0.1], lz = sun, lx = v3.norm(v3.cross([0, 1, 0], lz)), ly = v3.cross(lz, lx), le = v3.add(c, v3.mul(lz, 3));
+    const lview = [lx[0], ly[0], lz[0], 0, lx[1], ly[1], lz[1], 0, lx[2], ly[2], lz[2], 0, -v3.dot(lx, le), -v3.dot(ly, le), -v3.dot(lz, le), 1];
+    G.set(m4.mul(m4.ortho(-1.4, 1.4, -1.4, 1.4, 0.5, 6), lview), GOFF.shadowVP);
+    gfx.setGlobals(G);
   }
 
-  // camera: orbit about a target, eased toward the look preset's
-  const cam = { yaw: Math.PI * 0.82, pitch: 0.12, dist: 0.45, tgt: [0, 1, 0], want: null };
-  const LOOKS = { body: { dist: 2.6, pitch: 0.15 }, handR: { dist: 0.42, pitch: 0.2 }, handL: { dist: 0.42, pitch: 0.2 }, front: { dist: 2.6, pitch: 0.12, yaw: 0 } };
-  function setLook(k, snap) {
-    st.look = k; const l = LOOKS[k] || LOOKS.body;
-    cam.dist = l.dist; cam.pitch = l.pitch;
-    if (l.yaw != null) cam.yaw = l.yaw; else if (k === 'body') cam.yaw = Math.PI; else if (k === 'handR') cam.yaw = Math.PI * 0.72; else if (k === 'handL') cam.yaw = -Math.PI * 0.72;
-  }
-
-  function persp(fy, a, n, f) { const t = 1 / Math.tan(fy / 2); return [t / a, 0, 0, 0, 0, t, 0, 0, 0, 0, (f + n) / (n - f), -1, 0, 0, 2 * f * n / (n - f), 0]; }
-  function lookAt(e, c) {
-    const z = v3.norm(v3.sub(e, c)), x = v3.norm(v3.cross([0, 1, 0], z)), y = v3.cross(z, x);
-    return [x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -v3.dot(x, e), -v3.dot(y, e), -v3.dot(z, e), 1];
-  }
-  function mul(a, b) { const r = new Array(16); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + j] * b[i * 4 + k]; r[i * 4 + j] = s; } return r; }
-
-  // input
-  let drag = null; const pts = new Map();
-  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); drag = pts.size === 1 ? [e.clientX, e.clientY] : null; });
+  // ---- camera: orbit round the look's target
+  const cam = { yaw: Math.PI * 0.72, pitch: 0.2, dist: 0.42 };
+  const LOOKS = { body: [2.6, 0.15, 0], handR: [0.40, 0.2, Math.PI * 0.72], handL: [0.40, 0.2, -Math.PI * 0.72], head: [0.55, 0.15, 0.6], pack: [0.85, 0.25, 0.15], boot: [0.6, 0.25, Math.PI * 0.62], front: [2.6, 0.12, Math.PI] };
+  function setLook(k) { st.look = k; const l = LOOKS[k] || LOOKS.body; cam.dist = l[0]; cam.pitch = l[1]; cam.yaw = l[2]; }
+  const pts = new Map();
+  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); });
   cv.addEventListener('pointermove', e => {
     if (!pts.has(e.pointerId)) return; const prev = pts.get(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
-    if (pts.size === 1) { cam.yaw -= (e.clientX - prev[0]) * 0.008; cam.pitch = Math.max(-1.2, Math.min(1.4, cam.pitch + (e.clientY - prev[1]) * 0.006)); }
-    else if (pts.size === 2) { const [a, b] = [...pts.values()], o = [...pts.entries()].find(([k]) => k !== e.pointerId)[1]; const d1 = Math.hypot(prev[0] - o[0], prev[1] - o[1]), d2 = Math.hypot(a[0] - b[0], a[1] - b[1]); if (d1 > 0) cam.dist = Math.max(0.12, Math.min(8, cam.dist * d1 / d2)); }
+    if (pts.size === 1) { cam.yaw -= (e.clientX - prev[0]) * 0.008; cam.pitch = Math.max(-1.2, Math.min(1.45, cam.pitch + (e.clientY - prev[1]) * 0.006)); }
+    else if (pts.size === 2) { const o = [...pts.entries()].find(([k]) => k !== e.pointerId)[1], d1 = Math.hypot(prev[0] - o[0], prev[1] - o[1]), d2 = Math.hypot(e.clientX - o[0], e.clientY - o[1]); if (d2 > 0) cam.dist = Math.max(0.1, Math.min(8, cam.dist * d1 / d2)); }
   });
   const up = e => pts.delete(e.pointerId); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
-  cv.addEventListener('wheel', e => { e.preventDefault(); cam.dist = Math.max(0.12, Math.min(8, cam.dist * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
+  cv.addEventListener('wheel', e => { e.preventDefault(); cam.dist = Math.max(0.1, Math.min(8, cam.dist * Math.exp(e.deltaY * 0.0012))); }, { passive: false });
 
   function syncUI() { document.querySelectorAll('#ui button').forEach(b => b.classList.toggle('on', st[b.dataset.k] === b.dataset.v)); }
   document.querySelectorAll('#ui button').forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.k, v = b.dataset.v;
-    if (k === 'look') setLook(v); else if (k === 'hand' && !meshes[v]) { busy.style.display = 'flex'; st.hand = v; syncUI(); setTimeout(() => { getMesh(v); busy.style.display = 'none'; }, 30); return; } else st[k] = v;
-    syncUI();
+    if (k === 'look') { setLook(v); syncUI(); return; }
+    st[k] = v; syncUI();
+    if (k === 'hand') { busy.style.display = 'flex'; setTimeout(() => { setVariants(); Skier.want(); busy.style.display = 'none'; }, 30); } else setVariants();
   }));
 
-  let tgtS = null;
+  let tgt = null, t0 = performance.now();
   function frame(now) {
-    const t = now / 1000, W = cv.clientWidth, H = cv.clientHeight, dpr = Math.min(window.devicePixelRatio || 1, 2);
-    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
-    const mesh = getMesh(st.hand);
-    const pose = (POSES[st.pose] || POSES.stand)(t);
-    const sk = Skier.skin(pose, Object.assign({}, Skier.SEC0, { hand: [0, 0, 0] }));
-    const J = sk.J;
-    const tg = st.look === 'handR' ? J.gripR : st.look === 'handL' ? J.gripL : [0, (J.pelvis ? J.pelvis[1] : 0.9) + 0.05, 0];
-    tgtS = tgtS ? tgtS.map((v, i) => v + (tg[i] - v) * 0.15) : tg.slice();
-    const cp = Math.cos(cam.pitch), eye = [tgtS[0] + Math.sin(cam.yaw) * cp * cam.dist, tgtS[1] + Math.sin(cam.pitch) * cam.dist, tgtS[2] + Math.cos(cam.yaw) * cp * cam.dist];
-    const VP = mul(persp(st.look.startsWith('hand') ? 0.6 : 0.75, W / H, Math.max(0.01, cam.dist * 0.05), 60), lookAt(eye, tgtS));
-    gl.viewport(0, 0, cv.width, cv.height); gl.clearColor(0.80, 0.85, 0.90, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST);
-    gl.useProgram(G.p); gl.uniformMatrix4fv(G.u.uVP, false, VP); gl.uniform3f(G.u.uSh, 0.06, 0.02, 0); gl.bindVertexArray(ground); gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
-    gl.useProgram(P.p);
-    const flat = new Float32Array(28 * 16); for (let i = 0; i < 28; i++) if (sk.M[i]) flat.set(sk.M[i], i * 16);
-    gl.uniformMatrix4fv(P.u.uBones, false, flat); gl.uniformMatrix4fv(P.u.uVP, false, VP); gl.uniform3fv(P.u.uEye, eye); gl.uniform1f(P.u.uHB, mesh.hasHand ? 1 : 0);
-    gl.bindVertexArray(mesh.vao); gl.drawElements(gl.TRIANGLES, mesh.ni, gl.UNSIGNED_INT, 0);
+    const t = (now - t0) / 1000; App.t = t;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2), cw = Math.round(cv.clientWidth * dpr), ch = Math.round(cv.clientHeight * dpr);
+    if (cv.width !== cw || cv.height !== ch) { cv.width = cw; cv.height = ch; SS = cw * ch > 2.4e6 ? 1.4 : 2; makeTargets(); }
+    for (const k in pose) delete pose[k]; Object.assign(pose, (POSES[st.pose] || POSES.stand)(t));
+    Skier.update(root, pose, [0, 0, 0]);
+    const jj = lastJ();
+    const want = st.look === 'handR' ? jj.gripR : st.look === 'handL' ? jj.gripL : st.look === 'head' ? jj.skull || jj.head : st.look === 'pack' ? jj.chest : st.look === 'boot' ? jj.footR : [0, 0.95, 0];
+    tgt = tgt ? tgt.map((v, i) => v + (want[i] - v) * 0.12) : want.slice();
+    const cp = Math.cos(cam.pitch), eye = [tgt[0] + Math.sin(cam.yaw) * cp * cam.dist, tgt[1] + Math.sin(cam.pitch) * cam.dist, tgt[2] + Math.cos(cam.yaw) * cp * cam.dist];
+    globals(eye, tgt, cam.dist < 1.2 ? 0.55 : 0.7, t);
+    gfx.beginFrame();
+    gfx.beginPass(shadowT, { depth: 1 }); Skier.drawShadow(); gfx.endPass();
+    gfx.beginPass(hdrT, { color: [0.9, 1.15, 1.6, 1], depth: 1 });
+    gfx.draw(ground, { u: { p: [0, 0, 0, 0] }, tex: { tShadow: shadowTex }, vb: [gvb], ib: gib, count: 6 });
+    Skier.draw(shadowTex, skyTex);
+    gfx.endPass();
+    gfx.beginPass(null, {}); gfx.draw(comp, { u: { p: [1 / W, 1 / H, 0.22, 0] }, tex: { tA: hdr }, count: 3 }); gfx.endPass();
+    if (gfx.endFrame) gfx.endFrame();
     requestAnimationFrame(frame);
   }
+  // where the joints are now, in the world (the figure stands at the origin facing -z, so model space is world space)
+  function lastJ() { const q = Skier.skin(Object.assign({}, pose), Object.assign({}, Skier.SEC0)); return q.J; }
 
   setTimeout(() => {
     try {
-      P = prog(VS, FS()); G = prog(GVS, GFS);
-      ground = gl.createVertexArray(); gl.bindVertexArray(ground); const gb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, gb);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-12, -12, 12, -12, 12, 12, -12, 12]), gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); gl.bindVertexArray(null);
-      getMesh(st.hand);
-      const bj = Skier.bind.J, Fp = Skier.bind.F[B.pelvis];
-      gl.useProgram(P.p);
-      gl.uniform3fv(P.u.uElbow, bj.elbowR); gl.uniform3fv(P.u.uFore, v3.norm(v3.sub(bj.gripR, bj.elbowR))); gl.uniform1f(P.u.uGEdge, Skier.LEN.farm - Skier.GAUNT.len);
-      gl.uniformMatrix4fv(P.u.uPelInv, false, new Float32Array(m4.invert(Fp)));
+      stage(); Skier.init(gfx);
       setLook(st.look); syncUI(); busy.style.display = 'none';
-      console.log('skierlab ready', JSON.stringify({ nv: meshes[st.hand].nv, hand: meshes[st.hand].hasHand }));
-      requestAnimationFrame(frame);
+      cv.width = 0; requestAnimationFrame(t => { frame(t); console.log('skierlab ready', JSON.stringify({ hand: Skier.mesh && Skier.mesh.hand, nv: Skier.mesh && Skier.mesh.nv })); });
     } catch (e) { busy.textContent = '出错了：' + e.message; console.error(e); }
   }, 30);
 })();

@@ -1379,6 +1379,11 @@ fn frag(v: VOut) -> FOut {
       lev = max(lev, smoothstep(0.0015, 0.0, max(abs(bp.y - 0.225) - 0.007, abs(bp.z + 0.005) - 0.018)));
       lev = max(lev, smoothstep(0.0015, 0.0, max(abs(bp.y - 0.285) - 0.007, abs(bp.z + 0.000) - 0.018)));
       lev *= outB;
+      // (each lever bites on a ladder: a row of small ribs just ahead of it; and the cuff turns on a riveted pivot over the ankle bone, both sides)
+      let lad: f32 = (smoothstep(0.0012, 0.0, max(abs(bp.y - 0.115) - 0.004, abs(bp.z + 0.135) - 0.012)) + smoothstep(0.0012, 0.0, max(abs(bp.y - 0.225) - 0.004, abs(bp.z + 0.030) - 0.012))) * step(0.5, fract(bp.z * 330.0)) * outB;
+      let piv: vec2f = vec2f(bp.y - 0.180, bp.z - 0.012);
+      let riv: f32 = smoothstep(0.0075, 0.0055, length(piv)) * smoothstep(0.012, 0.026, abs(bx));
+      alb = mix(alb, vec3f(0.30, 0.31, 0.33), max(lad * 0.8, riv)); fold += 0.0012 * lad + 0.0018 * riv - 0.0012 * smoothstep(0.0015, 0.0, abs(length(piv) - 0.0075));
       alb = mix(alb, orange, lev * 0.95); specS = mix(0.35, 0.5, lev); fold += 0.0025 * lev;
       // (the shell's own seam: the overlap of the cuff over the lower shell, a line from the instep down to behind the ankle)
       let ov: f32 = smoothstep(0.0025, 0.0, abs(bp.y - 0.165 - 0.35 * (bp.z + 0.02))) * step(0.06, bp.y);
@@ -1397,6 +1402,26 @@ fn frag(v: VOut) -> FOut {
       alb = mix(alb, vec3f(0.03, 0.03, 0.035), vs); fold = -0.002 * vs;
       alb *= 1.0 - 0.35 * smoothstep(0.02, 0.0, hd3.y - 0.012) * smoothstep(-0.07, -0.10, hd3.z) * step(0.02, hd3.y);
       specS = 0.30; specP = 60.0; gloss = 0.05;
+      if (kit > 0.5) {
+        // (kit b) as freeride helmets are made (the reference sheet): a hard shell over a foam liner whose black edge band shows all round the
+        // rim; a second row of vents beside the first and a pair over the brow; ear pads of black fabric; a fit dial at the back under the strap;
+        // the shell a little glossier than the band. ye: the rim's own line (the distance field cuts the shell there, see HEAD.rim)
+        let ye: f32 = ${Skier.HEAD.rim.toFixed(4)} + 0.25 * max(hd3.z, 0.0);
+        let band: f32 = smoothstep(0.016, 0.012, hd3.y - ye);
+        let vs2: f32 = smoothstep(0.0055, 0.0032, abs(abs(hd3.x) - 0.066)) * smoothstep(0.020, 0.014, abs(hd3.z - 0.010)) * step(0.040, hd3.y);
+        let vb: f32 = smoothstep(0.0050, 0.0030, abs(hd3.y - 0.058)) * smoothstep(0.016, 0.011, abs(abs(hd3.x) - 0.030)) * step(hd3.z, -0.07);
+        let vv: f32 = max(vs2, vb);
+        alb = mix(alb, vec3f(0.03, 0.03, 0.035), vv); fold -= 0.0018 * vv;
+        let el: vec3f = (vec3f(abs(hd3.x), hd3.y, hd3.z) - ${'vec3f(' + Skier.HEAD.ear.slice(0, 3).map(v => v.toFixed(4)).join(', ') + ')'}) / ${'vec3f(' + Skier.HEAD.ear.slice(3).map(v => v.toFixed(4)).join(', ') + ')'};
+        let ear: f32 = smoothstep(1.0, 0.85, length(el.yz)) * step(0.075, abs(hd3.x));
+        let dial: f32 = smoothstep(0.016, 0.013, length(vec2f(hd3.x, hd3.y - ye - 0.026))) * step(0.06, hd3.z);
+        let dialR: f32 = smoothstep(0.0015, 0.0, abs(length(vec2f(hd3.x, hd3.y - ye - 0.026)) - 0.009)) * dial;
+        alb = mix(alb, vec3f(0.028, 0.029, 0.033), max(band, max(ear, dial)));
+        alb = mix(alb, vec3f(0.12, 0.12, 0.13), dialR);
+        fold += 0.0012 * (band - smoothstep(0.004, 0.0, abs(hd3.y - ye - 0.016))) + 0.0015 * dial;
+        sheen = mix(sheen, 0.5, max(band, ear)); cloth = max(cloth, ear);
+        specS = mix(0.42, 0.06, max(band, max(ear, vv))); specP = mix(90.0, 24.0, max(band, ear)); gloss = mix(0.08, 0.0, max(band, ear));
+      }
     }
   } else if (id < 5.5) {     // goggle lens: mirrored, iridescent
     alb = vec3f(0.01, 0.01, 0.015); gloss = 0.85; specS = 2.0; specP = 600.0;
@@ -1432,6 +1457,27 @@ fn frag(v: VOut) -> FOut {
     sheen = 0.25; specS = 0.08; specP = 26.0; cloth = 0.6;
     // (its cloth: soft dents, a seam where the lid closes over the body, its sides turning away into the shade)
     fold = 0.012 * big; sd = abs(tl.y - (tl.z - 0.18) * 0.35 - 0.087); dark = 0.25 * smoothstep(-0.012, 0.006, pkD); shell = 0.5;
+    if (kit > 0.5) {
+      // (kit b) as ski packs are made (the reference sheet): two black compression straps across the back with pale buckles at the sides, the front
+      // pocket's zip running round its top in a piping line, piping round the back panel's edge, a pale zip pull on the lid, a grab loop at the top
+      let pz: f32 = step(0.20, tl.z);
+      var strap: f32 = 0.0;
+      strap = max(strap, smoothstep(0.0105, 0.0085, abs(tl.y - 0.040)));
+      strap = max(strap, smoothstep(0.0105, 0.0085, abs(tl.y + 0.170)));
+      strap *= pz * step(abs(tl.x), 0.118);
+      let bk: f32 = strap * smoothstep(0.012, 0.009, abs(abs(tl.x) - 0.088));
+      alb = mix(alb, vec3f(0.018, 0.018, 0.020), strap); alb = mix(alb, vec3f(0.55, 0.56, 0.57), bk);
+      fold += 0.002 * strap + 0.0015 * bk - 0.0012 * smoothstep(0.0025, 0.0, abs(abs(tl.y - 0.040) - 0.0105)) * pz - 0.0012 * smoothstep(0.0025, 0.0, abs(abs(tl.y + 0.170) - 0.0105)) * pz;
+      specS = mix(specS, 0.3, bk);
+      let pq: vec3f = abs(tl - ${'vec3f(' + Skier.PACK.pocket.slice(0, 3).map(v => v.toFixed(4)).join(', ') + ')'}) - ${'vec3f(' + Skier.PACK.pocket.slice(3, 6).map(v => v.toFixed(4)).join(', ') + ')'};
+      let pe: f32 = max(pq.x, pq.y);
+      let pip: f32 = smoothstep(0.0028, 0.0010, abs(pe + 0.004)) * step(0.235, tl.z) * (1.0 - strap);
+      alb = mix(alb, vec3f(0.012, 0.012, 0.014), pip); fold -= 0.0010 * pip;
+      let rim: f32 = smoothstep(0.0040, 0.0015, abs(pkD + 0.006)) * (1.0 - strap) * (1.0 - lid);
+      alb = mix(alb, orange * 0.8, rim * 0.85); fold += 0.0008 * rim;
+      let pull: f32 = smoothstep(0.0015, 0.0, max(abs(tl.x - 0.050) - 0.006, abs(tl.y - (tl.z - 0.18) * 0.35 - 0.080) - 0.014)) * step(0.17, tl.z);
+      alb = mix(alb, vec3f(0.70, 0.71, 0.70), pull); fold += 0.0012 * pull;
+    }
   } else if (id < 9.5) {     // skis: graphic topsheet, bright base, steel edges
     let top: f32 = smoothstep(0.55, 0.8, v.mat.w); let base: f32 = smoothstep(-0.55, -0.8, v.mat.w); let z: f32 = v.mat.z;
     // (the same pair as the first-person view's: lemon going lime toward the tip, a black band with a pale pinstripe further back, an orange tail)
