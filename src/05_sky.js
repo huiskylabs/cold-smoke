@@ -228,7 +228,7 @@ const Sky = (() => {
   S.auroraK = 0.35;
   S.show = function () {
     // (the lake worlds, 金色雪旗 and 异星, always fly the aurora: so their nights are aurora nights, and the nebula stays away like on any other)
-    if (typeof Metro !== 'undefined' && (Metro.kind() === 'd' || Metro.kind() === 'e')) return 'aurora';
+    if (typeof Metro !== 'undefined' && Metro.kind() === 'd') return 'aurora';
     const v = Variants.val.aurora; if (v === 'c') return 'nebula';
     const n = Math.floor((S.clock - S.times.day) / S.cycle), sd = typeof Course !== 'undefined' ? Course.seed % 9973 : 0;
     const h = (k) => { const q = Math.sin(k * 127.1 + 311.7) * 43758.5453; return q - Math.floor(q); };
@@ -241,11 +241,11 @@ const Sky = (() => {
   S.nebShow = function () { return S.show() === 'nebula' ? 1 : 1 - S.nebNightK; };
   // the aurora's strength breathes slowly; the curtain drifts along the sky and its rays shimmer. How bright it is at all is S.auroraK
   S.aurora = function (t) {
-    const lake = typeof Metro !== 'undefined' && (Metro.kind() === 'd' || Metro.kind() === 'e');      // (金色雪旗: the aurora is always out over the lake)
+    const lake = typeof Metro !== 'undefined' && Metro.kind() === 'd';      // (金色雪旗: the aurora is always out over the lake)
     if (S.show() !== 'aurora') return 0;
     const n = (x) => { const i = Math.floor(x), f = x - i, h = (k) => { const q = Math.sin(k * 127.1 + 311.7) * 43758.5453; return q - Math.floor(q); }; return lerp(h(i), h(i + 1), f * f * (3 - 2 * f)); };
     const breathe = 0.7 + 0.3 * n(t / 23) + 0.15 * Math.sin(t * 0.21);
-    return (lake ? Math.max(S.auroraK, 0.7) : S.auroraK) * breathe;
+    return (lake ? Math.max(S.auroraK, 0.5) : S.auroraK) * breathe;
   };
   S.draw = function () {
     Vista.updateShadow(); const b = Nebula.basis(), md = S.moonDir(), cam = Render.cam.pos;
@@ -289,21 +289,21 @@ fn auroraR(d: vec3f, tm: f32, n: i32) -> vec3f {
   if (d.y < 0.0) { return vec3f(0.0); }
   let e: f32 = asin(clamp(d.y, 0.0, 1.0)); let a: f32 = atan2(d.z, d.x) + tm * 0.0035;
   var s: vec3f = vec3f(0.0);
-  for (var i: i32 = 0; i < 3; i++) {
+  for (var i: i32 = 0; i < 2; i++) {
     let fi: f32 = f32(i);
     let k1: f32 = 1.7 + 0.6 * fi; let p1: f32 = a * k1 + 2.1 * fi + tm * 0.010; let p2: f32 = a * 4.3 + 1.7 * fi - tm * 0.013;
-    let base: f32 = 0.11 + 0.10 * fi + 0.085 * sin(p1) + 0.040 * sin(p2) + 0.07 * (vnoise2(vec2f(a * 2.5 + fi * 9.0, tm * 0.010)) - 0.5);
+    let base: f32 = 0.16 + 0.13 * fi + 0.085 * sin(p1) + 0.040 * sin(p2) + 0.07 * (vnoise2(vec2f(a * 2.5 + fi * 9.0, tm * 0.010)) - 0.5);
     let turn: f32 = abs(0.085 * k1 * cos(p1) + 0.172 * cos(p2));
     let h: f32 = e - base;
     if (h > -0.02) {
-      let tall: f32 = 0.09 + 0.16 * vnoise2(vec2f(a * 3.0 + fi * 5.0, 3.0 + tm * 0.008));
+      let tall: f32 = 0.035 + 0.075 * vnoise2(vec2f(a * 3.0 + fi * 5.0, 3.0 + tm * 0.008));
       let r: f32 = fbm2(vec2f((a + 0.5 * h * sin(a * 2.0 + fi)) * 55.0 + 4.0 * vnoise2(vec2f(a * 5.0, fi + tm * 0.02)), fi * 7.0 + h * 1.5 + tm * 0.05));
       let rays: f32 = 0.22 + 1.7 * r * r * r;
       let lower: f32 = smoothstep(-0.014, 0.003, h);
       let fall: f32 = exp(-max(h, 0.0) / (0.22 * tall)); let up: f32 = exp(-max(h, 0.0) / tall);
-      let lit: f32 = smoothstep(0.30, 0.62, vnoise2(vec2f(a * 1.3 + fi * 4.0, 1.0 + tm * 0.004))) * (0.75 + 3.0 * turn);
+      let lit: f32 = smoothstep(0.40, 0.70, vnoise2(vec2f(a * 1.3 + fi * 4.0, 1.0 + tm * 0.004))) * (0.75 + 1.5 * turn);
       let hue: vec3f = mix(vec3f(0.55, 0.20, 1.0), vec3f(1.0, 0.18, 0.62), step(0.5, fi) * step(fi, 1.5));
-      s += (vec3f(0.10, 1.0, 0.42) * fall + hue * ((up - fall) * 0.95)) * (lower * rays * lit);
+      s += (vec3f(0.10, 1.0, 0.42) * fall + hue * ((up - fall) * 0.55)) * (lower * rays * lit);
     }
   }
   return s * smoothstep(0.0, 0.05, d.y);

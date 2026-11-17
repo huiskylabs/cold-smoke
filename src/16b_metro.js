@@ -8,7 +8,7 @@
 // fragment shader (metroBakeFS), into two panoramas round the eye (the world below never comes nearer, it only turns, as the cloud sea
 // did): E = the light it gives off at night, A = what it is made of, for the sun or the moon to light (a: water). Every frame the sky
 // shader fetches them (metroPlain), adds the air between, and makes the lights shimmer a little.
-Variants.def('world', '山下的世界', [['a', '云海浮城'], ['b', '不夜城'], ['c', '云下之城'], ['d', '金色雪旗'], ['e', '异星']], 'b');
+Variants.def('world', '山下的世界', [['a', '云海浮城'], ['b', '不夜城'], ['c', '云下之城'], ['d', '金色雪旗']], 'b');
 const Metro = (() => {
   // H: how far below the eye the city lies (m); RE: the radius of its little planet (the horizon dips, and curves, far more than the earth's);
   // AZ: the panorama covers bearings +-AZ about the city's; ta, tb: its rows, packed toward the horizon (drop = ta v + tb v^4);
