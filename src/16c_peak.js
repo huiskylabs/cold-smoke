@@ -313,7 +313,7 @@ fn pkCloudShade(pw: vec2f) -> f32 {
   let tm: f32 = U.camPos.w;
   let pc: vec2f = pw + s2 * (${f(1800 * P.K)} / te);
   let cu: f32 = fbm2(pc / ${f(2400 * P.K)} + vec2f(tm * 0.0030, tm * 0.0012) + vec2f(5.0, 11.0));
-  var k: f32 = smoothstep(0.56, 0.66, cu + 0.10 * (vnoise2(pc / ${f(600 * P.K)}) - 0.5));
+  var k: f32 = smoothstep(0.60, 0.70, cu + 0.10 * (vnoise2(pc / ${f(600 * P.K)}) - 0.5));
   let pd: vec2f = pw + s2 * (${f(520 * P.K)} / te);
   let n: f32 = fbm2(pd / ${f(5200 * P.K)} + vec2f(tm * 0.0040, tm * 0.0015) + vec2f(${f(520 * P.K)} * 0.01, 3.0));
   k = max(k, smoothstep(0.79, 1.01, n * 1.25) * smoothstep(${f(6500 * P.K)}, ${f(10000 * P.K)}, length(pd)) * (1.0 - smoothstep(0.03, 0.20, U.sunDir.y)));
@@ -428,17 +428,18 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     // blue-green, it pales toward the shallows and the shore is rimmed almost white where the bed shows through, as at Maligne and Peyto)
     let lq2: vec2f = (wp / ${f(P.K)} - vec2f(${f(P.LC[0])}, ${f(P.LC[1])})) / vec2f(${f(P.LR[0])}, ${f(P.LR[1])});
     let shoal: f32 = smoothstep(0.50, 1.12, length(lq2) + 0.22 * (pat - 0.5) + 0.10 * (fbm2(wp / ${f(900 * P.K)} + vec2f(3.0, 1.0)) - 0.5));
-    var milky: vec3f = mix(vec3f(0.012, 0.30, 0.45), vec3f(0.06, 0.60, 0.66), smoothstep(0.0, 0.60, shoal));
-    milky = mix(milky, vec3f(0.52, 0.92, 0.86), 0.85 * smoothstep(0.62, 1.0, shoal));
-    milky = mix(milky, vec3f(0.10, 0.70, 0.74), 0.30 * smoothstep(0.45, 0.75, pat) * (1.0 - shoal));       // drifts of rock flour
+    var milky: vec3f = mix(vec3f(0.02, 0.44, 0.50), vec3f(0.05, 0.70, 0.71), smoothstep(0.0, 0.60, shoal));
+    milky = mix(milky, vec3f(0.36, 0.88, 0.84), 0.60 * smoothstep(0.86, 1.02, shoal));
+    milky = mix(milky, vec3f(0.10, 0.78, 0.76), 0.30 * smoothstep(0.45, 0.75, pat) * (1.0 - shoal));       // drifts of rock flour
     var jade: vec3f = mix(mix(vec3f(0.02, 0.36, 0.30), vec3f(0.05, 0.50, 0.62), smoothstep(0.35, 0.65, pat)), vec3f(0.42, 0.80, 0.62), smoothstep(0.62, 0.80, fbm2(wp / ${f(1300 * P.K)} + vec2f(1.0, 9.0))) * 0.7);
-    jade = mix(jade, vec3f(0.62, 0.92, 0.78), 0.80 * smoothstep(0.70, 1.0, shoal));
+    jade = mix(jade, vec3f(0.56, 0.90, 0.78), 0.60 * smoothstep(0.86, 1.02, shoal));
     // the light inside the water: the sun goes down into it and comes back coloured, so by day the lake glows brighter than the land about
     // it; with the sun low little goes in, and the water is a mirror for the sky again (no day-green lake under a gold sky)
     let sunK: f32 = smoothstep(0.03, 0.34, U.sunDir.y) * (1.0 - dark);
     // (in the shadow of the peak or of a cloud only the sky's light goes in: the colour stays, darker and bluer)
-    let sunIn: f32 = (1.0 - shS) * (1.0 - 0.75 * shC);
-    let body: vec3f = mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * (0.80 * sunIn) + U.ambSky.rgb * 0.95) * (1.0 - 0.34 * wind);
+    let sunIn: f32 = (1.0 - shS) * (1.0 - 0.50 * shC);
+    let skyN: vec3f = vec3f(luma(U.ambSky.rgb)) * vec3f(0.92, 1.0, 1.04);
+    let body: vec3f = 1.65 * mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * (0.80 * sunIn) + skyN * 0.95) * (1.0 - 0.34 * wind);
     // what the eye gets from the water is the mirror weighed by Fresnel (a few per cent looking down into it, nearly all of it at a graze)
     // and the light coming up out of the water with the rest. So from a height the colour is the water's own and the mirror lies on it
     // only where what it mirrors is bright, cloud and snow, as at Peyto; far off, at a graze, the lake turns to sky and mountain
@@ -484,7 +485,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     }
   }
   // the air between
-  c = mix(c, vistaHaze(d) + vec3f(0.10, 0.07, 0.05) * (glow * lampK), saturate(E.w) * 0.88 * (1.0 - 0.45 * water * step(2.5, U.world.x) * smoothstep(0.03, 0.34, U.sunDir.y)));
+  c = mix(c, vistaHaze(d) + vec3f(0.10, 0.07, 0.05) * (glow * lampK), saturate(E.w) * 0.88 * (1.0 - 0.65 * water * step(2.5, U.world.x) * smoothstep(0.03, 0.34, U.sunDir.y)));
   let ex: f32 = 1.0 - smoothstep(${f(P.AZ - 0.08)}, ${f(P.AZ)}, abs(a));
   var res: vec3f = mix(sky, c, saturate(A.a) * ex);
   // ---- the clouds, over all of it: a sea of low cloud (most of the lowland in 云下之城, a few banks in 金色雪旗), and a belt of it
