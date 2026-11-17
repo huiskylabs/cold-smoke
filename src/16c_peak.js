@@ -128,7 +128,7 @@ fn pMarch(dl: vec2f, xa: f32, ya: f32, k: f32, xmax: f32) -> f32 {
     let x: f32 = xp + max(30.0 + 0.010 * xp, 0.38 * dp);
     if (x > xmax) { break; }
     let y: f32 = ya + (x - xa) * k;
-    if (y > 7400.0 * PK && k > 0.0) { break; }
+    if (y > ${f(Math.max(7400, P.HP * 1.02))} * PK && k > 0.0) { break; }
     let dd: f32 = y - pField(dl * x, 3);
     if (dd < 0.0) {
       // (closed in on by halving, so that no step of the march shows on the ground)
