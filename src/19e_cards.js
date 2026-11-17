@@ -24,7 +24,7 @@
 // p: { id: progress }, seen: { id: 1 } }. A card dropped from the tables keeps its record, so it comes back if the card does.
 const Cards = self.Cards = (() => {
   const C = { kinds: {}, sets: {}, cards: {}, rules: {}, facets: {}, arts: {}, stats: {}, gens: {}, list: [], on: false, started: false, VER: 1 };
-  const KEY = Store.durable('coldsmoke.cards');
+  const KEY = Store.durable('coldsmoke.cards'); Store.durable('coldsmoke.me');
   if (typeof Variants !== 'undefined') Variants.def('cards', '集卡', [['off', '关'], ['on', '开']], 'off');
   const devOn = () => { try { return !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (/[?&]dev(=|&|$)/.test(location.search) || /\/dev\/?$/.test(location.pathname) || !!(self.COLD_SMOKE && self.COLD_SMOKE.dev)); } catch (e) { return false; } };
   C.dev = devOn();
@@ -111,11 +111,17 @@ const Cards = self.Cards = (() => {
   const ctxPc = {};
   C.context = context;
   function stampsOf(c, ctx) { const out = {}; for (const id of c.facets || []) { const F = C.facets[id]; if (F) try { const v = F.read(ctx); if (v != null) out[id] = String(v); } catch (e) { } } return out; }
+  // who this player is, for the cards' seeds only: a random id made once and kept with the record (never sent anywhere)
+  C.me = function () { const K = 'coldsmoke.me'; let id = null; try { id = typeof Store !== 'undefined' ? Store.get(K) : localStorage.getItem(K); } catch (e) { } if (!id) { id = Math.random().toString(16).slice(2, 10) + Date.now().toString(16).slice(-6); try { if (typeof Store !== 'undefined') Store.set(K, id); else localStorage.setItem(K, id); } catch (e) { } } return id; };
+  C.seedOf = (id, key) => { const s = C.me() + ':' + id + ':' + key + ':' + Date.now() + ':' + Math.random(); let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
   C.grant = function (id, why, ctx) {
     const c = C.cards[id]; if (!c) { console.warn('cards: no such card', id); return false; }
     ctx = ctx || context('grant'); const R = load(), st = stampsOf(c, ctx); let r = R.got[id], fresh = !r, stamp = null;
     if (!r) r = R.got[id] = { t: Date.now(), d: typeof App !== 'undefined' && App.today ? App.today() : 0, n: 0, f: {}, seed: ctx.seed, why: why || ctx.ev || '' };
     r.n++;
+    // this player's moment of it, one a stamp: the card's own seed and what the sky and the place were then (the card's picture is made from it)
+    const mk = (st.tod || '') + '/' + (st.wx || 'clear'), M = r.m || (r.m = {});
+    if (!M[mk]) M[mk] = { k: C.seedOf(id, mk), c: typeof Sky !== 'undefined' && Sky.clock != null ? Math.round(Sky.clock) : null, s: Math.round(ctx.s || 0), u: Math.round(ctx.u || 0), t: Date.now() };
     for (const [k, v] of Object.entries(st)) { const a = r.f[k] || (r.f[k] = []); if (a.indexOf(v) < 0) { a.push(v); if (!fresh) stamp = stamp || { facet: k, value: v }; } }
     if (fresh) { delete R.seen[id]; save(true); tell({ type: 'got', card: c, rec: r }); }
     else if (stamp) { save(true); tell({ type: 'stamp', card: c, rec: r, facet: stamp.facet, value: stamp.value }); }

@@ -72,6 +72,10 @@ for (const f of ['00d_store.js', '19e_cards.js', '19i_cardpack.js']) vm.runInCon
 const C2 = vm.runInContext('Cards', ctx2); C2.start();
 ok(C2.has('hy-start') && C2.has('rt-secret') && C2.record().got['gone-card'], 'reloaded: cards and an unknown card kept');
 ok(vm.runInContext('Store.isDurable("coldsmoke.cards")', ctx2), 'the record is a durable key (kept in the 小红书 container)');
+// every card its own: a moment a stamp, with its own seed, and two players' same card differ
+const m1 = C.rec('hy-start').m; ok(m1 && Object.keys(m1).length >= 2 && Object.values(m1).every(q => q.k > 0 && q.t > 0), 'a moment kept for each stamp: ' + Object.keys(m1 || {}).join(','));
+ok(new Set(Object.values(m1).map(q => q.k)).size === Object.keys(m1).length, 'each moment its own seed');
+ok(vm.runInContext('Store.isDurable("coldsmoke.me")', ctx), 'the player id is kept like the record');
 // days (Cards.gen)
 ok(C.cards['day-20000'] && C.cards['day-20000'].seed === 120000, "today's card made from today's mountain");
 // every card draws, owned and not, under every hour

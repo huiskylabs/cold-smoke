@@ -3,13 +3,14 @@
 // What the picture is depends on the card's art: { type: 'scenery' | 'scene' | 'emblem' | any later Cards.art, ... }:
 //   scenery  the place itself, looked at from above it down the mountain: rows of the real snow (Course.height) far to near, trees as small
 //            marks, the run as a gold line, the spot as a gold point under a thread of cold smoke. Drawn only on the card's own mountain.
-//   scene    the same view of a place on the run (art.station / art.s), and in front of it what the card is about, built the way a screen
-//            print is (WPA park posters, Charley Harper): an animal or a skier as a few flat shapes with fine lines for the shade, standing
-//            on a faceted drift (art.stand), plus an effect (art.fx: aurora curtains, rings on the run, a secret ring, big flakes, a den).
+//   scene    the same view of a place on the run (art.station / art.s) with what the card is about left in it as a trace: tracks in
+//            the snow into the trees, rings on the run, aurora, a gold arc off a kicker. Never a drawn creature or person.
+// Every collected card is the player's own: its moment (A.moment: a seed from the player, the card and the time, the minute of the sky,
+// where they stood) moves the viewpoint and sets the light, the clouds, the moon's phase, the far ridges; the seed is printed on the card.
 //   emblem   a fallback: the hour's sky over faceted hills and the card's line drawing in a gold medallion
-// A card not yet collected: dark, the outline of its picture faint (a figure as a dark silhouette), a question mark, its hint.
+// A card not yet collected: dark, the outline of its picture faint, a question mark, its hint (the same for everyone).
 const CardArt = self.CardArt = (() => {
-  const A = { glyphs: {}, figures: {} };
+  const A = { glyphs: {} };
   const RNG = seed => { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
   const hash = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
   const mix = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k), css = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
@@ -42,6 +43,7 @@ const CardArt = self.CardArt = (() => {
   G('fox', (c, s) => { c.beginPath(); c.moveTo(-s * 0.45, s * 0.1); c.quadraticCurveTo(s * 0.0, -s * 0.12, s * 0.42, s * 0.05); c.lineTo(s * 0.62, -s * 0.18); c.lineTo(s * 0.66, -s * 0.48); c.lineTo(s * 0.78, -s * 0.24); c.lineTo(s * 1.0, -s * 0.08); c.lineTo(s * 0.62, s * 0.08); c.moveTo(-s * 0.35, s * 0.15); c.lineTo(-s * 0.38, s * 0.7); c.moveTo(s * 0.3, s * 0.12); c.lineTo(s * 0.32, s * 0.7); c.moveTo(-s * 0.45, s * 0.1); c.bezierCurveTo(-s * 1.0, s * 0.0, -s * 1.15, s * 0.55, -s * 0.8, s * 0.6); c.quadraticCurveTo(-s * 0.6, s * 0.4, -s * 0.45, s * 0.25); c.stroke(); });
   G('ibex', (c, s) => { c.beginPath(); c.moveTo(-s * 0.6, s * 0.0); c.lineTo(s * 0.35, s * 0.0); c.lineTo(s * 0.55, -s * 0.3); c.lineTo(s * 0.8, -s * 0.2); c.moveTo(-s * 0.5, s * 0.0); c.lineTo(-s * 0.5, s * 0.7); c.moveTo(s * 0.25, s * 0.0); c.lineTo(s * 0.25, s * 0.7); c.moveTo(s * 0.55, -s * 0.3); c.bezierCurveTo(s * 0.2, -s * 0.8, -s * 0.45, -s * 0.85, -s * 0.5, -s * 0.35); c.moveTo(-s * 1.0, s * 0.7); c.lineTo(-s * 0.2, s * 0.78); c.lineTo(s * 0.5, s * 0.7); c.lineTo(s * 1.0, s * 0.85); c.stroke(); });
   G('eagle', (c, s) => { c.beginPath(); c.moveTo(-s * 1.05, -s * 0.15); c.quadraticCurveTo(-s * 0.55, -s * 0.5, -s * 0.12, -s * 0.02); c.lineTo(0, s * 0.35); c.lineTo(s * 0.12, -s * 0.02); c.quadraticCurveTo(s * 0.55, -s * 0.5, s * 1.05, -s * 0.15); for (const k of [-1, 1]) for (const f of [0.55, 0.75, 0.95]) { c.moveTo(k * s * f, -s * 0.2 - (1 - f) * s * 0.2); c.lineTo(k * s * (f + 0.08), -s * 0.02); } c.moveTo(-s * 0.12, s * 0.3); c.lineTo(0, s * 0.55); c.lineTo(s * 0.12, s * 0.3); c.stroke(); });
+  G('paw', (c, s) => { c.beginPath(); c.ellipse(0, s * 0.3, s * 0.42, s * 0.34, 0, 0, 7); c.stroke(); for (const [x, y] of [[-0.62, -0.18], [-0.24, -0.62], [0.24, -0.62], [0.62, -0.18]]) { c.beginPath(); c.ellipse(x * s, y * s, s * 0.15, s * 0.2, x * 0.5, 0, 7); c.stroke(); } });
   G('den', (c, s) => { c.beginPath(); c.moveTo(-s, s * 0.6); c.quadraticCurveTo(-s * 0.2, -s * 0.9, s, s * 0.6); c.moveTo(-s * 0.35, s * 0.6); c.quadraticCurveTo(0, -s * 0.05, s * 0.35, s * 0.6); c.stroke(); c.beginPath(); c.arc(s * 0.62, -s * 0.55, s * 0.12, 0, 7); c.stroke(); });
 
   // ---- the snow as it lies at a place, seen from above it down the mountain: 31 rows (50 m behind to 470 m ahead, sparser far off), 49 points
@@ -76,173 +78,75 @@ const CardArt = self.CardArt = (() => {
     return null;
   };
 
-  function sky(ctx, W, PH, T, rnd, u, aurora, seed) {
+  // ---- a card's moment: when and where this player got it. Cards keeps one a stamp (rec.m['dusk/clear'] = { k, c, s, u, t }): k is the card's
+  // own seed (the player's install id, the card, the time), c the clock of the sky then, s and u where on the run the player was. So no two
+  // players' cards are the same picture, and a player's second stamp of a card is another picture again. A record from before has none: its
+  // moment is made from the card and the time it was got, the same every time it is drawn.
+  const BAND = { night: [1356, 1660], dawn: [236, 460], day: [470, 1000], dusk: [1008, 1348] };
+  const todOf = c => { c = ((c % 1440) + 1440) % 1440; return c < 230 || c >= 1352 ? 'night' : c < 464 ? 'dawn' : c < 1004 ? 'day' : 'dusk'; };
+  A.moment = function (v) {
+    const r = v.rec || {}, M = r.m || {}, tod = v.tod || 'day', key = tod + '/' + (v.wx || 'clear');
+    let m = M[key] || Object.keys(M).filter(q => q.indexOf(tod + '/') === 0).map(q => M[q])[0] || null;
+    if (!m) m = { k: hash(v.card.id + ':' + (r.t || 0) + ':' + key), c: null, s: null, u: null, t: r.t || 0 };
+    if (m.c == null || todOf(m.c) !== tod) { const R0 = RNG(m.k ^ 0x9e3779b9), b = BAND[tod] || BAND.day; m = Object.assign({}, m, { c: (b[0] + (b[1] - b[0]) * (0.12 + 0.76 * R0())) % 1440 }); }
+    return m;
+  };
+  A.code = k => { const h = (k >>> 0).toString(16).toUpperCase().padStart(8, '0'); return h.slice(0, 4) + '·' + h.slice(4); };
+  // the sky's colours at any minute, between the four hours' (each hour's palette sits at the middle of its band)
+  const KEYS = [[-80, 'night'], [350, 'dawn'], [735, 'day'], [1180, 'dusk'], [1510, 'night'], [1790, 'dawn']];
+  function skyAt(c) {
+    c = ((c % 1440) + 1440) % 1440; if (c < 350 && c < KEYS[0][0] + 1440 - 1440) c += 0;
+    let i = 0; while (i < KEYS.length - 2 && c > KEYS[i + 1][0]) i++;
+    const [c0, a0] = KEYS[i], [c1, b0] = KEYS[i + 1], t = Math.max(0, Math.min(1, (c - c0) / (c1 - c0))), e = t * t * (3 - 2 * t), A0 = TOD[a0], B0 = TOD[b0];
+    const T = {}; for (const k of ['top', 'low', 'far', 'near', 'rim']) T[k] = mix(A0[k], B0[k], e);
+    T.stars = A0.stars + (B0.stars - A0.stars) * e; T.orb = [0, 0, A0.orb[2] + (B0.orb[2] - A0.orb[2]) * e, mix(A0.orb[3], B0.orb[3], e)]; T.moon = todOf(c) === 'night' || (todOf(c) === 'dawn' && c < 300);
+    return T;
+  }
+  // the moon's phase on a day (0 new, 0.5 full), from a known new moon
+  const phaseAt = t => { const p = ((t - 947182440000) / 86400000 / 29.530589) % 1; return p < 0 ? p + 1 : p; };
+  // flat clouds the way a print has them: a long flat foot and a few round tops, lit on top, a darker line under
+  function clouds(ctx, W, PH, T, rnd, u) {
+    const n = Math.floor(rnd() * 3.4); for (let q = 0; q < n; q++) {
+      const y = PH * (0.1 + 0.26 * rnd()), w = W * (0.22 + 0.4 * rnd()), x0 = -w * 0.2 + rnd() * (W - w * 0.6), h = (3 + 3 * rnd()) * u, lit = mix(T.low, T.rim, 0.55), a = 0.35 + 0.35 * rnd();
+      ctx.fillStyle = css(lit, a); rr(ctx, x0, y - h, w, h * 2, h); ctx.fill();
+      const bumps = 2 + Math.floor(rnd() * 3); for (let b = 0; b < bumps; b++) { const bx = x0 + w * (0.15 + 0.7 * rnd()), br = (5 + 9 * rnd()) * u; ctx.beginPath(); ctx.arc(bx, y - h + 1, br, Math.PI, 0); ctx.closePath(); ctx.fill(); }
+      ctx.strokeStyle = css(mix(T.top, T.near, 0.5), a * 0.6); ctx.lineWidth = 0.7 * u; ctx.beginPath(); ctx.moveTo(x0 + h, y + h); ctx.lineTo(x0 + w - h, y + h); ctx.stroke();
+    }
+  }
+  function sky(ctx, W, PH, T, rnd, u, aurora, seed, m) {
     const g = ctx.createLinearGradient(0, 0, 0, PH); g.addColorStop(0, css(T.top)); g.addColorStop(0.62, css(mix(T.top, T.low, 0.75))); g.addColorStop(1, css(T.low)); ctx.fillStyle = g; ctx.fillRect(0, 0, W, PH);
-    if (T.stars) for (let i = 0; i < 90 * T.stars; i++) { const x = rnd() * W, y = rnd() * PH * 0.55, r = (0.3 + rnd() * 0.8) * u; ctx.fillStyle = css(SNOW, 0.25 + rnd() * 0.7); ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); }
+    if (T.stars) for (let i = 0; i < 110 * T.stars; i++) { const x = rnd() * W, y = rnd() * PH * 0.55, r = (0.3 + rnd() * 0.8) * u; ctx.fillStyle = css(SNOW, (0.25 + rnd() * 0.7) * Math.min(1, T.stars * 1.4)); ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); }
     if (aurora) for (let k = 0; k < 3; k++) { const y0 = PH * (0.17 + k * 0.06), g2 = ctx.createLinearGradient(0, y0 - 26 * u, 0, y0 + 22 * u); g2.addColorStop(0, 'rgba(90,255,190,0)'); g2.addColorStop(0.55, `rgba(${90 + k * 30},255,${190 - k * 20},${0.26 - k * 0.06})`); g2.addColorStop(1, 'rgba(120,140,255,0)'); ctx.fillStyle = g2; ctx.beginPath(); ctx.moveTo(0, y0 + 22 * u); for (let x = 0; x <= W; x += 6 * u) ctx.lineTo(x, y0 - 22 * u + Math.sin(x / (34 * u) + k * 1.9 + seed) * 10 * u); ctx.lineTo(W, y0 + 22 * u); ctx.closePath(); ctx.fill(); }
-    const [ox, oy, or, oc] = T.orb, x = ox * W, y = oy * PH, g3 = ctx.createRadialGradient(x, y, 0, x, y, or * 7 * u); g3.addColorStop(0, css(oc, 0.55)); g3.addColorStop(1, css(oc, 0)); ctx.fillStyle = g3; ctx.fillRect(0, 0, W, PH); ctx.fillStyle = css(oc); ctx.beginPath(); ctx.arc(x, y, or * u, 0, 7); ctx.fill();
+    // the sun or the moon: where it stands is the card's own; the moon shows the phase of the day the card was got
+    const ox = m ? 0.12 + 0.76 * rnd() : T.orb[0], oy = m ? 0.12 + 0.2 * rnd() : T.orb[1], or = T.orb[2], oc = T.orb[3], x = ox * W, y = oy * PH;
+    const g3 = ctx.createRadialGradient(x, y, 0, x, y, or * 7 * u); g3.addColorStop(0, css(oc, 0.55)); g3.addColorStop(1, css(oc, 0)); ctx.fillStyle = g3; ctx.fillRect(0, 0, W, PH);
+    ctx.fillStyle = css(oc); ctx.beginPath(); ctx.arc(x, y, or * u, 0, 7); ctx.fill();
+    if (T.moon && m && m.t) { const p = phaseAt(m.t), f = p < 0.5 ? p * 2 : (1 - p) * 2, R = or * u, dx = (p < 0.5 ? -1 : 1) * 2 * R * f; if (f < 0.97) { ctx.save(); ctx.beginPath(); ctx.arc(x, y, R + 0.3, 0, 7); ctx.clip(); ctx.fillStyle = css(mix(T.top, T.low, oy * 0.9)); ctx.beginPath(); ctx.arc(x + dx, y, R * 1.02, 0, 7); ctx.fill(); ctx.restore(); } }
+    if (m) clouds(ctx, W, PH, T, rnd, u);
+    return [x, y];
   }
   function snowfall(ctx, W, PH, wx, rnd, u) { const n = { light: 60, heavy: 240 }[wx] || 0; ctx.fillStyle = css(SNOW, 0.75); for (let i = 0; i < n; i++) { const x = rnd() * W, y = rnd() * PH, r = (0.4 + rnd() * 1.1) * u; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); } }
 
-  // ---- figures (Cards.figure(id, fn(ctx, P))): an animal or a skier as a few flat shapes, the way a screen print or Charley Harper builds
-  // one: a lens for the body, triangles for the head and ears, circles, and rows of fine lines for the shaded side. Drawn in units of the
-  // figure's size, facing right, its feet on y = 0.75. P: { body, shade, dark, light, horn, eye, ghost } (css colours, already lit by the hour).
-  A.figure = (id, fn) => { A.figures[id] = fn; };
-  const F = A.figure;
-  const poly = (c, col, ...p) => { c.beginPath(); c.moveTo(p[0], p[1]); for (let i = 2; i < p.length; i += 2) c.lineTo(p[i], p[i + 1]); c.closePath(); c.fillStyle = col; c.fill(); };
-  const disc = (c, col, x, y, r) => { c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = col; c.fill(); };
-  // fine parallel lines over a shape, only inside it (path = a function that lays the shape's path)
-  const hatch = (c, P, path, y0, y1, step, w, ang) => { if (P.ghost) return; c.save(); path(c); c.clip(); c.strokeStyle = P.shade; c.lineWidth = w || 0.016; c.beginPath(); const t = Math.tan(ang || 0); for (let y = y0; y <= y1; y += step || 0.042) { c.moveTo(-1.6, y - t * 1.6); c.lineTo(1.6, y + t * 1.6); } c.stroke(); c.restore(); };
-  const leg = (c, col, low, x, y0, w, lean = 0) => { poly(c, col, x - w / 2, y0, x + w / 2, y0, x + w * 0.3 + lean, 0.75, x - w * 0.3 + lean, 0.75); if (low) poly(c, low, x - w * 0.42 + lean * 0.6, 0.5, x + w * 0.42 + lean * 0.6, 0.5, x + w * 0.3 + lean, 0.75, x - w * 0.3 + lean, 0.75); };
-  const bz = (t, a, b, cc, d) => { const m = 1 - t; return m * m * m * a + 3 * m * m * t * b + 3 * m * t * t * cc + t * t * t * d; };
-
-  F('foxside', (c, P) => {
-    const tail = c2 => { c2.beginPath(); c2.moveTo(-0.5, 0.0); c2.bezierCurveTo(-0.95, -0.1, -1.24, 0.3, -1.04, 0.66); c2.bezierCurveTo(-0.94, 0.42, -0.76, 0.26, -0.48, 0.2); c2.closePath(); };
-    const body = c2 => { c2.beginPath(); c2.moveTo(-0.62, 0.1); c2.quadraticCurveTo(-0.08, -0.42, 0.46, 0.0); c2.quadraticCurveTo(-0.05, 0.48, -0.62, 0.1); c2.closePath(); };
-    leg(c, P.shade, P.dark, -0.38, 0.1, 0.1, 0.03); leg(c, P.shade, P.dark, 0.34, 0.06, 0.1, 0.03);
-    tail(c); c.fillStyle = P.body; c.fill(); hatch(c, P, tail, 0.2, 0.7, 0.045, 0.016, -0.25);
-    c.save(); tail(c); c.clip(); disc(c, P.light, -1.04, 0.63, 0.17); c.restore();
-    leg(c, P.body, P.dark, -0.5, 0.08, 0.11, -0.02); leg(c, P.body, P.dark, 0.24, 0.06, 0.11, 0.03);
-    body(c); c.fillStyle = P.body; c.fill(); hatch(c, P, body, 0.2, 0.36, 0.055, 0.02);
-    poly(c, P.body, 0.28, -0.06, 0.52, -0.34, 0.7, -0.12, 0.44, 0.2);
-    poly(c, P.light, 0.56, -0.14, 0.7, -0.12, 0.46, 0.2, 0.4, 0.12);
-    poly(c, P.dark, 0.52, -0.35, 0.56, -0.67, 0.66, -0.37);
-    poly(c, P.body, 0.5, -0.36, 0.78, -0.38, 1.04, -0.2, 0.68, -0.1);
-    poly(c, P.light, 0.68, -0.1, 1.04, -0.2, 0.82, -0.2);
-    poly(c, P.body, 0.65, -0.37, 0.74, -0.66, 0.81, -0.36); poly(c, P.dark, 0.69, -0.38, 0.74, -0.58, 0.77, -0.38);
-    if (!P.ghost) { disc(c, P.eye, 0.77, -0.28, 0.03); disc(c, P.dark, 1.03, -0.2, 0.026); }
-  });
-  // the fox the player meets, drawn to be loved (baby proportions: a big head, big eyes with a glint, a round body, short legs, the brush
-  // wrapped round the feet; from real winter foxes: the white bib and cheeks, black ear backs and socks). Three poses (dev switch 小狐狸):
-  // a sitting, facing you; b lying with its chin on its paws, eyes shut happy; c sitting with its head tilted.
-  const foxHead = (c, P, eyes) => {
-    for (const k of [-1, 1]) { poly(c, P.dark, 0.32 * k, -0.42, 0.37 * k, -0.88, 0.07 * k, -0.54); poly(c, P.body, 0.3 * k, -0.44, 0.34 * k, -0.8, 0.1 * k, -0.55); poly(c, P.light, 0.27 * k, -0.48, 0.3 * k, -0.72, 0.15 * k, -0.55); }
-    c.beginPath(); c.moveTo(-0.4, -0.26); c.quadraticCurveTo(-0.36, -0.58, 0, -0.6); c.quadraticCurveTo(0.36, -0.58, 0.4, -0.26); c.lineTo(0.2, -0.11); c.quadraticCurveTo(0, 0.0, -0.2, -0.11); c.closePath(); c.fillStyle = P.body; c.fill();
-    c.beginPath(); c.moveTo(-0.4, -0.26); c.lineTo(-0.12, -0.25); c.quadraticCurveTo(0, -0.33, 0.12, -0.25); c.lineTo(0.4, -0.26); c.lineTo(0.2, -0.11); c.quadraticCurveTo(0, 0.0, -0.2, -0.11); c.closePath(); c.fillStyle = P.light; c.fill();
-    poly(c, P.light, -0.07, -0.56, 0.07, -0.56, 0, -0.3);
-    if (P.ghost) return;
-    if (eyes === 'happy') { c.strokeStyle = P.dark; c.lineWidth = 0.035; c.lineCap = 'round'; for (const k of [-1, 1]) { c.beginPath(); c.arc(0.15 * k, -0.34, 0.06, Math.PI * 1.1, Math.PI * 1.9); c.stroke(); } }
-    else for (const k of [-1, 1]) { c.beginPath(); c.ellipse(0.155 * k, -0.36, 0.065, 0.082, 0, 0, 7); c.fillStyle = P.dark; c.fill(); disc(c, '#fff', 0.155 * k + 0.024, -0.39, 0.026); disc(c, 'rgba(255,255,255,0.7)', 0.155 * k - 0.02, -0.33, 0.012); }
-    for (const k of [-1, 1]) disc(c, 'rgba(255,140,130,0.45)', 0.26 * k, -0.24, 0.045);
-    c.beginPath(); c.moveTo(-0.05, -0.235); c.quadraticCurveTo(0, -0.25, 0.05, -0.235); c.quadraticCurveTo(0.03, -0.19, 0, -0.18); c.quadraticCurveTo(-0.03, -0.19, -0.05, -0.235); c.fillStyle = P.dark; c.fill();
-  };
-  const foxSit = (c, P, tilt) => {
-    const body = c2 => { c2.beginPath(); c2.moveTo(0, -0.1); c2.bezierCurveTo(0.36, -0.1, 0.44, 0.75, 0, 0.75); c2.bezierCurveTo(-0.44, 0.75, -0.36, -0.1, 0, -0.1); c2.closePath(); };
-    const tail = c2 => { c2.beginPath(); c2.moveTo(-0.05, 0.74); c2.bezierCurveTo(0.5, 0.82, 0.78, 0.5, 0.6, 0.16); c2.bezierCurveTo(0.56, 0.46, 0.38, 0.62, -0.05, 0.6); c2.closePath(); };
-    body(c); c.fillStyle = P.body; c.fill(); hatch(c, P, body, 0.48, 0.74, 0.05, 0.02);
-    c.beginPath(); c.moveTo(0, -0.05); c.quadraticCurveTo(0.22, 0.25, 0, 0.6); c.quadraticCurveTo(-0.22, 0.25, 0, -0.05); c.fillStyle = P.light; c.fill();
-    for (const k of [-1, 1]) { rr(c, 0.085 * k - 0.05, 0.42, 0.1, 0.33, 0.05); c.fillStyle = P.dark; c.fill(); }
-    tail(c); c.fillStyle = P.body; c.fill(); hatch(c, P, tail, 0.5, 0.82, 0.05, 0.02, -0.3);
-    c.save(); tail(c); c.clip(); disc(c, P.light, 0.6, 0.18, 0.15); c.restore();
-    c.save(); c.translate(0, -0.12); c.rotate(tilt || 0); c.translate(0, 0.12); foxHead(c, P, 'open'); c.restore();
-  };
-  F('fox-a', (c, P) => foxSit(c, P, 0));
-  F('fox-c', (c, P) => foxSit(c, P, -0.24));
-  F('fox-b', (c, P) => {
-    const body = c2 => { c2.beginPath(); c2.ellipse(0, 0.56, 0.56, 0.2, 0, 0, 7); };
-    const tail = c2 => { c2.beginPath(); c2.moveTo(-0.4, 0.66); c2.bezierCurveTo(-0.9, 0.76, -1.02, 0.42, -0.78, 0.3); c2.bezierCurveTo(-0.76, 0.5, -0.6, 0.56, -0.36, 0.5); c2.closePath(); };
-    tail(c); c.fillStyle = P.body; c.fill(); c.save(); tail(c); c.clip(); disc(c, P.light, -0.8, 0.32, 0.12); c.restore();
-    body(c); c.fillStyle = P.body; c.fill(); hatch(c, P, body, 0.6, 0.78, 0.05, 0.02);
-    for (const k of [-1, 1]) { c.beginPath(); c.ellipse(0.14 * k, 0.7, 0.11, 0.06, 0, 0, 7); c.fillStyle = P.dark; c.fill(); }
-    c.save(); c.translate(0, 0.48); c.scale(0.95, 0.95); foxHead(c, P, 'happy'); c.restore();
-  });
-  F('fox', (c, P) => A.figures['fox-' + ((typeof Variants !== 'undefined' && Variants.val && Variants.val.foxlook) || 'a')](c, P));
-  if (typeof Variants !== 'undefined') Variants.def('foxlook', '小狐狸', [['a', '坐着看你'], ['b', '趴着眯眼'], ['c', '歪头']], 'a');
-  F('foxsleep', (c, P) => {           // curled up in the snow, the brush over the nose
-    const body = c2 => { c2.beginPath(); c2.ellipse(0, 0.5, 0.42, 0.26, 0, 0, 7); };
-    body(c); c.fillStyle = P.body; c.fill(); hatch(c, P, body, 0.52, 0.8, 0.04);
-    poly(c, P.body, 0.18, 0.3, 0.52, 0.42, 0.3, 0.52); poly(c, P.dark, 0.2, 0.31, 0.22, 0.12, 0.32, 0.33); poly(c, P.light, 0.3, 0.52, 0.52, 0.42, 0.4, 0.5);
-    c.beginPath(); c.moveTo(0.44, 0.62); c.bezierCurveTo(0.3, 0.86, -0.3, 0.88, -0.52, 0.66); c.bezierCurveTo(-0.3, 0.74, 0.2, 0.74, 0.36, 0.52); c.closePath(); c.fillStyle = P.shade; c.fill();
-    disc(c, P.light, -0.5, 0.66, 0.08);
-    if (!P.ghost) { c.strokeStyle = P.dark; c.lineWidth = 0.02; c.beginPath(); c.moveTo(0.33, 0.39); c.lineTo(0.4, 0.41); c.stroke(); }
-  });
-  F('deer', (c, P) => {
-    const body = c2 => { c2.beginPath(); c2.moveTo(-0.62, 0.0); c2.quadraticCurveTo(-0.1, -0.42, 0.48, -0.06); c2.quadraticCurveTo(-0.05, 0.34, -0.62, 0.0); c2.closePath(); };
-    leg(c, P.shade, P.dark, -0.4, 0.06, 0.06, 0.04); leg(c, P.shade, P.dark, 0.38, 0.02, 0.06, 0.05);
-    leg(c, P.body, P.dark, -0.5, 0.0, 0.075, -0.03); leg(c, P.body, P.dark, 0.28, -0.02, 0.075, -0.02);
-    body(c); c.fillStyle = P.body; c.fill(); hatch(c, P, body, 0.08, 0.2, 0.055, 0.02);
-    disc(c, P.light, -0.58, -0.02, 0.1);
-    poly(c, P.body, 0.3, -0.12, 0.5, -0.52, 0.62, -0.46, 0.48, -0.02); poly(c, P.light, 0.48, -0.3, 0.58, -0.38, 0.5, -0.12);
-    poly(c, P.body, 0.5, -0.54, 0.36, -0.68, 0.53, -0.6);
-    poly(c, P.body, 0.48, -0.56, 0.64, -0.6, 0.88, -0.42, 0.62, -0.42); if (!P.ghost) { disc(c, P.dark, 0.87, -0.43, 0.03); disc(c, P.eye, 0.63, -0.52, 0.024); }
-    c.strokeStyle = P.horn; c.lineWidth = 0.03; c.lineCap = 'round'; c.lineJoin = 'round'; c.beginPath();
-    c.moveTo(0.56, -0.6); c.lineTo(0.5, -0.86); c.lineTo(0.38, -1.02); c.moveTo(0.52, -0.79); c.lineTo(0.64, -0.98); c.moveTo(0.46, -0.92); c.lineTo(0.54, -1.08);
-    c.moveTo(0.62, -0.6); c.lineTo(0.68, -0.84); c.lineTo(0.62, -1.0); c.moveTo(0.67, -0.78); c.lineTo(0.8, -0.9); c.stroke();
-  });
-  F('hare', (c, P) => {               // white winter coat, sitting
-    const body = c2 => { c2.beginPath(); c2.arc(-0.05, 0.42, 0.33, 0, 7); };
-    body(c); c.fillStyle = P.body; c.fill(); hatch(c, P, body, 0.46, 0.8, 0.04);
-    disc(c, P.light, -0.4, 0.5, 0.08);
-    c.beginPath(); c.ellipse(0.2, -0.36, 0.06, 0.26, -0.28, 0, 7); c.fillStyle = P.body; c.fill(); c.beginPath(); c.ellipse(0.33, -0.36, 0.055, 0.25, 0.12, 0, 7); c.fill();
-    c.beginPath(); c.ellipse(0.13, -0.57, 0.04, 0.06, -0.28, 0, 7); c.fillStyle = P.dark; c.fill(); c.beginPath(); c.ellipse(0.36, -0.57, 0.035, 0.055, 0.12, 0, 7); c.fill();
-    disc(c, P.body, 0.3, -0.03, 0.18); disc(c, P.body, 0.18, 0.2, 0.16);
-    c.beginPath(); c.ellipse(0.26, 0.72, 0.13, 0.04, 0, 0, 7); c.fillStyle = P.shade; c.fill();
-    if (!P.ghost) { disc(c, P.dark, 0.38, -0.06, 0.036); disc(c, P.eye, 0.385, -0.065, 0.02); disc(c, P.dark, 0.47, 0.0, 0.02); }
-  });
-  F('ibex', (c, P) => {
-    const body = c2 => { c2.beginPath(); c2.moveTo(-0.56, 0.06); c2.quadraticCurveTo(-0.05, -0.36, 0.42, -0.02); c2.quadraticCurveTo(-0.05, 0.4, -0.56, 0.06); c2.closePath(); };
-    leg(c, P.shade, P.dark, -0.34, 0.12, 0.08, 0.03); leg(c, P.shade, P.dark, 0.34, 0.08, 0.08, 0.02);
-    leg(c, P.body, P.dark, -0.46, 0.06, 0.1, -0.02); leg(c, P.body, P.dark, 0.22, 0.04, 0.1, 0.02);
-    body(c); c.fillStyle = P.body; c.fill(); hatch(c, P, body, 0.18, 0.34, 0.055, 0.02);
-    poly(c, P.body, 0.28, -0.05, 0.44, -0.36, 0.58, -0.3, 0.46, 0.1);
-    poly(c, P.body, 0.44, -0.4, 0.58, -0.42, 0.78, -0.22, 0.6, -0.2); poly(c, P.dark, 0.6, -0.22, 0.7, -0.22, 0.63, -0.06);
-    const o = [[0.47, -0.41], [0.42, -0.84], [0.08, -0.92], [-0.02, -0.5]], n = [[-0.02, -0.5], [0.1, -0.78], [0.38, -0.74], [0.57, -0.41]];
-    c.beginPath(); c.moveTo(o[0][0], o[0][1]); c.bezierCurveTo(o[1][0], o[1][1], o[2][0], o[2][1], o[3][0], o[3][1]); c.bezierCurveTo(n[1][0], n[1][1], n[2][0], n[2][1], n[3][0], n[3][1]); c.closePath(); c.fillStyle = P.horn; c.fill();
-    if (!P.ghost) { c.strokeStyle = P.shade; c.lineWidth = 0.014; c.beginPath(); for (let t = 0.12; t < 0.9; t += 0.075) { const k = 1 - t; c.moveTo(bz(t, o[0][0], o[1][0], o[2][0], o[3][0]), bz(t, o[0][1], o[1][1], o[2][1], o[3][1])); c.lineTo(bz(k, n[0][0], n[1][0], n[2][0], n[3][0]), bz(k, n[0][1], n[1][1], n[2][1], n[3][1])); } c.stroke(); disc(c, P.eye, 0.58, -0.33, 0.024); }
-  });
-  F('eagle', (c, P) => {               // seen from below, gliding: two long wings with fingered tips, a white head and tail
-    const wing = k => c2 => { c2.beginPath(); c2.moveTo(0.06 * k, -0.08); c2.lineTo(0.55 * k, -0.22); c2.lineTo(0.95 * k, -0.13); c2.lineTo(1.06 * k, -0.06); c2.lineTo(0.96 * k, -0.02); c2.lineTo(1.02 * k, 0.03); c2.lineTo(0.9 * k, 0.04); c2.lineTo(0.94 * k, 0.1); c2.lineTo(0.8 * k, 0.09); c2.lineTo(0.5 * k, 0.1); c2.lineTo(0.06 * k, 0.08); c2.closePath(); };
-    for (const k of [-1, 1]) { wing(k)(c); c.fillStyle = P.body; c.fill(); if (!P.ghost) { c.save(); wing(k)(c); c.clip(); c.strokeStyle = P.shade; c.lineWidth = 0.02; c.beginPath(); for (let x = 0.14; x < 1.1; x += 0.07) { c.moveTo(x * k, -0.3); c.lineTo((x + 0.04) * k, 0.2); } c.stroke(); c.restore(); } }
-    poly(c, P.light, -0.08, 0.3, 0.08, 0.3, 0.16, 0.56, -0.16, 0.56);
-    poly(c, P.dark, -0.09, -0.1, 0.09, -0.1, 0.07, 0.34, 0, 0.42, -0.07, 0.34);
-    disc(c, P.light, 0, -0.15, 0.085); if (!P.ghost) poly(c, P.eye, -0.03, -0.21, 0.03, -0.21, 0, -0.28);
-  });
-  F('skier', (c, P) => {               // a tuck, side on, for the moments of speed and air
-    c.strokeStyle = P.horn; c.lineWidth = 0.028; c.lineCap = 'round'; c.beginPath(); c.moveTo(-0.62, 0.58); c.lineTo(0.62, 0.58); c.quadraticCurveTo(0.76, 0.58, 0.8, 0.5); c.stroke();
-    c.lineWidth = 0.014; c.beginPath(); c.moveTo(0.34, -0.06); c.lineTo(-0.5, 0.18); c.stroke();
-    poly(c, P.dark, -0.22, 0.02, -0.02, 0.06, 0.16, 0.3, 0.02, 0.32); poly(c, P.dark, 0.02, 0.32, 0.16, 0.3, 0.06, 0.56, -0.06, 0.54);
-    poly(c, P.dark, -0.08, 0.5, 0.12, 0.5, 0.14, 0.58, -0.1, 0.58);
-    poly(c, P.body, -0.26, 0.04, 0.1, -0.3, 0.24, -0.22, -0.04, 0.1);
-    const back = c2 => { c2.beginPath(); c2.moveTo(-0.26, 0.04); c2.lineTo(0.1, -0.3); c2.lineTo(0.24, -0.22); c2.lineTo(-0.04, 0.1); c2.closePath(); }; hatch(c, P, back, -0.1, 0.12, 0.04);
-    poly(c, P.body, 0.12, -0.26, 0.38, -0.1, 0.36, -0.04, 0.08, -0.18);
-    disc(c, P.light, 0.22, -0.34, 0.08); if (!P.ghost) poly(c, P.eye, 0.24, -0.34, 0.31, -0.34, 0.3, -0.29, 0.24, -0.3);
-  });
-
-  // the colours of each figure, before the hour lights it
-  const LOOK = {
-    foxside: { body: [214, 104, 44], dark: [52, 30, 26], light: [246, 240, 230], horn: [246, 240, 230] },
-    fox: { body: [214, 104, 44], dark: [52, 30, 26], light: [246, 240, 230], horn: [246, 240, 230] },
-    foxsleep: { body: [214, 104, 44], dark: [52, 30, 26], light: [246, 240, 230], horn: [246, 240, 230] },
-    deer: { body: [152, 98, 62], dark: [48, 32, 26], light: [240, 232, 218], horn: [236, 222, 196] },
-    hare: { body: [238, 238, 242], dark: [40, 40, 52], light: [255, 255, 255], horn: [255, 255, 255] },
-    ibex: { body: [136, 114, 92], dark: [44, 36, 30], light: [230, 222, 206], horn: [210, 190, 156] },
-    eagle: { body: [96, 64, 42], dark: [42, 28, 22], light: [248, 244, 236], horn: [248, 244, 236] },
-    skier: { body: [212, 70, 54], dark: [34, 40, 60], light: [244, 240, 232], horn: [255, 208, 138] },
-  };
-  const HUE = { dawn: [[255, 200, 190], 0.14], day: [[255, 255, 255], 0], dusk: [[255, 168, 112], 0.18], night: [null, 0.36] };
-  function palette(id, T, tod, ghost) {
-    if (ghost) { const g = css([34, 46, 70]); return { body: g, shade: g, dark: g, light: g, horn: g, eye: g, ghost: true }; }
-    const L = LOOK[id] || LOOK.fox, h = HUE[tod] || HUE.day, lit = col => h[0] ? mix(col, h[0], h[1]) : mix(col, T.near, h[1]);
-    return { body: css(lit(L.body)), shade: css(mix(lit(L.body), INK, 0.42)), dark: css(lit(L.dark)), light: css(lit(L.light)), horn: css(lit(L.horn)), eye: css(GOLD), ghost: false };
-  }
-  function figure(ctx, id, x, y, s, T, tod, ghost, rot) { const fn = A.figures[id]; if (!fn) return; ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot); ctx.scale(s, s); ctx.lineCap = 'butt'; fn(ctx, palette(id, T, tod, ghost)); ctx.restore(); }
-
   // ---- the pictures (Cards.art)
-  // scenery: the place's own snow. Returns what was drawn where (the run, row by row, and the spot) so a scene can stand things on it.
+  // scenery: the place's own snow, from where this player stood (near the card's spot), at the minute they were there. Returns what was drawn
+  // where (the run row by row, a way to put a point at any distance and side, the spot) so a scene can lay traces on it.
   function scenery(ctx, W, PH, v, o) {
     o = o || {};
     const sp = A.spot(v.card), mine = (!v.card.seed || (typeof Course !== 'undefined' && Course.seed === v.card.seed)) && (!v.card.mtn || typeof Course !== 'undefined' && Course.mountainBySeed && (Course.mountainBySeed() || {}).id === v.card.mtn);
-    const G = sp && mine ? A.grid(sp.s, sp.u) : null;
+    const m = v.owned ? A.moment(v) : null, rnd = m ? RNG(m.k) : RNG(hash(v.card.id) + 7);
+    let s0 = sp && sp.s, u0 = sp && sp.u;
+    if (sp && m) { if (m.s != null && Math.abs(m.s - sp.s) < 200) { s0 = m.s - 20; u0 = Math.max(-40, Math.min(40, m.u || 0)); } else { s0 = sp.s + (rnd() - 0.5) * 70; u0 = sp.u + (rnd() - 0.5) * 40; } s0 = Math.round(s0 / 5) * 5; u0 = Math.round(u0 / 2) * 2; }
+    const G = sp && mine ? A.grid(s0, u0) : null;
     if (!G) return o.scene ? backdrop(ctx, W, PH, v, o) : emblem(ctx, W, PH, v);
-    const T = TOD[v.tod] || TOD.day, u = W / 300, rnd = RNG(hash(v.card.id) + 7), N = G.N, M = G.M, yFar = PH * 0.44, yNear = PH + 10 * u, pFar = G.rows[N - 1].p, KY = (W / 2) / 62 * 1.5;
-    if (v.owned) { sky(ctx, W, PH, T, rnd, u, v.aurora && !o.noAurora, hash(v.card.id) % 7); if (o.sky) o.sky(ctx, T, u); }
+    const T = m ? skyAt(m.c) : (TOD[v.tod] || TOD.day), u = W / 300, N = G.N, M = G.M, yFar = PH * (m ? 0.4 + 0.08 * rnd() : 0.44), yNear = PH + 10 * u, pFar = G.rows[N - 1].p, KY = (W / 2) / 62 * 1.5;
+    if (v.owned) { sky(ctx, W, PH, T, rnd, u, v.aurora && !o.noAurora, hash(v.card.id) % 7, m); if (o.sky) o.sky(ctx, T, u); }
     else { ctx.fillStyle = css(mix(INK, [20, 30, 48], 0.6)); ctx.fillRect(0, 0, W, PH); }
     const rowY = r => yFar + (yNear - yFar) * (r.p - pFar) / (1 - pFar), X = i => W / 2 + (i - (M - 1) / 2) / ((M - 1) / 2) * W * 0.53;
     const pt = (r, i) => [X(i), rowY(r) - r.h[i] * KY * r.p];
     const hAt = (r, l) => { const f = (l / r.half) * (M - 1) / 2 + (M - 1) / 2; if (f < 0 || f > M - 1) return null; const i = Math.min(M - 2, Math.floor(f)), k = f - i; return [W / 2 + (f - (M - 1) / 2) / ((M - 1) / 2) * W * 0.53, rowY(r) - (r.h[i] + (r.h[i + 1] - r.h[i]) * k) * KY * r.p]; };
-    if (v.owned) {          // far ridges (the seed's own noise, standing in for the far country)
-      const r2 = RNG((v.seed || 1) * 7 + 3), ph = [r2() * 9, r2() * 9, r2() * 9, r2() * 9];
-      for (const [amp, base, k] of [[34, -6, 0.32], [20, 6, 0.58]]) { ctx.fillStyle = css(mix(T.low, T.far, k)); ctx.beginPath(); ctx.moveTo(0, PH); for (let x = 0; x <= W; x += 3 * u) { const q = x / W, y = yFar + base * u - amp * u * (0.5 + 0.5 * Math.sin(q * 5.1 + ph[0])) * (0.55 + 0.45 * Math.sin(q * 13.7 + ph[1])) - 5 * u * Math.abs(Math.sin(q * 41 + ph[2])) - 2 * u * Math.sin(q * 97 + ph[3]); ctx.lineTo(x, y); } ctx.lineTo(W, PH); ctx.closePath(); ctx.fill(); }
+    if (v.owned) {          // far ridges, the card's own
+      const r2 = RNG(m.k * 7 + 3), ph = [r2() * 9, r2() * 9, r2() * 9, r2() * 9], A1 = 26 + 18 * r2();
+      for (const [amp, base, k] of [[A1, -6, 0.32], [A1 * 0.6, 6, 0.58]]) { ctx.fillStyle = css(mix(T.low, T.far, k)); ctx.beginPath(); ctx.moveTo(0, PH); for (let x = 0; x <= W; x += 3 * u) { const q = x / W, y = yFar + base * u - amp * u * (0.5 + 0.5 * Math.sin(q * 5.1 + ph[0])) * (0.55 + 0.45 * Math.sin(q * 13.7 + ph[1])) - 5 * u * Math.abs(Math.sin(q * 41 + ph[2])) - 2 * u * Math.sin(q * 97 + ph[3]); ctx.lineTo(x, y); } ctx.lineTo(W, PH); ctx.closePath(); ctx.fill(); }
     }
     let spotXY = null; const run = [];
     for (let j = N - 1; j >= 0; j--) {
@@ -251,25 +155,31 @@ const CardArt = self.CardArt = (() => {
       if (v.owned) { ctx.fillStyle = css(mix(T.far, T.near, 0.08 + 0.92 * Math.pow(k, 0.8))); ctx.fill(); ctx.strokeStyle = css(T.rim, 0.14 + 0.5 * k); ctx.lineWidth = (0.45 + 0.6 * k) * u; ctx.stroke(); }
       else { ctx.fillStyle = css(mix(INK, [20, 30, 48], 0.6)); ctx.fill(); ctx.strokeStyle = css(SNOW, 0.07 + 0.13 * k); ctx.lineWidth = 0.6 * u; ctx.stroke(); }
       if (v.owned) { ctx.fillStyle = css(mix(T.near, INK, 0.30 + 0.45 * k)); const sz = 8.5 * KY / 1.5 * r.p; for (let i = 0; i < M; i++) { if (!r.tr[i]) continue; const p = pt(r, i), s2 = sz * (0.7 + 0.6 * rnd()), dx = (rnd() - 0.5) * 3 * u; ctx.beginPath(); ctx.moveTo(p[0] + dx - s2 * 0.3, p[1] + 1); ctx.lineTo(p[0] + dx, p[1] - s2); ctx.lineTo(p[0] + dx + s2 * 0.3, p[1] + 1); ctx.closePath(); ctx.fill(); } }
-      const a0 = hAt(r, r.ways[0]); if (a0) run.push({ x: a0[0], y: a0[1], k, d: r.d, m: W * 0.53 / r.half });
+      const a0 = hAt(r, r.ways[0]); if (a0) run.push({ x: a0[0], y: a0[1], k, d: r.d, m: W * 0.53 / r.half, l: r.ways[0] });
       if (j > 0) { const r1 = G.rows[j - 1]; r.ways.forEach((w, n) => { let w1 = null, bd = 30; for (const q of r1.ways) if (Math.abs(q - w) < bd) { bd = Math.abs(q - w); w1 = q; } if (w1 == null) return; const a = hAt(r, w), b2 = hAt(r1, w1); if (!a || !b2) return; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b2[0], b2[1]); ctx.strokeStyle = v.owned ? css(GOLD, (n === 0 ? 0.92 : 0.42) * (o.runA == null ? 1 : o.runA)) : css(SNOW, 0.14); ctx.lineWidth = (n === 0 ? 0.5 + 1.0 * k : 0.4 + 0.5 * k) * u; ctx.lineCap = 'round'; ctx.stroke(); }); }
       if (r.d <= 0 && (j === N - 1 || G.rows[j + 1].d > 0)) spotXY = hAt(r, 0);
     }
     if (spotXY && v.owned && !o.scene) { const [sx, sy] = spotXY, g4 = ctx.createLinearGradient(0, sy - 74 * u, 0, sy); g4.addColorStop(0, css(SNOW, 0)); g4.addColorStop(1, css(SNOW, 0.75)); ctx.strokeStyle = g4; ctx.lineWidth = 1.2 * u; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.bezierCurveTo(sx + 5 * u, sy - 24 * u, sx - 6 * u, sy - 46 * u, sx + 7 * u, sy - 74 * u); ctx.stroke(); ctx.fillStyle = css(GOLD); ctx.beginPath(); ctx.arc(sx, sy, 2.6 * u, 0, 7); ctx.fill(); ctx.strokeStyle = css(GOLD, 0.5); ctx.lineWidth = 0.7 * u; ctx.beginPath(); ctx.arc(sx, sy, 6 * u, 0, 7); ctx.stroke(); }
+    // a point on the snow at a distance d ahead and l metres to the side, and the metres-to-pixels there (for traces)
+    const jOf = d => (N - 1) * Math.pow(Math.max(0, Math.min(1, (d + 50) / 520)), 1 / 1.6);
+    const atD = (d, l) => { const f = jOf(d), j = Math.min(N - 2, Math.floor(f)), k = f - j, a = hAt(G.rows[j], l), b = hAt(G.rows[j + 1], l); if (!a || !b) return null; const mm = W * 0.53 / (G.rows[j].half + (G.rows[j + 1].half - G.rows[j].half) * k); return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, mm]; };
+    const treeNear = (d, l) => { const r = G.rows[Math.round(jOf(d))]; let best = null, bd = 1e9; for (let i = 0; i < M; i++) if (r.tr[i]) { const li = (i - (M - 1) / 2) / ((M - 1) / 2) * r.half; if (Math.abs(li - l) < bd) { bd = Math.abs(li - l); best = li; } } return best; };
+    const out = { T, u, run, spot: spotXY, atD, treeNear, rnd, m };
+    if (o.ground && v.owned) o.ground(ctx, out);
     if (v.owned && v.wx && v.wx !== 'clear') snowfall(ctx, W, PH, v.wx, rnd, u);
     if (!v.owned && !o.scene) text(ctx, '？', W / 2, PH * 0.42, `300 ${46 * u}px ${SONG}`, css(SNOW, 0.34), 0, 'center');
-    return { T, u, run, spot: spotXY };
+    return out;
   }
   // the same picture's sky and land without a mountain to sample (another seed, a test): two faceted bands of hills
   function backdrop(ctx, W, PH, v, o) {
-    const T = TOD[v.tod] || TOD.day, u = W / 300, rnd = RNG(hash(v.card.id) + 3), h0 = hash(v.card.id) % 5;
-    if (!v.owned) { ctx.fillStyle = css(mix(INK, [20, 30, 48], 0.6)); ctx.fillRect(0, 0, W, PH); return { T, u, run: [], spot: null }; }
-    sky(ctx, W, PH, T, rnd, u, v.aurora && !(o && o.noAurora), h0); if (o && o.sky) o.sky(ctx, T, u);
+    const m = v.owned ? A.moment(v) : null, T = m ? skyAt(m.c) : (TOD[v.tod] || TOD.day), u = W / 300, rnd = RNG(m ? m.k : hash(v.card.id) + 3), h0 = hash(v.card.id) % 5;
+    if (!v.owned) { ctx.fillStyle = css(mix(INK, [20, 30, 48], 0.6)); ctx.fillRect(0, 0, W, PH); return { T, u, run: [], spot: null, atD: () => null, treeNear: () => null, rnd, m }; }
+    sky(ctx, W, PH, T, rnd, u, v.aurora && !(o && o.noAurora), h0, m); if (o && o.sky) o.sky(ctx, T, u);
     for (const [y0, amp, k] of [[0.52, 0.12, 0.3], [0.62, 0.08, 0.6], [0.74, 0.06, 0.85]]) { ctx.fillStyle = css(mix(T.far, T.near, k)); ctx.beginPath(); ctx.moveTo(0, PH); let x = 0; ctx.lineTo(0, PH * y0); while (x < W) { x += (24 + 30 * rnd()) * u; ctx.lineTo(Math.min(W, x), PH * (y0 - amp * (0.3 + 0.7 * rnd()))); } ctx.lineTo(W, PH); ctx.closePath(); ctx.fill(); ctx.strokeStyle = css(T.rim, 0.25 * k); ctx.lineWidth = 0.6 * u; ctx.stroke(); }
     if (v.wx && v.wx !== 'clear') snowfall(ctx, W, PH, v.wx, rnd, u);
-    return { T, u, run: [], spot: null };
+    return { T, u, run: [], spot: null, atD: () => null, treeNear: () => null, rnd, m };
   }
-  // emblem (an older card's art, or a card with no figure yet): the backdrop and its line drawing in a gold medallion
+  // emblem (a card with nothing else to show): the backdrop and its line drawing in a gold medallion
   function emblem(ctx, W, PH, v) {
     const S = backdrop(ctx, W, PH, v, {}), u = S.u, gl = A.glyphs[(v.card.art && v.card.art.glyph) || (v.kind && v.kind.glyph) || 'star'] || A.glyphs.star, cx = W / 2, cy = PH * 0.46;
     ctx.beginPath(); ctx.arc(cx, cy, 46 * u, 0, 7); ctx.fillStyle = css(INK, v.owned ? 0.55 : 0.3); ctx.fill(); ctx.strokeStyle = css(GOLD, v.owned ? 0.9 : 0.2); ctx.lineWidth = 1.2 * u; ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy, 41 * u, 0, 7); ctx.lineWidth = 0.5 * u; ctx.stroke();
@@ -278,8 +188,9 @@ const CardArt = self.CardArt = (() => {
     return S;
   }
 
-  // ---- scene: a place of the run (art.station / art.s), and in front of it what the card is about. art: { type: 'scene', station, at, fig,
-  // stand: 'ledge' | 'sky' | 'slope' | 'kicker', fx: 'aurora' | 'rings' | 'rings-white' | 'secret' | 'storm' | 'den' }
+  // ---- scene: the view of a place on the run (art.station / art.s) with what the card is about left in it as a trace, never drawn as a
+  // creature or a person: tracks in the snow leading into the trees, rings on the run, aurora, a gold arc off a kicker, streaks along the run.
+  // art: { type: 'scene', station, at, fx: 'tracks' | 'den' | 'aurora' | 'rings' | 'rings-white' | 'secret' | 'storm' | 'arc' | 'speed' | 'soar', trail }
   const FX = A.fx = {};
   FX.aurora = { sky: (ctx, W, PH, T, u, seed) => {            // curtains as rows of upright strokes, a bright hem along the foot
     for (let k = 0; k < 2; k++) {
@@ -313,47 +224,61 @@ const CardArt = self.CardArt = (() => {
     const gx = x + r * 0.7, gy = cy - r * 0.75, g = 7 * u; ctx.fillStyle = css(SNOW); ctx.beginPath(); ctx.moveTo(gx, gy - g); ctx.lineTo(gx + g * 0.18, gy - g * 0.18); ctx.lineTo(gx + g, gy); ctx.lineTo(gx + g * 0.18, gy + g * 0.18); ctx.lineTo(gx, gy + g); ctx.lineTo(gx - g * 0.18, gy + g * 0.18); ctx.lineTo(gx - g, gy); ctx.lineTo(gx - g * 0.18, gy - g * 0.18); ctx.closePath(); ctx.fill();
   } };
   FX.storm = { front: (ctx, S, W, PH) => { const u = S.u, f = A.glyphs.flake; ctx.strokeStyle = css(SNOW, 0.9); ctx.lineCap = 'round'; for (const [x, y, s, w] of [[0.2, 0.3, 16, 1.4], [0.78, 0.2, 11, 1.1], [0.62, 0.62, 22, 1.7], [0.12, 0.72, 9, 1]]) { ctx.save(); ctx.translate(W * x, PH * y); ctx.lineWidth = w * u; f(ctx, s * u); ctx.restore(); } } };
-  FX.den = { stand: (ctx, S, W, PH, cr) => { const u = S.u; ctx.fillStyle = css(INK, 0.85); ctx.beginPath(); ctx.moveTo(cr[0] - 64 * u, cr[1] + 14 * u); ctx.quadraticCurveTo(cr[0] - 50 * u, cr[1] - 14 * u, cr[0] - 32 * u, cr[1] + 12 * u); ctx.closePath(); ctx.fill(); } };
-
-  // the ground a figure stands on, a faceted drift in front of the view: a lit face toward the sun, the other face shaded in fine lines,
-  // two stacked-triangle pines at its far end. Returns where the crest is.
-  function ledge(ctx, W, PH, T, u, owned, sunLeft, shape) {
-    const lit = owned ? css(mix(T.rim, T.near, 0.22)) : css(mix(INK, [24, 34, 54], 0.7)), dark = owned ? css(mix(T.near, INK, 0.22)) : css(mix(INK, [20, 30, 48], 0.6));
-    const P = shape === 'slope' ? [[-2, PH * 0.58], [W * 0.5, PH * 0.73], [W * 0.62, PH * 0.76], [W + 2, PH * 0.9]] : shape === 'kicker' ? [[-2, PH * 0.74], [W * 0.2, PH * 0.73], [W * 0.3, PH * 0.66], [W * 0.31, PH * 0.75], [W * 0.6, PH * 0.8], [W + 2, PH * 0.84]] : [[-2, PH * 0.86], [W * 0.56, PH * 0.74], [W * 0.8, PH * 0.79], [W + 2, PH * 0.9]];
-    const ci = shape === 'kicker' ? 2 : 1, crest = P[ci], split = [crest[0] - W * 0.1, PH + 2];
-    const face = (pts, col) => { ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts.slice(1)) ctx.lineTo(p[0], p[1]); ctx.closePath(); ctx.fillStyle = col; ctx.fill(); };
-    const left = [...P.slice(0, ci + 1), split, [-2, PH + 2]], right = [...P.slice(ci), [W + 2, PH + 2], split];
-    face(left, sunLeft ? lit : dark); face(right, sunLeft ? dark : lit);
-    const shaded = sunLeft ? right : left;
-    if (owned) { ctx.save(); face(shaded, 'rgba(0,0,0,0)'); ctx.clip(); ctx.strokeStyle = css(T.rim, 0.22); ctx.lineWidth = 0.7 * u; ctx.beginPath(); for (let y = PH * 0.62; y < PH + 4; y += 3.4 * u) { ctx.moveTo(-2, y); ctx.lineTo(W + 2, y + W * 0.08); } ctx.stroke(); ctx.restore(); }
-    ctx.strokeStyle = owned ? css(T.rim, 0.7) : css(SNOW, 0.16); ctx.lineWidth = 0.9 * u; ctx.beginPath(); ctx.moveTo(P[0][0], P[0][1]); for (const p of P.slice(1)) ctx.lineTo(p[0], p[1]); ctx.stroke();
-    ctx.strokeStyle = owned ? css(T.rim, 0.35) : css(SNOW, 0.08); ctx.lineWidth = 0.6 * u; ctx.beginPath(); ctx.moveTo(crest[0], crest[1]); ctx.lineTo(split[0], split[1]); ctx.stroke();
-    if (shape !== 'kicker') { const tc = owned ? css(mix(T.near, INK, 0.55)) : css(mix(INK, [20, 30, 48], 0.4)); for (const [x, h] of [[0.9, 46], [0.97, 34]]) { const bx = W * x, by = PH * 0.86 + (x - 0.9) * 40 * u; for (let t = 0; t < 3; t++) { const y1 = by - h * u * (0.2 + t * 0.3), w = (10 - t * 2.6) * u; ctx.beginPath(); ctx.moveTo(bx - w, y1 + 12 * u); ctx.lineTo(bx, y1 - 9 * u); ctx.lineTo(bx + w, y1 + 12 * u); ctx.closePath(); ctx.fillStyle = tc; ctx.fill(); } } }
-    return crest;
+  // tracks in the snow, from the near snow into the trees: how far apart, how many walked it, what each print is
+  const TRAIL = { fox: { gap: 0.8, files: 1 }, hare: { gap: 2.0, files: 1 }, deer: { gap: 0.75, files: 3 }, ibex: { gap: 0.7, files: 2 } };
+  function prints(ctx, S, kind, d0, d1, l0, l1, wob) {
+    const T = S.T, rnd = S.rnd, u = S.u, col = css(mix(T.rim, SNOW, 0.4), 0.92), Tr = TRAIL[kind] || TRAIL.fox;   // drawn larger than life and light on the shaded snow, so the trail reads
+    const dot = (x, y, rx, ry) => { ctx.beginPath(); ctx.ellipse(x, y, Math.max(0.35 * u, rx), Math.max(0.25 * u, ry), 0, 0, 7); ctx.fill(); };
+    ctx.fillStyle = col;
+    for (let f = 0; f < Tr.files; f++) {
+      const off = (f - (Tr.files - 1) / 2) * 2.4, ph = rnd() * 6; let d = d0, side = 1;
+      while (d < d1) {
+        const t = (d - d0) / (d1 - d0), l = l0 + (l1 - l0) * t * t + Math.sin(t * 7 + ph) * wob * (1 - t) + off * (1 - 0.7 * t), p = S.atD(d, l);
+        if (p) {
+          const [x, y] = p, mm = p[2] * 2.2, q = 0.45;            // q: the snow seen from above at a slant, prints squashed
+          if (kind === 'hare') { dot(x - 0.06 * mm, y, 0.035 * mm, 0.07 * mm * q); dot(x + 0.06 * mm, y, 0.035 * mm, 0.07 * mm * q); dot(x + 0.01 * mm, y + 0.16 * mm * q, 0.025 * mm, 0.03 * mm * q); dot(x - 0.02 * mm, y + 0.26 * mm * q, 0.025 * mm, 0.03 * mm * q); }
+          else if (kind === 'deer' || kind === 'ibex') { const sx = x + side * 0.1 * mm; dot(sx - 0.025 * mm, y, 0.022 * mm, 0.05 * mm * q); dot(sx + 0.025 * mm, y, 0.022 * mm, 0.05 * mm * q); }
+          else dot(x + side * 0.05 * mm, y, 0.05 * mm, 0.06 * mm * q);
+          if (p[2] < 0.7 * u) break;
+        }
+        d += Tr.gap * (1 + d / 90); side = -side;
+      }
+    }
   }
-  const FIG = { fox: [0.3, 0.03], 'fox-b': [0.3, 0.02], foxside: [0.22, 0.04], foxsleep: [0.2, 0.02], deer: [0.25, 0.0], hare: [0.17, 0.0], ibex: [0.23, 0.02], skier: [0.24, 0], eagle: [0.3, 0] };
+  const trailOf = (S, kind, dMin, dMax) => { const r = S.rnd, l0 = (r() - 0.5) * 14, d1 = dMin + (dMax - dMin) * r(), lt = S.treeNear(d1, l0 + (r() - 0.5) * 50), l1 = lt == null ? l0 + 18 : lt; prints(S.ctx, S, kind, -42, d1, l0, l1, 3 + 6 * r()); return [d1, l1]; };
+  FX.tracks = { ground: (ctx, S) => { S.ctx = ctx; trailOf(S, S.trail || 'fox', 80, 200); } };
+  FX.den = { ground: (ctx, S) => {          // a fox's tracks that end at a hole under the trees
+    S.ctx = ctx; const [d1, l1] = trailOf(S, 'fox', 60, 120), p = S.atD(d1 + 2, l1); if (!p) return;
+    const [x, y, mm] = p, u = S.u; ctx.fillStyle = css(INK, 0.9); ctx.beginPath(); ctx.ellipse(x, y, Math.max(2.5 * u, 0.45 * mm), Math.max(1.6 * u, 0.3 * mm), 0, Math.PI, 0); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = css(S.T.rim, 0.7); ctx.lineWidth = 0.8 * u; ctx.beginPath(); ctx.ellipse(x, y, Math.max(3.4 * u, 0.6 * mm), Math.max(2.2 * u, 0.4 * mm), 0, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+  } };
+  FX.soar = { sky: (ctx, W, PH, T, u, seed) => {     // a bird far up, only two strokes
+    ctx.strokeStyle = css(mix(T.near, INK, 0.4), 0.85); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const [x, y, s] of [[0.36 + seed * 0.04, 0.2, 1], [0.62 - seed * 0.02, 0.27, 0.6]]) { const cx = W * x, cy = PH * y, w = 9 * u * s; ctx.lineWidth = 1.1 * u * s; ctx.beginPath(); ctx.moveTo(cx - w, cy - w * 0.25); ctx.quadraticCurveTo(cx - w * 0.4, cy - w * 0.45, cx, cy); ctx.quadraticCurveTo(cx + w * 0.4, cy - w * 0.45, cx + w, cy - w * 0.25); ctx.stroke(); }
+  } };
+  FX.arc = { ground: (ctx, S) => {          // a kicker on the run and the flight off it, a gold dashed arc
+    const u = S.u, q = S.run.find(p => p.d >= 45) || S.run[0]; if (!q) return; const l = q.l, a = S.atD(40, l), lip = S.atD(48, l), b = S.atD(110, l + 4); if (!a || !lip || !b) return;
+    const lipY = lip[1] - 2.2 * lip[2]; ctx.fillStyle = css(S.T.rim, 0.9); ctx.beginPath(); ctx.moveTo(a[0] - 3 * a[2], a[1]); ctx.lineTo(lip[0] - 3 * lip[2], lipY); ctx.lineTo(lip[0] + 3 * lip[2], lipY); ctx.lineTo(a[0] + 3 * a[2], a[1]); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = css(GOLD, 0.95); ctx.lineWidth = 1.3 * u; ctx.setLineDash([3 * u, 3.5 * u]); ctx.beginPath(); ctx.moveTo(lip[0], lipY); ctx.quadraticCurveTo((lip[0] + b[0]) / 2, Math.min(lipY, b[1]) - 70 * u, b[0], b[1]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = css(GOLD); ctx.beginPath(); ctx.arc(b[0], b[1], 2.2 * u, 0, 7); ctx.fill();
+  } };
+  FX.speed = { ground: (ctx, S) => {        // the run drawn fast: a glow along it and streaks either side
+    const u = S.u, pts = S.run.filter(p => p.d > 2 && p.d < 300).reverse(); if (pts.length < 2) return;
+    for (const [o, col, a, w] of [[0, GOLD, 0.22, 5], [-4, SNOW, 0.7, 0.9], [4, SNOW, 0.7, 0.9], [-7, GOLD, 0.6, 0.7], [7, GOLD, 0.6, 0.7]]) {
+      ctx.strokeStyle = css(col, a); ctx.lineCap = 'round'; ctx.lineWidth = w * u; ctx.beginPath(); let on = false;
+      for (const p of pts) { const q = S.atD(p.d, p.l + o); if (!q) continue; if (on) ctx.lineTo(q[0], q[1]); else { ctx.moveTo(q[0], q[1]); on = true; } }
+      ctx.stroke();
+    }
+  } };
   function scene(ctx, W, PH, v) {
     const a = v.card.art || {}, fx = FX[a.fx] || {}, seed = hash(v.card.id) % 7;
-    const S = scenery(ctx, W, PH, v, { scene: true, noAurora: !!fx.sky, runA: a.fx && a.fx.indexOf('rings') === 0 ? 0.5 : 1, sky: fx.sky && v.owned ? (c, T, u) => fx.sky(c, W, PH, T, u, seed) : null });
-    const T = S.T, u = S.u, sunLeft = T.orb[0] < 0.5;
-    if (fx.ground && v.owned) fx.ground(ctx, S, W, PH);
-    if (a.stand && a.stand !== 'sky') {
-      const cr = ledge(ctx, W, PH, T, u, v.owned, sunLeft, a.stand === 'ledge' ? null : a.stand);
-      if (fx.stand) fx.stand(ctx, S, W, PH, cr);
-      if (a.fig) {
-        const [k, dy] = FIG[a.fig] || [0.22, 0], s = W * k;
-        if (a.stand === 'slope') figure(ctx, a.fig, W * 0.5, PH * 0.73 - 0.58 * s, s, T, v.tod, !v.owned, 0.29);
-        else if (a.stand === 'kicker') {
-          if (v.owned) { ctx.strokeStyle = css(GOLD, 0.9); ctx.lineWidth = 1.2 * u; ctx.setLineDash([3 * u, 4 * u]); ctx.beginPath(); ctx.moveTo(cr[0], cr[1]); ctx.quadraticCurveTo(W * 0.58, PH * 0.12, W * 0.92, PH * 0.7); ctx.stroke(); ctx.setLineDash([]); }
-          figure(ctx, a.fig, W * 0.6, PH * 0.38, s * 0.8, T, v.tod, !v.owned, -0.18);
-        } else figure(ctx, a.fig, cr[0] - s * 0.1, cr[1] + PH * dy - 0.75 * s, s, T, v.tod, !v.owned);
-      }
-    } else if (a.fig) figure(ctx, a.fig, W * 0.5, PH * 0.3, W * (FIG[a.fig] || [0.3])[0], T, v.tod, !v.owned);
+    const S = scenery(ctx, W, PH, v, { scene: true, noAurora: !!fx.sky, runA: a.fx && a.fx.indexOf('rings') === 0 ? 0.5 : 1,
+      sky: fx.sky && v.owned ? (c, T, u) => fx.sky(c, W, PH, T, u, seed) : null,
+      ground: fx.ground ? (c, S2) => { S2.trail = a.trail; fx.ground(c, S2, W, PH); } : null });
     if (fx.front && v.owned) fx.front(ctx, S, W, PH);
-    if (a.speed && v.owned) { ctx.strokeStyle = css(SNOW, 0.85); ctx.lineCap = 'round'; for (let i = 0; i < 7; i++) { const y = PH * (0.5 + i * 0.035) + i * 2 * u, x1 = W * 0.36 + (i % 3) * 4 * u, L = (30 + (i * 37) % 50) * u; ctx.lineWidth = (1.6 - i * 0.12) * u; ctx.beginPath(); ctx.moveTo(x1 - L, y - L * 0.3); ctx.lineTo(x1, y); ctx.stroke(); } }
-    if (!v.owned) text(ctx, v.hidden ? '' : '？', W / 2, PH * 0.36, `300 ${42 * u}px ${SONG}`, css(SNOW, 0.34), 0, 'center');
+    if (!v.owned) text(ctx, v.hidden ? '' : '？', W / 2, PH * 0.36, `300 ${42 * S.u}px ${SONG}`, css(SNOW, 0.34), 0, 'center');
   }
-  if (typeof Cards !== 'undefined') { Cards.art('scenery', scenery); Cards.art('emblem', emblem); Cards.art('scene', scene); Cards.glyph = A.glyph; Cards.figure = A.figure; }
+  if (typeof Cards !== 'undefined') { Cards.art('scenery', scenery); Cards.art('emblem', emblem); Cards.art('scene', scene); Cards.glyph = A.glyph; }
 
   // ---- frames. Three looks to choose between (dev switch 卡框): a thin gold line round a full picture; a cut-corner frame with a medallion
   // on the seam (recommended); a printed card, paper round the picture, red seals for the stamps. Each draws picture, words and stamps.
@@ -369,7 +294,7 @@ const CardArt = self.CardArt = (() => {
     if (v.wx && F.wx) { const q = F.wx.values.find(x => x[0] === v.wx); if (q) when.push(L(q[1], q[2])); }
     if (r && r.n > 1) when.push(L('第 ' + r.n + ' 次', '×' + r.n));
     const set = Cards.sets[c.set] || null;
-    return { name: L(c.zh, c.en), fact: c.fact ? L(c.fact.zh || c.fact, c.fact.en) : '', when: when.join(' · '), set: ((set && (set.en || set.zh)) || '').toUpperCase(),
+    return { code: v.owned ? '#' + A.code(A.moment(v).k) : '', name: L(c.zh, c.en), fact: c.fact ? L(c.fact.zh || c.fact, c.fact.en) : '', when: when.join(' · '), set: ((set && (set.en || set.zh)) || '').toUpperCase(),
       locked: v.hidden ? L('秘密', 'Secret') : c.soon ? L('即将开放', 'Coming soon') : L('还没收到', 'Not yet'), hint: c.hint && !v.hidden ? L('线索：', 'Hint: ') + L(c.hint.zh || c.hint, c.hint.en) : '',
       stamps: (Cards.stamps(c, r)[0] || { values: [] }).values.map(q => [(CHIP[q[0]] || [q[1][0], q[2][0]])[Cards.L(0, 1)], q[3]]) };
   }
@@ -381,7 +306,7 @@ const CardArt = self.CardArt = (() => {
     ctx.save(); rr(ctx, 0, 0, W, H, 10 * u); ctx.clip(); pic(W, PH);
     ctx.fillStyle = css(mix(INK, [16, 24, 40], 0.55)); ctx.fillRect(0, PH, W, H - PH); ctx.fillStyle = css(GOLD, own ? 0.55 : 0.2); ctx.fillRect(0, PH, W, Math.max(1, 0.6 * u));
     text(ctx, 'No.' + pad(v.no) + ' / ' + pad(v.total), m, 26 * u, `500 ${9 * u}px ${LAT}`, css(SNOW, own ? 0.86 : 0.4), 2.4 * u);
-    text(ctx, w.set, W - m, 26 * u, `500 ${7.5 * u}px ${LAT}`, css(SNOW, own ? 0.7 : 0.3), 2.2 * u, 'right', W * 0.55);
+    text(ctx, w.set, W - m, 26 * u, `500 ${7.5 * u}px ${LAT}`, css(SNOW, own ? 0.7 : 0.3), 2.2 * u, 'right', W * 0.55); if (w.code) text(ctx, w.code, W - m, 38 * u, `500 ${7 * u}px ${LAT}`, css(SNOW, 0.55), 1.6 * u, 'right');
     if (own) {
       text(ctx, w.name, m, PH + 38 * u, `300 ${24 * u}px ${SONG}`, css(SNOW), 5 * u, 'left', W - 2 * m - 30 * u);
       if (w.fact) text(ctx, w.fact, m, PH + 60 * u, `400 ${10 * u}px ${SONG}`, css(SNOW, 0.66), 1 * u, 'left', W - 2 * m);
@@ -428,7 +353,7 @@ const CardArt = self.CardArt = (() => {
     if (own) {
       text(ctx, w.name, cx, seam + 43 * u, `300 ${22 * u}px ${SONG}`, css(SNOW), 6 * u, 'center', W - 40 * u);
       if (w.fact) text(ctx, w.fact, cx, seam + 62 * u, `400 ${9.5 * u}px ${SONG}`, css(SNOW, 0.66), 1 * u, 'center', W - 44 * u);
-      text(ctx, w.set, cx, seam + 79 * u, `500 ${6.6 * u}px ${LAT}`, css(SNOW, 0.45), 2.2 * u, 'center', W - 60 * u);
+      text(ctx, w.set + (w.code ? '  ·  ' + w.code : ''), cx, seam + 79 * u, `500 ${6.6 * u}px ${LAT}`, css(SNOW, 0.45), 2.2 * u, 'center', W - 60 * u);
       text(ctx, w.when, 20 * u, H - 19 * u, `400 ${7.6 * u}px ${LAT},${SONG}`, css(GOLD, 0.85), 1 * u, 'left', W - 110 * u);
       chips(ctx, w.stamps, W - 20 * u, H - 17 * u, u, 'gold');
     } else {
@@ -456,7 +381,7 @@ const CardArt = self.CardArt = (() => {
       text(ctx, w.locked, m, y0 + 40 * u, `400 ${20 * u}px ${SONG}`, css(ink, 0.6), 4 * u);
       if (w.hint) text(ctx, w.hint, m, y0 + 60 * u, `400 ${9.5 * u}px ${SONG}`, css(ink, 0.6), 1 * u, 'left', W - 2 * m);
     }
-    text(ctx, 'No.' + pad(v.no) + ' / ' + pad(v.total) + '   ' + w.set, m, H - 15 * u, `500 ${6.8 * u}px ${LAT}`, css(ink, 0.5), 1.6 * u, 'left', W - 2 * m - 70 * u);
+    text(ctx, 'No.' + pad(v.no) + ' / ' + pad(v.total) + '   ' + w.set + (w.code ? '   ' + w.code : ''), m, H - 15 * u, `500 ${6.8 * u}px ${LAT}`, css(ink, 0.5), 1.6 * u, 'left', W - 2 * m - 70 * u);
   }
 
   // ---- a whole card. view: { card, rec, owned, tod, wx, aurora, no, total, seed, hidden, frame }
