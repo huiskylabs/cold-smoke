@@ -16,6 +16,9 @@
   const SW = ['pslice', 'mbtap', 'patchd'], OLD = SW.every(n => window.__int && window.__int.Variants.val[n] === 'a');
   { const ln = $('div', 'margin-bottom:10px', box), a = $('a', 'color:#9fe;text-decoration:underline', ln); ln.insertBefore(document.createTextNode(OLD ? '现在测的是：旧做法（三条优化关掉）。' : '现在测的是：新做法（三条优化打开）。'), a);
     a.textContent = OLD ? '换成新做法再测一遍' : '换成旧做法再测一遍'; a.href = location.pathname + '?' + location.search.replace(/^\?/, '').split('&').filter(x => x && !/^v-(pslice|mbtap|patchd)=/.test(x)).concat(SW.map(n => 'v-' + n + (OLD ? '=b' : '=a'))).join('&'); }
+  if (/[?&]boottest\b/.test(location.search)) { const ln = $('div', 'margin-bottom:10px', box), a = $('a', 'color:#9fe;text-decoration:underline', ln), A = window.__int && window.__int.Variants.val.bootq === 'a';
+    ln.insertBefore(document.createTextNode(A ? '现在测的是：旧的开机顺序（全部编好再开）。' : '现在测的是：新的开机顺序（先编第一眼要的）。'), a);
+    a.textContent = A ? '换成新顺序再测一遍' : '换成旧顺序再测一遍'; a.href = location.pathname + '?' + location.search.replace(/^\?/, '').split('&').filter(x => x && !/^v-bootq=/.test(x)).concat('v-bootq=' + (A ? 'b' : 'a')).join('&'); }
   const btn = $('button', 'font-size:17px;padding:10px 26px;border-radius:8px;border:0;background:#7A3FFF;color:#fff;margin-right:10px', box); btn.textContent = '开始'; btn.id = 'bench-go';
   const copy = $('button', 'font-size:17px;padding:10px 26px;border-radius:8px;border:0;background:#018081;color:#fff;display:none', box); copy.textContent = '复制结果';
   const stat = $('div', 'margin:10px 0;color:#9fe', box); stat.id = 'bench-stat';
@@ -52,8 +55,10 @@
       const total = performance.now() - t0; R.boot = { total: Math.round(total), stages: st.map((s, i) => [s[0], Math.round((i + 1 < st.length ? st[i + 1][1] : total) - s[1])]) };
       if (BOOT) {
         R.caps = { backend: I.App.gfx.caps.backend, renderer: I.Quality.gpu }; R.cold = COLD; R.quality = { tier: I.Quality.tier, why: I.Quality.why, gpu: I.Quality.gpu };
+        // 开机顺序 bootq b：开机后再补编的那批管线，什么时候全部编好（算在从开机开始的时间里）
+        R.bootq = I.Variants.val.bootq || '?'; const lp = Promise.resolve(I.App.later).then(() => { R.allMs = Math.round(performance.now() - t0); });
         const fr = []; for (let i = 0; i < 5; i++) { const a = performance.now(); window.__ski.frame(); await new Promise(r => requestAnimationFrame(r)); fr.push(Math.round(performance.now() - a)); }
-        R.firstFrames = fr;
+        R.firstFrames = fr; await lp;
         const gp = (P.gpuPipes || []).filter(e => e.tDone); if (gp.length) { const first = Math.min(...gp.map(e => e.t0)), done = gp.map(e => e.tDone).sort((x, y) => x - y);
           // 按编译好的先后排：每条和前一条编译好的时间差，近似它自己花的时间（浏览器一条一条编时成立）
           const order = gp.slice().sort((x, y) => x.tDone - y.tDone); let prev = Math.max(first, order[0].t0);
@@ -111,13 +116,14 @@
       }
     } catch (e) { R.error = String(e && e.message ? e.message : e).slice(0, 2000); }
     // ---------- 结果
-    L.push('=== 雪迹性能测量 v6 ' + R.when + ' ===');
+    L.push('=== 雪迹性能测量 v7 ' + R.when + ' ===');
     L.push('浏览器: ' + R.ua); L.push(`屏幕 ${R.screen} 窗口 ${R.inner} 像素比 ${R.dpr} 内存 ${R.mem} GB 核 ${R.cores}`);
     L.push('WebGPU: ' + (R.webgpu ? '有（' + R.gpuAdapter + '）' : '没有'));
     if (R.caps) { L.push('显卡: ' + R.caps.renderer); L.push(`WebGL2 能力: 浮点渲染目标 ${R.caps.hdr ? '有' : '没有'}，GPU 计时 ${R.caps.timerExt ? '有' : '没有'}，并行编译 ${R.caps.parallelCompile ? '有' : '没有'}，各向异性 ${R.caps.aniso ? '有' : '没有'}，最大贴图 ${R.caps.maxTex}，贴图单元 ${R.caps.maxTexUnits}/顶点 ${R.caps.maxVertTexUnits}`); }
     if (R.quality && R.memGpu) L.push(`画质档 ${R.quality.tier}（${R.quality.why}）画布 ${R.size0 ? R.size0.join('×') : '?'} 阴影 ${R.shadow}；显存: 贴图 ${R.memGpu.texMiB} MiB + 缓冲 ${R.memGpu.bufMiB} MiB；管线 ${R.pipes} 条，编译 ${R.compileMs} ms`);
     if (R.sw) L.push('优化开关（b = 新做法，a = 旧做法）: ' + SW.map(n => n + '=' + R.sw[n]).join(' '));
     if (BOOT && R.quality) L.push(`画质档 ${R.quality.tier}（${R.quality.why}）`);
+    if (BOOT) L.push(`开机顺序 bootq=${R.bootq}（b = 先编第一眼要的，a = 全部编好再开）：能出第一张画面 ${R.boot ? R.boot.total : '?'} ms，开机后补编的也全部编好 ${R.allMs} ms`);
     if (BOOT) L.push(`开机测试：${R.caps ? R.caps.backend : '?'}，${COLD ? '冷启动（假装第一次打开）' : '热启动（着色器已缓存）'}；页面加载到开机开始 ${R.loadMs} ms；开机后前 5 帧 ${R.firstFrames ? R.firstFrames.join(' / ') : '?'} ms`);
     if (R.gpuPipes) { L.push(`WebGPU 管线 ${R.gpuPipes.length} 条，从建第一条到最后一条编好 ${R.gpuPipeSpan} ms。最慢的（ms，着色器字数）:`); L.push('   ' + R.gpuPipes.slice().sort((x, y) => y[1] - x[1]).slice(0, 25).map(x => x[0] + ' ' + x[1] + '（' + Math.round(x[3] / 1000) + 'k）').join(' | ')); }
     if (R.boot) L.push(`A 开机 ${R.boot.total} ms: ` + R.boot.stages.map(s => s[0] + ' ' + s[1]).join(' | '));
