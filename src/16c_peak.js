@@ -13,6 +13,7 @@ const Peak = { K: 2.2, H: 3600, AZ: 1.3, t0: -0.30, ta: 0.60, tb: 0.95, ak: 0.42
 // 金色雪旗: how far off the volcano stands and how wide the lake lies before it (the owner: the peak farther, far more water, so that
 // the lake can carry the aurora). Three to choose from; 云下之城 keeps the numbers above
 Variants.def('lake', '湖的大小 (金色雪旗)', [['a', '大湖'], ['b', '更大'], ['c', '一望无际']], 'b');
+Variants.def('boats', '湖上的船 (金色雪旗)', [['a', '没有'], ['b', '几只'], ['c', '一队']], 'b');
 Peak.sets = {
   a: { PC: [2000, 38000], HP: 9200, PR: 13500, LC: [-600, 15500], LR: [15000, 9000], haze: 70000 },
   b: { PC: [2500, 48000], HP: 11000, PR: 15500, LC: [-600, 20500], LR: [20000, 14000], haze: 85000 },
@@ -315,6 +316,36 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   let fres: f32 = 0.42 + 0.68 * pow(1.0 - saturate(sin(max(th - ${f(P.lift)}, 0.0))), 5.0);
   let wcol: vec3f = mix(ws, mix(alb * lit * 0.85, ws * 0.6 + alb * lit * 0.35, 0.6 * wind * (0.5 + rp)) + lamps, mirrorLand) * fres + vec3f(0.004, 0.011, 0.024) * (0.3 + luma(amb));
   var c: vec3f = mix(land, wcol, water);
+  // 金色雪旗: boats on the lake (U.world.y of them). Far too small to see at their true size, so each is drawn some hundreds of metres
+  // long: a dark hull, one pale sail, a lantern at the stern that lies in the water under it as a long trembling streak. They drift.
+  if (U.world.y > 0.5 && U.world.x > 2.5 && water > 0.2) {
+    for (var i: i32 = 0; i < 16; i++) {
+      let fi: f32 = f32(i);
+      if (fi >= U.world.y) { break; }
+      let h1: f32 = hash21(vec2f(fi * 7.0 + 1.0, 3.0)); let h2: f32 = hash21(vec2f(fi * 13.0 + 5.0, 9.0)); let h3: f32 = hash21(vec2f(fi * 3.0 + 2.0, 17.0));
+      let by: f32 = ${f((P.LC[1] - 0.70 * P.LR[1]) * P.K)} + ${f(1.25 * P.LR[1] * P.K)} * h2 + U.camPos.w * 6.0 * (h3 - 0.5);
+      let bp: vec2f = vec2f((2.0 * h1 - 1.0) * 0.40 * by + U.camPos.w * 9.0 * (h3 - 0.5), by);
+      let db: f32 = length(bp); let ab: f32 = atan2(bp.x, bp.y); let tb: f32 = atan(${f(P.H * P.K)} / db);
+      let sz: f32 = clamp(${f(700 * P.K)} / db, 0.0035, 0.0105) * (0.75 + 0.5 * h3);
+      let dirn: f32 = sign(h3 - 0.5);
+      let x: f32 = (a - ab) / sz * dirn; let y: f32 = (tb - th) / sz;
+      if (abs(x) < 2.5 && y > -9.0 && y < 2.2) {
+        let hull: f32 = smoothstep(-0.05, 0.0, y) * smoothstep(0.24, 0.17, y + 0.06 * abs(x)) * smoothstep(1.0, 0.9, abs(x));
+        let sy: f32 = (y - 0.2) / 1.5;
+        let sail: f32 = step(0.0, sy) * step(sy, 1.0) * smoothstep(0.0, 0.06, x + 0.10) * smoothstep(0.0, 0.06, 0.70 * (1.0 - sy) - x);
+        let lx: f32 = x + 0.62; let ly: f32 = y - 0.36;
+        let lamp: f32 = exp(-(lx * lx + ly * ly) * 22.0) * 3.0 + exp(-(lx * lx + ly * ly) * 2.2) * 0.25;
+        let wob: f32 = 0.20 * sin(y * 5.0 + U.camPos.w * 1.7 + fi) * saturate(-y * 0.6);
+        let refl: f32 = step(y, 0.0) * exp(-sq(lx + wob) * 9.0) * exp(y * 0.42) * (0.55 + 0.45 * sin(y * 11.0 - U.camPos.w * 2.3 + fi * 2.0));
+        let shade: f32 = step(y, 0.0) * smoothstep(1.0, 0.6, abs(x)) * exp(y * 1.3) * 0.45;
+        let warm: vec3f = vec3f(1.0, 0.62, 0.25) * (0.15 + 0.85 * lampK);
+        c *= 1.0 - shade;
+        c = mix(c, vec3f(0.80, 0.78, 0.72) * (U.sunCol.rgb * (0.55 * (1.0 - 0.8 * dark)) + amb * 0.8 + warm * (0.10 * lampK) + vec3f(0.03, 0.04, 0.07) * dark), sail * 0.95);
+        c = mix(c, vec3f(0.035, 0.035, 0.04) * (0.3 + luma(amb)), hull);
+        c += warm * (lamp * 1.6 + refl * 1.1 * max(lampK, 0.12));
+      }
+    }
+  }
   // the air between
   c = mix(c, vistaHaze(d) + vec3f(0.10, 0.07, 0.05) * (glow * lampK), saturate(E.w) * 0.88);
   let ex: f32 = 1.0 - smoothstep(${f(P.AZ - 0.08)}, ${f(P.AZ)}, abs(a));
