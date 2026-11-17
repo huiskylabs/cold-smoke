@@ -6,9 +6,9 @@
 Cards.pack({
   kinds: {
     view: { zh: '风景卡', en: 'Views', art: 'scenery', glyph: 'ridge', facets: ['tod', 'wx'] },          // a place: collected again under each hour and weather
-    animal: { zh: '动物卡', en: 'Animals', art: 'emblem', glyph: 'fox', facets: ['tod'] },
-    moment: { zh: '时刻卡', en: 'Moments', art: 'emblem', glyph: 'star', facets: [] },
-    route: { zh: '路线章', en: 'Routes', art: 'emblem', glyph: 'ring', facets: ['gear'] },
+    animal: { zh: '动物卡', en: 'Animals', art: 'scene', glyph: 'fox', facets: ['tod'] },
+    moment: { zh: '时刻卡', en: 'Moments', art: 'scene', glyph: 'star', facets: [] },
+    route: { zh: '路线章', en: 'Routes', art: 'scene', glyph: 'ring', facets: ['gear'] },
     day: { zh: '今日卡', en: 'Days', art: 'scenery', glyph: 'lantern', facets: [] },
   },
   sets: {
@@ -28,26 +28,26 @@ Cards.pack({
     { id: 'hy-powder', set: 'hanyan-views', zh: '粉雪大坡', en: 'Powder field', when: { type: 'station', idx: 9, at: 0.2 }, hint: { zh: '第二段林道之后', en: 'After the second forest lane' }, fact: { zh: '出林就是一整面粉雪', en: 'Out of the trees into a whole face of powder' } },
     { id: 'hy-chute', set: 'hanyan-views', zh: '林中陡槽', en: 'The chute', when: { type: 'station', idx: 11, at: 0.55 }, hint: { zh: '一圈的最后', en: 'The end of the lap' }, fact: { zh: '窄、急、看不远', en: 'Narrow, steep, blind' } },
     // (the fox's den: the fox trial sends 'fox.den' when it has led the player there; until then only the dev buttons can)
-    { id: 'hy-den', set: 'hanyan-views', zh: '狐狸的窝', en: "The fox's den", when: { type: 'event', name: 'fox.den' }, hint: { zh: '跟着小狐狸走', en: 'Follow the little fox' }, art: { type: 'emblem', glyph: 'den' }, fact: { zh: '小狐狸带你来的地方', en: 'Where the fox led you' } },
+    { id: 'hy-den', set: 'hanyan-views', zh: '狐狸的窝', en: "The fox's den", when: { type: 'event', name: 'fox.den' }, hint: { zh: '跟着小狐狸走', en: 'Follow the little fox' }, art: { type: 'scene', station: 9, at: 0.3, fig: 'foxsleep', stand: 'ledge', fx: 'den' }, fact: { zh: '小狐狸带你来的地方', en: 'Where the fox led you' } },
     { id: 'hy-all', set: 'hanyan-views', zh: '寒烟山全景', en: 'All of Cold Smoke', when: { type: 'count', set: 'hanyan-views' }, hint: { zh: '收齐这一页的风景', en: 'Every view on this page' }, art: { type: 'emblem', glyph: 'ridge' }, hidden: 'secret', facets: [] },
 
     // ---- animals met on the way (19h_cardsrc.js: 'animal.seen' as one comes close)
-    { id: 'an-deer', set: 'met', zh: '鹿', en: 'Deer', art: { glyph: 'deer' }, when: { type: 'event', name: 'animal.seen', match: { id: 'deer' } }, hint: { zh: '开阔的坡上，一群', en: 'On open slopes, a herd' } },
-    { id: 'an-hare', set: 'met', zh: '雪兔', en: 'Snow hare', art: { glyph: 'hare' }, when: { type: 'event', name: 'animal.seen', match: { id: 'hare' } }, hint: { zh: '林边突然窜出来', en: 'Breaks from the tree line' } },
-    { id: 'an-fox', set: 'met', zh: '狐狸', en: 'Fox', art: { glyph: 'fox' }, when: { type: 'event', name: 'animal.seen', match: { id: 'fox' } }, hint: { zh: '树林和雪道交界的地方', en: 'Where the trees give way to the run' } },
-    { id: 'an-ibex', set: 'met', zh: '北山羊', en: 'Ibex', art: { glyph: 'ibex' }, when: { type: 'event', name: 'animal.seen', match: { id: 'ibex' } }, hint: { zh: '站在高处看你', en: 'Watching from high ground' } },
-    { id: 'an-eagle', set: 'met', zh: '金雕', en: 'Golden eagle', art: { glyph: 'eagle' }, when: { type: 'event', name: 'animal.seen', match: { id: 'eagle' } }, hint: { zh: '抬头看', en: 'Look up' } },
+    { id: 'an-deer', set: 'met', zh: '鹿', en: 'Deer', art: { type: 'scene', station: 0, at: 0.45, fig: 'deer', stand: 'ledge' }, when: { type: 'event', name: 'animal.seen', match: { id: 'deer' } }, hint: { zh: '开阔的坡上，一群', en: 'On open slopes, a herd' } },
+    { id: 'an-hare', set: 'met', zh: '雪兔', en: 'Snow hare', art: { type: 'scene', station: 1, at: 0.5, fig: 'hare', stand: 'ledge' }, when: { type: 'event', name: 'animal.seen', match: { id: 'hare' } }, hint: { zh: '林边突然窜出来', en: 'Breaks from the tree line' } },
+    { id: 'an-fox', set: 'met', zh: '狐狸', en: 'Fox', art: { type: 'scene', station: 3, at: 0.4, fig: 'fox', stand: 'ledge' }, when: { type: 'event', name: 'animal.seen', match: { id: 'fox' } }, hint: { zh: '树林和雪道交界的地方', en: 'Where the trees give way to the run' } },
+    { id: 'an-ibex', set: 'met', zh: '北山羊', en: 'Ibex', art: { type: 'scene', station: 6, at: 0.3, fig: 'ibex', stand: 'ledge' }, when: { type: 'event', name: 'animal.seen', match: { id: 'ibex' } }, hint: { zh: '站在高处看你', en: 'Watching from high ground' } },
+    { id: 'an-eagle', set: 'met', zh: '金雕', en: 'Golden eagle', art: { type: 'scene', station: 6, at: 0.6, fig: 'eagle', stand: 'sky' }, when: { type: 'event', name: 'animal.seen', match: { id: 'eagle' } }, hint: { zh: '抬头看', en: 'Look up' } },
 
     // ---- moments: the sky and the run
-    { id: 'mo-aurora', set: 'moments', zh: '极光下', en: 'Under the aurora', art: { glyph: 'aurora' }, when: { type: 'all', of: [{ type: 'sky', aurora: true }, { type: 'stat', key: 'speed', gte: 5 }] }, hint: { zh: '夜里，天上有极光的时候', en: 'A night with the aurora' } },
-    { id: 'mo-storm', set: 'moments', zh: '大雪里', en: 'In the storm', art: { glyph: 'flake' }, when: { type: 'all', of: [{ type: 'sky', wx: ['heavy'] }, { type: 'stat', key: 'speed', gte: 5 }] }, hint: { zh: '下大雪的时候', en: 'In heavy snow' } },
-    { id: 'mo-flight', set: 'moments', zh: '飞二十米', en: 'Twenty metres of air', art: { glyph: 'kicker' }, when: { type: 'stat', key: 'run.air', gte: 20 }, hint: { zh: '从跳台飞得够远', en: 'Fly far off a kicker' } },
-    { id: 'mo-80', set: 'moments', zh: '时速八十', en: '80 km/h', art: { glyph: 'speed' }, when: { type: 'stat', key: 'run.vmax', gte: 80 / 3.6 }, hint: { zh: '一路不刹车', en: 'Let them run' } },
+    { id: 'mo-aurora', set: 'moments', zh: '极光下', en: 'Under the aurora', art: { type: 'scene', station: 6, at: 0.35, fx: 'aurora' }, when: { type: 'all', of: [{ type: 'sky', aurora: true }, { type: 'stat', key: 'speed', gte: 5 }] }, hint: { zh: '夜里，天上有极光的时候', en: 'A night with the aurora' } },
+    { id: 'mo-storm', set: 'moments', zh: '大雪里', en: 'In the storm', art: { type: 'scene', station: 9, at: 0.2, fx: 'storm' }, when: { type: 'all', of: [{ type: 'sky', wx: ['heavy'] }, { type: 'stat', key: 'speed', gte: 5 }] }, hint: { zh: '下大雪的时候', en: 'In heavy snow' } },
+    { id: 'mo-flight', set: 'moments', zh: '飞二十米', en: 'Twenty metres of air', art: { type: 'scene', station: 4, at: 0.3, fig: 'skier', stand: 'kicker' }, when: { type: 'stat', key: 'run.air', gte: 20 }, hint: { zh: '从跳台飞得够远', en: 'Fly far off a kicker' } },
+    { id: 'mo-80', set: 'moments', zh: '时速八十', en: '80 km/h', art: { type: 'scene', station: 2, at: 0.3, fig: 'skier', stand: 'slope', speed: true }, when: { type: 'stat', key: 'run.vmax', gte: 80 / 3.6 }, hint: { zh: '一路不刹车', en: 'Let them run' } },
 
     // ---- ring lines on 寒烟山 (the ring trial sends 'ring.line' as a line ends; a full line earns its medal, stamped skis or board)
-    { id: 'rt-speed', set: 'hanyan-routes', zh: '速降线', en: 'Downhill line', when: { type: 'event', name: 'ring.line', match: { line: 'speed', full: true } }, hint: { zh: '一个不漏串完速降线的光圈', en: 'Every ring of the downhill line' }, soon: false },
-    { id: 'rt-woods', set: 'hanyan-routes', zh: '钻林线', en: 'Tree line', art: { glyph: 'ring' }, when: { type: 'event', name: 'ring.line', match: { line: 'woods', full: true } }, hint: { zh: '跟着白色的光圈钻进林子', en: 'Follow the white rings into the trees' } },
-    { id: 'rt-secret', set: 'hanyan-routes', zh: '秘境', en: 'Hidden places', art: { glyph: 'star' }, when: { type: 'event', name: 'ring.secret', count: 3 }, hint: { zh: '找到三个秘境圈', en: 'Find three secret rings' } },
+    { id: 'rt-speed', set: 'hanyan-routes', zh: '速降线', en: 'Downhill line', art: { type: 'scene', station: 0, at: 0.05, fx: 'rings' }, when: { type: 'event', name: 'ring.line', match: { line: 'speed', full: true } }, hint: { zh: '一个不漏串完速降线的光圈', en: 'Every ring of the downhill line' }, soon: false },
+    { id: 'rt-woods', set: 'hanyan-routes', zh: '钻林线', en: 'Tree line', art: { type: 'scene', station: 3, at: 0.1, fx: 'rings-white' }, when: { type: 'event', name: 'ring.line', match: { line: 'woods', full: true } }, hint: { zh: '跟着白色的光圈钻进林子', en: 'Follow the white rings into the trees' } },
+    { id: 'rt-secret', set: 'hanyan-routes', zh: '秘境', en: 'Hidden places', art: { type: 'scene', station: 5, at: 0.3, fx: 'secret' }, when: { type: 'event', name: 'ring.secret', count: 3 }, hint: { zh: '找到三个秘境圈', en: 'Find three secret rings' } },
   ],
 });
 
