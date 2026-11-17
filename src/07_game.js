@@ -351,12 +351,20 @@ const Game = (() => {
     // skier sideways down the hill (gHold, its pull across the line of travel, toward the outside of the turn asked for), and a skier set on
     // the uphill edges leans into the hill that much more, at any speed: so a slow skier can still hold a line across the slope, turn on up
     // it and stand there, where before, slow, the lean was too small to hold against the hill and the line sagged back down at ~11 km/h)
-    const cu = clamp(uE / 0.72, -1, 1), gHold = FB && TB && contact ? Math.max(0, sign(cu) * GRAV * ry) : 0;
+    // ---- deep carve (owner 2026-11-17 21:29: "按住下再拐…更大的幅度，也拐得更急"). Down / S held WHILE steering is the skier driving the edges
+    // over: more edge angle, and a ski tipped further bends into a tighter arc (its sidecut radius times the cosine of the edge angle), so the
+    // same key turns harder and the body goes over further. Down held running straight is still the tails (fore/aft b below)
+    // (the steering it waits for is remembered for half a second, and the depth eased: changing edges from one deep turn to the next the keys
+    // pass through no steering for a frame or two, and the depth fell to nothing and came back, the body popping up 10 cm in two frames)
+    S.deepU = Math.max(Math.abs(u), (S.deepU || 0) * Math.exp(-dt / 0.5));
+    const deepT = FB && Variants.val.fa === 'b' && !S.air ? clamp(-(Input.faT || 0), 0, 1) * smooth(0.15, 0.45, S.deepU) * smooth(3, 7, sp) : 0;
+    const deep = S.deep = damp(S.deep || 0, deepT, deepT > (S.deep || 0) ? 8 : 5, dt);
+    const cu = clamp(uE / 0.72 * (1 + 0.15 * deep), -1, 1), gHold = FB && TB && contact ? Math.max(0, sign(cu) * GRAV * ry) : 0;
     // (turning brake b: slow, the steering held right over asks for a turn far tighter than a ski bends to, from a 10.5 m arc at 40 km/h
     // down to 4 m at a crawl, the way a slow skier pivots round a tree. The sidecut below cannot carve that, so the skis are swung and
     // scraped round: a short skidded turn that also scrubs speed)
     const rMin = TB ? lerp(4, 10.5, Math.max(smooth(4, 11, sp), 1 - smooth(0.45, 0.65, Math.abs(u)))) : 10.5;      // (a steering key, which asks for 0.66 (keys d), counts as held right over)
-    const phiMax = Math.min(0.96, Math.atan(Math.max(sp, 2.5) ** 2 / (rMin * gn) + gHold / gn)) * (1 - 0.3 * S.tuckIn);
+    const phiMax = Math.min(0.96 + 0.16 * deep, Math.atan(Math.max(sp, 2.5) ** 2 / (rMin * (1 - 0.4 * deep) * gn) + gHold / gn)) * (1 - 0.3 * S.tuckIn);
     // how much skid the player asks for, 0..1: by steering past 0.72 (a, b, c), or (keys d) by the weight forward while steering at all
     const skQ = Variants.val.keys === 'd' && Input.mode !== 'tilt' ? smooth(0.15, 0.8, Math.max(0, Input.faT || 0)) * smooth(0.2, 0.5, Math.abs(u)) : smooth(0.72, 1.0, Math.abs(u));
     const phiT = sign(cu) * Math.pow(Math.abs(cu), 1.2) * phiMax * (S.air && S.airT > 0.14 ? 0.3 : 1) * (1 - 0.28 * skQ * (TB ? smooth(2.5, 6, sp) : 1));      // (b: the lean given up to a skid only where there is one: under 9 km/h a full key skids nothing, see su)
@@ -376,7 +384,7 @@ const Game = (() => {
       ph = clamp(-sign(S.lean) * hd / 0.55, -1, 1) * smooth(0.06, 0.22, Math.abs(S.lean));
       const top = Math.max(ph, 0), bot = Math.max(-ph, 0);
       if (fa > 0) gripFA = 1 + fa * (0.25 * top - 0.55 * bot);
-      else { const k = -fa; gripFA = 1 + k * (0.15 * bot - 0.35 * top); turnFA = 1 - 0.4 * k; dragFA = 1 - 0.6 * k * bot; }
+      else { const k = Math.max(0, -fa - deep); gripFA = 1 + k * (0.15 * bot - 0.35 * top); turnFA = 1 - 0.4 * k; dragFA = 1 - 0.6 * k * bot; }
       // (shovels pressed through the bottom of a turn swing the tails out by themselves, a skid that is seen and heard even in a gentle turn)
       S.faKick = fa > 0 ? fa * bot * smooth(0.1, 0.3, Math.abs(S.lean)) * smooth(6, 12, sp) : 0;
       S.faPh = ph; S.faGrip = gripFA;
@@ -393,7 +401,7 @@ const Game = (() => {
     // powder). Asked for more, the skis wash out: the line turns only as fast as the grip allows and what is left over swings the tails out
     // into a skid, 0.6 rad of skid for each whole grip asked for beyond it, which brakes and throws snow. So the same full turn is a tight
     // carve at 30 km/h and, at 80, a wide arc that scrubs speed: nothing is on rails)
-    const gripB = (FB ? lerp(GRIP_B[0], GRIP_B[1], S.powder) * (GRIP_K[Variants.val.grip] || 1) : 1) * gripFA;
+    const gripB = (FB ? lerp(GRIP_B[0], GRIP_B[1], S.powder) * (GRIP_K[Variants.val.grip] || 1) : 1) * gripFA * (1 + 0.35 * deep);   // (deep: the edges driven in hold more)
     // (turning brake b: and no tighter than the ski's own arc. Edged over at the lean, a ski bent into the snow carves a circle of its sidecut
     // radius times the cosine of the edge angle; to turn tighter than that, slow and short, it has to be pivoted and scraped round. So what
     // the edges can hold across the line is the smaller of the grip and v^2 / that radius, and a turn asked beyond it is a skid)
@@ -679,6 +687,7 @@ const Game = (() => {
   const bigAir = pred => offKicker() ? 2 : pred >= 0.8 ? 1 : 0, ODD = id => /^(180|540)/.test(id);
   function pickTrick(U, big) {
     if (U < 0.34) return null;
+    if (typeof LabRide !== 'undefined' && LabRide && LabRide.on()) return null;      // (实验室人物: its own moves, 08i_labride.js)
     if (big < 2 && !G.forceTrick && fl.hopT != null && G.t >= fl.hopT && G.t - fl.hopT < HOP_GAP) return null;
     // (a spin goes the way the skier was last leaning, if any: carved into; n = its half turns)
     const mk = id => { const n = parseInt(id) / 180 || 0; return { id, n, spin: n > 0, base: 0, dir: n && Math.abs(S.lean) > 0.12 ? sign(S.lean) : rnd() < 0.5 ? -1 : 1, amp: 0.72 + 0.33 * rnd(), min: TRICKS[id] ? TRICKS[id][0] : 0 }; };
