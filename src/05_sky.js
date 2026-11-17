@@ -60,7 +60,8 @@ const Sky = (() => {
         // the haze band at the horizon: milky and bright by day rather than yellow (at sunset it keeps all its colour)
         let hz: f32 = smoothstep(0.16, 0.0, d.y);
         // (金色雪旗 by day: dry clear mountain air, the horizon stays blue (Peyto, Zermatt): its own share of the milk, 09_post.js Post.grades)
-        col = mix(col, vec3f(luma(col)) * vec3f(1.03, 1.0, 1.0), 0.55 * hz * U.sunDir.w * mix(1.0, ${(typeof Variants !== 'undefined' && Variants.val.grade === 'a') ? '1.0' : Post.grades.d.milk.toFixed(3)}, step(2.5, U.world.x)));
+        // (and its milk is cool, the pale blue-white of thin dry air over snow, never the beige of a valley's dust)
+        col = mix(col, vec3f(luma(col)) * mix(vec3f(1.03, 1.0, 1.0), vec3f(${Post.hzTint()}), step(2.5, U.world.x)), 0.55 * hz * U.sunDir.w * mix(1.0, ${(typeof Variants !== 'undefined' && Variants.val.grade === 'a') ? '1.0' : Post.grades.d.milk.toFixed(3)}, step(2.5, U.world.x)));
         col = antiSolar(d, col);
         let ang: f32 = acos(clamp(mu, -1.0, 1.0));
         // polariser on the lens: sky light scattered at right angles to the sun is strongly polarised, so the blue deepens away from the sun
