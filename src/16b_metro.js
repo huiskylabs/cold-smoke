@@ -8,7 +8,7 @@
 // fragment shader (metroBakeFS), into two panoramas round the eye (the world below never comes nearer, it only turns, as the cloud sea
 // did): E = the light it gives off at night, A = what it is made of, for the sun or the moon to light (a: water). Every frame the sky
 // shader fetches them (metroPlain), adds the air between, and makes the lights shimmer a little.
-Variants.def('world', '山下的世界', [['a', '云海浮城'], ['b', '不夜城'], ['c', '云下之城'], ['d', '金色雪旗']], 'b');
+Variants.def('world', '山下的世界', [['a', '云海浮城'], ['b', '不夜城'], ['c', '云下之城'], ['d', '金色雪旗'], ['e', '异星']], 'b');
 const Metro = (() => {
   // H: how far below the eye the city lies (m); RE: the radius of its little planet (the horizon dips, and curves, far more than the earth's);
   // AZ: the panorama covers bearings +-AZ about the city's; ta, tb: its rows, packed toward the horizon (drop = ta v + tb v^4);
@@ -18,7 +18,7 @@ const Metro = (() => {
   // streets and blocks keep their true size, so from here they are a fine grain of lights)
   const M = { K: K0, H: 8000, RE: 9.0e5 * K0, AZ: 1.3, t0: -0.11, ta: 0.44, tb: 0.97, bend: 0.34, lift: 0.17, ak: 0.42, W: 2048, Hh: 1024, R1: 9600 * K0, DC: [-2315 * K0, 14041 * K0], lamp: 0.42, seed: 20261115, cloud: false, samples: 4, done: false, E: null, A: null, pipes: [] };
   // (c 云下之城 and d 金色雪旗 are baked here too, by their own ray caster: 16c_peak.js)
-  M.kind = () => Variants.val.world; M.on = () => M.kind() !== 'a'; M.index = () => 'abcd'.indexOf(M.kind());
+  M.kind = () => Variants.val.world; M.on = () => M.kind() !== 'a'; M.index = () => 'abcde'.indexOf(M.kind());
   let gfx, pipe, tE, tA; const pipesBy = {};
   const pipeFor = k => pipesBy[k] || (pipesBy[k] = gfx.pipeline({ name: 'metroBake' + k, lib: [SL.common, SL.hash, SL.noise], topology: 'strip', buffers: [], varyings: { uv: 'vec2f' }, uniforms: { r: 'vec4f', t: 'vec4f', m: 'vec4f' },
     textures: {}, colorFormat: 'rgba16f', depth: false, depthTest: false, cull: 'none', vs: CLOUD_RECT_VS, fs: k === 'b' ? metroBakeFS() : peakBakeFS(k) }));
