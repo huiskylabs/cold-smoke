@@ -46,9 +46,11 @@ const Post = (() => {
   // measured sunlit snow ~240, darkest 2% ~10-29, a deep clean blue sky. a: one grade for every world, as before
   if (typeof Variants !== 'undefined') Variants.def('grade', '调色', [['a', '所有地图一样'], ['b', '每张地图自己的']], 'b');
   P.grades = {
-    base: { e: 1, veil: 0.06, wb: 1, sp: 1, so: 1, haze: 1, black: 0, sky: 1, milk: 1 },
-    d: { e: 1.42, veil: 0.02, wb: 0.25, sp: 1.12, so: 1.08, haze: 0.42, black: 0.022, sky: 1.55, milk: 0.2 },
+    base: { e: 1, veil: 0.06, wb: 1, sp: 1, so: 1, haze: 1, black: 0, sky: 1, milk: 1, hzc: [1.03, 1.0, 1.0] },
+    d: { e: 1.42, veil: 0.02, wb: 0.25, sp: 1.12, so: 1.08, haze: 0.42, black: 0.022, sky: 1.55, milk: 0.85, hzc: [0.84, 0.95, 1.12] },
   };
+  // the tint of the horizon's milk in world d (05_sky.js, 16_vista.js): its own when each map has its own grade
+  P.hzTint = () => ((typeof Variants !== 'undefined' && Variants.val.grade === 'a') ? P.grades.base : P.grades.d).hzc.map(v => v.toFixed(3)).join(', ');
   P.grade = function () {
     if (typeof Variants === 'undefined' || Variants.val.grade === 'a' || typeof Metro === 'undefined') return P.grades.base;
     return P.grades[Metro.kind()] || P.grades.base;
