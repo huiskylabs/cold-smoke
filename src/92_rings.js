@@ -471,6 +471,7 @@ const Rings = (() => {
     const d = pickUI(); d.style.display = '';
     if (RG.pkSig !== (Variants.val.rline || 'off') + diffKey() + Variants.val.rings || RG.pkDone !== L.st) { RG.pkDone = L.st; pickDraw(); }
   }
+  RG.lipOf = lipOf; RG.kickerIn = kickerIn;          // (for test scripts)
   RG.line = L; if (typeof window !== 'undefined') window.__rings = RG;          // (for test scripts)
   const GS0 = typeof Game !== 'undefined' ? Game.start : null;
   if (GS0) Game.start = function () { if (L.id && Game.s) { if (L.st !== 'count') lineArm(); return; } return GS0.apply(this, arguments); };
