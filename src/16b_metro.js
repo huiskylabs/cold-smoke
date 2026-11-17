@@ -301,20 +301,29 @@ ${CORES.map(c => `    { let t0: f32 = dot(vec2f(${f(c[0])}, ${f(c[1])}), dl); le
       if (tm.x < tm.y) { th0 = tm.x; tm.x += inv.x; c.x += st.x; } else { th0 = tm.y; tm.y += inv.y; c.y += st.y; }
     }
     if (tw > 0) {
-      tflag = 0.35; xs = tx; let u: f32 = dl.x * tx; let w: f32 = dl.y * tx; let Lw: vec4f = mLand(u, w);
+      tflag = 1.0; xs = tx; let u: f32 = dl.x * tx; let w: f32 = dl.y * tx; let Lw: vec4f = mLand(u, w);
       let th1: f32 = fract(tinfo.y * 7.31 + tinfo.w * 3.7); let tint: vec3f = mTint(mix(th1 * 0.66, 0.87 + 0.13 * th1, step(0.86, th1) * Lw.y));
       let tall: f32 = saturate(tinfo.x / 600.0);
       if (tw == 1) {
         // a wall: lit windows in blocks, lit floors, the glow of the street at its foot, a lit top on the tall ones
         let q: f32 = dot(vec2f(u, w), vec2f(-tn.y, tn.x));
-        let wsz: vec2f = mix(vec2f(9.0, 7.0), vec2f(14.0, 18.0), tall); let wc: vec2f = floor(vec2f(q / wsz.x, tq / wsz.y)); let fl: f32 = hash21(vec2f(floor(tq / wsz.y), tinfo.z * 91.0));
-        let fc: f32 = mix(1.0, 0.38, step(0.5, abs(tn.x)));
-        let on: f32 = step(mix(0.66, 0.52, tall) - 0.25 * step(0.72, fl), hash21(wc + vec2f(tinfo.y * 177.0, tinfo.z * 53.0)));
+        // (as real towers look by night from the air: a dark body, and on it a grid of small warm windows, a share of them lit, that
+        // share and their colour the building's own. The windows are never drawn smaller than the picture can show)
+        let dist: f32 = sqrt(tx * tx + sq(MH - tq));
+        let wsz: vec2f = max(vec2f(7.0, 4.5), vec2f(dist * dAz, dist * dTh) * 4.8);
+        let wq: vec2f = vec2f(q / wsz.x, tq / wsz.y); let wc: vec2f = floor(wq); let wf: vec2f = fract(wq);
+        let fl: f32 = hash21(vec2f(wc.y, tinfo.z * 91.0));
+        let fc: f32 = mix(1.0, 0.45, step(0.5, abs(tn.x)));
+        let litK: f32 = 0.20 + 0.50 * fract(tinfo.y * 13.7);
+        let on: f32 = step(1.0 - litK - 0.35 * step(0.80, fl), hash21(wc + vec2f(tinfo.y * 177.0, tinfo.z * 53.0))) * step(0.14, wf.x) * step(wf.x, 0.86) * step(0.22, wf.y) * step(wf.y, 0.80);
+        let bt: f32 = fract(tinfo.w * 5.3 + tinfo.y * 2.1);
+        let wcol: vec3f = mix(mix(vec3f(1.0, 0.64, 0.28), vec3f(1.0, 0.84, 0.62), step(0.68, bt)), vec3f(0.72, 0.86, 1.0), step(0.90, bt));
+        let ck: f32 = fract(tinfo.w * 9.1 + tinfo.z * 3.3);
+        let ccol: vec3f = mix(mix(vec3f(0.15, 0.85, 1.0), vec3f(1.0, 0.16, 0.10), step(0.40, ck)), mix(vec3f(1.0, 0.95, 0.85), vec3f(0.30, 0.42, 1.0), step(0.85, ck)), step(0.65, ck));
         if (mode < 0.5) {
-          var em: vec3f = tint * (on * (0.6 + 1.5 * hash21(wc + vec2f(3.0, 3.0))) * mix(1.0, 1.3, tall)) + tint * 0.05;
-          em *= fc;
-          em += vec3f(1.0, 0.70, 0.36) * (1.0 * exp(-tq / 45.0));
-          em += mix(tint, vec3f(1.0, 0.35, 0.9), step(0.9, tinfo.w)) * (2.5 * tall * smoothstep(0.94, 1.0, tq / tinfo.x));
+          var em: vec3f = wcol * (on * (0.8 + 1.4 * hash21(wc + vec2f(3.0, 3.0))) * 2.4 * fc);
+          em += vec3f(1.0, 0.70, 0.36) * (0.7 * exp(-tq / 40.0));
+          em += ccol * (5.0 * tall * step(0.84, tinfo.w) * smoothstep(0.92, 0.95, tq / tinfo.x));
           col = vec4f(em, 0.0);
         } else {
           let face: f32 = 0.55 + 0.45 * saturate(dot(tn, normalize(vec2f(-0.6, -0.8))));
@@ -322,7 +331,7 @@ ${CORES.map(c => `    { let t0: f32 = dot(vec2f(${f(c[0])}, ${f(c[1])}), dl); le
         }
       } else {
         // a roof: snow by day; at night a rim of light, and on the tall ones a lit crown
-        if (mode < 0.5) { col = vec4f(tint * (0.25 + 2.0 * tall * step(0.5, tinfo.z)) + vec3f(1.0, 0.2, 0.1) * (2.0 * step(0.86, tinfo.z)), 0.0); }
+        if (mode < 0.5) { col = vec4f(tint * (0.04 + 1.6 * tall * step(0.84, tinfo.w)) + vec3f(1.0, 0.2, 0.1) * (2.0 * step(0.90, tinfo.z) * tall), 0.0); }
         else { col = vec4f(vec3f(0.58, 0.64, 0.78), 0.0); }
       }
     } else {
@@ -402,7 +411,7 @@ fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
   let tw: f32 = 0.82 + 0.72 * texLod(tDetail, q.xy * vec2f(37.0, 19.0) + vec2f(U.camPos.w * 0.021, U.camPos.w * 0.013), 0.0).a * texLod(tDetail, q.xy * vec2f(23.0, 41.0) - vec2f(U.camPos.w * 0.017, 0.0), 0.0).a;
   let lit: vec3f = (U.sunCol.rgb * (saturate(U.sunDir.y + 0.15) * 0.9) + U.ambSky.rgb * 1.1 + U.twi.rgb * 0.3) * (1.0 - 0.80 * night);
   // water: a dark mirror for the sky, with a sheen toward the horizon
-  let mir: vec3f = (vistaHaze(vec3f(d.x, -d.y, d.z)) + vec3f(0.02, 0.05, 0.14) * night) * (0.25 + 0.55 * pow(1.0 - saturate(s), 6.0)) + vec3f(0.03, 0.065, 0.20) * night;
+  let mir: vec3f = (vistaHaze(vec3f(d.x, -d.y, d.z)) + vec3f(0.02, 0.05, 0.14) * night) * (0.25 + 0.55 * pow(1.0 - saturate(s), 6.0)) + vec3f(0.018, 0.04, 0.12) * night;
   // the lights are points, not a paste: over the baked glow, two sizes of sparks (a few of them far brighter than the rest), each
   // fixed to its bearing so that it stays put
   let sa: vec2f = vec2f(ba, q.z);
@@ -417,7 +426,7 @@ fn metroPlain(d: vec3f, mu: f32, haze: vec3f) -> vec3f {
   let farK: f32 = smoothstep(5000.0, 16000.0, dist);
   let warmK: f32 = saturate((E.r - E.b) / max(El, 0.001) * 2.5) * (1.0 - A.a) * (1.0 - E.a);
   let Ec: vec3f = mix(E.rgb, vec3f(1.0, 0.50, 0.13) * El * 1.3, 0.62 * warmK) * mix(mix(0.85 + 0.4 * spark, 0.36 + spark, farK), 1.0, E.a);
-  let nightGround: vec3f = A.rgb * vec3f(0.035, 0.05, 0.15) * night;
+  let nightGround: vec3f = A.rgb * vec3f(0.016, 0.024, 0.07) * night;
   var c: vec3f = (mix(A.rgb * lit + nightGround, A.rgb * lit * 0.6 + mir, A.a) + Ec * (mix(tw, 1.0, E.a) * night * ${f(M.lamp)})) * ex;
   // the air: by night a deep blue that the city warms a little, thickening toward the rim
   let air: vec3f = mix(haze, vec3f(0.035, 0.06, 0.16) + vec3f(0.10, 0.07, 0.05) * luma(E.rgb), night * 0.85);
