@@ -949,15 +949,24 @@ fn frag(v: VOut) -> FOut {
     col = mix(col, rc, rock * (1.0 - 0.9 * lip));
   }
   // distant forest reads as a dark speckled carpet with long shadows
-  let carpet: f32 = sm.w * smoothstep(390.0, 470.0, dist);
+  var fw: f32 = sm.w;
+  // (金色雪旗: past the reach of the near trees the valley walls are wooded wherever they are not too steep to hold trees, up to a ragged
+  // line high on them, with open avalanche tracks and rock bands between; a Rockies valley is never a bare snow wall)
+  if (U.world.x > 2.5) {
+    let pz: f32 = tex(tNoise, wxz / 410.0 + vec2f(0.21, 0.63)).z;
+    let av: f32 = smoothstep(0.62, 0.70, tex(tNoise, vec2f(wxz.x / 140.0, wxz.y / 900.0) + vec2f(0.4, 0.1)).z);
+    let wallF: f32 = smoothstep(0.50, 0.66, N.y + 0.08 * (pz - 0.5)) * (1.0 - smoothstep(0.80, 0.97, mnt + 0.25 * (pz - 0.5))) * smoothstep(0.02, 0.10, mnt) * (1.0 - 0.85 * av);
+    fw = max(fw, 0.85 * wallF);
+  }
+  let carpet: f32 = fw * smoothstep(390.0, 470.0, dist);
   if (carpet > 0.001) {
     let sp2: f32 = tex(tNoise, wxz / 61.0).z * 0.5 + d1.z * 0.5;
-    var k: f32 = smoothstep(0.30, 0.62, sp2 * (0.55 + sm.w));
+    var k: f32 = smoothstep(0.30, 0.62, sp2 * (0.55 + fw));
     // (金色雪旗: a Rockies spruce forest seen from across the valley is dark, nearly black-green, close set crown by crown, with snow
     // showing only in the gaps and on the crowns' sunny sides; it never reads as shaded snow)
     if (U.world.x > 2.5) {
       let cr: f32 = tex(tNoise, wxz / 9.0).z * 0.6 + tex(tNoise, wxz / 23.0 + vec2f(0.3, 0.7)).z * 0.4;
-      k = saturate(smoothstep(0.05, 0.30, sm.w) * (0.75 + 0.5 * sp2)) * (0.70 + 0.30 * smoothstep(0.35, 0.60, cr));
+      k = saturate(smoothstep(0.05, 0.30, fw) * (0.75 + 0.5 * sp2)) * (0.70 + 0.30 * smoothstep(0.35, 0.60, cr));
       let ndl: f32 = saturate(dot(N, U.sunDir.xyz));
       let fcD: vec3f = vec3f(0.030, 0.052, 0.045) * (0.8 + 0.5 * cr);
       let fcS: vec3f = mix(fcD, vec3f(0.70, 0.74, 0.80), 0.22 * smoothstep(0.55, 0.80, cr));
