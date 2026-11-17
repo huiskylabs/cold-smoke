@@ -955,7 +955,7 @@ fn frag(v: VOut) -> FOut {
   if (U.world.x > 2.5) {
     let pz: f32 = tex(tNoise, wxz / 410.0 + vec2f(0.21, 0.63)).z;
     let av: f32 = smoothstep(0.62, 0.70, tex(tNoise, vec2f(wxz.x / 140.0, wxz.y / 900.0) + vec2f(0.4, 0.1)).z);
-    let wallF: f32 = smoothstep(0.42, 0.58, N.y + 0.08 * (pz - 0.5)) * smoothstep(0.02, 0.10, mnt) * (1.0 - 0.85 * av);
+    let wallF: f32 = smoothstep(0.26, 0.42, N.y + 0.08 * (pz - 0.5)) * smoothstep(0.02, 0.10, mnt) * (1.0 - 0.85 * av);
     fw = max(fw, 0.85 * wallF);
   }
   let carpet: f32 = fw * smoothstep(390.0, 470.0, dist);

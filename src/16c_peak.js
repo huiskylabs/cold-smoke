@@ -221,7 +221,7 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   let fzT: f32 = 1.0 - smoothstep(tlO - 260.0, tlO, tH);
   let aval: f32 = smoothstep(0.80, 0.90, vnoise2(vec2f(atan2(lqW.x, lqW.y) * 38.0, tH / 1600.0) + vec2f(3.0, 7.0))) * smoothstep(60.0, 200.0, tH);
   let dens: f32 = saturate(0.80 + 0.45 * (vnoise2(pq / 90.0 + vec2f(1.0, 2.0)) - 0.5) + 0.25 * (vnoise2(pq / 30.0 + vec2f(4.0, 6.0)) - 0.5));
-  let shoreW: f32 = fzT * smoothstep(mix(0.40, 0.30, ownW), mix(0.58, 0.48, ownW), N.y + 0.10 * (dn - 0.5)) * dens * (1.0 - 0.85 * aval) * (1.0 - 0.35 * onPk * smoothstep(tl - 600.0, tl, tH)) * step(0.2, tH);
+  let shoreW: f32 = fzT * smoothstep(mix(0.40, 0.24, ownW), mix(0.58, 0.40, ownW), N.y + 0.10 * (dn - 0.5)) * dens * (1.0 - 0.85 * aval) * (1.0 - 0.35 * onPk * smoothstep(tl - 600.0, tl, tH)) * step(0.2, tH);
   // (the beach: a narrow strip of pale gravel and sand at the water's edge, wider on the flats and the deltas, darker where it is wet)
   let bw: f32 = 6.0 + 24.0 * smoothstep(0.58, 0.78, pN(pq / 2300.0 + vec2f(8.0, 8.0)));
   let beach: f32 = (1.0 - smoothstep(bw * 0.6, bw, tH + 3.0 * (vnoise2(pq / 60.0) - 0.5))) * step(0.2, tH);
