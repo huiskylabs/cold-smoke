@@ -637,8 +637,17 @@ const Skier = (() => {
       // (on a snowboard, sb: no ski binding. A snowboard binding instead: a short baseplate under the sole and two straps, over the toes and
       // across the instep. No highback: modelled apart from the boot it stood up behind the heel as a black slab, the owner's "two boards standing up". The boot keeps its shell: its 30 cm sit on a 26 cm board as a real boot does)
       if (sb) {
-        let n = rbx(a, b, d, 0, 0.012, -0.01, 0.062, 0.012, 0.165, 0.006);                                                             // baseplate
-        n = Math.min(n, rbx(a, b, d, 0, 0.148, 0.0, 0.060, 0.016, 0.034, 0.008), rbx(a, b, d, 0, 0.088, -0.13, 0.058, 0.014, 0.024, 0.008));   // straps
+        // (a real binding, as on the reference photos: baseplate, a heel cup that runs on up the back of the boot as the highback, leaned
+        // forward about 18 deg and curved round the boot like a half shell, so it hugs the boot instead of standing behind it; side rails;
+        // a wide ankle strap arched over the instep and a toe strap over the toe cap)
+        let n = rbx(a, b, d, 0, 0.012, -0.01, 0.074, 0.012, 0.162, 0.006);                                                             // baseplate
+        { const hb = b < 0.06 ? 0.06 : b > 0.30 ? 0.30 : b, cz = 0.032 - 0.32 * (hb - 0.10), R = 0.092 + 0.012 * smooth(0.15, 0.30, b);
+          const hk = Math.max(Math.abs(Math.sqrt(a * a + (d - cz) * (d - cz)) - R) - 0.0065, cz - 0.006 - d, b - 0.30, 0.004 - b);   // heel cup + highback
+          const rail = Math.max(Math.abs(Math.abs(a) - 0.080) - 0.0055, b - 0.075, 0.004 - b, d - 0.04, -0.075 - d);                   // side rails
+          const ek = (cb, ra, rb) => Math.sqrt(a * a / (ra * ra) + (b - cb) * (b - cb) / (rb * rb)) - 1;
+          const an = Math.max(Math.abs(ek(0.088, 0.076, 0.106)) * 0.074 - 0.009, Math.abs(d + 0.035) - 0.030, 0.05 - b);            // ankle strap
+          const to = Math.max(Math.abs(ek(0.058, 0.068, 0.062)) * 0.064 - 0.0055, Math.abs(d + 0.135) - 0.019, 0.04 - b);            // toe strap
+          n = Math.min(n, hk, rail, an, to); }
         ftB = s; ftN = n; return smin(s, n, 0.004);
       }
       let n = rbx(a, b, d, 0, 0.034, -0.03, 0.034, 0.014, 0.25, 0.006);                                                                // binding: plate,
@@ -849,23 +858,29 @@ const Skier = (() => {
   // (and a snowboard instead of skis and poles, Variants 'ride' b: 08a_board.js hands over the board, K.boardPart, built in the left foot's frame)
   const rideV = () => K.boardPart && Variants.val.ride === 'b' ? 'S' : '';
   // (and the glove: 'H' = the fine glove closed round the grip, Variants 'hand' b; on the new body and on skis only: a rider's hands hold no pole)
-  const handV = (v, rd) => (v || bodyV()) === 'b' && !(rd == null ? rideV() : rd) && Variants.val.hand === 'b' && typeof Fpv !== 'undefined' && Fpv.gloveSD ? 'H' : '';
+  const handV = (v, rd) => (v || bodyV()) === 'b' && Variants.val.hand === 'b' && typeof Fpv !== 'undefined' && Fpv.gloveSD ? 'H' : '';
+  const lrV = rd => rd && K.bindRide && K.labOn && K.labOn() ? 'L' : '';
   K.build = function (v) {
     v = v === 'a' || v === 'b' ? v : (Variants.val.body === 'a' ? 'a' : 'b');
-    const rd = rideV(), hv = handV(v, rd), key = v + rd + hv;
+    const rd = rideV(), hv = handV(v, rd), lr = lrV(rd), key = v + rd + hv + lr;      // (lr: the lab's rider, 08i_labride.js: its board body is built in the lab's arms)
     if (K.meshes[key]) return (K.mesh = K.meshes[key]);
     if (!bind) { bind = solve(P0); invBind = bind.F.map(m => m ? m4.invert(m) : null); K.bind = bind; bind.seatC = m4.tp(bind.F[B.pelvis], SEATC); }
-    const nb = v === 'b', hb = hv === 'H', body = buildBody(bind, nb, !!rd, hb);
+    const bb = lr ? K.bindRide(solve, P0) : bind, nb = v === 'b', hb = hv === 'H', body = buildBody(bb, nb, !!rd, hb);
     const t0 = performance.now();
     const m = meshSDF(body.f, [-0.44, 0.0, -0.66], [0.44, 1.80, 0.38], 0.0135, { stride: 4, attr: body.attr });
     K.meshMs = performance.now() - t0;
-    const bw0 = boneWeights(m, bind, body, nb);
+    const bw0 = boneWeights(m, bb, body, nb);
     const sp = splitMaterials(m, bw0), bw = sp.bw; m.verts = sp.verts; m.nv = sp.nv;
     // skis and poles, rigid on their bones (built in bone-local space, then moved to the bind pose)
     const parts = rd ? [[K.boardPart(), B.footL]] : [[skiMesh(0), B.footL], [skiMesh(0), B.footR], [poleMesh(), B.poleL], [poleMesh(), B.poleR]];
-    const gm = hb ? gloveMesh(bind) : null;
+    const gm = hb ? (rd && K.openGlove ? K.openGlove(bind) : gloveMesh(bind)) : null;
     let nv = m.nv + (gm ? gm.nv : 0), ni = m.ni + (gm ? gm.ni : 0); for (const [pm] of parts) { nv += pm.nv; ni += pm.ni; }
     const V = new Float32Array(nv * 10), W = new Float32Array(nv * 4), I = new Uint32Array(ni); V.set(m.verts); W.set(bw); I.set(m.idx);
+    if (bb !== bind) { const MB = skinMats(bb);
+      for (let i = 0; i < m.nv; i++) { const o = i * 4, b2 = Math.floor(bw[o + 3]), w2 = bw[o + 3] - b2, w0 = bw[o + 2] * (1 - w2), w1 = (1 - bw[o + 2]) * (1 - w2), A = new Array(16).fill(0);
+        for (const [b, w] of [[bw[o], w0], [bw[o + 1], w1], [b2, w2]]) if (w > 0) for (let k = 0; k < 16; k++) A[k] += MB[b][k] * w;
+        const Ai = m4.invert(A), q = i * 10, P = m4.tp(Ai, [V[q], V[q + 1], V[q + 2]]), Nn = v3.norm(v3.sub(m4.tp(Ai, [V[q + 3], V[q + 4], V[q + 5]]), m4.tp(Ai, [0, 0, 0])));
+        V[q] = P[0]; V[q + 1] = P[1]; V[q + 2] = P[2]; V[q + 3] = Nn[0]; V[q + 4] = Nn[1]; V[q + 5] = Nn[2]; } }
     let vo = m.nv, io = m.ni;
     for (const [pm, bone] of parts) {
       const Fm = bind.F[bone];
@@ -881,7 +896,7 @@ const Skier = (() => {
       vo += pm.nv; io += pm.ni;
     }
     if (gm) { V.set(gm.V, vo * 10); W.set(gm.W, vo * 4); for (let i = 0; i < gm.ni; i++) I[io + i] = gm.I[i] + vo; vo += gm.nv; io += gm.ni; }
-    K.mesh = K.meshes[key] = { V, W, I, nv, ni, v, ride: rd, hand: hv };
+    K.mesh = K.meshes[key] = { V, W, I, nv, ni, v, ride: rd, hand: hv, lr };
     return K.mesh;
   };
 
@@ -1090,7 +1105,8 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     // (the lab's turns: which posture, how much of it; null = the game's own figure)
     sec.lab = typeof LabMo !== 'undefined' && !K.boardOn() ? LabMo.step(cur, sec, cut ? 0 : dt, st.hm.v ? v3.len(st.hm.v) : 0) : null;
     sec.labB = typeof LabMo !== 'undefined' && K.boardOn() ? LabMo.stepB(cur, sec, cut ? 0 : dt) : null;
-    const s = K.boardOn() ? K.solveBoard(cur, sec) : solve(cur, sec);
+    // (实验室人物, developer mode: the lab's skeleton and motion set every bone, 08i_labride.js; until its frames are solved the game's own stand in)
+    const s = (K.labSolve && K.labSolve(cur, sec, cut ? 0 : dt)) || (K.boardOn() ? K.solveBoard(cur, sec) : solve(cur, sec));
     for (let k = 0; k < 2; k++) { const P = st.pp[k], sd = k ? 'R' : 'L', tp = s.J['tip' + sd], gp = s.J['grip' + sd];
       if (!P) { if (!cut && dt > 0 && !(f > 0) && pq[k] > st.pq[k] && pq[k] > 0.5 && tp[1] <= 0) st.pp[k] = { W: toW(tp), T: [tp[0], tp[2]], d: null, h: null, w: 0, g: 0, rel: 0 }; }
       // (h: how far the pole has pushed the hand up, riding over it: more than a hand's breadth and it is pulled out)
@@ -1131,7 +1147,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     if (!m.gpu) m.gpu = { vb: gfx.buffer(m.V, 'vertex'), vb2: gfx.buffer(m.W, 'vertex'), ib: gfx.buffer(m.I, 'index') };
     K.mesh = m; vb = m.gpu.vb; vb2 = m.gpu.vb2; ib = m.gpu.ib; count = m.ni; nite[1] = m.v === 'b' ? 1 : 0; nite[2] = m.hand === 'H' ? 1 : 0;
   }
-  const wantBody = () => { if (K.mesh.v !== bodyV() || K.mesh.ride !== rideV() || K.mesh.hand !== handV()) useBody(K.build(bodyV())); }; K.want = wantBody;
+  const wantBody = () => { if (K.mesh.v !== bodyV() || K.mesh.ride !== rideV() || K.mesh.hand !== handV() || (K.mesh.lr || '') !== lrV(rideV())) useBody(K.build(bodyV())); }; K.want = wantBody;
   K.draw = function (shadowTex, skyTex) {
     wantBody();
     const want = CLOTH[Variants.val.cloth] || CLOTH.b, now = performance.now() / 1000, de = now - clo.t, e = clo.t < 0 || de > 0.1 ? 1 : 1 - Math.exp(-Math.max(de, 0) * 6); clo.t = now;
