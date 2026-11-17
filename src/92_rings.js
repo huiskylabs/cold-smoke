@@ -422,7 +422,7 @@ const Rings = (() => {
   function lineHarder() { const n = DNEXT[L.diff]; if (!n) return; Variants.set('ringdiff', n); lineRestart(); }
   function lineRestart() {
     brake(false); hideAll(); L.st = 'idle';
-    if (typeof UI !== 'undefined' && UI.toTop && UI.toTop()) setTimeout(() => { if (UI.state === 'title') UI.go(); }, 800);
+    if (typeof UI !== 'undefined' && UI.toTop && UI.toTop()) setTimeout(() => { if (UI.state === 'title') { RG.chal = true; UI.go(); } }, 800);
   }
   function lineFree() { brake(false); L.q('card').classList.remove('on'); L.st = 'free'; setTxt('tm', ''); setTxt('sub', ''); }
   function lineFrame(T) {
@@ -478,45 +478,81 @@ const Rings = (() => {
       setTxt('sub', '穿过 ' + RG.passed + (RG.missed ? ' · 漏 ' + RG.missed + ' · 罚时 +' + L.pen + ' 秒' : '') + (cur && cur.fin ? ' · 前方终点' : ''));
     }
   }
-  // ---- 光圈挑战 on the title page (dev; 用户 20:30 UTC: 可玩的版本要把可以玩的路线、选项、菜单都加上): pick a line and its difficulty right where
-  // 出发 is, see the best on this device, then 出发 runs the count-down. 自由滑 = no line (随机光圈 on or off).
-  const PICK = [['off', '自由滑', '不计时，随便滑'], ['a', '速降 · 整圈', '12 站，从山顶到山脚'], ['b', '速降 · 前三站', '3 站，一分钟上下']];
+  // ---- 挑战 on the title page (dev). (用户 21:31 UTC: 出发就是普通地滑；出发底下加一个「挑战」，点开以后再选路线这些.) 出发 and Enter are always
+  // free skiing; 挑战 (a button in the left column like 场景 / 视角) opens a panel: the lines with this device's best, the difficulty,
+  // then 开始挑战 (or Enter), which counts down 3, 2, 1. Esc or 取消 closes it.
+  const PICK = [['a', '速降 · 整圈', '12 站，从山顶到山脚'], ['b', '速降 · 前三站', '3 站，一分钟上下']];
+  const RING_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5.6"/><path d="M10 1.8v1.6M10 16.6v1.6M1.8 10h1.6M16.6 10h1.6"/></svg>';
+  function syncLine() { const lid = devOn() && LINES[Variants.val.rline] ? Variants.val.rline : null; if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); } }
+  function chalButton() {
+    if (RG.cb || typeof document === 'undefined') return;
+    const more = document.getElementById('more'); if (!more) return;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'dev-only'; b.innerHTML = RING_ICON + '挑战';
+    b.addEventListener('click', e => { e.stopPropagation(); pickOpen(true); });
+    more.insertBefore(b, more.firstChild); RG.cb = b;
+  }
   function pickUI() {
     if (RG.pk) return RG.pk;
     const d = document.createElement('div'); d.id = 'rpick';
-    d.innerHTML = '<style>#rpick{position:absolute;right:var(--gr);bottom:calc(var(--gb) + 34px);width:min(300px,38vw);z-index:4;pointer-events:auto;background:rgba(5,8,13,.42);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:16px 16px 14px;color:var(--snow);font-family:var(--f-ui);font-size:12px;transition:opacity .4s}'
-      + '#rpick h4{margin:0 0 10px;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.4em;color:var(--dim);white-space:nowrap}#rpick .l{display:flex;flex-direction:column;gap:6px}'
-      + '#rpick button{appearance:none;-webkit-appearance:none;margin:0;border:0;font:inherit;color:var(--dim);cursor:pointer;box-sizing:border-box;text-align:left;border-radius:10px;padding:8px 12px;background:rgba(5,8,13,.25);box-shadow:inset 0 0 0 1px var(--hair);transition:color .2s,box-shadow .2s}'
+    d.innerHTML = '<style>#rpick{position:absolute;left:calc(var(--col) + clamp(200px,24vw,300px));top:50%;transform:translate(-8px,-50%);opacity:0;width:min(320px,40vw);z-index:5;pointer-events:none;background:rgba(5,8,13,.52);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:18px 18px 16px;color:var(--snow);font-family:var(--f-ui);font-size:12px;transition:opacity .35s ease,transform .45s cubic-bezier(.2,.6,.2,1)}'
+      + '#rpick.on{opacity:1;transform:translate(0,-50%);pointer-events:auto}'
+      + '#rpick h4{margin:0 0 12px;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.4em;color:var(--dim);white-space:nowrap}#rpick .l{display:flex;flex-direction:column;gap:6px}'
+      + '#rpick button{appearance:none;-webkit-appearance:none;margin:0;border:0;font:inherit;color:var(--dim);cursor:pointer;box-sizing:border-box;text-align:left;border-radius:10px;padding:9px 12px;background:rgba(5,8,13,.25);box-shadow:inset 0 0 0 1px var(--hair);transition:color .2s,box-shadow .2s}'
       + '#rpick button.on{color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun)}@media (hover:hover){#rpick button:not(.on):hover{color:var(--snow);box-shadow:inset 0 0 0 1px rgba(244,247,251,.5)}}'
       + '#rpick .l button b{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--f-song);font-weight:400;font-size:15px;letter-spacing:.2em;line-height:1.4;color:var(--snow)}#rpick .l button.on b{color:var(--sun)}'
       + '#rpick .l button i{display:block;margin-top:2px;font-style:normal;font-size:11px;letter-spacing:.1em;color:var(--faint)}#rpick .l button em{font-family:var(--f-lat);font-style:normal;font-weight:300;font-size:13px;letter-spacing:.02em;font-variant-numeric:tabular-nums;color:var(--dim)}'
       + '#rpick .r{display:flex;gap:6px;margin-top:10px}#rpick .r button{flex:1;text-align:center;padding:0;height:32px;border-radius:999px;letter-spacing:.2em}'
-      + '#rpick .t{margin-top:10px;font-size:11px;line-height:1.7;letter-spacing:.1em;color:var(--dim)}</style>'
-      + '<h4>光圈挑战</h4><div class="l"></div><div class="r d"></div><div class="r g"></div><div class="t"></div>';
+      + '#rpick .t{margin-top:12px;font-size:11px;line-height:1.7;letter-spacing:.1em;color:var(--dim)}'
+      + '#rpick .bt{display:flex;gap:8px;margin-top:14px}#rpick .bt button{flex:1;text-align:center;height:40px;padding:0;border-radius:999px;letter-spacing:.2em}'
+      + '#rpick .bt .go{flex:1.6;color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun);font-family:var(--f-song);font-size:15px;letter-spacing:.5em;text-indent:.5em}'
+      + '#rpick kbd{margin-left:.4em;font-family:var(--f-lat);font-size:.75em;letter-spacing:.04em;opacity:.6;text-indent:0}</style>'
+      + '<h4>挑战 · CHALLENGE</h4><div class="l"></div><div class="r d"></div><div class="t"></div><div class="bt"><button class="go" data-go="1">开始挑战</button><button data-x="1">取消<kbd>Esc</kbd></button></div>';
     (document.getElementById('app') || document.body).appendChild(d); RG.pk = d;
     d.addEventListener('click', e => {
-      const b = e.target.closest('button'); if (!b) return; e.stopPropagation();
-      if (b.dataset.l) Variants.set('rline', b.dataset.l); else if (b.dataset.d) Variants.set('ringdiff', b.dataset.d); else if (b.dataset.g) Variants.set('rings', b.dataset.g);
-      pickDraw();
+      e.stopPropagation();          // (a click anywhere on the title page is 出发: never from inside this panel)
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.l) { RG.pkSel = b.dataset.l; pickDraw(); }
+      else if (b.dataset.d) { Variants.set('ringdiff', b.dataset.d); pickDraw(); }
+      else if (b.dataset.go) chalGo();
+      else if (b.dataset.x) pickOpen(false);
     });
     return d;
   }
   function bestOf(id, df) { try { const k = 'coldsmoke.line.' + id + '.' + df, S = ST(); const r = S ? S.getJSON(k) : JSON.parse(localStorage.getItem(k) || 'null'); return r && r.best ? r.best.score : null; } catch (e) { return null; } }
   function pickDraw() {
-    const d = pickUI(), cur = Variants.val.rline || 'off', df = diffKey();
-    d.querySelector('.l').innerHTML = PICK.map(([id, n, t]) => { const b = id !== 'off' ? bestOf(id, df) : null; return '<button data-l="' + id + '" class="' + (cur === id ? 'on' : '') + '"><b>' + n + (b != null ? '<em>最好 ' + fmt(b) + '</em>' : '') + '</b><i>' + t + '</i></button>'; }).join('');
-    const dd = d.querySelector('.d'), gg = d.querySelector('.g');
-    dd.style.display = cur === 'off' ? 'none' : ''; gg.style.display = cur === 'off' ? '' : 'none';
-    dd.innerHTML = ['a', 'b', 'c'].map(k => '<button data-d="' + k + '" class="' + (df === k ? 'on' : '') + '">' + DNAME[k] + '</button>').join('');
-    gg.innerHTML = [['off', '不放光圈'], ['on', '随机光圈']].map(([k, n]) => '<button data-g="' + k + '" class="' + (Variants.val.rings === k ? 'on' : '') + '">' + n + '</button>').join('');
-    d.querySelector('.t').textContent = cur === 'off' ? '按出发直接滑' : '漏一个圈罚 ' + PEN[df] + ' 秒 · 按出发后倒数 3、2、1 · 途中 Backspace 重来';
-    RG.pkSig = cur + df + Variants.val.rings;
+    const d = pickUI(), df = diffKey(); if (!LINES[RG.pkSel]) RG.pkSel = LINES[Variants.val.rline] ? Variants.val.rline : 'b';
+    const cur = RG.pkSel;
+    d.querySelector('.l').innerHTML = PICK.map(([id, n, t]) => { const b = bestOf(id, df); return '<button data-l="' + id + '" class="' + (cur === id ? 'on' : '') + '"><b>' + n + (b != null ? '<em>最好 ' + fmt(b) + '</em>' : '') + '</b><i>' + t + '</i></button>'; }).join('');
+    d.querySelector('.d').innerHTML = ['a', 'b', 'c'].map(k => '<button data-d="' + k + '" class="' + (df === k ? 'on' : '') + '">' + DNAME[k] + '</button>').join('');
+    d.querySelector('.t').textContent = '漏一个圈罚 ' + PEN[df] + ' 秒 · 开始后倒数 3、2、1 · 途中 Backspace 重来';
   }
+  function pickOpen(on) {
+    if (on && !(typeof UI !== 'undefined' && UI.state === 'title' && !UI.open)) return;
+    RG.pkOpen = !!on; const d = pickUI(); if (on) pickDraw(); d.classList.toggle('on', !!on);
+  }
+  function chalGo() {
+    const id = LINES[RG.pkSel] ? RG.pkSel : 'b';
+    Variants.set('rline', id); syncLine(); pickOpen(false);
+    RG.chal = true; if (typeof UI !== 'undefined') UI.go();
+  }
+  // 出发 (the button, Enter, a click on the picture) is free skiing: the line is put away first, unless the run being started is a challenge
+  if (typeof UI !== 'undefined' && UI.go) {
+    const GO0 = UI.go;
+    UI.go = function () {
+      if (devOn() && typeof Variants !== 'undefined') { if (!RG.chal && Variants.val.rline !== 'off') Variants.set('rline', 'off'); RG.chal = false; syncLine(); }
+      pickOpen(false);
+      return GO0.apply(this, arguments);
+    };
+  }
+  if (typeof addEventListener !== 'undefined') addEventListener('keydown', e => {
+    if (!RG.pkOpen || e.repeat) return;
+    if (e.code === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); pickOpen(false); }
+    else if (e.code === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); chalGo(); }
+  }, true);
   function pickFrame() {
-    const on = typeof Variants !== 'undefined' && devOn() && typeof Game !== 'undefined' && Game.mode === 'title' && L.st !== 'count' && typeof UI !== 'undefined' && UI.state === 'title' && !UI.open;
-    if (!on) { if (RG.pk) RG.pk.style.display = 'none'; return; }
-    const d = pickUI(); d.style.display = '';
-    if (RG.pkSig !== (Variants.val.rline || 'off') + diffKey() + Variants.val.rings || RG.pkDone !== L.st) { RG.pkDone = L.st; pickDraw(); }
+    if (typeof document === 'undefined') return;
+    if (devOn()) chalButton();
+    if (RG.pkOpen && !(typeof UI !== 'undefined' && UI.state === 'title' && !UI.open)) pickOpen(false);
   }
   RG.lipOf = lipOf; RG.kickerIn = kickerIn;          // (for test scripts)
   RG.line = L; if (typeof window !== 'undefined') window.__rings = RG;          // (for test scripts)

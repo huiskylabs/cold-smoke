@@ -28,7 +28,7 @@ fs.mkdirSync(out, { recursive: true });
     };
   });
   const startCount = async () => {
-    await pg.evaluate(() => { __ski.ui().go(); });
+    await pg.evaluate(() => { (__rings.chal = true, __ski.ui().go()); });
     await pg.waitForFunction(() => __rings.line.st === 'count', null, { timeout: 20000 });
   };
   // ride until a condition, a little at a time so the screen keeps up

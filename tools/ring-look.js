@@ -14,7 +14,7 @@ const out = path.resolve(process.argv[2] || 'ring-look'), pre = process.argv[3] 
     if (-(tz - p[2]) < 6) { const c = C.at(-p[2] + 20); tx = c.cx; tz = p[2] - 20; }
     return Math.max(-0.85, Math.min(0.85, (Math.atan2(tx - p[0], -(tz - p[2])) - Math.atan2(S.v[0], -S.v[2])) * 2.4)); }; });
   await pg.waitForTimeout(4000);
-  await pg.evaluate(() => __ski.ui().go()); await pg.waitForFunction(() => __rings.line.st === 'go', null, { timeout: 20000 });
+  await pg.evaluate(() => (__rings.chal = true, __ski.ui().go())); await pg.waitForFunction(() => __rings.line.st === 'go', null, { timeout: 20000 });
   // past the first two rings, then toward the next one
   await pg.evaluate(async () => { const f = __pilot(), G = __ski.game(), t0 = G.runT; while (G.runT - t0 < 120 && __rings.passed + __rings.missed < 3) { __ski.sim(0.05, f, { draw: false }); __rings.frame(); await new Promise(r => setTimeout(r, 0)); } });
   for (const m of [60, 30, 12]) {

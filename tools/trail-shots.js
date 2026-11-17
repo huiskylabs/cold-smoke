@@ -23,7 +23,7 @@ fs.mkdirSync(out, { recursive: true });
         if (-(tz - p[2]) < 6) { const c = C.at(-p[2] + 20); tx = c.cx; tz = p[2] - 20; }
         return Math.max(-0.85, Math.min(0.85, (Math.atan2(tx - p[0], -(tz - p[2])) - Math.atan2(S.v[0], -S.v[2])) * 2.4));
       };
-      __ski.ui().go();
+      (__rings.chal = true, __ski.ui().go());
     });
     await pg.waitForFunction(() => __rings.line.st === 'go', null, { timeout: 20000 });
     // ride (no drawing) to the third ring, 14 m out
