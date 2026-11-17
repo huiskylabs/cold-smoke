@@ -191,7 +191,10 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   var alb: vec3f = mix(vec3f(0.90, 0.93, 1.0), vec3f(0.11, 0.15, 0.15), wood * (0.55 + 0.35 * dn));${isC ? '' : `
   // (金色雪旗: a dark band of spruce close about the lake, as round Peyto and Maligne. The trees have shed their snow; against them the
   // water shows its colour)
-  let shoreW: f32 = (1.0 - smoothstep(160.0, 480.0, tH + 260.0 * (pN(p / (900.0 * PK) + vec2f(2.0, 8.0)) - 0.5))) * smoothstep(0.30, 0.55, N.y) * step(2.0, tH);
+  // (how far from the water: the lake's own measure, as pTerr0 shapes its shore)
+  let pq: vec2f = p / PK; let lqW: vec2f = (pq - vec2f(${f(P.LC[0])}, ${f(P.LC[1])})) / vec2f(${f(P.LR[0])}, ${f(P.LR[1])});
+  let ellW: f32 = length(lqW) + 0.30 * (pN(pq / 3600.0 + vec2f(1.0, 5.0)) - 0.5) + 0.34 * (pN(pq / 8500.0 + vec2f(4.0, 2.0)) - 0.5) + 0.09 * (pN(pq / 1300.0 + vec2f(7.0, 3.0)) - 0.5);
+  let shoreW: f32 = (1.0 - smoothstep(1.10, 1.30, ellW + 0.08 * (pN(pq / 700.0 + vec2f(2.0, 8.0)) - 0.5))) * (1.0 - smoothstep(700.0, 1100.0, tH)) * smoothstep(0.22, 0.45, N.y) * step(2.0, tH);
   alb = mix(alb, vec3f(0.06, 0.10, 0.08) * (0.75 + 0.5 * dn), shoreW * 0.85);`}
   alb = mix(alb, vec3f(0.19, 0.17, 0.17) * (0.6 + 0.5 * dn + 0.5 * vnoise2(vec2f(tH / 45.0, dot(p, vec2f(0.0007, 0.0004))))), max(max(rock, bare * 0.9), band * 0.6) * 0.92);
   alb = mix(alb, vec3f(0.96, 0.97, 1.0) * (0.84 + 0.16 * pN(p / 300.0)), cl);
@@ -436,7 +439,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     let pb: vec2f = wp / ${f(P.K)};
     let ellS: f32 = length(lq2) + 0.30 * (pkN(pb / 3600.0 + vec2f(1.0, 5.0)) - 0.5) + 0.34 * (pkN(pb / 8500.0 + vec2f(4.0, 2.0)) - 0.5) + 0.09 * (pkN(pb / 1300.0 + vec2f(7.0, 3.0)) - 0.5);
     let shoal: f32 = smoothstep(0.50, 1.12, ellS + 0.12 * (pat - 0.5) + 0.06 * (fbm2(wp / ${f(900 * P.K)} + vec2f(3.0, 1.0)) - 0.5));
-    var milky: vec3f = mix(vec3f(0.13, 0.50, 0.54), vec3f(0.20, 0.74, 0.75), smoothstep(0.0, 0.60, shoal));
+    var milky: vec3f = mix(vec3f(0.13, 0.52, 0.60), vec3f(0.20, 0.77, 0.82), smoothstep(0.0, 0.60, shoal));
     milky = mix(milky, vec3f(0.36, 0.88, 0.84), 0.60 * smoothstep(0.86, 1.02, shoal));
     milky = mix(milky, vec3f(0.10, 0.78, 0.76), 0.30 * smoothstep(0.45, 0.75, pat) * (1.0 - shoal));       // drifts of rock flour
     var jade: vec3f = mix(mix(vec3f(0.02, 0.36, 0.30), vec3f(0.05, 0.50, 0.62), smoothstep(0.35, 0.65, pat)), vec3f(0.42, 0.80, 0.62), smoothstep(0.62, 0.80, fbm2(wp / ${f(1300 * P.K)} + vec2f(1.0, 9.0))) * 0.7);
@@ -447,7 +450,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     // (in the shadow of the peak or of a cloud only the sky's light goes in: the colour stays, darker and bluer)
     let sunIn: f32 = (1.0 - shS) * (1.0 - 0.50 * shC);
     let skyN: vec3f = vec3f(luma(U.ambSky.rgb)) * vec3f(0.92, 1.0, 1.04);
-    let body: vec3f = 2.30 * mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * (0.80 * sunIn) + skyN * 0.95) * (1.0 - 0.34 * wind);
+    let body: vec3f = 2.55 * mix(milky, jade, step(1.5, U.world.z)) * (U.sunCol.rgb * (0.80 * sunIn) + skyN * 0.95) * (1.0 - 0.34 * wind);
     // what the eye gets from the water is the mirror weighed by Fresnel (a few per cent looking down into it, nearly all of it at a graze)
     // and the light coming up out of the water with the rest. So from a height the colour is the water's own and the mirror lies on it
     // only where what it mirrors is bright, cloud and snow, as at Peyto; far off, at a graze, the lake turns to sky and mountain
