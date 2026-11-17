@@ -254,7 +254,7 @@ const Trees = (() => {
   const TM = TreeModel;
   // r0/w0/max0: the fine meshes reach r0 metres (handing over across the last w0), at most max0 of them; r1/w1/max1: the same for the coarse
   // meshes; beyond stand the cards (NK photographs of each kind, one tile each). life: the trees move and shed (0 = still).
-  const T = { NV: TM.NV, NK: 12, r0: 14, w0: 3.5, max0: 8, r1: 48, w1: 8, max1: 72, far: 460, maxFar: 6144, tileW: 128, tileH: 256, ss: 2, pitch: 0.12, enabled: true, life: 1,
+  const T = { NV: TM.NV, NK: 12, r0: 14, w0: 3.5, max0: 8, r1: 48, w1: 8, max1: 72, far: 460, farD: 2.6, maxFar: 16384, tileW: 128, tileH: 256, ss: 2, pitch: 0.12, enabled: true, life: 1,
     stats: { near: 0, far: 0, tris: 0, fading: 0, out: 0, l0: 0, l1: 0, drawn: 0, shadow: 0, parts: 0 } };
   // (going through the woods, the owner's choice 'tpass'. a: as it was: a tree between the lens and the skier, or right against the lens,
   // fades out whole until it is clear. b: every tree stays. Its boughs give way round the body and are swept along with it as the skier
@@ -844,18 +844,21 @@ const Trees = (() => {
   // Chunks are visited nearest first, so the cards are roughly front to back and a full buffer only ever drops the farthest trees.
   const candA = [], candO = new Int32Array(640), candD = new Float32Array(640), order = new Uint16Array(640), selI = new Uint16Array(640), selF = new Float32Array(640 * 3);
   let candN = 0, ring = null, r0c = 0, r1c = 0; const lensP = [0, 0], lensV = [0, 0], manP = [0, 0], manV = [0, 0];
-  function ringTable() {
-    const n = Math.ceil(T.far / CS) + 1, a = [];
+  function ringTable(FR) {
+    const n = Math.ceil(FR / CS) + 1, a = [];
     for (let dz = -n; dz <= n; dz++) for (let dx = -n; dx <= n; dx++) a.push([dx, dz, Math.hypot(dx, dz)]);
-    a.sort((p, q) => p[2] - q[2]); ring = new Int16Array(a.length * 2); a.forEach((e, i) => { ring[i * 2] = e[0]; ring[i * 2 + 1] = e[1]; }); ring.far = T.far;
+    a.sort((p, q) => p[2] - q[2]); ring = new Int16Array(a.length * 2); a.forEach((e, i) => { ring[i * 2] = e[0]; ring[i * 2 + 1] = e[1]; }); ring.far = FR;
   }
   T.update = function (cam, origin, aspect, player, dt) {
     for (let v = 0; v < T.NV; v++) for (let l = 0; l < 2; l++) { const g = grp[v][l]; g.n = 0; g.solid = 0; g.gn = 0; }
     const st = T.stats; nFar = 0; candN = 0; st.near = st.far = st.fading = st.out = st.l0 = st.l1 = st.drawn = st.shadow = 0;
     if (!T.enabled) return;
-    if (!ring || ring.far !== T.far) ringTable();
+    // (金色雪旗: the walls of the valley stand wooded as far as the eye goes, so the cards go on out to them: past the usual range a tree
+    // in so many is kept, drawn the wider for it, so the wood keeps its cover with a fraction of the cards)
+    const wD = typeof Metro !== 'undefined' && Metro.kind() === 'd', FR = wD && T.far >= 300 ? T.far * T.farD : T.far, F0 = T.far;
+    if (!ring || ring.far !== FR) ringTable(FR);
     dt = dt > 0 && dt < 0.1 ? dt : 0;
-    const px = cam.pos[0], pz = cam.pos[2], fl = Math.hypot(cam.fwd[0], cam.fwd[2]) || 1, fx = cam.fwd[0] / fl, fz = cam.fwd[2] / fl, R = T.far, R2 = R * R;
+    const px = cam.pos[0], pz = cam.pos[2], fl = Math.hypot(cam.fwd[0], cam.fwd[2]) || 1, fx = cam.fwd[0] / fl, fz = cam.fwd[2] / fl, R = FR, R2 = R * R;
     // (the lens's own speed over the map and the skier's, for the fade of what stands against the lens or between the two, below. Put
     // somewhere else at a stroke, they have none; and none where the lens rides on the skier, first person: what it is about to meet the
     // skier is about to meet, and that is seen until it is met. None either in version a of the owner's choice, 07_game.js: the rule as it was)
@@ -869,10 +872,13 @@ const Trees = (() => {
     const zoom = clamp(0.5463 / Math.tan(cam.fovY / 2), 1, 6), zr0 = T.r0 * zoom, zr1 = T.r1 * zoom;
     const RM = cardsOnly ? 0 : zr1, RM2 = RM * RM, ox = origin[0], oy = origin[1], oz = origin[2];
     const far = (c, o, fade, d) => {
-      if (nFar >= T.maxFar) return; const q = nFar++ * 12, s = c[o + 3] / 10 * smooth(R, R - 60, d), v = c[o + 6];
+      if (nFar >= T.maxFar) return;
+      let wk = 1;
+      if (d > F0) { const keep = Math.max(0.22, Math.pow(F0 / d, 1.6)), hv = (Math.abs(Math.sin(c[o] * 12.9898 + c[o + 2] * 78.233)) * 43758.5453) % 1; if (hv > keep) return; wk = Math.min(1.9, 1 / Math.sqrt(keep)); }
+      const q = nFar++ * 12, s = c[o + 3] / 10 * smooth(R, R - 60 * (R / F0), d), v = c[o + 6];
       farCPU[q] = c[o] - ox; farCPU[q + 1] = c[o + 1] - oy - 0.10 * s; farCPU[q + 2] = c[o + 2] - oz; farCPU[q + 3] = s;
       farCPU[q + 4] = c[o + 4]; farCPU[q + 5] = c[o + 5]; farCPU[q + 6] = c[o + 7]; farCPU[q + 7] = v + 0.98 * fade;
-      farCPU[q + 8] = c[o + 8]; farCPU[q + 9] = c[o + 9]; farCPU[q + 10] = c[o + 10] * HWV[v]; farCPU[q + 11] = c[o + 11];
+      farCPU[q + 8] = c[o + 8]; farCPU[q + 9] = c[o + 9]; farCPU[q + 10] = c[o + 10] * HWV[v] * wk; farCPU[q + 11] = c[o + 11];
     };
     let pass = 0;
     const one = (c, o) => {
