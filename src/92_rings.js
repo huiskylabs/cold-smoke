@@ -78,7 +78,7 @@ const Rings = (() => {
     let s = s0 + (pl.gap[0] + (pl.gap[1] - pl.gap[0]) * rand()) * D.gap;
     const f = kickerIn(s0 + 10, s + 20);
     const lvAir = cl(D.off, 0, 2);
-    if (f) { const lip = lipOf(f), sr = lip.s + 8, c = Course.at(sr, pc), z = SIZES[lvAir]; RG.rings.push({ id: serial++, s: sr, u: f.u, x: c.cx + f.u, y: lip.y - 0.7, r: z[0], tag: z[1], air: true, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sr, u: f.u }; return; }
+    if (f) { const lip = lipOf(f), sr = lip.s + 8, c = Course.at(sr, pc), z = SIZES[lvAir]; RG.rings.push({ id: serial++, s: sr, u: f.u, x: c.cx + f.u, y: floatY(c.cx + f.u, sr, z[0], lip.y - 0.7), r: z[0], tag: z[1], air: true, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sr, u: f.u }; return; }
     if (pl.how === 'none') { cursor = { s, u: u0 }; RG.rings.push({ id: serial++, s, skip: true }); return; }
     const c0 = Course.at(s, pc), hw = c0.hw || 14;
     let u;
@@ -95,11 +95,16 @@ const Rings = (() => {
     const c = Course.at(s, pc), hw2 = c.hw || 14;
     u = cl(u, -hw2 * 0.6, hw2 * 0.6);
     const uu = clear(s, u, hw2); if (uu === null) { cursor = { s, u: u0 }; RG.rings.push({ id: serial++, s, skip: true }); return; }
-    // (用户 04:47 UTC 一整个圈; 05:16 UTC 圈靠下、腿从圈里过): its foot a hand into the snow under the middle of it, the sides clear
+    // (用户 04:47 UTC 一整个圈; 16:55 UTC 不要接到雪地上，留一点空间，悬浮起来): the whole ring floats, its lowest point a little above the snow
     const lv = cl(Math.round(pl.lv + D.off + (rand() - 0.5) * 1.3), 0, 2), pick = SIZES[lv], r = pick[0], x = c.cx + uu;
-    let top = -1e9; for (let i = -3; i <= 3; i++) top = Math.max(top, Course.height(x + r * 0.35 * i / 3, -s, 0.5));
     cursor = { s, u: uu };
-    RG.rings.push({ id: serial++, s, u: uu, x, y: top + r - 0.12, r, tag: pick[1], air: false, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 });
+    RG.rings.push({ id: serial++, s, u: uu, x, y: floatY(x, s, r, -1e9), r, tag: pick[1], air: false, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 });
+  }
+  // Every ring floats: the snow under any part of its lower half stays at least GAP below it (ground rings and air rings alike).
+  const GAP = 0.35;
+  function floatY(x, s, r, y) {
+    let top = -1e9; for (let i = -6; i <= 6; i++) { const a = i / 6 * 1.2, dx = Math.sin(a) * r, dy = -Math.cos(a) * r; top = Math.max(top, Course.height(x + dx, -s, 0.5) - dy); }
+    return Math.max(y, top + GAP);
   }
   function reset() { RG.rings.length = 0; RG.passed = RG.missed = 0; rnd = 1 + Math.floor((Date.now() % 100000)); lastS = null; drawList = []; cursor = null; }
 
@@ -109,6 +114,14 @@ const Rings = (() => {
     if (lastS !== null && (s < lastS - 30 || s > lastS + 200)) reset();
     lastS = s;
     RG.rings = RG.rings.filter(r => !(r.pass >= 0 && T - r.pass > 2.4));
+    // (用户 16:55 UTC 微小的左右、上下抖动): each ring sways a few centimetres round its place, slowly and never in step with the others
+    for (const r of RG.rings) {
+      if (r.skip) continue;
+      if (r.x0 === undefined) { r.x0 = r.x; r.y0 = r.y; r.ph = (r.id * 2.39996) % 6.283; }
+      const w = T * 6.283, p = r.ph;
+      r.x = r.x0 + 0.09 * Math.sin(w * 0.31 + p) + 0.04 * Math.sin(w * 0.73 + p * 2.1);
+      r.y = r.y0 + 0.07 * Math.sin(w * 0.43 + p * 1.7) + 0.03 * Math.sin(w * 0.91 + p * 0.6);
+    }
     let live = RG.rings.filter(r => r.pass < 0).length;
     for (let tries = 0; live < AHEAD && tries < 20; tries++) { spawn(); const r = RG.rings[RG.rings.length - 1]; if (r.skip) RG.rings.pop(); else live++; }
     const ahead = RG.rings.filter(r => r.pass < 0);
