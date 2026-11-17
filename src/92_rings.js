@@ -87,7 +87,11 @@ const Rings = (() => {
     }
     const f = kickerIn(s0 + 10, s + 20);
     const lvAir = cl(D.off, 0, 2);
-    if (f) { const lip = lipOf(f), sr = lip.s + 8, c = Course.at(sr, pc), z = SIZES[lvAir]; RG.rings.push({ id: serial++, s: sr, u: f.u, x: c.cx + f.u, y: floatY(c.cx + f.u, sr, z[0], lip.y - 0.7), r: z[0], tag: z[1], air: true, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sr, u: f.u }; return; }
+    // (用户 20:47 UTC: 跳台的圈离跳台远一点，必须真的跳出一定距离和高度才穿得过去，而不是顺着跳台滑过去就一定通过). Measured on the run's three
+    // kickers (tools/kicker-air.js, 15-18 m/s at the lip): 14 m past the lip, skiing flat over it the body is 2.6-4.9 m below the lip,
+    // with the jump held it is 0.1-2.2 m below. So the ring hangs there, its centre 1 m below the lip, and is small (1.9 / 1.6 / 1.35 m
+    // by 光圈难度): only a real jump goes through it
+    if (f) { const lip = lipOf(f), sr = lip.s + 14, c = Course.at(sr, pc), z = SIZES[lvAir], ra = [1.9, 1.6, 1.35][lvAir]; RG.rings.push({ id: serial++, s: sr, u: f.u, x: c.cx + f.u, y: floatY(c.cx + f.u, sr, ra, lip.y - 1.0), r: ra, tag: z[1], air: true, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sr, u: f.u }; return; }
     if (pl.how === 'none') { cursor = { s, u: u0 }; RG.rings.push({ id: serial++, s, skip: true }); return; }
     const c0 = Course.at(s, pc), hw = c0.hw || 14;
     let u;
@@ -110,7 +114,7 @@ const Rings = (() => {
     RG.rings.push({ id: serial++, s, u: uu, x, y: floatY(x, s, r, -1e9), r, tag: pick[1], air: false, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 });
   }
   // Every ring floats: the snow under any part of its lower half stays at least GAP below it (ground rings and air rings alike).
-  const GAP = 0.35;
+  const GAP = 0.9;          // (用户 20:47 UTC: 离地再高一点; was 0.35)
   function floatY(x, s, r, y) {
     let top = -1e9; for (let i = -6; i <= 6; i++) { const a = i / 6 * 1.2, dx = Math.sin(a) * r, dy = -Math.cos(a) * r; top = Math.max(top, Course.height(x + dx, -s, 0.5) - dy); }
     return Math.max(y, top + GAP);
