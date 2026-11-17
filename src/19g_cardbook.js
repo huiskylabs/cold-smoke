@@ -139,12 +139,14 @@ const CardBook = self.CardBook = (() => {
     const add = (k, t) => { const b = $('button', null, t); b.type = 'button'; b.dataset.cbDev = k; row.appendChild(b); };
     DEV_EV.forEach((q, i) => add('ev' + i, '模拟：' + q[2]));
     add('all', '全部收下'); add('reset', '清空卡册');
+    add('layout', '卡册排法：' + (group() === 'kind' ? 'b 按卡种' : 'a 按卡组') + ' ⇄');
     sec.appendChild($('p', 'note', 'DEV · 模拟各玩法发来的事件（要先把集卡打开）'));
     sec.appendChild(row);
   }
   function dev(k) {
     if (k === 'all') { for (const c of Cards.list) Cards.grant(c.id, 'dev'); }
     else if (k === 'reset') Cards.reset();
+    else if (k === 'layout' && typeof Variants !== 'undefined') { Variants.set('cardbook', group() === 'kind' ? 'a' : 'b'); B.page = null; }
     else if (/^ev\d+$/.test(k)) { const q = DEV_EV[+k.slice(2)]; if (q) Cards.emit(q[0], q[1]); }
     B.show();
   }
