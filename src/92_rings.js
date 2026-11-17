@@ -166,7 +166,7 @@ const Rings = (() => {
     for (const r of RG.rings) {
       const dist = Math.hypot(r.x - cam[0], r.y - cam[1], -r.s - cam[2]), ord = r.pass >= 0 ? 0 : ahead.indexOf(r);
       const sz = Math.sqrt(r.r / 4.5), near = Math.pow(cl(1 - (dist - 25) / 280, 0.16, 1), 1.2);          // (用户 20:39 UTC: 有时候还是比较淡，亮一点、点多一点: far ones still fainter, but not lost)
-      if (r.fin && r.grow < 0) r.grow = r.born - 1;          // (the finish is a whole white ring from the moment it is there, never a flame)
+      if ((r.fin || L.id) && r.grow < 0) r.grow = r.born - 1;          // (the finish, and every ring of a challenge line (用户 21:56 UTC: 第一个圈倒数时还是一团火): a whole ring from the moment it is there, never a flame, so the line reads during the count)
       const grown = r.grow >= 0 ? cl((T - r.grow) / 0.9, 0, 1) : 0;
       const dis = r.splash >= 0 ? cl((T - r.splash) / 2.2, 0, 1) : 0;
       const ordK = ord <= 1 ? 1 : ord === 2 ? 0.62 : 0.4;
@@ -209,7 +209,7 @@ const Rings = (() => {
     RG.pipes = [pDust, pDustSh, pFlame, pLight];
     if (gfx.finishPipelineAsync) for (const P of RG.pipes) gfx.finishPipelineAsync(P).catch(e => console.warn('rings pipeline', P.name, e && e.message ? e.message : e));
   };
-  const active = () => RG.on && gfx && typeof Game !== 'undefined' && Game.s && (Game.mode === 'run' || Game.mode === 'hold') && drawList.length;
+  const active = () => RG.on && gfx && typeof Game !== 'undefined' && Game.s && (Game.mode === 'run' || Game.mode === 'hold' || Game.mode === 'park') && drawList.length;
   RG.drawShadow = function () {
     if (!active()) return;
     for (const d of drawList) if (ringLive(d)) { const u = ringU(d, lastT % 4096); gfx.draw(pDustSh, { u, count: 4, instances: u.e[0] + u.e[1] }); }
@@ -576,7 +576,7 @@ const Rings = (() => {
     // The count-down at the gate holds the skier the same way, but the rings ahead are already there and alive, so the line can be read
     const counting = L.st === 'count';
     if (RG.on && typeof Game !== 'undefined' && Game.mode === 'hold' && !counting) return;
-    if (!RG.on || typeof Game === 'undefined' || !Game.s || (Game.mode !== 'run' && !counting)) { drawList = []; if (RG.hud) RG.hud.style.display = 'none'; return; }
+    if (!RG.on || typeof Game === 'undefined' || !Game.s || (Game.mode !== 'run' && Game.mode !== 'park' && !counting))          // (park: stopped past the finish, the rings stay where they are) { drawList = []; if (RG.hud) RG.hud.style.display = 'none'; return; }
     lastT = T;
     RG.n++; try { update(T); prep(T); hud(); trail(); } catch (e) { drawList = []; if (!RG.err) { RG.err = 1; console.warn('rings:', e); } }
   };
