@@ -15,7 +15,7 @@ const [out = 'world-shots', jobsFile, W = '1600', Hh = '900'] = process.argv.sli
       await page.goto('file://' + path.resolve(__dirname, '..', 'dist', 'dev.html') + `?director=1&w=${W}&h=${Hh}&gov=0&offscreen=1&metrosamples=4` + (job.q || ''));
       await page.waitForFunction(() => window.Director && Director.ready, null, { timeout: 180000, polling: 250 });
       if (job.dump) {
-        const line = await page.evaluate(() => { const a = [], o = {}; for (let s = 0; s <= 6000; s += 6) { const c = Course.at(s, o); a.push([s, +c.cx.toFixed(1), +c.hw.toFixed(1), c.type || (c.seg && c.seg.type) || '']); } return { keys: Object.keys(Course.at(100, {})), a, segs: (Course.segs || []).slice(0, 16).map(g => ({ type: g.type, s0: g.s0, len: g.len, s1: g.s1 })) }; });
+        const line = await page.evaluate(() => { const Course = __ski.m.Course, a = [], o = {}; for (let s = 0; s <= 6000; s += 6) { const c = Course.at(s, o); a.push([s, +c.cx.toFixed(1), +c.hw.toFixed(1), c.type || (c.seg && c.seg.type) || '']); } return { keys: Object.keys(Course.at(100, {})), a, segs: (Course.segs || []).slice(0, 16).map(g => ({ type: g.type, s0: g.s0, len: g.len, s1: g.s1 })) }; });
         fs.writeFileSync(path.join(out, `line_${job.dump}.json`), JSON.stringify(line));
       }
       for (const sh of job.shots) {
