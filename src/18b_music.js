@@ -226,7 +226,7 @@ const Music = (() => {
       const dt = clamp(t - T.t, 0, MU.look); T.t = t;
       const e = s.sun == null ? 0.2 : s.sun, tsR = clamp(s.ts || 1, 0.05, 1);
       T.night = smooth(0, -0.17, e); T.want = e < -0.1 ? 'nebula' : e < 0.03 ? 'ember' : e < 0.12 ? 'gold' : 'clear';
-      const live = s.run || (!!s.title && MU.titleOn());
+      const live = s.run || s.park || (!!s.title && MU.titleOn());       // (park: stopped after a challenge's finish line, the music plays on)
       if (live && !T.on) {        // a run begins (the first or a later one): from the top, with nothing remembered of what the skier was doing before
         T.on = true; T.pos = T.next = T.abs = T.step = T.bar = T.chord = 0; T.wantP = T.wantB = T.tierP = T.tierB = T.carve = T.bloom = T.hush = T.fly = T.tail = 0; T.ph = null;
         T.set = T.want; T.sp = s.speed; h.out.v = NaN; say(t, 'start');
@@ -253,7 +253,7 @@ const Music = (() => {
       set(h.pad, 1 - 0.08 * Math.min(T.tierP, 2) - 0.07 * T.tierB + 0.25 * T.bloom, t, 0.5);
       set(h.eq, -2 - 7 * sat((E || 0) * 0.85), t, 0.08);                    // room for the scrape of the edges, where it lives
       set(h.rvG, 0.5 * kd.r * (1 + 0.3 * T.night), t, 0.8); set(h.dA, kd.r > 1.1 ? 0.6 : 0.5, t, 0.8);
-      set(h.out, MU.level * (LevelV[vOf('mlevel')] || 1) * (s.run ? 1 : 0.5) * (1 - 0.15 * T.night), t, s.run ? 0.8 : 1.6);
+      set(h.out, MU.level * (LevelV[vOf('mlevel')] || 1) * (s.run || s.park ? 1 : 0.5) * (1 - 0.15 * T.night), t, s.run ? 0.8 : 1.6);
       // the clock runs on the game's time; nothing is written while the skier is in the air on a real jump
       if (!T.full) { T.pos += dt * ts * SPS; const end = T.pos + MU.look * ts * SPS; let n = 0; while (T.next <= end && n++ < 6) { step(Math.max(t, t + (T.next - T.pos) / (ts * SPS))); T.next++; } }
     };
