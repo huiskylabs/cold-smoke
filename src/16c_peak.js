@@ -80,10 +80,10 @@ ${isC ? `  let ln: f32 = pN(p / 5600.0 + vec2f(2.7, 6.1));
   // and the top itself cut off level, a crater with a ragged rim)
   let qd: vec2f = q / max(rp, 1.0);
   let gl: f32 = pRidge(qd * 4.5 + q / 11000.0 + vec2f(2.0, 9.0), n);
-  pk = PHP * (0.10 * fk + 0.90 * pow(fk, 1.7)) * (1.0 + (0.16 * (gl - 0.42) + 0.20 * (rib - 0.40)) * (1.0 - 0.75 * fk) * (0.5 + 0.5 * smoothstep(0.0, 0.25, fk)));
+  pk = PHP * (0.10 * fk + 0.90 * pow(fk, 1.7)) * (1.0 + (0.16 * (gl - 0.42) + 0.20 * (rib - 0.40)) * (1.0 - fk) * (0.5 + 0.5 * smoothstep(0.0, 0.25, fk)));
   // (its rim is not level: bumps and summits round it, notches where gullies bite in, as Fuji's eight peaks)
-  let top: f32 = ${isC ? 'PHP * 0.80' : f(Math.min(0.925 * P.HP, 8400))} + PHP * (0.060 * (vnoise2(qd * 2.6 + vec2f(4.0, 1.0)) - 0.5) + 0.032 * (vnoise2(qd * 9.0 + vec2f(1.0, 6.0)) - 0.5) + 0.014 * (vnoise2(qd * 26.0 + vec2f(7.0, 2.0)) - 0.5) - 0.025 * smoothstep(0.55, 0.85, gl));
-  if (pk > top) { pk = top - min(1.3 * (pk - top), 380.0); }
+  let top: f32 = ${isC ? 'PHP * 0.80' : f(Math.min(0.925 * P.HP, 8400))} + PHP * (0.030 * (vnoise2(qd * 2.2 + vec2f(4.0, 1.0)) - 0.5) + 0.008 * (vnoise2(qd * 6.0 + vec2f(1.0, 6.0)) - 0.5));
+  if (pk > top) { pk = top - min(0.5 * (pk - top), 220.0); }
   var h: f32 = max(own, flr + max(rng, pk));${isC ? '' : `
   // (and it lies down into the water on a low shelf of gravel and flats, a beach, a delta, not a wall)
   if (h > 0.0 && h < 60.0) { h = h * mix(0.35, 1.0, smoothstep(0.0, 60.0, h)); }`}
@@ -201,7 +201,7 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   let bare: f32 = (1.0 - smoothstep(-0.05, 0.05, tH / PHP - 0.44 + 0.30 * (tong - 0.35))) * smoothstep(0.02, 0.10, tH / PHP) * step(length(qv), ${f(P.PR)});
   // (up high, dark ribs of rock stand out of the snow between the gullies, thickest about the rim: the snow is not a smooth cap)
   let tg2: f32 = pRidge(qn * 26.0 + vec2f(9.0, 4.0), 3) + 0.35 * (dn - 0.5);
-  let ribs: f32 = smoothstep(0.50, 0.66, tg2) * smoothstep(0.50, 0.70, tH / PHP) * step(length(qv), ${f(P.PR)}) * ${isC ? '0.0' : '0.75'};
+  let ribs: f32 = smoothstep(0.50, 0.66, tg2) * smoothstep(0.50, 0.70, tH / PHP) * step(length(qv), ${f(P.PR)}) * ${isC ? '0.0' : '0.40'};
   let wood: f32 = (1.0 - smoothstep(650.0, 1500.0, tH + 500.0 * (pN(p / (1900.0 * PK)) - 0.5))) * smoothstep(0.60, 0.85, N.y) * step(2.0, tH);
   var alb: vec3f = mix(vec3f(0.90, 0.93, 1.0), vec3f(0.11, 0.15, 0.15), wood * (0.55 + 0.35 * dn));${isC ? '' : `
   // (金色雪旗: a dark band of spruce close about the lake, as round Peyto and Maligne. The trees have shed their snow; against them the
@@ -573,6 +573,24 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
       var bc: vec3f = vec3f(0.97, 0.98, 1.0) * cloudLit * (0.50 + 0.50 * bt.y);
       bc = mix(bc, vistaHaze(d), 0.28);
       res = mix(res, bc, bt.x * ex);
+    }
+    // 金色雪旗: mist lying about the mountains, as in a Rockies valley after snow: long torn banks along the far ranges at half their
+    // height, and lower wisps clinging to the walls either side; never over the open water (there they read as sandbars)
+    let tm2: f32 = U.camPos.w;
+    let aa: f32 = abs(a);
+    let c1: f32 = -0.075 + ${f(P.lift)} + 0.030 * (fbm2(vec2f(a * 3.0, 1.0)) - 0.5);
+    let w1: f32 = 0.012 + 0.020 * fbm2(vec2f(a * 9.0 + tm2 * 0.002, 4.0));
+    let v1: f32 = (th - c1) / w1;
+    let cov1: f32 = smoothstep(0.40, 0.66, fbm2(vec2f(a * 16.0 + tm2 * 0.004, th * 55.0 + 3.0)));
+    let c2: f32 = -0.20 + ${f(P.lift)} + 0.06 * (fbm2(vec2f(a * 2.2, 6.0)) - 0.5);
+    let w2: f32 = 0.020 + 0.030 * fbm2(vec2f(a * 6.0 - tm2 * 0.002, 8.0));
+    let v2: f32 = (th - c2) / w2;
+    let cov2: f32 = smoothstep(0.45, 0.70, fbm2(vec2f(a * 11.0 - tm2 * 0.003, th * 40.0 + 7.0))) * smoothstep(0.40, 0.70, aa);
+    let mk: f32 = (exp(-v1 * v1 * 1.6) * cov1 + exp(-v2 * v2 * 1.6) * cov2) * (1.0 - water) * (1.0 - smoothstep(1.05, 1.30, aa));
+    if (mk > 0.002) {
+      var mcol: vec3f = vec3f(0.96, 0.97, 1.0) * cloudLit * 0.85;
+      mcol = mix(mcol, vistaHaze(d), 0.35);
+      res = mix(res, mcol, saturate(mk) * 0.72 * ex);
     }
   }
   return res;
