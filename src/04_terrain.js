@@ -969,7 +969,10 @@ fn frag(v: VOut) -> FOut {
       // (seen across a valley the crowns close over the snow between them: the forest floor shows only in small gaps)
       k = saturate(smoothstep(0.05, 0.30, fw) * (0.90 + 0.2 * sp2)) * (0.86 + 0.14 * smoothstep(0.35, 0.60, cr));
       let ndl: f32 = saturate(dot(N, U.sunDir.xyz));
-      let fcD: vec3f = vec3f(0.030, 0.052, 0.045) * (0.8 + 0.5 * cr);
+      // (stands and gaps a few tens of metres across, so the wood keeps its texture two kilometres off where single crowns are below a pixel)
+      let st1: f32 = tex(tNoise, wxz / 70.0 + vec2f(0.61, 0.12)).z * 0.6 + tex(tNoise, wxz / 190.0 + vec2f(0.33, 0.84)).z * 0.4;
+      k = k * (0.80 + 0.20 * smoothstep(0.30, 0.55, st1));
+      let fcD: vec3f = vec3f(0.030, 0.052, 0.045) * (0.8 + 0.5 * cr) * (0.75 + 0.55 * st1);
       let fcS: vec3f = mix(fcD, vec3f(0.70, 0.74, 0.80), 0.12 * smoothstep(0.60, 0.85, cr));
       let fcL: vec3f = fcS * (U.sunCol.rgb * (0.55 * ndl * (0.6 + 0.8 * cr)) + amb * 0.9);
       col = mix(col, fcL, saturate(k * carpet));
@@ -1019,7 +1022,7 @@ fn frag(v: VOut) -> FOut {
   }
   // (金色雪旗: the air of a Rockies valley in winter is clear: forest across it two or three kilometres off is still dark green, only a little
   // blued, never the pale grey of a hazy summer; so the haze over this world's own land is lighter)
-  if (U.world.x > 2.5) { col = mix(col, applyFog(col, wp), ${typeof location !== 'undefined' && /dbgf/.test(location.search) ? '0.0' : '0.55'}); } else { col = applyFog(col, wp); }
+  if (U.world.x > 2.5) { col = mix(col, applyFog(col, wp), ${typeof location !== 'undefined' && /dbgf/.test(location.search) ? '0.0' : '0.30'}); } else { col = applyFog(col, wp); }
   ${typeof location !== 'undefined' && /dbgw/.test(location.search) ? 'col = mix(col, vec3f(1.0, 0.0, 1.0), 0.6 * saturate(carpet * 3.0)); if (carpet < 0.01) { col = mix(col, vec3f(0.0, 1.0, 0.0), 0.5 * smoothstep(400.0, 500.0, dist)); }' : ''}
   o.color = vec4f(col, 1.0);
   return o;
