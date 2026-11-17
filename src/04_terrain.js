@@ -952,9 +952,21 @@ fn frag(v: VOut) -> FOut {
   let carpet: f32 = sm.w * smoothstep(390.0, 470.0, dist);
   if (carpet > 0.001) {
     let sp2: f32 = tex(tNoise, wxz / 61.0).z * 0.5 + d1.z * 0.5;
-    let k: f32 = smoothstep(0.30, 0.62, sp2 * (0.55 + sm.w));
-    let fc: vec3f = mix(vec3f(0.035, 0.07, 0.06), vec3f(0.25, 0.30, 0.36), 0.35) * (U.sunCol.rgb * 0.35 + amb);
-    col = mix(col, fc, k * carpet * 0.85);
+    var k: f32 = smoothstep(0.30, 0.62, sp2 * (0.55 + sm.w));
+    // (金色雪旗: a Rockies spruce forest seen from across the valley is dark, nearly black-green, close set crown by crown, with snow
+    // showing only in the gaps and on the crowns' sunny sides; it never reads as shaded snow)
+    if (U.world.x > 2.5) {
+      let cr: f32 = tex(tNoise, wxz / 9.0).z * 0.6 + tex(tNoise, wxz / 23.0 + vec2f(0.3, 0.7)).z * 0.4;
+      k = saturate(smoothstep(0.05, 0.30, sm.w) * (0.75 + 0.5 * sp2)) * (0.70 + 0.30 * smoothstep(0.35, 0.60, cr));
+      let ndl: f32 = saturate(dot(N, U.sunDir.xyz));
+      let fcD: vec3f = vec3f(0.030, 0.052, 0.045) * (0.8 + 0.5 * cr);
+      let fcS: vec3f = mix(fcD, vec3f(0.70, 0.74, 0.80), 0.22 * smoothstep(0.55, 0.80, cr));
+      let fcL: vec3f = fcS * (U.sunCol.rgb * (0.55 * ndl * (0.6 + 0.8 * cr)) + amb * 0.9);
+      col = mix(col, fcL, k * carpet * 0.95);
+    } else {
+      let fc: vec3f = mix(vec3f(0.035, 0.07, 0.06), vec3f(0.25, 0.30, 0.36), 0.35) * (U.sunCol.rgb * 0.35 + amb);
+      col = mix(col, fc, k * carpet * 0.85);
+    }
   }
   // the blowing snow itself: the same snow as the slope, in the air, lit by the same sun and sky, a little brighter toward the sun where
   // the light comes through it; and its crystals, carried along with it, each one a flash that travels down the slope
