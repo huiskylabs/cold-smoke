@@ -121,7 +121,7 @@ const Course = ((vn1, vn2, h2U) => {
     C.lv = TERR_LV[tv.tdiff] ? tv.tdiff : 'b'; LV = tv.terr === 'b' ? TERR_LV[C.lv] : null; C.rich = !!LV; C.isl = LV ? LV.isl : 1;
     trng = RNG((KEY ^ 0x7e4a11) + 131 * C.lv.charCodeAt(0));
     // (金色雪旗 takes its own run, the U trough, where the route is left at the default)
-    const rv = tv.route === 'b' && typeof Metro !== 'undefined' && Metro.kind() === 'd' ? 'e' : tv.route;
+    const rv = tv.route === 'b' && tv.world === 'd' ? 'e' : tv.route;      // (Variants, not Metro: Metro is declared later and setSeed runs before it is)
     C.route = rv === 'b' || rv === 'c' || rv === 'd' || rv === 'e'; ROUTE = ROUTES[rv] || ROUTES.b; C.ROUTE = ROUTE; C.rclear = tv.rclear === 'b';
     SH = SHAPES[tv.shape] || SHAPES.a;
     planTo(4000);
