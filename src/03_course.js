@@ -128,6 +128,7 @@ const Course = ((vn1, vn2, h2U) => {
     const rv = tv.route === 'b' && tv.world === 'd' ? (tv.dalp === 'a' ? 'e' : 'c') : tv.route;      // (金色雪旗 above the trees: 九曲十八弯 by default, the owner 2026-11-18 04:29)      // (Variants, not Metro: Metro is declared later and setSeed runs before it is)
     C.route = rv === 'b' || rv === 'c' || rv === 'd' || rv === 'e'; ROUTE = ROUTES[rv] || ROUTES.b; C.ROUTE = ROUTE; C.rclear = tv.rclear === 'b';
     SH = SHAPES[tv.shape] || SHAPES.a;
+    ALPG = tv.world === 'd' && tv.dalp === 'b' ? [1.3, 1.9, 2.2, 2.4] : [1, 1, 1, 1];
     planTo(4000);
     return C.seed;
   };
@@ -610,6 +611,8 @@ const Course = ((vn1, vn2, h2U) => {
     d: [{ kx: 2.0, wk: 1.6, rk: 1.0, sh: 1.2 }, { kx: 1.0, wk: -0.9, rk: 0.1, sh: 0.25 }],
   };
   let SH = SHAPES.a;
+  // (金色雪旗 above the trees: the faces are cut deeper, ribs and couloirs as Okuhida's ridge, the owner 2026-11-18 07:00 "没有细节")
+  let ALPG = [1, 1, 1, 1];
   C.shapeK = u => SH[u > 0 ? 1 : 0].kx;
   // the large shapes of the mountain away from the run: ridges, peaks and the walls of the valley (e = distance beyond the edge of the run)
   function relief(x, z, e, cell) {
@@ -692,10 +695,10 @@ const Course = ((vn1, vn2, h2U) => {
         const sl = Math.hypot(gx, gz), K = 1.7 * Math.min(1, 1.4 / (sl + 1e-6)), dx = gz * K, dz = -gx * K;
         // four sizes, each bent by the ones before it: buttresses and the great couloirs between them, then gullies, then runnels
         gullies(x / 700 + 3.9, z / 700 + 8.2, dx, dz, 1213);
-        let g = 52 * m * (1.27 - 2 * Math.sqrt(Math.max(0, 0.5 - 0.5 * _er[0]))), ex = _er[1] * 0.5, ez = _er[2] * 0.5;      // sharp ribs, round gully floors
-        if (cell <= 40) { gullies(x / 260, z / 260, dx + ez * 1.4, dz - ex * 1.4, 911); g += 22 * (1.27 - 2 * Math.sqrt(Math.max(0, 0.5 - 0.5 * _er[0]))); ex += _er[1]; ez += _er[2]; }
-        if (cell <= 16) { gullies(x / 124 + 17.3, z / 124 - 5.1, dx + ez * 1.4, dz - ex * 1.4, 577); g += 10 * (1.27 - 2 * Math.sqrt(Math.max(0, 0.5 - 0.5 * _er[0]))); ex += _er[1] * 1.05; ez += _er[2] * 1.05; }
-        if (cell <= 4) { gullies(x / 59 - 8.7, z / 59 + 31.9, dx + ez * 1.4, dz - ex * 1.4, 353); g += 4.2 * (1.27 - 2 * Math.sqrt(Math.max(0, 0.5 - 0.5 * _er[0]))); }
+        let g = 52 * ALPG[0] * m * (1.27 - 2 * Math.sqrt(Math.max(0, 0.5 - 0.5 * _er[0]))), ex = _er[1] * 0.5, ez = _er[2] * 0.5;      // sharp ribs, round gully floors
+        if (cell <= 40) { gullies(x / 260, z / 260, dx + ez * 1.4, dz - ex * 1.4, 911); g += 22 * ALPG[1] * (1.27 - 2 * Math.sqrt(Math.max(0, 0.5 - 0.5 * _er[0]))); ex += _er[1]; ez += _er[2]; }
+        if (cell <= 16) { gullies(x / 124 + 17.3, z / 124 - 5.1, dx + ez * 1.4, dz - ex * 1.4, 577); g += 10 * ALPG[2] * (1.27 - 2 * Math.sqrt(Math.max(0, 0.5 - 0.5 * _er[0]))); ex += _er[1] * 1.05; ez += _er[2] * 1.05; }
+        if (cell <= 4) { gullies(x / 59 - 8.7, z / 59 + 31.9, dx + ez * 1.4, dz - ex * 1.4, 353); g += 4.2 * ALPG[3] * (1.27 - 2 * Math.sqrt(Math.max(0, 0.5 - 0.5 * _er[0]))); }
         hm += w * smooth(0.2, 0.7, sl) * (0.35 + 0.65 * m) * g;
       }
       if (cell < 12 && m > 0.05) hm += m * 14 * vnoise2(x / 90, z / 90, 75) + (cell < 4 ? m * 4 * vnoise2(x / 23, z / 23, 76) : 0);
