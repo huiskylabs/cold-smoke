@@ -819,6 +819,7 @@ fn frag(v: VOut) -> FOut {
   // (Variants 'fphand' b: the lens is in the drawn head now, not beside it, and the neck and collar round it were cut open by the near plane:
   // black shards across the middle of the picture. They go too; with ?fphide=2 the chest and shoulders as well, as on a board, to compare)
   const GONE_C = GONE.concat(/[?&]fphide=2/.test(typeof location !== 'undefined' ? location.search : '') ? ['neck', 'chest', 'shL', 'shR'] : /[?&]fphide=0/.test(typeof location !== 'undefined' ? location.search : '') ? [] : ['neck']);
+  const DBG = (() => { try { const m = /[?&]fpdbg=([a-z]+)/.exec(location.search); return m ? m[1] : ''; } catch (e) { return ''; } })();
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   // the snow off the shovels in the view of the ski tips: crumbs thrown up and aside from where each ski meets the snow, and a thin mist of the
   // finest of it. rate: lumps a second flat out in deep snow (a third of them mist); dens: how thick a crumb is; life, brake: how soon it
@@ -881,7 +882,8 @@ fn frag(v: VOut) -> FOut {
     if (fpc <= 0) { if (F.posed) { SD[0].init = SD[1].init = SD[0].init0 = true; PH.v = null; F.posed = false; } PH.dt = 0; }
     F.vis = F.ready && !F.dead && fpc >= F.swap; PH.own = smooth(F.swap, 1, fpc);
     // the view of the ski tips: the arms are drawn until they are down behind the lens, the figure is left out once the lens has left the helmet
-    F.arms = F.tk < 0.7 && !Game.fpIn; F.hideFig = F.vis && !board() && (F.tk > 0.25 || !!Game.fpIn);      // (or the figure turned away under the lens: Game.fpIn, 07b_views.js; then only the skis: these arms hang from its shoulders, which are then in front of the lens)
+    F.arms = F.tk < 0.7 && !Game.fpIn; F.hideFig = F.vis && !board() && (F.tk > 0.25 || !!Game.fpIn);
+    if (DBG) { if (DBG === 'noarms') F.arms = false; if (DBG === 'nofig') F.hideFig = F.vis; }      // (?fpdbg=noarms | nofig: to find what is drawn where, in tests)      // (or the figure turned away under the lens: Game.fpIn, 07b_views.js; then only the skis: these arms hang from its shoulders, which are then in front of the lens)
     // (the thrown snow is made to thin out before it reaches a lens: 10_spray.js, Spray.lens. Down among the skis the snow they push up is the
     // picture, so there it is let much nearer; the number is given back as it was found on the way out)
     // (and what does come near is spread into a wide faint veil, Spray.nearBlur: there it is left the lumps it is)
