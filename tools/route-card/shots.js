@@ -25,7 +25,7 @@ fs.mkdirSync(outDir, { recursive: true });
       // the forest density, bilinear between its 8 m cells (so its edges are smooth shapes, not squares)
       const T = TG ? (x, s) => { const fi = (x - TG.x0) / TG.step, fj = (s - TG.s0) / TG.step, i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j; return (tv(i, j) * (1 - u) + tv(i + 1, j) * u) * (1 - v) + (tv(i, j + 1) * (1 - u) + tv(i + 1, j + 1) * u) * v; } : null;
       const missed = r.rings.filter(q => !q.fin && !q.pass).length;
-      const d = { track: r.track, rings: r.rings.filter(q => !q.fin), segs: r.segs, names: r.names, H, cx, trees: r.trees, T, split: r.split, line, diff: dn, mountain: '寒烟山',
+      const d = { track: r.track, rings: r.rings.filter(q => !q.fin), segs: r.segs, names: r.names, H, cx, trees: r.trees, T, split: r.split, player: '雪友', rank: 12, line, diff: dn, mountain: '寒烟山',
         score: r.tEnd + missed * pen, t: r.tEnd, pen, date: Date.UTC(2026, 10, 18, 22, 47), seed: 20261118 };
       const cv = document.createElement('canvas'); cv.width = 1600 * scale; cv.height = 900 * scale;
       RouteCard.draw(cv, d, st); return cv.toDataURL('image/png');
