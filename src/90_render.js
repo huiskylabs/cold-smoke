@@ -145,17 +145,19 @@ const Render = (() => {
     gfx.endPass();
     for (const f of R.passes.pre) f(R);
   };
+  // (test renders: ?dbgnt leaves out the see-through passes after the terrain and the sky, ?dbgnf the effects over the finished view)
+  R.dbgNT = typeof location !== 'undefined' && /[?&]dbgnt\b/.test(location.search); R.dbgNF = typeof location !== 'undefined' && /[?&]dbgnf\b/.test(location.search);
   R.renderView = function (eye, frustum) {
     gfx.beginPass(scene, { color: [0, 0, 0, 0], depth: 1/*native{*/, spatialScene: !!frustum && !XR.photoMode/*}native*/ });
     for (const f of R.passes.opaque) f(R);
     Terrain.draw(R.origin, smap, Sky.lut, Spray.sunTex, eye, frustum);
     Sky.draw();
-    for (const f of R.passes.transparent) f(R);
+    for (const f of R.passes.transparent) if (!R.dbgNT) f(R);
     gfx.endPass();
     for (const f of R.passes.offscreen) f(R);
     let out = hdr, outT = R.hdrOnly;
     if (R.motionBlur && R.dt > 0) { gfx.beginPass(R.hdrOnlyB, { color: [0, 0, 0, 0] }); Post.motionBlur(hdr, depth, R.dt); gfx.endPass(); out = hdrB; outT = R.hdrOnlyB; }
-    if (R.passes.fx.length) { gfx.beginPass(outT, {}); for (const f of R.passes.fx) f(R); gfx.endPass(); }
+    if (R.passes.fx.length && !R.dbgNF) { gfx.beginPass(outT, {}); for (const f of R.passes.fx) f(R); gfx.endPass(); }
     Post.run(out, depth);
   };
   R.render = function () {
