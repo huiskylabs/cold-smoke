@@ -71,6 +71,10 @@ const Sky = (() => {
         col *= 1.0 - M.p.z * (1.0 - mu * mu) * smoothstep(-0.02, 0.32, d.y);
         // (金色雪旗's own grade: the clean deep blue of a dry mountain sky, 09_post.js Post.grades)
         col = max(mix(vec3f(luma(col)), col, mix(1.0, ${(typeof Variants !== 'undefined' && Variants.val.grade === 'a') ? '1.0' : Post.gD().sky.toFixed(3)}, step(2.5, U.world.x) * smoothstep(0.0, 0.25, U.sunDir.y))), vec3f(0.0));
+        // (金色雪旗 in the clear light of the owner's 八海山 video, 2026-11-18: its sky measured off the frames, a clear violet-leaning mid
+        // blue overhead, sRGB ~(75,115,180), paling to a white-blue at the horizon; the model's own sky came out teal, dark at the top and
+        // yellow-green low down. Keep the model's brightness, take the video's hue, and lift it a little)
+        ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b' && Variants.val.dlight === 'c') ? 'if (U.world.x > 2.5 && U.sunDir.y > 0.02) { let tz: vec3f = mix(vec3f(0.80, 1.01, 1.30), vec3f(0.46, 1.10, 3.05), smoothstep(0.0, 0.55, d.y)); col = mix(col, vec3f(luma(col)) * tz * mix(1.25, 1.9, smoothstep(0.02, 0.5, d.y)), 0.85 * smoothstep(0.02, 0.15, U.sunDir.y)); }' : ''}
         let skyL: f32 = luma(col);
         // stars come out as the sky lets them
         // the nebula: by day a pale ghost riding on the blue (scaled with the sky behind it), lost in the haze toward the horizon and in the sun's glare
@@ -266,7 +270,7 @@ const Sky = (() => {
     const ph = (Render.time * 0.9) % 1, strobe = (ph < 0.045 || (ph > 0.13 && ph < 0.175)) ? 1 : 0, beacon = Math.pow(Math.max(0, Math.sin(Render.time * 4.2)), 8);
     // (under the overcast the far summits lose the sun with everything else)
     const wx = typeof Weather !== 'undefined' ? Weather.sky : null, wk = wx && Weather.sunK != null ? Weather.sunK : 1;
-    gfx.draw(pipeSky, { u: { au: [S.aurora(Render.time), 0.12, Render.time * 0.0035, Render.time], p: [S.nebDay * (NebDayV[Variants.val.nebday] ?? 1), S.nebNight * S.nebNightK * (NebNightV[Variants.val.nebnight] ?? 1), S.polar * lerp(0.5, 1, S.milk), lerp(1.0, S.nebSat, S.milk)], nr: b.nr, nu: [b.nu[0], b.nu[1], b.nu[2], b.nu[3] * S.nebShow()], nf: b.nf,
+    gfx.draw(pipeSky, { u: { au: [S.aurora(Render.time), 0.12, Render.time * 0.0035, Render.time], p: [S.nebDay * (NebDayV[Variants.val.nebday] ?? 1), S.nebNight * S.nebNightK * (NebNightV[Variants.val.nebnight] ?? 1), S.polar * lerp(0.5, 1, S.milk) * (typeof Metro !== 'undefined' && Metro.kind() === 'd' && Variants.val.dalp === 'b' && Variants.val.dlight === 'c' ? 0.3 : 1), lerp(1.0, S.nebSat, S.milk)], nr: b.nr, nu: [b.nu[0], b.nu[1], b.nu[2], b.nu[3] * S.nebShow()], nf: b.nf,
       sd: [S.disc[0], S.disc[1], S.disc[2], S.isMoon ? 0 : 1], mo: [md[0], md[1], md[2], S.moonVis], hi: [S.sunHi[0], S.sunHi[1], S.sunHi[2], S.night], fr: [S.sunFar[0] * wk, S.sunFar[1] * wk, S.sunFar[2] * wk, strobe + 0.5 * beacon],
       pa: PL.on ? [PL.x - cam[0], PL.z - cam[2], S.hiAlt, 1] : [0, 0, S.hiAlt, 0], pb: [PL.hx, PL.hz, PL.len, PL.v], pc: [PL.cut, S.glare, (Variants.val.moon === 'b' ? 1 : 0) * S.night, 0], cs: [Clouds.sea.f, Clouds.sea.oA, Clouds.sea.oB, 0], ab: S.anti, ns: [NSKY.step(Render.time)[0], NSKY.v[1], 0, 0],
       wa: wx ? wx.wa : [0, 0, 0, 0], wb: wx ? wx.wb : [0, 0, 0, 0], wc: wx ? wx.wc : [0, 0, 0, 0], wd: wx ? wx.wd : [0, 0, 0, 0], we: wx ? wx.we : [0, 0, 0, 0], wf: wx ? wx.wf : [0, 0, 0, 0], wg: wx ? wx.wg : [0, 0, 0, 0] },
