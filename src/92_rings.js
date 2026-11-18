@@ -403,7 +403,7 @@ const Rings = (() => {
       + '#rline kbd{margin-left:.5em;font-family:var(--f-lat);font-size:.85em;letter-spacing:.04em;opacity:.6}</style>'
       + '<div class="tm"></div><div class="sub"></div><div class="pop"></div><div class="spl"></div><div class="cd"></div><div class="ban"><b></b><span class="rule"></span><i></i></div><div class="card"></div>';
     (document.getElementById('app') || document.body).appendChild(d); L.el = d;
-    d.addEventListener('click', e => { const a = e.target && e.target.dataset && e.target.dataset.a; if (a === 'again') lineRestart(); else if (a === 'harder') lineHarder(); else if (a === 'free') lineFree(); });
+    d.addEventListener('click', e => { const a = e.target && e.target.dataset && e.target.dataset.a, cb = e.target && e.target.closest && e.target.closest('[data-cb]'); if (cb) { const b = RG.cardButtons[+cb.dataset.cb]; if (b && b.on) b.on(); return; } if (a === 'again') lineRestart(); else if (a === 'harder') lineHarder(); else if (a === 'free') lineFree(); });
     L.q = k => d.querySelector('.' + k);
     return d;
   }
@@ -428,7 +428,13 @@ const Rings = (() => {
     L.st = 'go'; L.pen = 0; L.split = []; L.ci = 0; L.missSeen = 0; L.rec = recLoad();
     Game.mode = 'title'; GS0.call(Game);          // (the game's own push-off: G.start sets the clock to 0 here)
     lineEnd();
+    emit('go', { line: L.id, name: LINES[L.id].name, diff: L.diff, sEnd: L.sEnd });
   }
+  // ---- hooks for other parts (the replay, 93_replay.js): RG.hooks.go / .finish get { line, diff, ... } when a challenge pushes off and
+  // crosses the finish; RG.cardButtons [{ label, key, on() }] are added to the result card's row; RG.cardShow(on) hides / brings back the card
+  RG.hooks = { go: [], finish: [] }; RG.cardButtons = [];
+  function emit(k, o) { for (const f of RG.hooks[k] || []) try { f(o); } catch (e) { console.warn('rings hook ' + k + ':', e); } }
+  RG.cardShow = on => { if (L.el && L.st === 'done') L.q('card').classList.toggle('on', !!on); };
   function lineFinish() {
     if (L.st !== 'go') return;
     L.st = 'done'; L.tEnd = Game.runT; L.split.push(L.tEnd); brake(true);
@@ -438,7 +444,7 @@ const Rings = (() => {
     const isNew = !best || score < best.score - 1e-6;
     const rec = { best: isNew ? { score, t: L.tEnd, miss, tot, date: Date.now() } : best, seg: seg.map((d, i) => segBest[i] != null ? Math.min(segBest[i], d) : d), runs: ((old && old.runs) || 0) + 1 };
     recSave(rec);
-    try { if (typeof Cards !== 'undefined' && Cards.emit) Cards.emit('ring.line', { line: 'speed', full: miss === 0, t: L.tEnd, missed: miss }); } catch (e) { }          // (集卡: the card system picks it up when it is there)
+    try { if (typeof Cards !== 'undefined' && Cards.emit) Cards.emit('ring.line', { line: L.id === 'x' ? 'cross' : 'speed', full: miss === 0, t: L.tEnd, missed: miss }); } catch (e) { }          // (集卡: the card system picks it up when it is there)
     setTxt('tm', fmt(score)); L.q('tm').classList.add('fin'); setTxt('sub', '光圈 ' + RG.passed + ' / ' + tot + (miss ? ' · 罚时 +' + miss * p + ' 秒' : ' · 全部穿过'));
     const ban = L.q('ban'); ban.querySelector('b').textContent = fmt(score);
     ban.querySelector('i').textContent = isNew ? (best ? '新纪录！快了 ' + (best.score - score).toFixed(2) + ' 秒' : '第一次完成') : '比最好慢 ' + (score - best.score).toFixed(2) + ' 秒';
@@ -455,7 +461,8 @@ const Rings = (() => {
       + '<table><tr><th>分站</th><th>本局</th><th>之前最好</th><th></th></tr>' + rows.map((r, i) => '<tr' + (i === worst ? ' class="worst"' : '') + '><td>' + r.n + '</td><td>' + fmt(r.d) + '</td>' + td(r) + '</tr>').join('') + '</table>'
       + '<div class="tip">' + [miss ? '漏了 ' + miss + ' 个圈，罚时 +' + miss * p + ' 秒' : '', worst >= 0 ? '最慢的一站：' + rows[worst].n + '，比最好慢 ' + wd.toFixed(2) + ' 秒' : ''].filter(Boolean).join('；') + '</div>'
       + fs([[fmt(rec.best.score), '个人最好'], ['…', '全部最好', 'gtop'], ['…', '排名', 'grank']])
-      + '<div class="bt"><button class="p" data-a="again">再来一局<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">增加难度</button>' : '') + '<button data-a="free">继续滑<kbd>Esc</kbd></button></div>';
+      + '<div class="bt"><button class="p" data-a="again">再来一局<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">增加难度</button>' : '') + '' + RG.cardButtons.map((b, i) => '<button data-cb="' + i + '">' + b.label + (b.key ? '<kbd>' + b.key + '</kbd>' : '') + '</button>').join('') + '<button data-a="free">继续滑<kbd>Esc</kbd></button></div>';
+    emit('finish', { line: L.id, name: LINES[L.id].name, diff: L.diff, score, t: L.tEnd, missed: miss, passed: RG.passed, splits: L.split.slice(), names: L.names.slice(), isNew });
     board(score);
     clearTimeout(L.cardT); L.cardT = setTimeout(() => { if (L.st === 'done') L.q('card').classList.add('on'); }, 350);          // (用户 21:25 UTC: 停下来那一瞬间菜单就弹出来)
   }
@@ -659,6 +666,8 @@ const Rings = (() => {
     // The count-down at the gate holds the skier the same way, but the rings ahead are already there and alive, so the line can be read
     const counting = L.st === 'count';
     if (RG.on && typeof Game !== 'undefined' && Game.mode === 'hold' && !counting) return;
+    // (the replay, 93_replay.js: Game.mode 'replay'; RG.replay(T) sets RG.rings to how they stood at that moment of the run, then they are drawn)
+    if (RG.on && typeof Game !== 'undefined' && Game.mode === 'replay') { if (RG.replay) try { RG.replay(T); prep(T); } catch (e) { drawList = []; } else drawList = []; return; }
     if (!RG.on || typeof Game === 'undefined' || !Game.s || (Game.mode !== 'run' && Game.mode !== 'park' && !counting)) { drawList = []; if (RG.hud) RG.hud.style.display = 'none'; return; }
     lastT = T;          // (park: stopped past the finish, the rings stay where they are and keep moving)
     RG.n++; try { update(T); prep(T); hud(); trail(); } catch (e) { drawList = []; if (!RG.err) { RG.err = 1; console.warn('rings:', e); } }

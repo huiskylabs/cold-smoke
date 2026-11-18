@@ -6,18 +6,18 @@
 const path = require('path'), fs = require('fs'); const { chromium } = require('playwright');
 const out = path.resolve(process.argv[2] || 'line-ride.json'), line = process.argv[3] || 'x', diffs = (process.argv[4] || 'b').split('');
 (async () => {
-  const b = await chromium.launch({ headless: true, args: ['--enable-unsafe-webgpu', '--enable-gpu', '--ignore-gpu-blocklist'] });
+  const b = await chromium.launch({ headless: true, args: process.env.GPU ? ['--enable-unsafe-webgpu', '--enable-gpu', '--ignore-gpu-blocklist'] : [] });
   const pg = await b.newPage({ viewport: { width: 640, height: 360 }, locale: 'zh-CN' });
   const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => { if (m.type() === 'error' || /line:|pick:/.test(m.text())) errs.push(m.text().slice(0, 200)); });
   await pg.goto('file://' + path.resolve(__dirname, '../dist/dev.html') + '?dev');
   await pg.waitForFunction(() => window.__ski && window.__rings && __ski.ui().state === 'title', null, { timeout: 300000 });
   const res = { line, diffs: {} };
   for (const d of diffs) {
-    if (await pg.evaluate(() => __ski.ui().state) !== 'title') { await pg.evaluate(() => __ski.ui().toTop()); await pg.waitForFunction(() => __ski.ui().state === 'title', null, { timeout: 60000 }); }
+    if (await pg.evaluate(() => __ski.ui().state) !== 'title') { await pg.evaluate(() => __ski.ui().toTop()); await pg.waitForFunction(() => __ski.ui().state === 'title', null, { timeout: 240000 }); }
     await pg.evaluate(([l, d]) => { const V = __ski.m.Variants; V.set('ringdiff', d); V.set('rline', l); __rings.chal = true; __ski.ui().go(); }, [line, d]);
-    await pg.waitForFunction(() => __rings.line.st === 'count', null, { timeout: 60000 });
+    await pg.waitForFunction(() => __rings.line.st === 'count', null, { timeout: 240000 });
     await pg.evaluate(() => { __rings.line.cT = 99; });
-    await pg.waitForFunction(() => __rings.line.st === 'go', null, { timeout: 60000 });
+    await pg.waitForFunction(() => __rings.line.st === 'go', null, { timeout: 240000 });
     const r = await pg.evaluate(async () => {
       const G = __ski.game(), S = G.s, C = __ski.m.Course, RG = __rings, L = RG.line, xp = RG.xPlan && RG.xPlan(), tn = {}, pc = {};
       const steer = () => {
