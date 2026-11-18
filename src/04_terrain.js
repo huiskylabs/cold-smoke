@@ -678,7 +678,7 @@ fn frag(v: VOut) -> FOut {
     if (${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'true' : 'false'}) {
       // (above the tree line: the walls break through the snow in outcrops and bands wherever they steepen, broken at the size of a slab)
       let oc: f32 = tex(tNoise, wxz / 80.0 + vec2f(0.37, 0.19)).z * 0.65 + d2.z * 0.35;
-      rock = max(rock, smoothstep(0.72, 0.62, Nc.y + 0.55 * (0.5 - oc) + hold + shut) * step(0.001, rgate));
+      rock = max(rock, smoothstep(0.64, 0.57, Nc.y + 0.45 * (0.5 - oc) + hold + shut) * step(0.001, rgate));
     } else { rock = rock * 0.45; }
   }
   let sdir0: vec2f = normalize(L.xz + vec2f(1e-4, 0.0)); let tanE0: f32 = L.y / max(length(L.xz), 1e-3);
@@ -953,7 +953,8 @@ fn frag(v: VOut) -> FOut {
     ra *= (1.0 + 0.25 * M.pt.x) * (1.0 - 0.6 * ov);
     // (a boulder or a drop out on the run: weathered granite, lighter than the beds of the walls, with no bench above to shade it)
     ra = mix(ra, vec3f(0.17, 0.16, 0.15) * (0.6 + 0.8 * e1.z) * (0.7 + 0.6 * lay), frock * 0.8);
-    let rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
+    var rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
+    ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(0.92, 0.95, 1.0), 0.75); }' : ''}
     col = mix(col, rc, rock * (1.0 - 0.9 * lip));
   }
   // distant forest reads as a dark speckled carpet with long shadows
@@ -1024,7 +1025,7 @@ fn frag(v: VOut) -> FOut {
     let mdr: vec2f = vec2f(U.camPos.w * 0.9, U.camPos.w * 0.35);
     let mn: f32 = tex(tNoise, (wxz + mdr) / 520.0 + vec2f(0.13, 0.41)).z * 0.6 + tex(tNoise, (wxz - mdr) / 170.0 + vec2f(0.57, 0.22)).z * 0.4;
     let vb: f32 = (mv.y - hc - 60.0 * (mn - 0.5)) / hw;
-    let mk: f32 = exp(-vb * vb * 1.4) * smoothstep(${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? '0.46' : '0.56'}, 0.76, mn) * smoothstep(${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? '220.0' : '320.0'}, 600.0, md) * smoothstep(0.02, 0.12, mnt);
+    let mk: f32 = exp(-vb * vb * 1.4) * smoothstep(${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? '0.38' : '0.56'}, 0.76, mn) * smoothstep(${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? '120.0' : '320.0'}, ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? '420.0' : '600.0'}, md) * smoothstep(0.02, 0.12, mnt);
     let mc: vec3f = vec3f(0.92, 0.94, 0.98) * (U.sunCol.rgb * 0.50 + amb * 1.1);
     col = mix(col, mc, saturate(mk) * ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? '0.85' : '0.6'});
   }

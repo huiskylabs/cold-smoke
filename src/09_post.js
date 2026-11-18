@@ -47,12 +47,17 @@ const Post = (() => {
   if (typeof Variants !== 'undefined') Variants.def('grade', '调色', [['a', '所有地图一样'], ['b', '每张地图自己的']], 'b');
   P.grades = {
     base: { e: 1, veil: 0.06, wb: 1, sp: 1, so: 1, haze: 1, black: 0, sky: 1, milk: 1, hzc: [1.03, 1.0, 1.0] },
+    // 金色雪旗 above the tree line (Variants dalp b): the owner's photo of the Rockies above the trees: snow nearly white even in shade
+    // (bright cloud overhead fills it), only a hint of blue, far peaks soft in cloud
+    dA: { e: 1.62, veil: 0.03, wb: 0.15, sp: 0.88, so: 0.92, haze: 0.55, black: 0.02, sky: 1.25, milk: 0.95, hzc: [0.92, 0.97, 1.06] },
     d: { e: 1.42, veil: 0.02, wb: 0.25, sp: 1.12, so: 1.08, haze: 0.42, black: 0.022, sky: 1.55, milk: 0.85, hzc: [0.84, 0.95, 1.12] },
   };
   // the tint of the horizon's milk in world d (05_sky.js, 16_vista.js): its own when each map has its own grade
-  P.hzTint = () => ((typeof Variants !== 'undefined' && Variants.val.grade === 'a') ? P.grades.base : P.grades.d).hzc.map(v => v.toFixed(3)).join(', ');
+  P.gD = () => (typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? P.grades.dA : P.grades.d;      // (world d's own grade, whichever look)
+  P.hzTint = () => ((typeof Variants !== 'undefined' && Variants.val.grade === 'a') ? P.grades.base : P.gD()).hzc.map(v => v.toFixed(3)).join(', ');
   P.grade = function () {
     if (typeof Variants === 'undefined' || Variants.val.grade === 'a' || typeof Metro === 'undefined') return P.grades.base;
+    if (Metro.kind() === 'd' && Variants.val.dalp === 'b') return P.grades.dA;
     return P.grades[Metro.kind()] || P.grades.base;
   };
   let gfx, pDown0, pDown, pUp, pComp, pVis, pMask, pRad, pMB, visTex, visT, visInit = false, W = 0, H = 0;
