@@ -677,8 +677,12 @@ fn frag(v: VOut) -> FOut {
   if (U.world.x > 2.5) {
     if (${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'true' : 'false'}) {
       // (above the tree line: the walls break through the snow in outcrops and bands wherever they steepen, broken at the size of a slab)
-      let oc: f32 = tex(tNoise, wxz / 80.0 + vec2f(0.37, 0.19)).z * 0.65 + d2.z * 0.35;
-      rock = max(rock * 0.35, smoothstep(0.58, 0.52, Nc.y + 0.40 * (0.5 - oc) + hold + shut) * step(0.001, rgate));
+      // (the owner 2026-11-18, "like white paint brushed on, not snow lying on rock": the edge of the snow was broken by the fine snow
+      // texture (d2, a few metres) and so came out as speckle and brush streaks. Real snow on a Rockies face (Rundle, Cascade) lies where
+      // the face eases and runs down the gullies; its edge is ragged at the size of a boulder or a slab, never finer. So: no d2 here, the
+      // strata bands of the old map gone, and the edge drawn from the 80 m and 73 m relief only, a little soft)
+      let oc: f32 = tex(tNoise, wxz / 80.0 + vec2f(0.37, 0.19)).z * 0.6 + e3.z * 0.4;
+      rock = smoothstep(0.585, 0.535, Nc.y + 0.36 * (0.5 - oc) + hold * 0.8 + conc * 0.15 + shut) * step(0.001, rgate);
     } else { rock = rock * 0.45; }
   }
   let sdir0: vec2f = normalize(L.xz + vec2f(1e-4, 0.0)); let tanE0: f32 = L.y / max(length(L.xz), 1e-3);
@@ -940,19 +944,28 @@ fn frag(v: VOut) -> FOut {
     // (seven thin beds to a bed, uneven: one thrice the next, and their lie wanders along the face)
     let fr: f32 = fract(tau); let fs: f32 = fract(tau * 7.0 + 0.75 * sin(tau * 6.2831853 + sa.x * 3.0) + (sa.x - 0.5) * 0.9);
     let saw: f32 = (smoothstep(0.0, 0.85, fs) - smoothstep(0.85, 1.0, fs)) * 2.0 - 1.0;
-    let ov: f32 = smoothstep(rk.x - 0.10 * rk.y - 0.045, rk.x - 0.015, fr) * (1.0 - smoothstep(rk.x - 0.012, rk.x + 0.01, fr)) * M.pt.x * (1.0 - frock);
-    let Nr: vec3f = normalize(N - tdir * mix((sa.y - 0.5) * 1.6 + (sb.y - 0.5) * 1.2, -0.9 * saw + (sa.y - 0.5) * 0.6 - 1.4 * ov, M.pt.x));
+    let mpx: f32 = select(M.pt.x, 0.0, ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'true' : 'false'} && U.world.x > 2.5);      // (金色雪旗 above the trees: no bands, see below)
+    let ov: f32 = smoothstep(rk.x - 0.10 * rk.y - 0.045, rk.x - 0.015, fr) * (1.0 - smoothstep(rk.x - 0.012, rk.x + 0.01, fr)) * mpx * (1.0 - frock);
+    let Nr: vec3f = normalize(N - tdir * mix((sa.y - 0.5) * 1.6 + (sb.y - 0.5) * 1.2, -0.9 * saw + (sa.y - 0.5) * 0.6 - 1.4 * ov, mpx));
     // a face is not one dark stain: snow lies along the lip of every thin bed (white lines across it, broken where the bed is poor), the
     // rock under each lip is in its shadow, and cracks run down through the beds
     let near: f32 = smoothstep(1100.0, 420.0, dist);
     let fb: f32 = fs;
-    let lip: f32 = smoothstep(0.80, 0.90, fb) * smoothstep(0.38, 0.56, sb.x + (e1.z - 0.5) * 0.45) * near;
+    var lip: f32 = smoothstep(0.80, 0.90, fb) * smoothstep(0.38, 0.56, sb.x + (e1.z - 0.5) * 0.45) * near;
     let under: f32 = smoothstep(0.52, 0.72, fb) * (1.0 - smoothstep(0.80, 0.86, fb)) * near;
     let ck: f32 = tex(tDetail, vec2f((wxz.x + wxz.y) / 43.0, tau * 0.55 + 0.19)).z;
     ra *= (1.0 - 0.42 * under) * (1.0 - 0.45 * smoothstep(0.36, 0.27, ck) * near);
     ra *= (1.0 + 0.25 * M.pt.x) * (1.0 - 0.6 * ov);
     // (a boulder or a drop out on the run: weathered granite, lighter than the beds of the walls, with no bench above to shade it)
     ra = mix(ra, vec3f(0.17, 0.16, 0.15) * (0.6 + 0.8 * e1.z) * (0.7 + 0.6 * lay), frock * 0.8);
+    // (金色雪旗 above the tree line: grey limestone of one tone, broken by blocks and joints, not dark beds striped with white lines.
+    // Where it meets the snow the rock is in the snow's own shadow a little (the snow is thick and stands up off it))
+    if (${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'true' : 'false'} && U.world.x > 2.5) {
+      let blk: f32 = tex(tDetail, wxz / 23.0 + vec2f(0.21, 0.63)).z;
+      ra = vec3f(0.24, 0.24, 0.25) * (0.78 + 0.30 * e1.z + 0.22 * (blk - 0.5)) * (1.0 - 0.40 * smoothstep(0.36, 0.26, ck) * near);
+      ra *= 1.0 - 0.35 * (1.0 - smoothstep(0.55, 0.95, rock));
+      lip = 0.0;
+    }
     var rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
     ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(0.92, 0.95, 1.0), 0.75); }' : ''}
     col = mix(col, rc, rock * (1.0 - 0.9 * lip));

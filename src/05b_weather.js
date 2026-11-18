@@ -135,7 +135,10 @@ const Weather = (() => {
     W.kc = smoother(0, 0.75, W.k); W.ks = smoother(0.2, 1, W.k);
     // (金色雪旗 above the tree line, the owner's photo: a standing broken overcast over the peaks, bright white-grey, the sun now and then
     // through a break, and no snow falling out of it unless a snowfall comes)
-    if (typeof Metro !== 'undefined' && Metro.kind() === 'd' && Variants.val.dalp === 'b') W.kc = Math.max(W.kc, 0.55);
+    if (typeof Metro !== 'undefined' && Metro.kind() === 'd' && Variants.val.dalp === 'b') {
+      // (dlight c, the owner's 八海山 video 2026-11-18: a hard clear winter day, deep blue overhead, the cloud lying below the peaks instead)
+      if (Variants.val.dlight === 'c') { if (W.k < 0.45) W.kc = Math.min(W.kc, 0.12); } else W.kc = Math.max(W.kc, 0.55);
+    }
   };
   { const q = typeof location !== 'undefined' ? location.search : '', m = /[?&]wx=(\w+)/.exec(q); if (m) W.set(m[1], true); if (/[?&]manual\b/.test(q)) W.auto = false; }   // (test renders hold the weather)
 
