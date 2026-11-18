@@ -674,14 +674,26 @@ const Rings = (() => {
   };
   // hang on the game's own draw: the rings are worked out just before each frame, drawn inside it by the render passes
   if (typeof Render !== 'undefined') {
-    const R0 = Render.render; Render.render = function () { RG.frame(); return R0.apply(this, arguments); };
+    const R0 = Render.render; Render.render = function () { RG.frame(); order(); return R0.apply(this, arguments); };
     const I0 = Render.init; Render.init = function (g) { const out = I0.apply(this, arguments); try { RG.init(g); } catch (e) { console.warn('rings init:', e); } return out; };
     // (a pipeline that failed to build must never take the game's frame down with it: the rings are then simply not drawn)
     const safe = f => R => { try { f(R); } catch (e) { if (!RG.gerr) { RG.gerr = 1; console.warn('rings draw:', e && e.message ? e.message : e); } } };
-    Render.passes.shadow.push(safe(R => RG.drawShadow(R)));
-    Render.passes.transparent.push(safe(R => RG.drawScene(R)));
-    Render.passes.transparent.push(safe(R => RG.drawGhosts(R)));
-    Render.passes.fx.push(safe(R => RG.drawLight(R)));
+    // (用户 2026-11-18 07:46 UTC: 云把近处的光圈挡住了) The rings write no depth, so whatever transparent thing is drawn after them covers them,
+    // however far it is. This file loads before the game's own passes are put in (99_main.js boot), so the rings used to come first: the sky's
+    // clouds, the cloud sea, the far city's lights, the tree ghosts and the gate flags then all drew over a ring 20 m away. Every frame the
+    // rings are put back where they belong: last of the transparent pass (they are always nearer than the clouds and the vista), and in the
+    // fx pass straight after the far snowfall's veil (Dust.veil, the first there), under the near spray and snow
+    const pS = safe(R => RG.drawShadow(R)), pT = safe(R => RG.drawScene(R)), pG = safe(R => RG.drawGhosts(R)), pL = safe(R => RG.drawLight(R));
+    const order = () => {
+      const P = Render.passes, t = P.transparent, f = P.fx, n = t.length;
+      if (t[n - 2] !== pT || t[n - 1] !== pG) { for (const q of [pT, pG]) { const i = t.indexOf(q); if (i >= 0) t.splice(i, 1); } t.push(pT, pG); }
+      const want = f.length > 1 ? 1 : 0;
+      if (f[want] !== pL) { const i = f.indexOf(pL); if (i >= 0) f.splice(i, 1); f.splice(Math.min(f.length, f.length > 0 && f[0] !== pL ? 1 : 0), 0, pL); }
+    };
+    RG.order = order;
+    Render.passes.shadow.push(pS);
+    Render.passes.transparent.push(pT, pG);
+    Render.passes.fx.push(pL);
   }
   return RG;
 })();
