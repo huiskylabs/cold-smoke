@@ -14,6 +14,10 @@ const Rings = (() => {
   const RG = { on: false, rings: [], passed: 0, missed: 0, hud: null, n: 0, pipes: [] };
   if (typeof Variants !== 'undefined') Variants.def('rings', '光圈挑战', [['off', '关'], ['on', '开']], 'off');
   // (developer mode only for now, as the other trial switches: without ?dev it is off, whatever an address or an earlier pick says)
+  // (用户 2026-11-18 16:57 UTC: 一个可以分享给别人试玩的链接，只看得到挑战，看不到其他 dev 的东西，也没有版本对比) ?chal in the address: the 挑战
+  // button, the two lines, the rings, the result card and the replay, with every other dev thing (场景, 今日之山, 版本对比, the switches) off
+  const shareOn = () => { try { return !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && /[?&]chal(=|&|$)/.test(location.search); } catch (e) { return false; } };
+  const chalOn = () => devOn() || shareOn();
   const devOn = () => { try { return !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (/[?&]dev(=|&|$)/.test(location.search) || /\/dev\/?$/.test(location.pathname) || !!(self.COLD_SMOKE && self.COLD_SMOKE.dev)); } catch (e) { return false; } };
   const cl = (v, a, b) => Math.max(a, Math.min(b, v));
   const ease = x => 1 - Math.pow(1 - cl(x, 0, 1), 3);
@@ -580,11 +584,11 @@ const Rings = (() => {
   // the ranked line's board (小红书): the 标准 run of a map's ranked line only (用户 02:40 UTC: 每张地图一条长线上榜)
   const boardOf = (id, df) => { const m = mapNow(); return m && df === 'b' && typeof Rank !== 'undefined' && Rank.chalBoard ? Rank.chalBoard(m.id, id) : 0; };
   const RING_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5.6"/><path d="M10 1.8v1.6M10 16.6v1.6M1.8 10h1.6M16.6 10h1.6"/></svg>';
-  function syncLine() { const lid = devOn() && LINES[Variants.val.rline] ? Variants.val.rline : null; if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); } }
+  function syncLine() { const lid = chalOn() && LINES[Variants.val.rline] ? Variants.val.rline : null; if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); } }
   function chalButton() {
     if (RG.cb || typeof document === 'undefined') return;
     const more = document.getElementById('more'); if (!more) return;
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'dev-only'; b.innerHTML = RING_ICON + (typeof I18N !== 'undefined' ? I18N.t('挑战') : '挑战');
+    const b = document.createElement('button'); b.type = 'button'; b.className = devOn() ? 'dev-only' : ''; b.innerHTML = RING_ICON + (typeof I18N !== 'undefined' ? I18N.t('挑战') : '挑战');
     b.addEventListener('click', e => { e.stopPropagation(); pickOpen(true); });
     more.insertBefore(b, more.firstChild); RG.cb = b;
   }
@@ -651,7 +655,7 @@ const Rings = (() => {
   if (typeof UI !== 'undefined' && UI.go) {
     const GO0 = UI.go;
     UI.go = function () {
-      if (devOn() && typeof Variants !== 'undefined') { if (!RG.chal && Variants.val.rline !== 'off') Variants.set('rline', 'off'); RG.chal = false; syncLine(); }
+      if (chalOn() && typeof Variants !== 'undefined') { if (!RG.chal && Variants.val.rline !== 'off') Variants.set('rline', 'off'); RG.chal = false; syncLine(); }
       pickOpen(false);
       return GO0.apply(this, arguments);
     };
@@ -663,9 +667,10 @@ const Rings = (() => {
   }, true);
   function pickFrame() {
     if (typeof document === 'undefined') return;
-    if (devOn()) chalButton();
+    if (chalOn()) chalButton();
     if (RG.pkOpen && !(typeof UI !== 'undefined' && UI.state === 'title' && !UI.open)) pickOpen(false);
   }
+  RG.share = shareOn();          // (19b_rank.js: the challenge boards show on the share link too)
   RG.lipOf = lipOf; RG.kickerIn = kickerIn;          // (for test scripts)
   RG.line = L; if (typeof window !== 'undefined') window.__rings = RG;          // (for test scripts)
   const GS0 = typeof Game !== 'undefined' ? Game.start : null;
@@ -679,9 +684,9 @@ const Rings = (() => {
   }, true);
   RG.frame = function () {
     if (typeof document !== 'undefined') try { pickFrame(); } catch (e) { if (!RG.perr) { RG.perr = 1; console.warn('pick:', e); } }
-    const lid = typeof Variants !== 'undefined' && devOn() && LINES[Variants.val.rline] ? Variants.val.rline : null;
+    const lid = typeof Variants !== 'undefined' && chalOn() && LINES[Variants.val.rline] ? Variants.val.rline : null;
     if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); }
-    const want = typeof Variants !== 'undefined' && (Variants.val.rings === 'on' || !!L.id) && devOn();
+    const want = typeof Variants !== 'undefined' && chalOn() && ((Variants.val.rings === 'on' && devOn()) || !!L.id);
     if (want !== RG.on) { RG.on = want; reset(); hud(); }
     const T = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
     if (L.id && typeof document !== 'undefined') try { lineFrame(T); } catch (e) { if (!RG.lerr) { RG.lerr = 1; console.warn('line:', e); } }

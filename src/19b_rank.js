@@ -34,7 +34,7 @@ const Rank = self.Rank = (() => {
     { id: 'time', name: '滑雪时长', boards: { all: 5 }, fmt: mins },
   ];
   // the challenges are dev-only for now: normal play shows 滑雪时长 alone
-  const views = () => VIEWS.filter(v => !v.chal || (typeof UI !== 'undefined' && UI.dev));
+  const views = () => VIEWS.filter(v => !v.chal || (typeof UI !== 'undefined' && UI.dev) || (typeof Rings !== 'undefined' && Rings.share));
   R.chalBoard = (map, line) => { const c = CHAL.find(q => q.map === map && q.line === line); return c ? c.board : 0; };
   const PERIODS = [['day', '今日'], ['week', '本周'], ['all', '总榜']];
   const FLUSH_EVERY = 30000, CACHE = 45000, KEY = 'coldsmoke.playtime';
