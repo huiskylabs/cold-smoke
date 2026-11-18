@@ -1033,16 +1033,23 @@ fn frag(v: VOut) -> FOut {
       let tw0: vec3f = pow(abs(Nm), vec3f(4.0)); let tw: vec3f = tw0 / (tw0.x + tw0.y + tw0.z);
       let kA: f32 = smoothstep(32.0 * 160.0, 32.0 * 60.0, dist); let kB: f32 = smoothstep(10.67 * 160.0, 10.67 * 60.0, dist); let kC: f32 = smoothstep(3.56 * 160.0, 3.56 * 60.0, dist);
       var pert: vec3f = vec3f(0.0); var crack: f32 = 1.0;
-      if (kA > 0.001) { let fa: vec4f = facetN(wxz, wy, tw, 32.0, 32.0); pert += fa.xyz * (0.55 * kA); crack *= mix(1.0, smoothstep(0.0, 0.05, fa.w), 0.55 * kA); }
-      if (kB > 0.001) { let fb2: vec4f = facetN(wxz + vec2f(5.3, 2.9), wy + 3.1, tw, 10.67, 96.0); pert += fb2.xyz * (0.45 * kB); crack *= mix(1.0, smoothstep(0.0, 0.07, fb2.w), 0.50 * kB); }
-      if (kC > 0.001) { let fc: vec4f = facetN(wxz + vec2f(1.7, 7.1), wy + 1.3, tw, 3.56, 288.0); pert += fc.xyz * (0.35 * kC); crack *= mix(1.0, smoothstep(0.0, 0.09, fc.w), 0.40 * kC); }
+      if (kA > 0.001) { let fa: vec4f = facetN(wxz, wy, tw, 32.0, 32.0); pert += fa.xyz * (0.95 * kA); crack *= mix(1.0, smoothstep(0.0, 0.05, fa.w), 0.55 * kA); }
+      if (kB > 0.001) { let fb2: vec4f = facetN(wxz + vec2f(5.3, 2.9), wy + 3.1, tw, 10.67, 96.0); pert += fb2.xyz * (0.75 * kB); crack *= mix(1.0, smoothstep(0.0, 0.07, fb2.w), 0.50 * kB); }
+      if (kC > 0.001) { let fc: vec4f = facetN(wxz + vec2f(1.7, 7.1), wy + 1.3, tw, 3.56, 288.0); pert += fc.xyz * (0.55 * kC); crack *= mix(1.0, smoothstep(0.0, 0.09, fc.w), 0.40 * kC); }
       let pp: vec2f = vec2f(-fdB.y, fdB.x);
       let rg: f32 = (fallNoise(wxz + pp * 7.0, fdB, 26.0, 170.0, vec2f(0.29, 0.83)) - fallNoise(wxz - pp * 7.0, fdB, 26.0, 170.0, vec2f(0.29, 0.83))) * smoothstep(3000.0, 900.0, dist);
       pert += vec3f(pp.x, 0.0, pp.y) * (-rg * 1.6);
       Nr = normalize(Nr + pert - Nr * dot(pert, Nr));
       ra *= crack;
       // (snow lies on every facet that turns up to the sky, and only there: the white comes in angular flakes with the rock's own lines)
-      lip = max(lip, smoothstep(0.66, 0.78, Nr.y + 0.10 * (blk - 0.5)) * 0.95 * max(kB, 0.6 * kA) * crack);
+      // (round 12, Okuhida again: the rock is never bare for more than a few metres. Half the facets, the ones turned more to the sky than the
+      // face, hold snow, and between them the rock is frosted in patches a few metres across: a mottle of warm rock and white, not big clean
+      // brown slabs with white stripes)
+      let dn: f32 = saturate(0.5 + (tex(tDetail, (wxz / 7.0 + vec2f(0.53, 0.17)) / 6.0).z - 0.5) * 1.9);
+      let dn2: f32 = saturate(0.5 + (tex(tDetail, (vec2f(wxz.x, wy) / 19.0 + vec2f(0.11, 0.77)) / 6.0).z - 0.5) * 1.9);
+      let up: f32 = Nr.y - Nm.y;
+      lip = max(lip, smoothstep(0.04, 0.16, up + 0.22 * (dn - 0.5) + 0.12 * (dn2 - 0.5)) * 0.95 * max(kB, 0.7 * kA) * crack);
+      lip = max(lip, smoothstep(0.64, 0.76, dn2 * 0.6 + dn * 0.4) * 0.8 * smoothstep(2400.0, 300.0, dist));
     }
     var rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
     ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.02, 0.98, 0.95), 0.15); }' : ''}
