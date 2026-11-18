@@ -58,7 +58,7 @@ if (typeof Variants !== 'undefined') {
   // b: 经典编排, the first lap is a set order of stations (ROUTE below) that alternates 藏 (a winding lane closed in by forest, a deep U
   // gully) and 露 (out onto a crest that looks down the valley at the city in the clouds), then the dealt runs carry on as before.
   // Live for everyone since 2026-11-17 (owner: 合并上线).
-  Variants.def('route', '雪道', [['a', '随机'], ['b', '经典编排'], ['c', '九曲十八弯'], ['d', '大回环']], 'b');
+  Variants.def('route', '雪道', [['a', '随机'], ['b', '经典编排'], ['c', '九曲十八弯'], ['d', '大回环'], ['e', 'U 型峡谷九曲']], 'b');
   // 雪道清障 (owner, 2026-11-17: no trees in the middle of the U gully). The lone groups of trees out on the run were placed knowing nothing of
   // the lines the run is built round, so they stood on the gully's floor, in a jump's run-in and landing and in the mogul field's smooth
   // channel. b keeps those lines clear. a: as it was
@@ -68,7 +68,7 @@ if (typeof Variants !== 'undefined') {
   // right the land falls away (a balcony above the lake)
   Variants.def('shape', '山体', [['a', '现在的'], ['b', '峡谷'], ['c', '开阔'], ['d', '山腰临空']], 'a');
   // (a change lays the same mountain out again)
-  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'route' || n === 'rclear' || n === 'shape' || n === 'start') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
+  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'route' || n === 'rclear' || n === 'shape' || n === 'start' || n === 'world') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
 }
 // slope scale and how much further a run of ~30 s then reaches (pace: the test pilot's distance over 30 s against a, 2026-11-14)
 const SLOPE_K = { a: { k: 1, pace: 1 }, b: { k: 0.75, pace: 0.89 }, c: { k: 0.6, pace: 0.69 } };
@@ -120,7 +120,9 @@ const Course = ((vn1, vn2, h2U) => {
     const tv = typeof Variants !== 'undefined' ? Variants.val : {};
     C.lv = TERR_LV[tv.tdiff] ? tv.tdiff : 'b'; LV = tv.terr === 'b' ? TERR_LV[C.lv] : null; C.rich = !!LV; C.isl = LV ? LV.isl : 1;
     trng = RNG((KEY ^ 0x7e4a11) + 131 * C.lv.charCodeAt(0));
-    C.route = tv.route === 'b' || tv.route === 'c' || tv.route === 'd'; ROUTE = ROUTES[tv.route] || ROUTES.b; C.ROUTE = ROUTE; C.rclear = tv.rclear === 'b';
+    // (金色雪旗 takes its own run, the U trough, where the route is left at the default)
+    const rv = tv.route === 'b' && typeof Metro !== 'undefined' && Metro.kind() === 'd' ? 'e' : tv.route;
+    C.route = rv === 'b' || rv === 'c' || rv === 'd' || rv === 'e'; ROUTE = ROUTES[rv] || ROUTES.b; C.ROUTE = ROUTE; C.rclear = tv.rclear === 'b';
     SH = SHAPES[tv.shape] || SHAPES.a;
     planTo(4000);
     return C.seed;
@@ -188,7 +190,24 @@ const Course = ((vn1, vn2, h2U) => {
     { type: 'moguls', wind: 0.5, lam: 600 },
     { type: 'steeps', enc: 0.5, wind: 0.75, lam: 560 },
   ];
-  const ROUTES = { b: ROUTE_B, c: ROUTE_C, d: ROUTE_D };
+  // U 型峡谷九曲 (owner, 2026-11-18, of a narrow U between two hills on 金色雪旗: "两边就是一个非常U型的…比较狭小的，夹在这两个山中间，然后
+  // 复杂九曲十八弯"): after the open summit, the run is a deep, narrow, winding U trough almost all the way, let out only twice for a look
+  // at the lake. deep: how many times the usual trough's depth (6 m); the trough widens with it so the walls stay about 40 degrees
+  const ROUTE_E = [
+    { type: 'bowl', wind: 0.45, lam: 420 },                                  // 火山顶：开阔，第一眼看到湖
+    { type: 'gully', U: 1, deep: 2.2, wind: 0.80, lam: 260, sec: 34 },      // 进槽：两边的墙高过人
+    { type: 'gully', U: 1, deep: 2.6, wind: 0.90, lam: 220, sec: 30 },      // 更深更弯
+    { type: 'ridge', aim: 1 },                                               // 出槽一次：正对湖
+    { type: 'gully', U: 1, deep: 2.4, wind: 0.85, lam: 240, sec: 34 },
+    { type: 'gully', U: 1, deep: 2.8, wind: 0.90, lam: 200, sec: 32 },      // 最深、弯最急的一段
+    { type: 'powder', aim: 1 },                                              // 第二次看湖
+    { type: 'gully', U: 1, deep: 2.2, wind: 0.80, lam: 260, sec: 30 },
+    { type: 'gully', U: 1, deep: 2.6, wind: 0.90, lam: 220, sec: 30 },
+    { type: 'kickers' },                                                     // 出槽的跳台
+    { type: 'gully', U: 1, deep: 2.4, wind: 0.85, lam: 240, sec: 30 },
+    { type: 'gully', U: 1, deep: 2.0, wind: 0.80, lam: 280, sec: 30 },
+  ];
+  const ROUTES = { b: ROUTE_B, c: ROUTE_C, d: ROUTE_D, e: ROUTE_E };
   let ROUTE = ROUTE_B;
   C.ROUTE = ROUTE;
   function routeType() { const st = ROUTE[C.segs.length]; dealt.push(st.type); hand = []; return st.type; }
@@ -271,7 +290,7 @@ const Course = ((vn1, vn2, h2U) => {
       if (st) {
         if (st.sec && C.segs.length) len *= st.sec / 30;
         if (st.enc) p.enc = st.enc;
-        if (st.U) { p.gU = 1; p.gul = 6 * (0.92 + 0.16 * rng()); p.gw = 10; p.gAmp = 8; p.forest = 0.9; p.enc = 0.5; }
+        if (st.U) { const dp = st.deep || 1; p.gU = 1; p.gul = 6 * dp * (0.92 + 0.16 * rng()); p.gw = 10 * Math.pow(dp, 0.85); p.gAmp = 8; p.forest = 0.9; p.enc = 0.5; if (dp > 1) p.hw = Math.max(p.hw, 1.75 * p.gw); }
       }
       const seg = { type, s0: planned, len, p, idx: C.segs.length, seed: (rng() * 1e9) | 0 };
       if (st) { seg.st = st; seg.ph = rng() < 0.5 ? 0 : PI; }
