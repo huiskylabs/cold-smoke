@@ -1056,7 +1056,7 @@ const Game = (() => {
     // (新求解器, the deep squat of a full charge (08_skier.js CHG_H): with the hips under the knees the fists of the tuck lay on the thighs and the
     // forearms went through the knees (Mac round 18; 92 of 213 charged frames within the thigh). The hands are carried forward, up and a little
     // apart as the squat deepens: elbows ahead of the knees, fists before the chin)
-    const SQX = 0.03, SQY = 0.08, SQZ = -0.12; const hk = 1 - dpK, hy0 = (-0.05 * fl.prep + 0.05 * fl.reach + 0.04 * fl.soak) * hk, hz0 = (0.08 * fl.prep - 0.12 * fl.reach - 0.16 * fl.soak) * hk, sq = Variants.val.solver === 'b' ? (S.charge || 0) * hk : 0, hx = (0.05 * fl.reach + 0.04 * fl.soak) * hk + SQX * sq;
+    const SQX = 0.06, SQY = 0.08, SQZ = -0.12; const hk = 1 - dpK, hy0 = (-0.05 * fl.prep + 0.05 * fl.reach + 0.04 * fl.soak) * hk, hz0 = (0.08 * fl.prep - 0.12 * fl.reach - 0.16 * fl.soak) * hk, sq = Variants.val.solver === 'b' ? (S.charge || 0) * hk : 0, hx = (0.05 * fl.reach + 0.04 * fl.soak) * hk + SQX * sq;
     const hy = hy0 + SQY * sq, hz = hz0 + SQZ * sq;
     const grabs = typeof Skier !== 'undefined' && Skier.P0 && 'grabL' in Skier.P0;     // (does the figure know how to take hold of a ski? if not, the hand is at least sent there)
     for (const side of [-1, 1]) {
