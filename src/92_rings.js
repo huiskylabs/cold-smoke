@@ -51,10 +51,13 @@ const Rings = (() => {
   const PLAN = {
     bowl: { lv: 0, gap: [45, 60], how: 'weave', side: 7 },
     corridor: { lv: 1, gap: [55, 75], how: 'apex' },
-    steeps: { lv: 1, gap: [34, 44], how: 'weave', side: 4.5 },          // (short, linked turns down a steep pitch, not long traverses)
+    steeps: { lv: 1, gap: [25, 32], how: 'weave', side: 4.5 },          // (short, linked turns down a steep pitch, not long traverses)
     glade: { lv: 1, gap: [38, 52], how: 'weave', side: 6 },
     kickers: { lv: 0, gap: [60, 80], how: 'none' },
-    gully: { lv: 1, gap: [26, 34], how: 'wall' },          // (one wall to the other is ~21 m across the U: a ring on every wall)
+    // (用户 19:21-19:37 UTC: 间距按高手流畅能过来定，标准 = 高手刚好流畅通过). Measured with tools/ring-expert.js (an expert pilot on a smooth
+    // line through the rings ahead, carving deep and braking as it needs, 标准 sizes): gully 40-70 m all about 70-85% through, smoothest at
+    // 60 m (no full lock); moguls 1 row 18%, 2 rows 71%, 3 rows 100% at 40 km/h with 5% full lock, 4 rows 94%; steeps 25 and 32 m 100%
+    gully: { lv: 1, gap: [52, 62], how: 'wall' },          // (one wall to the other is ~24 m across the U)
     ridge: { lv: 0, gap: [60, 80], how: 'centre' },
     moguls: { lv: 1, gap: [11, 11], how: 'zip' },
     powder: { lv: 0, gap: [50, 70], how: 'weave', side: 9 },
@@ -101,7 +104,7 @@ const Rings = (() => {
     let best = t, bh = 1e9; for (let u = t - M.W * 0.5; u <= t + M.W * 0.5; u += 0.25) { if (u < z[0] || u > z[1]) continue; const h = Course.height(cr.cx + u, -sr, 0.5); if (h < bh) { bh = h; best = u; } }
     return { s: sr, u: best };
   }
-  const ZIPROWS = { a: 3, b: 2, c: 2 };
+  const ZIPROWS = { a: 4, b: 3, c: 2 };          // (rows of bumps from one ring to the next: 标准 3 = 17 m, the closest an expert links smoothly)
   let wallSide = 1, cursor = null;
   function spawn() {
     // (where the last ring, or the last place passed over without one, stood: a stretch with no ground rings is still walked through)
@@ -424,7 +427,7 @@ const Rings = (() => {
       }
       // (in among trees: closer, through the gaps, a tree run's rhythm; out in the open as before)
       const kt = Math.min(n - 1, Math.round((s + 14) / 4)); let near = 1e9; for (const tt of rows[kt].tr) near = Math.min(near, Math.hypot(tt[0] - rows[kt].cx - pu[kt], tt[1] - rows[kt].s) - tt[2]);
-      s += lg ? (16 + 6 * rr()) * gk : near < 7 ? (20 + 8 * rr()) * gk : (34 + 14 * rr()) * gk; if (s > sE - 70) break;
+      s += lg ? (30 + 8 * rr()) * gk : near < 7 ? (20 + 8 * rr()) * gk : (34 + 14 * rr()) * gk; if (s > sE - 70) break;
       if (lg) {
         // (the lane's own gully: its bell is 1.35 w wide, steepest at about 0.95 w out from its middle; trees stand only beyond that)
         side = -side; const kq = Math.min(n - 1, Math.round(s / 4)), w = lk[kq].find(q => q.kind === 'gully' && Math.abs(pu[kq] - q.u) < q.w * 1.6) || lg;
@@ -444,6 +447,7 @@ const Rings = (() => {
     return L.xp;
   }
   RG.xPlan = () => L.id === 'x' ? xPlan() : null;          // (for test scripts)
+  RG.PLAN = PLAN; RG.ZIPROWS = ZIPROWS;          // (for tools/ring-expert.js: how far apart a smooth expert line can take the rings)
   function beep(f, d, g) {
     try { const A = Sound.ctx; if (!A || !Sound.on) return; const o = A.createOscillator(), v = A.createGain(), t = A.currentTime; o.type = 'sine'; o.frequency.value = f; v.gain.setValueAtTime(0, t); v.gain.linearRampToValueAtTime(g, t + 0.012); v.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(v); v.connect(A.destination); o.start(t); o.stop(t + d + 0.05); } catch (e) { }
   }
