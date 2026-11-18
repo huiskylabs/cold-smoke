@@ -813,7 +813,11 @@ const Course = ((vn1, vn2, h2U) => {
     if (d > 0 && (C.rclear || c.gU > 0.01) && au < c.hw + 6) d *= keepClear(s, u, c);
     if (s < 60) d *= smooth(8, 60, s + au);       // keep the start gate clear
     // (金色雪旗 from the volcano's top: the first stretch is above the trees, open snow and rock of the cone; the forest begins below)
-    if (d > 0 && Variants.val.start === 'b' && typeof Metro !== 'undefined' && Metro.kind() === 'd') d *= smooth(650, 1500, s + 220 * vnoise2(x / 240, z / 240, 27));
+    if (d > 0 && typeof Metro !== 'undefined' && Metro.kind() === 'd') {
+      if (Variants.val.start === 'b') d *= smooth(650, 1500, s + 220 * vnoise2(x / 240, z / 240, 27));
+      // (the owner 2026-11-18: fewer trees: stands with open snow between them, not one unbroken wood)
+      if (au > c.hw + 4) d *= 0.35 + 0.65 * smooth(-0.05, 0.30, vnoise2(x / 150, z / 150, 33));
+    }
     return d;
   };
   // (Variants 'rclear' b) the lines the run is built round stay clear of trees: the floor and walls of a gully, the mogul field's smooth channel
