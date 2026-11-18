@@ -295,11 +295,16 @@ const RouteCard = self.RouteCard = (() => {
         const tone = lit < 0.42 ? SHADE2 : lit < 0.6 ? SHADE : lit > 0.8 ? SUNW : [1, 1, 1];
         c = [c[0] * tone[0], c[1] * tone[1], c[2] * tone[2]];
         const [x, s] = XY(i, j), tr = d.T ? d.T(x, s) : 0;
-        if (tr > 0.56) c = lit < 0.6 ? FORESTD : FOREST;
         D[o] = c[0]; D[o + 1] = c[1]; D[o + 2] = c[2]; D[o + 3] = 255;
       }
       const cv = mk(sw, sh); cv.getContext('2d').putImageData(img, 0, 0);
       g.save(); g.beginPath(); g.rect(C.left, cY0, cw, ch); g.clip(); g.imageSmoothingEnabled = true; g.drawImage(cv, C.left, cY0, sw * R, sh * R);
+      // the forest as tree marks, the way a hand-drawn map does it: a round crown every ~11 m where the wood is, a little jitter, the shade side darker
+      if (d.T) { const TS = 11, rr = rnd(C.c * 7919 + 17);
+        for (let s = C.s0 - TS; s < C.s1 + TS; s += TS) for (let x = C.xc(s) - cw / 2 / k - TS; x < C.xc(s) + cw / 2 / k + TS; x += TS) {
+          const jx = x + (rr() - 0.5) * TS * 0.8, js = s + (rr() - 0.5) * TS * 0.8, tr = d.T(jx, js), q = rr(); if (tr < 0.42 || q > (tr - 0.3) * 1.6) continue;
+          const px = C.X(jx, js), py = C.Y(js), r = (2.0 + 1.3 * rr()) * u, hx = (d.H(jx + 6, js) || 0) - (d.H(jx - 6, js) || 0);
+          g.fillStyle = rgb(hx > 0.8 ? FORESTD : FOREST, 0.92); g.beginPath(); g.arc(px, py, r, 0, 6.2832); g.fill(); } }
       // contours every 20 m, Tanaka-lit: the sun side of each line light, the shade side dark; every 100 m a little heavier
       const step = 2, gx = Math.ceil(sw / step), gy = Math.ceil(sh / step), Gv = (i, j) => Hh[Math.min(sh - 1, j * step) * sw + Math.min(sw - 1, i * step)];
       for (let lv = Math.ceil(hmin / 20) * 20; lv < hmax; lv += 20) {
@@ -363,7 +368,7 @@ const RouteCard = self.RouteCard = (() => {
     // the fastest moment and the longest flight, each with a leader line
     { let im = 0; for (let i = 0; i < n; i++) if (T[i][3] > T[im][3]) im = i;
       let la = 0, lb = 0, a0 = -1; for (let i = 0; i < n; i++) { if (T[i][4]) { if (a0 < 0) a0 = i; if (i - a0 > lb - la) { la = a0; lb = i; } } else a0 = -1; }
-      const note = (i, txt) => { const p = P(i), C = cols[p[2]], right = p[0] < C.mid, x2 = right ? C.left + cw - 6 * u : C.left + 6 * u, y2 = p[1] + 26 * u;
+      const note = (i, txt) => { const p = P(i), C = cols[p[2]], right = p[0] < C.mid, x2 = right ? C.left + cw - 6 * u : C.left + 6 * u, y2 = p[1] > cY1 - 60 * u ? p[1] - 46 * u : p[1] + 26 * u;
         g.strokeStyle = INK; g.lineWidth = 0.8 * u; g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(x2, y2); g.stroke();
         g.font = '500 ' + 11 * u + 'px ' + LAT; g.textAlign = right ? 'right' : 'left'; g.lineWidth = 4 * u; g.strokeStyle = 'rgba(241,237,228,.95)'; g.strokeText(txt, x2, y2 + 13 * u); g.fillStyle = INK; g.fillText(txt, x2, y2 + 13 * u); };
       note(im, '最快 ' + (T[im][3] * 3.6).toFixed(0) + ' KM/H'); if (lb - la >= 5) note(Math.round((la + lb) / 2), '腾空 ' + ((lb - la) * 0.1).toFixed(1) + ' S'); }
