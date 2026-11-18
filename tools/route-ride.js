@@ -50,10 +50,13 @@ const out = path.resolve(process.argv[2] || 'line-ride.json'), line = process.ar
       for (let ss = s0; ss <= s1; ss += 10) { const row = []; for (let x = x0; x <= x1; x += 10) row.push(+C.height(x, -ss, 4).toFixed(1)); H.push(row); if (H.length % 40 === 0) await new Promise(q => setTimeout(q, 0)); }
       const cx = []; for (let ss = s0; ss <= s1; ss += 10) { const c = C.at(Math.max(0, ss)); cx.push([+c.cx.toFixed(1), +c.hw.toFixed(1)]); }
       const tr = []; for (let ss = 0; ss <= L.sEnd; ss += 6) { const c = C.at(ss); for (let x = c.cx - c.hw - 140; x <= c.cx + c.hw + 140; x += 6) { const d = C.treeDensity(x, -ss); if (d > 0.35) tr.push([Math.round(x), Math.round(ss), +d.toFixed(2)]); } }
-      return { track: trk, rings, segs, grid: { x0, s0, step: 10, H }, cx, trees: tr, names: L.names, tEnd: L.tEnd, split: L.split && L.split.slice(),
+      // the forest as a density grid (8 m) over the track and 320 m round it, for the flat forest shapes of the plan card
+      const tg = { x0: Math.floor((Math.min(...xs) - 320) / 8) * 8, s0: -40, step: 8, D: [] };
+      for (let ss = tg.s0; ss <= L.sEnd + 60; ss += 8) { const row = []; for (let x = tg.x0; x <= Math.max(...xs) + 320; x += 8) row.push(Math.round(C.treeDensity(x, -ss) * 100)); tg.D.push(row); if (tg.D.length % 60 === 0) await new Promise(q => setTimeout(q, 0)); }
+      return { tgrid: tg, track: trk, rings, segs, grid: { x0, s0, step: 10, H }, cx, trees: tr, names: L.names, tEnd: L.tEnd, split: L.split && L.split.slice(),
         st: L.st, T: +T.toFixed(1), s: Math.round(-S.p[2]), sEnd: L.sEnd, passed: RG.passed, missed: RG.missed, crashes, crashAt, slowT: +slowT.toFixed(1), slow: slow.slice(0, 30), offShare: +(offT / T).toFixed(2), vmax: +(vmax * 3.6).toFixed(0), plan: xp ? { rings: xp.rings.length, off: +xp.off.toFixed(2), ms: xp.ms } : null };
     });
-    res.diffs[d] = r; console.log(line, d, JSON.stringify(Object.assign({}, r, { track: r.track && r.track.length, rings: r.rings && r.rings.length, grid: undefined, cx: undefined, trees: r.trees && r.trees.length })));
+    res.diffs[d] = r; console.log(line, d, JSON.stringify(Object.assign({}, r, { track: r.track && r.track.length, rings: r.rings && r.rings.length, grid: undefined, tgrid: undefined, cx: undefined, trees: r.trees && r.trees.length })));
   }
   fs.writeFileSync(out, JSON.stringify(res)); console.log('errors:', errs.length ? errs.join(' | ') : 'none');
   await b.close();

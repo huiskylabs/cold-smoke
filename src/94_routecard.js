@@ -254,12 +254,160 @@ const RouteCard = self.RouteCard = (() => {
     frame(g, W, H, 'rgba(255,208,138,.3)');
   }
 
-  RC.styles = { a: '等高线', b: '剖面', c: '山脊线' };
+
+  // ================================================================ d 平面线稿: the run as a folded strip map, flat colour and line (owner 2026-11-18 23:3x UTC:
+  // "我比较喜欢平面图的版本…扁平风格的线稿…有颜色…它本身就是一幅 artwork…雪道其实是很窄的…不需要框的那么宽…还有很多 information").
+  // Borrowed, each from a real map: the strip map (Ogilby's Britannia, 1675: a narrow road cut into strips laid side by side, read top to
+  // bottom, so the line fills the card and nothing is framed wider than the road); Minard (1869: the width of the band is the number, here
+  // the speed; the band's breaks are the jumps); Imhof's Swiss maps (sunlit slopes warm, the shade a cool violet, the snow white) flattened
+  // into a few tones; Tanaka's illuminated contours (lit on the sun side, dark on the shade side, so flat lines still read as relief);
+  // Beck's Tube map (stations as numbered marks with the name beside, every stop the same mark). Paper, ink, and one strong red for the line.
+  function drawD(g, W, H, d, st) {
+    const u = W / 1600, T = d.track, n = T.length, sA = T[0][1], sB = st.sMax;
+    const PAPER = '#f1ede4', INK = '#1d2a34', GREY = '#7c8791', RED = '#df4a2f', FOREST = [66, 106, 98], SNOWW = [251, 251, 249], LOW = [205, 221, 231], SHADE = [0.80, 0.80, 0.93], SUNW = [1.0, 0.985, 0.95];
+    g.fillStyle = PAPER; g.fillRect(0, 0, W, H);
+    // the strips: as many as keep each about 1.5 km, laid right of the panel
+    const N = cl(Math.round((sB - sA) / 1450), 2, 6), cX0 = 452 * u, cX1 = W - 56 * u, gap = 30 * u, cY0 = 92 * u, cY1 = H - 62 * u;
+    const cw = (cX1 - cX0 - gap * (N - 1)) / N, ch = cY1 - cY0, seg = (sB - sA + 40) / N, k = ch / seg;
+    const cols = [];
+    for (let c = 0; c < N; c++) {
+      const s0 = sA - 20 + c * seg, s1 = s0 + seg, i0 = at(T, s0), i1 = at(T, s1);
+      // the strip follows the line's drift (a straight fit of x on s over the strip), so the road stays in the middle
+      let ms = 0, mx = 0, m = 0; for (let i = i0; i <= i1; i++) { ms += T[i][1]; mx += T[i][0]; m++; } ms /= m; mx /= m;
+      let a = 0, b = 0; for (let i = i0; i <= i1; i++) { a += (T[i][1] - ms) * (T[i][0] - mx); b += (T[i][1] - ms) * (T[i][1] - ms); } const sl = b > 1 ? a / b : 0;
+      const left = cX0 + c * (cw + gap), mid = left + cw / 2, xc = s => mx + sl * (s - ms);
+      cols.push({ c, s0, s1, left, mid, xc, X: (x, s) => mid + (x - xc(s)) * k, Y: s => cY0 + (s - s0) * k });
+    }
+    const colOf = s => cols[cl(Math.floor((s - (sA - 20)) / seg), 0, N - 1)];
+    // the ground of each strip: flat tones from height (higher whiter), sun and shade in three steps, the forest as flat shapes
+    const hmax = T[0][2] + 60, hmin = T[n - 1][2] - 60, BAND = 60;
+    for (const C of cols) {
+      const R = 2, sw = Math.ceil(cw / R), sh = Math.ceil(ch / R), img = g.createImageData(sw, sh), D = img.data, Hh = new Float32Array(sw * sh);
+      const XY = (i, j) => { const s = C.s0 + (j * R) / k; return [C.xc(s) + (i * R - cw / 2) / k, s]; };
+      for (let j = 0; j < sh; j++) for (let i = 0; i < sw; i++) { const [x, s] = XY(i, j); let h = 0, q = 0; for (const [ox, os] of [[0, 0], [9, 0], [-9, 0], [0, 9], [0, -9]]) { const v = d.H(x + ox, s + os); if (v != null) { h += v; q++; } } Hh[j * sw + i] = q ? h / q : NaN; }
+      const e = R / k;
+      for (let j = 0; j < sh; j++) for (let i = 0; i < sw; i++) {
+        const o = (j * sw + i) * 4, h = Hh[j * sw + i]; if (h !== h) { D[o] = 241; D[o + 1] = 237; D[o + 2] = 228; D[o + 3] = 255; continue; }
+        const hx = (Hh[j * sw + Math.min(sw - 1, i + 1)] - Hh[j * sw + Math.max(0, i - 1)]) / (2 * e), hs = (Hh[Math.min(sh - 1, j + 1) * sw + i] - Hh[Math.max(0, j - 1) * sw + i]) / (2 * e);
+        const nl = Math.hypot(hx, hs, 1), lit = (-hx * 0.62 + -hs * -0.35 + 0.7) / nl;
+        const band = Math.floor((h - hmin) / BAND), top = cl(band * BAND / (hmax - hmin), 0, 1);
+        let c = lerpC(LOW, SNOWW, Math.pow(top, 0.7));
+        const tone = lit < 0.62 ? SHADE : lit > 0.82 ? SUNW : [1, 1, 1];
+        c = [c[0] * tone[0], c[1] * tone[1], c[2] * tone[2]];
+        const [x, s] = XY(i, j), tr = d.T ? d.T(x, s) : 0;
+        if (tr > 0.5) c = lerpC(FOREST, [44, 78, 74], lit < 0.62 ? 0.6 : 0);
+        D[o] = c[0]; D[o + 1] = c[1]; D[o + 2] = c[2]; D[o + 3] = 255;
+      }
+      const cv = mk(sw, sh); cv.getContext('2d').putImageData(img, 0, 0);
+      g.save(); g.beginPath(); g.rect(C.left, cY0, cw, ch); g.clip(); g.imageSmoothingEnabled = true; g.drawImage(cv, C.left, cY0, sw * R, sh * R);
+      // contours every 20 m, Tanaka-lit: the sun side of each line light, the shade side dark; every 100 m a little heavier
+      const step = 2, gx = Math.ceil(sw / step), gy = Math.ceil(sh / step), Gv = (i, j) => Hh[Math.min(sh - 1, j * step) * sw + Math.min(sw - 1, i * step)];
+      for (let lv = Math.ceil(hmin / 20) * 20; lv < hmax; lv += 20) {
+        const major = lv % 100 === 0, lit = [], dark = [];
+        for (let j = 0; j < gy - 1; j++) for (let i = 0; i < gx - 1; i++) {
+          const a = Gv(i, j), b = Gv(i + 1, j), c = Gv(i + 1, j + 1), dd = Gv(i, j + 1); if (a !== a || b !== b || c !== c || dd !== dd) continue;
+          if ((a > lv) === (b > lv) && (b > lv) === (c > lv) && (c > lv) === (dd > lv)) continue;
+          const P = (fi, fj) => [C.left + fi * step * R, cY0 + fj * step * R], E = [];
+          const ed = (va, vb, pa, pb) => { const t = (lv - va) / (vb - va); E.push([mix(pa[0], pb[0], t), mix(pa[1], pb[1], t)]); };
+          const P0 = P(i, j), P1 = P(i + 1, j), P2 = P(i + 1, j + 1), P3 = P(i, j + 1);
+          if ((a > lv) !== (b > lv)) ed(a, b, P0, P1); if ((b > lv) !== (c > lv)) ed(b, c, P1, P2); if ((c > lv) !== (dd > lv)) ed(c, dd, P2, P3); if ((dd > lv) !== (a > lv)) ed(dd, a, P3, P0);
+          const gxv = (b + c - a - dd) / 2, gyv = (dd + c - a - b) / 2, gl = Math.hypot(gxv, gyv) || 1, li = (-gxv * 0.62 + gyv * 0.35) / gl;
+          for (let q = 0; q + 1 < E.length; q += 2) (li > 0 ? lit : dark).push(E[q], E[q + 1]);
+        }
+        for (const [L2, col] of [[lit, 'rgba(255,255,255,.95)'], [dark, major ? 'rgba(52,70,98,.55)' : 'rgba(60,80,108,.34)']]) {
+          if (!L2.length) continue; g.beginPath(); for (let q = 0; q < L2.length; q += 2) { g.moveTo(L2[q][0], L2[q][1]); g.lineTo(L2[q + 1][0], L2[q + 1][1]); }
+          g.strokeStyle = col; g.lineWidth = (major ? 1.5 : 0.85) * u; g.stroke(); }
+      }
+      // the groomed run: a white band with fine dashed edges
+      if (d.cx) { const pts = d.cx.filter(q => q[0] >= C.s0 - 10 && q[0] <= C.s1 + 10);
+        if (pts.length > 1) { g.fillStyle = 'rgba(253,253,251,.62)'; g.beginPath(); for (const q of pts) g.lineTo(C.X(q[1] - q[2], q[0]), C.Y(q[0])); for (let i = pts.length - 1; i >= 0; i--) g.lineTo(C.X(pts[i][1] + pts[i][2], pts[i][0]), C.Y(pts[i][0])); g.fill();
+          g.setLineDash([3 * u, 3 * u]); g.strokeStyle = 'rgba(70,90,112,.45)'; g.lineWidth = 0.8 * u; for (const sg of [-1, 1]) { g.beginPath(); for (const q of pts) g.lineTo(C.X(q[1] + sg * q[2], q[0]), C.Y(q[0])); g.stroke(); } g.setLineDash([]); } }
+      g.restore();
+      // the strip's frame: a hairline, and how far down the mountain it starts
+      g.strokeStyle = 'rgba(29,42,52,.55)'; g.lineWidth = 1 * u; g.strokeRect(C.left, cY0, cw, ch);
+      g.fillStyle = GREY; g.font = '500 ' + 11 * u + 'px ' + LAT; g.textAlign = 'left';
+      spaced(g, (Math.max(0, C.s0 - sA) / 1000).toFixed(1) + ' – ' + (Math.min(sB, C.s1) - sA > 0 ? ((Math.min(sB, C.s1) - sA) / 1000).toFixed(1) : '0') + ' KM', C.left, cY0 - 10 * u, 0.2 * 11 * u);
+    }
+    // the line itself, strip by strip: a white halo, then the red band as wide as the speed; in the air a fine dark dashed line
+    const wv = v => (1.6 + 8.4 * Math.pow(cl(v / Math.max(20, st.vmax), 0, 1), 1.3)) * u;
+    const P = i => { const C = colOf(T[i][1]); return [C.X(T[i][0], T[i][1]), C.Y(T[i][1]), C.c]; };
+    g.save(); g.lineCap = 'round'; g.lineJoin = 'round';
+    for (const pass of [0, 1]) for (let i = 0; i < n - 1; i++) {
+      const p = P(i), q = P(i + 1); if (p[2] !== q[2]) continue;
+      const air = T[i][4] && T[i + 1][4], w = wv(T[i][3]);
+      if (pass === 0) { if (air) continue; g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = w + 3.2 * u; }
+      else if (air) { g.strokeStyle = INK; g.lineWidth = 1.2 * u; g.setLineDash([2 * u, 2.6 * u]); }
+      else { g.strokeStyle = RED; g.lineWidth = w; g.setLineDash([]); }
+      g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke();
+    }
+    g.setLineDash([]); g.restore();
+    // rings: passed, a small white bead on the band; missed, a hollow grey ring where it stood
+    for (const r of d.rings) { const C = colOf(r.s), x = C.X(r.x, r.s), y = C.Y(r.s); g.beginPath(); g.arc(x, y, (r.pass ? 1.9 : 2.6) * u, 0, 6.2832);
+      if (r.pass) { g.fillStyle = '#fff'; g.fill(); } else { g.strokeStyle = 'rgba(29,42,52,.55)'; g.lineWidth = 1 * u; g.stroke(); } }
+    // every kilometre: a fine tick across the line and the number
+    g.save(); g.font = '500 ' + 10 * u + 'px ' + LAT; g.fillStyle = GREY; g.strokeStyle = INK; g.lineWidth = 1 * u;
+    { let acc = 0, km = 1; for (let i = 1; i < n; i++) { acc += Math.hypot(T[i][0] - T[i - 1][0], T[i][1] - T[i - 1][1]); if (acc >= km * 1000) { const p = P(i); g.beginPath(); g.moveTo(p[0] - 9 * u, p[1]); g.lineTo(p[0] - 4 * u, p[1]); g.stroke(); g.textAlign = 'right'; g.fillText(km + 'K', p[0] - 11 * u, p[1] + 3.5 * u); km++; } } }
+    g.restore();
+    // stations, Beck's way: a numbered disc on the line, the name and this run's time for it beside, on a paper halo
+    const sp = d.split || [], segT = sp.map((t, i) => t - (i ? sp[i - 1] : 0)); let best = -1, bv = 0;
+    segT.forEach((t, i) => { const sg = d.segs[i]; if (!sg || t <= 0) return; const v = sg.len / t; if (v > bv) { bv = v; best = i; } });
+    stations(d).forEach((q, i) => {
+      const s = Math.max(sA + 3, q.s), j = at(T, s), p = P(j), C = cols[p[2]], right = p[0] < C.mid;
+      const r = 8 * u; g.beginPath(); g.arc(p[0], p[1], r, 0, 6.2832); g.fillStyle = i === best ? RED : INK; g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1.5 * u; g.stroke();
+      g.fillStyle = '#fff'; g.font = '600 ' + 9.5 * u + 'px ' + LAT; g.textAlign = 'center'; g.fillText(String(i + 1), p[0], p[1] + 3.4 * u);
+      const tx = right ? p[0] + 14 * u : p[0] - 14 * u; g.textAlign = right ? 'left' : 'right';
+      g.lineJoin = 'round'; g.strokeStyle = 'rgba(241,237,228,.92)'; g.lineWidth = 4 * u;
+      g.font = '500 ' + 14 * u + 'px ' + SONG; const nm = q.name.replace(/^\d+ /, ''); g.strokeText(nm, tx, p[1] + 1 * u); g.fillStyle = INK; g.fillText(nm, tx, p[1] + 1 * u);
+      if (segT[i] > 0) { g.font = '500 ' + 11 * u + 'px ' + LAT; const ts = fmt(segT[i]); g.strokeText(ts, tx, p[1] + 15 * u); g.fillStyle = i === best ? RED : GREY; g.fillText(ts, tx, p[1] + 15 * u); }
+    });
+    // the fastest moment and the longest flight, each with a leader line
+    { let im = 0; for (let i = 0; i < n; i++) if (T[i][3] > T[im][3]) im = i;
+      let la = 0, lb = 0, a0 = -1; for (let i = 0; i < n; i++) { if (T[i][4]) { if (a0 < 0) a0 = i; if (i - a0 > lb - la) { la = a0; lb = i; } } else a0 = -1; }
+      const note = (i, txt) => { const p = P(i), C = cols[p[2]], right = p[0] < C.mid, x2 = right ? C.left + cw - 6 * u : C.left + 6 * u, y2 = p[1] + 26 * u;
+        g.strokeStyle = INK; g.lineWidth = 0.8 * u; g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(x2, y2); g.stroke();
+        g.font = '500 ' + 11 * u + 'px ' + LAT; g.textAlign = right ? 'right' : 'left'; g.lineWidth = 4 * u; g.strokeStyle = 'rgba(241,237,228,.95)'; g.strokeText(txt, x2, y2 + 13 * u); g.fillStyle = INK; g.fillText(txt, x2, y2 + 13 * u); };
+      note(im, '最快 ' + (T[im][3] * 3.6).toFixed(0) + ' KM/H'); if (lb - la >= 5) note(Math.round((la + lb) / 2), '腾空 ' + ((lb - la) * 0.1).toFixed(1) + ' S'); }
+    // start and finish
+    { const p0 = P(0), p1 = P(n - 1); g.fillStyle = INK; g.beginPath(); g.moveTo(p0[0] - 7 * u, p0[1] - 9 * u); g.lineTo(p0[0] + 7 * u, p0[1] - 9 * u); g.lineTo(p0[0], p0[1] + 2 * u); g.closePath(); g.fill();
+      g.beginPath(); g.arc(p1[0], p1[1], 7 * u, 0, 6.2832); g.strokeStyle = INK; g.lineWidth = 2 * u; g.stroke(); g.beginPath(); g.arc(p1[0], p1[1], 3 * u, 0, 6.2832); g.fillStyle = RED; g.fill(); }
+    // between the strips: where the line goes on (an arrow from the foot of one strip to the head of the next)
+    g.strokeStyle = 'rgba(29,42,52,.45)'; g.lineWidth = 1 * u; g.fillStyle = 'rgba(29,42,52,.6)';
+    for (let c = 0; c < N - 1; c++) { const a = cols[c], b = cols[c + 1], ya = cY1 + 16 * u, yb = cY0 - 30 * u; g.font = '500 ' + 10 * u + 'px ' + LAT; g.textAlign = 'center'; g.fillText('↓', a.mid, cY1 + 18 * u); g.fillText('↓', b.mid + cw * 0.36, cY0 - 26 * u); }
+    // the panel: name, time, numbers, the key, a strip of speed over the run, the code
+    const L = 64 * u; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+    g.fillStyle = INK; g.font = '500 ' + 50 * u + 'px ' + SONG; g.fillText(d.line, L, 124 * u);
+    g.fillStyle = GREY; g.font = '400 ' + 17 * u + 'px ' + SONG; spaced(g, d.diff + ' · ' + d.mountain, L + 2 * u, 156 * u, 0.3 * 17 * u);
+    g.fillStyle = RED; g.fillRect(L, 176 * u, 34 * u, 3 * u);
+    g.fillStyle = INK; g.font = '300 ' + 76 * u + 'px ' + LAT; g.fillText(fmt(d.score), L - 3 * u, 262 * u);
+    const pen = d.score - d.t; if (pen > 0.01) { g.fillStyle = GREY; g.font = '400 ' + 13 * u + 'px ' + SONG; spaced(g, '用时 ' + fmt(d.t) + '  罚时 +' + pen.toFixed(0) + ' 秒', L, 290 * u, 0.1 * 13 * u); }
+    const items = [[st.passed + '/' + st.tot, '光圈'], [(st.vmax * 3.6).toFixed(0), '最快 km/h'], [(st.dist / 1000).toFixed(2), '滑行 km'], [Math.round(st.drop).toLocaleString('en-US'), '落差 m'], [st.air.toFixed(1), '腾空 s'], [String(N), '折成几段']];
+    items.slice(0, 5).forEach(([v, k2], i) => { const x = L + (i % 3) * 112 * u, y = 352 * u + Math.floor(i / 3) * 62 * u; g.fillStyle = INK; g.font = '400 ' + 24 * u + 'px ' + LAT; g.fillText(v, x, y); g.fillStyle = GREY; g.font = '400 ' + 12 * u + 'px ' + SONG; spaced(g, k2, x, y + 20 * u, 0.12 * 12 * u); });
+    // the key
+    let ky = 500 * u; g.fillStyle = GREY; g.font = '500 ' + 10.5 * u + 'px ' + LAT; spaced(g, 'LEGEND', L, ky, 0.4 * 10.5 * u); ky += 24 * u;
+    g.lineCap = 'round'; [30, 70, 110].forEach((kmh, i) => { const x = L + i * 70 * u; g.strokeStyle = RED; g.lineWidth = wv(kmh / 3.6); g.beginPath(); g.moveTo(x, ky); g.lineTo(x + 34 * u, ky); g.stroke(); g.fillStyle = GREY; g.font = '400 ' + 10.5 * u + 'px ' + LAT; g.fillText(kmh, x + 38 * u, ky + 4 * u); });
+    g.fillStyle = INK; g.font = '400 ' + 12 * u + 'px ' + SONG; g.fillText('线宽 = 速度 km/h', L + 214 * u, ky + 4 * u); ky += 28 * u;
+    g.strokeStyle = INK; g.lineWidth = 1.2 * u; g.setLineDash([2 * u, 2.6 * u]); g.beginPath(); g.moveTo(L, ky); g.lineTo(L + 34 * u, ky); g.stroke(); g.setLineDash([]); g.fillText('腾空', L + 42 * u, ky + 4 * u);
+    g.beginPath(); g.arc(L + 102 * u, ky, 2.6 * u, 0, 6.2832); g.strokeStyle = 'rgba(29,42,52,.6)'; g.lineWidth = 1 * u; g.stroke(); g.fillText('漏掉的圈', L + 110 * u, ky + 4 * u);
+    g.beginPath(); g.arc(L + 190 * u, ky, 8 * u, 0, 6.2832); g.fillStyle = RED; g.fill(); g.fillStyle = INK; g.fillText('最快的一站', L + 203 * u, ky + 4 * u); ky += 26 * u;
+    // speed over the run, Minard's lower strip: the red area is the speed, the station marks under it
+    const sy0 = ky + 26 * u, sh2 = 70 * u, sx1 = 400 * u, sxL = sx1 - L;
+    { let acc = 0; const Dd = [0]; for (let i = 1; i < n; i++) { acc += Math.hypot(T[i][0] - T[i - 1][0], T[i][1] - T[i - 1][1]); Dd.push(acc); }
+      g.fillStyle = 'rgba(223,74,47,.85)'; g.beginPath(); g.moveTo(L, sy0 + sh2); for (let i = 0; i < n; i += 3) g.lineTo(L + Dd[i] / acc * sxL, sy0 + sh2 - T[i][3] / st.vmax * sh2); g.lineTo(sx1, sy0 + sh2); g.closePath(); g.fill();
+      g.strokeStyle = INK; g.lineWidth = 0.8 * u; g.beginPath(); g.moveTo(L, sy0 + sh2); g.lineTo(sx1, sy0 + sh2); g.stroke();
+      stations(d).forEach((q, i) => { const j = at(T, Math.max(sA + 3, q.s)), x = L + Dd[j] / acc * sxL; g.beginPath(); g.moveTo(x, sy0 + sh2); g.lineTo(x, sy0 + sh2 + 5 * u); g.stroke(); g.fillStyle = GREY; g.font = '500 ' + 8.5 * u + 'px ' + LAT; g.textAlign = 'center'; g.fillText(String(i + 1), x + 0, sy0 + sh2 + 15 * u); });
+      g.textAlign = 'left'; g.fillStyle = GREY; g.font = '400 ' + 11 * u + 'px ' + SONG; g.fillText('一路的速度', L, sy0 - 8 * u); }
+    // the foot: the card's code and date, the game
+    const dt = new Date(d.date || Date.now()), ds = dt.getFullYear() + '.' + String(dt.getMonth() + 1).padStart(2, '0') + '.' + String(dt.getDate()).padStart(2, '0') + ' ' + String(dt.getHours()).padStart(2, '0') + ':' + String(dt.getMinutes()).padStart(2, '0');
+    g.fillStyle = INK; g.font = '500 ' + 22 * u + 'px ' + SONG; spaced(g, '雪迹', L, H - 92 * u, 0.3 * 22 * u); g.fillStyle = GREY; g.font = '500 ' + 10 * u + 'px ' + LAT; spaced(g, 'COLD SMOKE', L + 74 * u, H - 93 * u, 0.4 * 10 * u);
+    g.font = '500 ' + 11 * u + 'px ' + LAT; spaced(g, '#' + st.code + '   ' + ds, L, H - 66 * u, 0.2 * 11 * u);
+  }
+
+  RC.styles = { a: '等高线', b: '剖面', c: '山脊线', d: '平面线稿' };
   RC.stats = stats;
   RC.draw = function (cv, d, style) {
     const g = cv.getContext('2d'), W = cv.width, H = cv.height, st = stats(d);
     g.save(); g.clearRect(0, 0, W, H);
-    (style === 'b' ? drawB : style === 'c' ? drawC : drawA)(g, W, H, d, st);
+    (style === 'b' ? drawB : style === 'c' ? drawC : style === 'd' ? drawD : drawA)(g, W, H, d, st);
     g.restore(); return st;
   };
   return RC;
