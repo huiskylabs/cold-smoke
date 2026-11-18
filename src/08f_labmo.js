@@ -65,7 +65,7 @@ const LabMo = (() => {
       S.suv += (wn * wn * (S.u - S.su) - 2 * wn * S.suv) * h; S.su += S.suv * h;
       S.lev = (S.lev || 0) + (wn * wn * (lean - S.le) - 2 * wn * (S.lev || 0)) * h; S.le += S.lev * h; }      // (le: the lean eased exactly as the posture's share is, so the two stay in step)
     else { S.sv = sv; S.svv = 0; S.su = S.u; S.suv = 0; S.le = lean; S.lev = 0; }
-    const e2 = 0.25; return { v: Math.min(1, (Math.sqrt(S.sv * S.sv + e2 * e2) - e2) / (Math.sqrt(1 + e2 * e2) - e2)), side: S.sv >= 0 ? 1 : -1, u: S.su, lean, le: S.le == null ? lean : S.le };
+    const e2 = 0.25; return { v: Math.min(1, (Math.sqrt(S.sv * S.sv + e2 * e2) - e2) / (Math.sqrt(1 + e2 * e2) - e2)), side: S.sv >= 0 ? 1 : -1, u: S.su, lean, le: S.le == null ? lean : S.le, lev: S.lev || 0, wn };
   }
   // a turn table at share v, going in / coming out by u
   // (owner 2026-11-18, playing: a short turn left, one right, let go, and as the body came back upright the trunk twisted the other way and back,
@@ -120,8 +120,34 @@ const LabMo = (() => {
     // (the arms do not tip over with the trunk: hung from a trunk that leans in, the inside hand and forearm came down onto the inside thigh
     // (Mac round 16: hand x thigh 0 -> 136 frames). They keep the lab's own line, hands level, as a skier carries them)
     const ARM_IN = 0.0;
+    const TRUNK_LEAD_T = 0.07, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.35, SH_YAW_IN = 0.15, SH_YAW_LEAD = 0.03, SH_YAW_MAX = 0.09, HEAD_YAW_KEEP = 0.5, HEAD_ROLL_KEEP = 0.45;
     const TRUNK_IN = 0.6, lab = Math.atan2(r[0], r[1]);
-    return fill(out, st, r, ph.lean * 1.07 - lab, 'z', quietU() ? ph.le * 1.07 - lab + TRUNK_IN * ph.le : null, quietU() ? ph.le * 1.07 - lab + ARM_IN * ph.le : null);
+    if (!quietU()) return fill(out, st, r, ph.lean * 1.07 - lab, 'z');
+    // (新求解器, owner 2026-11-18: "想左转，一定是身体跟肩膀先倾过来…头稍微往正回一点点". Measured (turnM): the shoulders tipped 6 frames AFTER the hips
+    // (they took the eased lean), so at every edge change they still hung 20-28 deg over the old turn; at 47 deg of lean the shoulder line stood at
+    // 47 deg too and the head at 30; the trunk was square to the skis all the way round (0-3 deg).
+    //   lt        the lean the trunk's own share tips by. It is rebuilt from the eased lean and that follower's own rate (le + 2/wn * rate is the game's
+    //             lean without the easing's lag, and without a step in the lean reaching the shoulders as a kick: at a takeoff the lean drops at
+    //             7 rad/s) plus TRUNK_LEAD_T seconds of that rate ahead of it, so the shoulders go over first and the hips follow. The lead is less
+    //             than the lean's own time to come back (1/wn = 0.105 s), so it does not tip past upright. The rate is held under LEAD_RATE_MAX
+    //             (a brisk turn's is about 2.7 rad/s)
+    //   arms      tip by that same lt (their amount is unchanged: ARM_IN), so the hands go over with the shoulders. Left on the eased lean under
+    //             shoulders that now lead, the poles lay across the thighs (12 scenarios: clip frames 6746 -> 7365; on lt 1814)
+    //   kin       deep in a turn the trunk gives back less of the lean (TRUNK_IN_DEEP): the hips go in, the shoulders stay nearer level
+    //   yaw       the lab's trunk is square to the skis (0-3 deg). It is turned a little into the turn, the outside shoulder coming forward: SH_YAW_IN
+    //             of the lean, and SH_YAW_LEAD rad per rad/s of lean rate ahead of it (never more than SH_YAW_MAX), so it turns in as the turn
+    //             begins. The head takes HEAD_YAW_KEEP of that (it stays nearer straight ahead than the shoulders) and HEAD_ROLL_KEEP of its tilt
+    //             (eyes nearer level))
+    const lr = LEAD_RATE_MAX * Math.tanh(ph.lev / LEAD_RATE_MAX), lt = ph.le + (2 / ph.wn + TRUNK_LEAD_T) * lr, kin = TRUNK_IN + (TRUNK_IN_DEEP - TRUNK_IN) * sm(0.45, 0.85, Math.abs(lt));
+    fill(out, st, r, ph.lean * 1.07 - lab, 'z', ph.le * 1.07 - lab + kin * lt, lt * 1.07 - lab + ARM_IN * ph.le);
+    const yl = SH_YAW_MAX * Math.tanh(SH_YAW_LEAD * lr / SH_YAW_MAX), rotY = (q, a) => { const c = Math.cos(a), n = Math.sin(a); return [q[0] * c + q[2] * n, q[1], -q[0] * n + q[2] * c]; };
+    const a = -(SH_YAW_IN * lt + yl), tb = B => ortho(rotY(B.X, a), rotY(B.Y, a));
+    out.t1 = tb(out.t1); out.t2 = tb(out.t2);
+    { let X = rotY(out.hb.X, a), Y = rotY(out.hb.Y, a); const ah = Math.atan2(X[2], X[0]) * (1 - HEAD_YAW_KEEP); X = rotY(X, ah); Y = rotY(Y, ah);
+      const bh = -Math.atan2(X[1], Math.hypot(X[0], X[2])) * (1 - HEAD_ROLL_KEEP), f = [-X[2], 0, X[0]], fl = Math.hypot(f[0], f[2]) || 1, ax = [f[0] / fl, 0, f[2] / fl];      // (the tilt is taken out about the level line the head faces along)
+      const rod = q => { const c = Math.cos(bh), n = Math.sin(bh), d = dt3(ax, q), x = crs(ax, q); return [q[0] * c + x[0] * n + ax[0] * d * (1 - c), q[1] * c + x[1] * n + ax[1] * d * (1 - c), q[2] * c + x[2] * n + ax[2] * d * (1 - c)]; };
+      out.hb = ortho(rod(X), rod(Y)); }
+    return out;
   };
   // ---- on a snowboard (Variants 'ride' b, 08a_board.js): the lab's board turn. Toe and heel turns are not mirror images, so each has its own
   // table (the end of a toe turn is the start of a heel turn); everything is in the board solver's rider space (x toward the tail, y up, z toward
