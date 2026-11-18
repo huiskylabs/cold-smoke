@@ -24,6 +24,23 @@ const Solver = (() => {
     for (let it = 0; it < 4; it++) for (let i = 0; i < n; i++) { const wr = (ZS[i] - zf) / (zr - zf), wf = 1 - wr, d = E[i] - (f * wf + r * wr); if (d > 0) { const g = d / (wf * wf + wr * wr); f += g * wf; r += g * wr; } }
     q[k + 1] = fresh ? 0 : Math.max(-6, Math.min(6, (f - f0) / dt)); q[k + 3] = fresh ? 0 : Math.max(-6, Math.min(6, (r - r0) / dt)); q[k] = f; q[k + 2] = r;
   }
+  // The physics carries the body over a mogul field as legs that absorb would: it rides only a part of each bump's height (pose.mogK; the game's
+  // MOG_K is 0.45) and leaves the rest to the legs. The legs have 0.38 m of travel, and the bumps left to them stand up to 0.65 m over the physics'
+  // snow (measured, 2026-11-18): where a bump is more than the legs have left, the body has to go up over it. It does so as a skier does who sees the
+  // bump coming: the snow is read along the line of travel for the next AHEAD seconds, and the body starts up before the bump is under the feet,
+  // on a path with no step in it. q[13..15]: where the figure was (its velocity is read off that), q[16], q[17]: the lift and its speed.
+  const AHEAD = 0.4, TRAVEL = 0.38, SPARE = 0.04, LW = 9;
+  function bump(x, z, mk) { const real = Course.height(x, z, 0.5); if (!(mk < 1)) return 0; const k0 = Course.mogK; Course.mogK = mk; const ph = Course.height(x, z, 0.5); Course.mogK = k0; return real - ph; }
+  function lift(q, cur, root, dt, on) {
+    const p = root.pos; let vx = 0, vz = 0;
+    if (dt > 0 && q[13] != null) { vx = (p[0] - q[13]) / dt; vz = (p[2] - q[15]) / dt; } q[13] = p[0]; q[15] = p[2];
+    if (!(dt > 0) || q[16] == null) { q[16] = 0; q[17] = 0; }
+    let need = 0;
+    if (on && (cur.mogK == null ? 1 : cur.mogK) < 1) { const room = TRAVEL * (1 - sat(cur.crouch == null ? 0.21 : cur.crouch)) - SPARE;
+      for (let k = 0; k <= 4; k++) { const t = AHEAD * k / 4; need = Math.max(need, (bump(p[0] + vx * t, p[2] + vz * t, cur.mogK) - room) * (1 - 0.5 * k / 4)); } }
+    if (dt > 0) { const d = q[16] - need, e = Math.exp(-LW * dt), b = (q[17] + LW * d) * dt; q[16] = need + (d + b) * e; q[17] = (q[17] - LW * b) * e; }
+    return q[16];
+  }
   // Whether there is snow to lie on is the physics' own word (pose.onSnow, 07_game.js), taken at once: the eased pose.air is a tenth of a second late,
   // and in that time the figure's frame has already turned to lie along the flight and the snow read in it is far off (measured: the skis were thrown
   // 0.7 m at a lip). Off the snow the correction dies away; back on it, it comes in over a tenth of a second (until the one transition of the design
@@ -31,8 +48,9 @@ const Solver = (() => {
   const IN = 0.1, OUT = 12;
   K.ground = (cur, root, Y, toW, sec, dt) => {
     if (Variants.val.solver !== 'b' || typeof Course === 'undefined' || (K.boardOn && K.boardOn())) { sec.gs = null; return null; }
-    const q = sec.gs || (sec.gs = new Array(13).fill(null)), on = cur.onSnow == null ? (cur.air || 0) < 0.5 : cur.onSnow > 0, out = [0, 0, 0, 0];
-    if (!(dt > 0)) q.fill(null);
+    const q = sec.gs || (sec.gs = new Array(20).fill(null)), on = cur.onSnow == null ? (cur.air || 0) < 0.5 : cur.onSnow > 0, out = [0, 0, 0, 0, 0];
+    out[4] = lift(q, cur, root, dt, on);
+    if (!(dt > 0)) for (let k = 0; k < 13; k++) q[k] = null;
     if (!on) { const e = Math.exp(-OUT * (dt > 0 ? dt : 0)); for (let k = 0; k < 4; k++) { q[9 + k] = (q[9 + k] || 0) * e; out[k] = q[9 + k]; } q[8] = 0; for (let k = 0; k < 8; k++) q[k] = null; return out; }
     // (the physics has the skis at root.pos, sunk into soft snow as far as it says: the snow is read relative to that, so the sinking stays)
     // (2026-11-18: by the game's own count, pose.sink, not by reading the snow under the one point root.pos: past a lip that point is over the drop a

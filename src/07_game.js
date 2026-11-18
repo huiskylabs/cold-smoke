@@ -1111,6 +1111,7 @@ const Game = (() => {
       const c = Math.cos(q.flip), s = Math.sin(q.flip), Hc = 0.98 - 0.38 * pose.crouch, ax = fx * c + nx * s, ay = fyv * c + ny * s, az = fz * c + nz * s, ux = nx * c - fx * s, uy = ny * c - fyv * s, uz = nz * c - fz * s;
       ox = (nx - ux) * Hc; oy = (ny - uy) * Hc; oz = (nz - uz) * Hc; fx = ax; fyv = ay; fz = az; nx = ux; ny = uy; nz = uz;
     }
+    pose.mogK = S.mogKe == null ? 1 : S.mogKe;      // (新求解器: how much of a mogul's height the physics rides, the rest the legs are to take)
     pose.sink = S.contact ? fl.L - S.e : 0;      // (新求解器: how far under the physics' own snow the figure's skis are put: soft snow, a landing)
     root.pos[0] = P[0] + ox; root.pos[1] = fy + oy; root.pos[2] = P[2] + oz; root.fwd[0] = fx; root.fwd[1] = fyv; root.fwd[2] = fz; root.nrm[0] = nx; root.nrm[1] = ny; root.nrm[2] = nz;
     // (what the lens frames by: the feet on the snow; in the air the level the feet would hang at, which does not bob as the knees come up)

@@ -156,6 +156,7 @@ const Skier = (() => {
     // (fore/aft, pose.fa: forward the hips go over the toes and the chest folds a little over them; back the hips sit behind the heels, lower)
     const faF = Math.max(p.fa || 0, 0), faA = Math.max(-(p.fa || 0), 0);
     let H = 1.085 - 0.38 * c - 0.06 * smooth(0.7, 1, c) - 0.11 * tuck - 0.05 * gM - 0.06 * faF - 0.085 * faA;
+    if (gd && gd[4]) H += gd[4];      // (新求解器: the body carried higher over bumps the legs could not take, begun ahead of them: see lift in 08j_solver.js)
     // (p.reach, mo4 b: the legs reached out long for a landing. On legs that long the trunk's own rule stands it nearly upright, and the hips open to
     // 50 degrees where a skier touches down at 55 to 65: the chest is kept forward by a hand, as a skier meeting a landing has it)
     const hinge0 = 0.36 + 0.46 * cT + 0.70 * tuck - 0.14 * air * (1 - gM) + 0.42 * gM * (1 - tuck) + (dpw > 0 ? dpw * spl(DP_H, f) : 0) + (id ? id.up : 0) + 0.24 * faF + 0.08 * faA + 0.17 * (p.reach || 0) * (1 - tuck);
@@ -181,7 +182,10 @@ const Skier = (() => {
     // skis still move it, so bumps, landings and the shovels/tails control keep working)
     const L = sec.lab;
     if (L && L.w > 0) {
-      const am = v3.lerp(J.ankleL, J.ankleR, 0.5), lp = v3.add(am, v3.mul(L.pel, LabMo.LEG));
+      // (新求解器: the body's place is counted from where the feet stand by the physics, not from feet lifted by a bump: lifted with them, the whole body
+      // rode up every bump the legs were there to take, half a metre in a mogul field)
+      const am = v3.lerp(J.ankleL, J.ankleR, 0.5); if (gd) am[1] -= (Math.max(gyL, 0) + Math.max(gyR, 0)) / 2 - (gd[4] || 0);
+      const lp = v3.add(am, v3.mul(L.pel, LabMo.LEG));
       lp[1] += -0.38 * (c - L.cref) - 0.06 * faF - 0.085 * faA + (liftL + liftR) * 0.5; lp[2] += -(p.fore || 0) * 0.06 - 0.16 * faF + 0.13 * faA;
       lp[1] += (pel[1] - lp[1]) * sat(p.drive || 0);      // (through a jump's drive the hips stand up with the game's legs, see the game's pose.drive)
       pel = v3.lerp(pel, lp, L.w); pb = LabMo.mixB(pb, L.pb, L.w);
