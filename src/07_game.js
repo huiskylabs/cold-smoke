@@ -48,13 +48,10 @@ const Input = (() => {
   Variants.def('tb', '转弯刹车', [['a', '原来'], ['b', '物理']], 'b');
   // edge bite by the snow (owner 2026-11-18, the research on 'animation commitment': the body goes over first, the skis take hold a moment
   // later, and how soon depends on the snow). a: as it was, the line turns with the body's lean. b, c: the edges (S.edge) follow the lean the way
-  // a ski's edge takes hold, the new edge running behind the body by EB_T s (b light, c heavy) from the first number on hard, icy snow to the
-  // second in deep powder; the old edge lets go twice as fast. The carve, its limit, the wash and the scrape heard read the edges; the body's
+  // a ski's edge takes hold, the new edge running behind the body by EB_T s from the first number on hard, icy snow to the second in deep
+  // powder; the old edge lets go twice as fast. (b is the one the owner played and liked, 2026-11-18; c twice its delay, to compare) The carve, its limit, the wash and the scrape heard read the edges; the body's
   // lean, which the pose reads, still leads. Read in step()
-  Variants.def('ebite', '换刃咬雪', [['a', '现在的'], ['b', '随雪况·轻'], ['c', '随雪况·重']], 'a');
-  // a jump pressed early (owner 2026-11-18, input buffering). a: as it was, a tap off the snow is lost. b: a press made in the air within
-  // JBUF_T s of touchdown is kept and fires on touching down, as strong as it was held (a tap a hop; held longer, a bigger one). Read in step()
-  Variants.def('jbuf', '跳键提前按', [['a', '现在的'], ['b', '落地就跳']], 'a');
+  Variants.def('ebite', '换刃咬雪', [['a', '原来'], ['b', '随雪况'], ['c', '两倍延迟']], 'a');
   const I = { u: 0, fa: 0, faV: 0, faT: 0, faScript: null, btn: { jump: false, tuck: false }, jump: false, tuck: false, mode: 'touch', xr: null, tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
   I.init = function (el) {
     addEventListener('keydown', e => { if (e.code !== I.mute) I.keys[e.code] = true; }); addEventListener('keyup', e => { I.keys[e.code] = false; if (e.code === I.mute) I.mute = null; });
@@ -158,11 +155,11 @@ const Game = (() => {
   const MOG_TAU = 0.1, MOG_WMAX = 3.4, MOG_MU0 = 0.25, MOG_I = 10, MOG_RK = 0.95, MOG_RD = 0.08, MOG_WIN = 0.18, MOG_P = 0.6, MOG_KR = 0.2;
   // the jump: time to wind up, how far the legs fold for it, the speed a tap and a full wind-up give, how long the drive lasts; how far a tuck sits down
   const CHG_T = 0.65, CHG_E = 0.27, POP_V0 = 1.5, POP_V1 = 3.3, POP_T = 0.14, TUCK_E = 0.07;
-  // (Variants 'ebite' b, c and 'jbuf' b, see their notes above: how far the new edge runs behind the body (s, its time constant) on hard snow
-  // and in deep powder, and how much quicker the old edge lets go; how long before touchdown a jump pressed in the air is kept for it)
-  // (measured, mountain 261111, keys flipped every 1.4 s at 75-100 km/h, the full bite (9/10) behind the body's: b 0.06 s on the steeps and the
-  // open bowl, 0.17 s in powder; c 0.11 / 0.13 / 0.33 s. The skis cross over from one edge to the other 0.03-0.07 s (b), 0.05-0.14 s (c) after the body)
-  const EB_T = { b: [0.05, 0.15], c: [0.10, 0.30] }, EB_REL = 0.5, JBUF_T = 0.2;
+  // (Variants 'ebite' b, c, see its note above: how far the new edge runs behind the body (s, its time constant) on hard snow and in deep
+  // powder, and how much quicker the old edge lets go)
+  // (measured, mountain 261111, keys flipped every 1.4 s at 75-100 km/h, the full bite (9/10) behind the body's: b 0.11 s on the steeps,
+  // 0.13 s in the open bowl, 0.33 s in powder; c 0.23 / 0.27 / 0.49 s: in powder the next turn comes before its edge has fully bitten)
+  const EB_T = { b: [0.10, 0.30], c: [0.20, 0.60] }, EB_REL = 0.5;
   // the wind-up: the body starts down at once and slows into the bottom of the crouch, where it stays while the key is held (owner 2026-11-12)
   const chgK = t => { const x = sat(t / CHG_T); return 1 - (1 - x) * (1 - x); };
   // the double-pole stroke: its length (s), the phase of the plant and of the end of the drive, what one stroke is worth from rest (m/s), the
@@ -177,7 +174,7 @@ const Game = (() => {
     charge: 0, tuckIn: 0, airK: 0, dp: 0, leg: 0,
   };
   // (the physics' own book-keeping for the moves; set whenever the skier is put somewhere)
-  const still = () => { S.charge = S.tuckIn = S.airK = S.dp = S.leg = 0; S.betaV = 0; S.bite = GRAV; S.jOn = false; S.jT = 0; S.jLock = true; S.jWas = false; S.jBuf = -1; S.jBufH = 0; S.edge = 0; S.popT = -1; S.popV = 0; S.lift = false; S.dpGo = 0; S.owe = 0; S.load = GRAV; S.airT = 0; S.landV = 0; S.off = 0; S.hdOff = 0; S.pdep = 0; S.aDrag = 0; S.wash = 0; S.mogR = 0; S.mogT = 9; S.mogF = 9; S.mogG = 0; S.mogA = 0; S.mogS = 0; S.aMog = 0; };
+  const still = () => { S.charge = S.tuckIn = S.airK = S.dp = S.leg = 0; S.betaV = 0; S.bite = GRAV; S.jOn = false; S.jT = 0; S.jLock = true; S.edge = 0; S.popT = -1; S.popV = 0; S.lift = false; S.dpGo = 0; S.owe = 0; S.load = GRAV; S.airT = 0; S.landV = 0; S.off = 0; S.hdOff = 0; S.pdep = 0; S.aDrag = 0; S.wash = 0; S.mogR = 0; S.mogT = 9; S.mogF = 9; S.mogG = 0; S.mogA = 0; S.mogS = 0; S.aMog = 0; };
   still();
   // the chase camera when the picture is wide (the way the game is meant to be held): how low the skier sits in the frame, lens, distance, height
   // (wd, wh, wf: among trees it comes that much nearer (m), lower (m) and wider (rad): see cam.wood)
@@ -275,18 +272,6 @@ const Game = (() => {
       if (sound && S.jT > 0) { S.popV = lerp(POP_V0, POP_V1, chgK(S.jT)) * (1 + 0.3 * sat((S.load / GRAV - 1.1) / 0.6)); S.popT = 0; }
       S.jOn = false; S.jT = 0;
     }
-    // (jump buffer b: a press off the snow is remembered, with how long it is held there; still remembered at touchdown and no older than
-    // JBUF_T, it fires then (a key still held at touchdown is not a tap: it winds up as on the snow); older, it is dropped, as before)
-    { const press = Input.jump && !S.jWas; S.jWas = Input.jump;
-      if (Variants.val.jbuf === 'b') {
-        if (S.jBuf >= 0) { S.jBuf += dt; if (Input.jump && !sound) S.jBufH += dt; }
-        if (press && !sound) { S.jBuf = 0; S.jBufH = dt; }
-        if (S.jBuf > JBUF_T) S.jBuf = -1;
-        else if (S.jBuf >= 0 && sound) {
-          if (!Input.jump && !S.jOn) { S.popV = lerp(POP_V0, POP_V1, chgK(S.jBufH)) * (1 + 0.3 * sat((S.load / GRAV - 1.1) / 0.6)); S.popT = 0; }
-          S.jBuf = -1;
-        }
-      } else S.jBuf = -1; }
     /*native{*/const previousCharge = S.charge;/*}native*/
     S.charge = S.jOn ? chgK(S.jT) : Math.max(0, S.charge - dt / 0.07);
     /*native{*/if (previousCharge < 1 && S.charge === 1) G.onJumpCharged?.();/*}native*/
