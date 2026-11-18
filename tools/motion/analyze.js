@@ -94,11 +94,24 @@ function context(d) {
 }
 
 // ---- A 流畅度
+const SNOW_PAD = 4, SNOW_END = 15, LEG_DOF = /^(p_)?(knee|ankle|ski|shin|thigh|hipFlex|foot)[LR]$/;
 function smooth(d, S) {
   const n = d.n, ctx = context(d), res = { dofs: {}, jolts: [] }, php = params(d);
   const events = (hp, thr) => { const ev = []; let last = -1e9; for (let i = 2; i < n - 2; i++) if (hp[i] > thr) { if (i - last > GAP * FS) ev.push({ i, m: hp[i] }); else if (hp[i] > ev[ev.length - 1].m) { ev[ev.length - 1].m = hp[i]; ev[ev.length - 1].i = i; } last = i; } return ev; };
+  // 雪面自己在动的帧（2026-11-18，用户定“只算无故的抖”）：录制里有每块板下真实雪面相对人物板面的高度（d.snw：板头、脚下、板尾）。
+  // 用量关节的同一把尺量它：雪面的俯仰过 10 Hz 高通后超过 1.5°，或脚下雪面高度超过 6 mm，就是雪面自己折弯了（跳台入口、蘑菇、台沿）。
+  // 这些帧前后 SNOW_PAD 帧里、人在雪上时，腿和板的突变记到 res.snow（跟着雪面动），不记到 res.jolts。上半身照旧。没有 d.snw 的旧录制不受影响。
+  const snowAt = new Uint8Array(n); res.snow = [];
+  if (d.snw && d.snw.length === n) for (const k of [0, 1]) {
+    const pt = d.snw.map(r => Math.atan2(r[k][2] - r[k][0], 1.5) * R2D), hm = d.snw.map(r => r[k][1] * 1000), lp = lowpass(pt), lh = lowpass(hm);
+    // （板头、板尾下的雪面各自也看：雪面在板头下一帧抬 4 厘米（27 m/s 过一道坎）时整块板的俯仰只变 1.5° 上下，刚好量不出。两端用 15 mm：
+    // 人物自己的板面晃 0.5° 在板端就是 6.5 mm，不能算成雪面在动）
+    const ef = d.snw.map(r => r[k][0] * 1000), er = d.snw.map(r => r[k][2] * 1000), lf = lowpass(ef), lr = lowpass(er);
+    for (let i = 0; i < n; i++) if (!(d.flag[i] & 1) && (Math.abs(pt[i] - lp[i]) > THR_DEG || Math.abs(hm[i] - lh[i]) > THR_MM || Math.abs(ef[i] - lf[i]) > SNOW_END || Math.abs(er[i] - lr[i]) > SNOW_END)) for (let q = Math.max(0, i - SNOW_PAD); q <= Math.min(n - 1, i + SNOW_PAD); q++) snowAt[q] = 1; }
   const put = (name, kind, hp, raw, thr, unit) => {
-    const ev = events(hp, thr); for (const e of ev) res.jolts.push({ dof: name, kind, i: e.i, t: e.i / FS, m: e.m, what: ctx.near(e.i) || ctx.state(e.i), st: ctx.state(e.i), pin: (d.flag[e.i] & 12) || (d.flag[Math.max(0, e.i - 2)] & 12) || (d.flag[Math.min(n - 1, e.i + 2)] & 12) ? 1 : 0, by: blame(php, e.i, n) });
+    const ev0 = events(hp, thr), leg = LEG_DOF.test(name), ev = leg ? ev0.filter(e => !snowAt[e.i]) : ev0;
+    if (leg) for (const e of ev0) if (snowAt[e.i]) res.snow.push({ dof: name, kind, i: e.i, t: e.i / FS, m: e.m });
+    for (const e of ev) res.jolts.push({ dof: name, kind, i: e.i, t: e.i / FS, m: e.m, what: ctx.near(e.i) || ctx.state(e.i), st: ctx.state(e.i), pin: (d.flag[e.i] & 12) || (d.flag[Math.max(0, e.i - 2)] & 12) || (d.flag[Math.min(n - 1, e.i + 2)] & 12) ? 1 : 0, by: blame(php, e.i, n) });
     res.dofs[name] = { kind, unit, perMin: ev.length / (n / FS / 60), rmsHF: rms(hp), p99: pct(hp, 0.99), max: Math.max(...hp), ...raw };
   };
   for (const k in S.deg) {

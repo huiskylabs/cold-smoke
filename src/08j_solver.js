@@ -35,8 +35,10 @@ const Solver = (() => {
       if (hold > 0) vm *= 1 - hold; const mid = (f0 + r0) / 2 + (vm - DROP * (1 - hold) * dt) * dt; let d = (r0 - f0) / 2 + vd * dt;
       // (hold: just landed and still deep in the snow, the legs are taking the landing, they are not reaching down)
       let m = 0, sz = 0, se = 0, szz = 0, sze = 0, z0 = 9, z1 = -9;
-      for (let i = 0; i < n; i++) { const z = ZS[i], wr = (z - zf) / (zr - zf); if (E[i] < f0 * (1 - wr) + r0 * wr - NEAR) continue; m++; sz += z; se += E[i]; szz += z * z; sze += z * E[i]; z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
-      if (m >= 3 && z1 - z0 >= 0.5) { const b = (m * sze - sz * se) / (m * szz - sz * sz); d += (b * HALF - d) * (1 - Math.exp(-PK * dt)); }
+      // (counted less and less from half of NEAR under the ski to one and a half times it, not in or out at a line: a sample crossing that line
+      // turned the ski 6 degrees in three frames at the foot of a kicker, 2026-11-18)
+      for (let i = 0; i < n; i++) { const z = ZS[i], wr = (z - zf) / (zr - zf), u = sat((f0 * (1 - wr) + r0 * wr - E[i] - NEAR * 0.5) / NEAR), w = 1 - u * u * (3 - 2 * u); if (!(w > 0)) continue; m += w; sz += w * z; se += w * E[i]; szz += w * z * z; sze += w * z * E[i]; z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+      const det = m * szz - sz * sz; if (m >= 2.5 && z1 - z0 >= 0.5 && det > 1e-6) { const b = (m * sze - sz * se) / det; d += (b * HALF - d) * (1 - Math.exp(-PK * dt) * 1) * sat((m - 2.5) / 2); }
       f = mid - d; r = mid + d; }
     // (in the air, with the snow coming up (near: 0 far off, 1 as it arrives): the ski turns to lie along the snow it is about to meet, so that
     // it lands flat on it. Without this it met the snow at the pose's angle and was turned by it, 3 degrees in three frames, after touching)
@@ -71,7 +73,7 @@ const Solver = (() => {
   // and in that time the figure's frame has already turned to lie along the flight and the snow read in it is far off (measured: the skis were thrown
   // 0.7 m at a lip). Off the snow the correction dies away; back on it, it comes in over a tenth of a second (until the one transition of the design
   // note is built, step 8).
-  const OUT = 12, APART = 0.08, NEAR = 0.1, SOFT = 0.12, RISE = 24, AHEADL = 0.3;
+  const OUT = 12, APART = 0.08, NEAR = 0.05, SOFT = 0.12, RISE = 24, AHEADL = 0.3;
   K.ground = (cur, root, Y, toW, sec, dt) => {
     if (Variants.val.solver !== 'b' || typeof Course === 'undefined' || (K.boardOn && K.boardOn())) { sec.gs = null; return null; }
     const q = sec.gs || (sec.gs = new Array(32).fill(null)), on = cur.onSnow == null ? (cur.air || 0) < 0.5 : cur.onSnow > 0, out = [0, 0, 0, 0, 0];

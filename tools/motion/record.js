@@ -122,7 +122,10 @@ if (require.main === module) (async () => {
             const sb = m => { const X = col(m, 0), Z = col(m, 2), P = col(m, 3); let lo = 9, line = -9;
               for (const z of [-0.75, -0.6, -0.3, 0, 0.3, 0.6, 0.75]) { let e = 9; for (const x of [-0.055, 0.055]) { const y = gh([P[0] + X[0] * x + Z[0] * z, P[1] + X[1] * x + Z[1] * z, P[2] + X[2] * x + Z[2] * z]); lo = Math.min(lo, y); e = Math.min(e, y); } line = Math.max(line, e); }
               return [r5(lo), r5(line)]; };
-            out.skb = out.skb || []; out.skb.push([sb(s.F[FB.footL]), sb(s.F[FB.footR])]); }
+            out.skb = out.skb || []; out.skb.push([sb(s.F[FB.footL]), sb(s.F[FB.footR])]);
+            // 每块板下的真实雪面相对人物自己的板面（不随新旧求解器变）：板头、脚下、板尾三处，雪面比板面高多少米。
+            // 评分器用它分清“雪面自己在折弯，腿和板跟着动”和“无缘无故的抖”（2026-11-18，用户定）
+            out.snw = out.snw || []; out.snw.push([-0.155, 0.155].map(x => [-0.75, 0, 0.75].map(z => r5(-gh([x, 0, z]))))); }
           out.gnd = out.gnd || []; out.gnd.push(Sk.sec && Sk.sec.gnd ? Sk.sec.gnd.map(r5) : null);      // 新求解器：每块板脚下雪面的 [高度, 俯仰]
           for (const e of evs0) out.ev.push([r5(t), e.type, e.id || '', r5(e.v || 0)]);
           if (i % 30 === 0) out.seg.push(C.segAt(-S.p[2]).type);
