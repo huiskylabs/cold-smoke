@@ -27,7 +27,7 @@ Peak.sets = {
 function peakP(kind) {
   if (kind !== 'd') return Peak;
   const P = Object.assign({}, Peak, Peak.sets[Variants.val.lake] || Peak.sets.b);
-  if (Variants.val.start === 'b') { P.sum = true; P.PC = [0, -3000]; P.H = Math.min(0.925 * P.HP, 8400) + 260; P.LC = [P.LC[0], P.LC[1] + 9500]; }
+  if (Variants.val.start === 'b') { P.sum = true; P.PC = [0, -3000]; P.HP = 14000; P.CAP = 11800; P.H = P.CAP + 260; P.LC = [P.LC[0], P.LC[1] + 9500]; }
   return P;
 }
 function peakBakeFS(kind) {
@@ -90,7 +90,7 @@ ${isC ? `  let ln: f32 = pN(p / 5600.0 + vec2f(2.7, 6.1));
   let gl: f32 = pRidge(qd * 4.5 + q / 11000.0 + vec2f(2.0, 9.0), n);
   pk = PHP * (0.10 * fk + 0.90 * pow(fk, 1.7)) * (1.0 + (0.16 * (gl - 0.42) + 0.20 * (rib - 0.40)) * (1.0 - fk) * (0.5 + 0.5 * smoothstep(0.0, 0.25, fk)));
   // (its rim is not level: bumps and summits round it, notches where gullies bite in, as Fuji's eight peaks)
-  let top: f32 = ${isC ? 'PHP * 0.80' : f(Math.min(0.925 * P.HP, 8400))} + PHP * (0.030 * (vnoise2(qd * 2.2 + vec2f(4.0, 1.0)) - 0.5) + 0.008 * (vnoise2(qd * 6.0 + vec2f(1.0, 6.0)) - 0.5));
+  let top: f32 = ${isC ? 'PHP * 0.80' : f(P.CAP || Math.min(0.925 * P.HP, 8400))} + PHP * (0.030 * (vnoise2(qd * 2.2 + vec2f(4.0, 1.0)) - 0.5) + 0.008 * (vnoise2(qd * 6.0 + vec2f(1.0, 6.0)) - 0.5));
   if (pk > top) { pk = top - min(0.5 * (pk - top), 220.0); }
   var h: f32 = max(own, flr + max(rng, pk));${isC ? '' : `
   // (and it lies down into the water on a low shelf of gravel and flats, a beach, a delta, not a wall)
@@ -201,12 +201,12 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   let band: f32 = smoothstep(0.50, 0.72, vnoise2(vec2f(tH / 70.0 + 3.0 * pN(p / (PK * 1500.0)), dot(p, vec2f(0.0011, 0.0007)) / PK)) * (0.55 + 0.9 * pN(p / (PK * 700.0) + vec2f(4.0, 4.0))))
     * (1.0 - smoothstep(0.66, 0.84, N.y)) * smoothstep(350.0, 900.0, tH);
   // (snow lies on all but the steepest rock, and the more the higher: the gullies and ledges hold it, the crags between stand bare)
-  let rock: f32 = 1.0 - smoothstep(0.26, 0.46, N.y + 0.16 * (dn - 0.5) + 0.14 * smoothstep(0.25, 0.75, tH / PHP));
+  let rock: f32 = 1.0 - smoothstep(${isC ? '0.26, 0.46' : '0.16, 0.34'}, N.y + 0.16 * (dn - 0.5) + 0.14 * smoothstep(0.25, 0.75, tH / PHP));
   // (the volcano: white from the crater down to a ragged line about its middle, from which tongues of snow run on down the gullies; below
   // it the dark lava stands bare between them)
   let qv: vec2f = p / PK - vec2f(${f(P.PC[0])}, ${f(P.PC[1])}); let qn: vec2f = qv / max(length(qv), 1.0);
   let tong: f32 = pRidge(qn * 11.0 + vec2f(3.0, 1.0), 3) + 0.5 * (dn - 0.5);
-  let bare: f32 = (1.0 - smoothstep(-0.05, 0.05, tH / PHP - 0.44 + 0.30 * (tong - 0.35))) * smoothstep(0.02, 0.10, tH / PHP) * step(length(qv), ${f(P.PR)});
+  let bare: f32 = (1.0 - smoothstep(-0.05, 0.05, tH / PHP - ${isC ? '0.44' : '0.26'} + 0.30 * (tong - 0.35))) * smoothstep(0.02, 0.10, tH / PHP) * step(length(qv), ${f(P.PR)});
   // (up high, dark ribs of rock stand out of the snow between the gullies, thickest about the rim: the snow is not a smooth cap)
   let tg2: f32 = pRidge(qn * 26.0 + vec2f(9.0, 4.0), 3) + 0.35 * (dn - 0.5);
   let ribs: f32 = smoothstep(0.50, 0.66, tg2) * smoothstep(0.50, 0.70, tH / PHP) * step(length(qv), ${f(P.PR)}) * ${isC ? '0.0' : '0.40'};
@@ -345,7 +345,7 @@ fn pkTerrS(p: vec2f) -> f32 {
   let q: vec2f = p - vec2f(${f(P.PC[0])}, ${f(P.PC[1])}); let rp: f32 = length(q); let pa: f32 = atan2(q.x, q.y);
   let R: f32 = ${f(P.PR)} * (1.0 + 0.20 * cos(3.0 * pa + 0.6) + 0.09 * cos(7.0 * pa + 2.0));
   let fk: f32 = saturate(1.0 - rp / R);
-  let pk: f32 = min(${f(P.HP)} * (0.10 * fk + 0.90 * pow(fk, 1.7)), ${f(isC ? 0.8 * P.HP : Math.min(0.925 * P.HP, 8400))});
+  let pk: f32 = min(${f(P.HP)} * (0.10 * fk + 0.90 * pow(fk, 1.7)), ${f(isC ? 0.8 * P.HP : (P.CAP || Math.min(0.925 * P.HP, 8400)))});
   return max(rng, pk);
 }
 // how much of the sun the land hides from the point p (bake metres) h0 m over the lake: 0 in the sun .. 1 in shadow. The march takes

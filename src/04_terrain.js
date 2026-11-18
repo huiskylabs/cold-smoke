@@ -673,6 +673,8 @@ fn frag(v: VOut) -> FOut {
   let frock: f32 = saturate(-hz4.w * 1.4);
   // (its edge is broken at the size of a stone and of a slab, and only the steep part of it is bare: the snow lies on every ledge)
   if (frock > 0.001) { tau = strataAt(wxz, wp.y + U.origin.y); rock = max(rock, smoothstep(0.42, 0.62, frock * 0.8 + (d2.z - 0.5) * 0.55 + (d1.z - 0.5) * 0.35) * smoothstep(0.76, 0.56, Nc.y + (d2.z - 0.5) * 0.18 + (d1.z - 0.5) * 0.1)); }
+  // (金色雪旗, the owner 2026-11-18: more snow on the mountain; only the steepest crags stand bare)
+  if (U.world.x > 2.5) { rock = rock * 0.45; }
   let sdir0: vec2f = normalize(L.xz + vec2f(1e-4, 0.0)); let tanE0: f32 = L.y / max(length(L.xz), 1e-3);
   let g1: vec2f = snowSlope(d1) * (0.81 * f1); let g2: vec2f = snowSlope(d2) * (0.81 * f2); let g3: vec2f = snowSlope(d3) * (0.5 * f3);
   var slope: vec2f = sm.xy + cs + g1 + g2 + g3;
@@ -973,7 +975,7 @@ fn frag(v: VOut) -> FOut {
       let st1: f32 = tex(tNoise, wxz / 70.0 + vec2f(0.61, 0.12)).z * 0.6 + tex(tNoise, wxz / 190.0 + vec2f(0.33, 0.84)).z * 0.4;
       k = k * (0.80 + 0.20 * smoothstep(0.30, 0.55, st1));
       let fcD: vec3f = vec3f(0.026, 0.050, 0.036) * (0.8 + 0.5 * cr) * (0.75 + 0.55 * st1);
-      let fcS: vec3f = mix(fcD, vec3f(0.70, 0.74, 0.80), 0.12 * smoothstep(0.60, 0.85, cr));
+      let fcS: vec3f = mix(fcD, vec3f(0.70, 0.74, 0.80), 0.34 * smoothstep(0.50, 0.85, cr));
       let fcL: vec3f = fcS * (U.sunCol.rgb * (0.55 * ndl * (0.6 + 0.8 * cr)) + amb * 0.55);
       col = mix(col, fcL, saturate(k * carpet));
     } else {
