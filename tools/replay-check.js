@@ -44,7 +44,7 @@ fs.mkdirSync(out, { recursive: true });
     console.log('  riding', JSON.stringify(await pg.evaluate(() => ({ runT: +__ski.game().runT.toFixed(1), s: Math.round(-__ski.game().s.p[2]), passed: __rings.passed, missed: __rings.missed, frames: Replay.state().frames }))), ((Date.now() - t0) / 1000).toFixed(0) + ' s');
   }
   console.log('finished', ok, 'in', ((Date.now() - t0) / 1000).toFixed(0), 's real', JSON.stringify(await pg.evaluate(() => ({ st: __rings.line.st, passed: __rings.passed, missed: __rings.missed, runT: __ski.game().runT }))));
-  await pg.evaluate(async () => { const G = __ski.game(); for (let i = 0; i < 60 * 8 && !(Replay.state().sealed && G.mode === 'park'); i++) { Input.script = null; __ski.frame(1 / 60); if (i % 30 === 29) await new Promise(r => setTimeout(r, 0)); } });
+  await pg.evaluate(async () => { const G = __ski.game(); for (let i = 0; i < 60 * 8 && !(Replay.state().sealed && G.mode === 'park'); i++) { __ski.frame(1 / 60); if (i % 30 === 29) await new Promise(r => setTimeout(r, 0)); } });
   const st = await pg.evaluate(() => ({ s: Replay.state(), mode: __ski.game().mode, card: !!document.querySelector('#rline .card.on'), btn: !!document.querySelector('#rline [data-cb]') }));
   console.log('after finish', JSON.stringify(st));
   await shot('成绩卡_回放按钮');
