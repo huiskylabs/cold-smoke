@@ -248,7 +248,7 @@ const CardArt = self.CardArt = (() => {
     const jOf = d => (N - 1) * Math.pow(Math.max(0, Math.min(1, (d + 50) / 520)), 1 / 1.6);
     const atD = (d, l) => { const f = jOf(d), j = Math.min(N - 2, Math.floor(f)), k = f - j, a = hAt(G.rows[j], l), b = hAt(G.rows[j + 1], l); if (!a || !b) return null; const mm = W * 0.53 / (G.rows[j].half + (G.rows[j + 1].half - G.rows[j].half) * k); return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, mm]; };
     const treeNear = (d, l) => { const r = G.rows[Math.round(jOf(d))]; let best = null, bd = 1e9; for (let i = 0; i < M; i++) if (r.tr[i]) { const li = (i - (M - 1) / 2) / ((M - 1) / 2) * r.half; if (Math.abs(li - l) < bd) { bd = Math.abs(li - l); best = li; } } return best; };
-    const out = { T, u, run, spot: spotXY, atD, treeNear, rnd, m, s: s0, u0, G };
+    const out = { T, u, run, spot: spotXY, atD, treeNear, rnd, m, s: s0, u0, G, W, PH };
     if (o.ground && v.owned && st >= 5) o.ground(ctx, out);
     if (v.owned && v.wx && v.wx !== 'clear' && st >= 5) snowfall(ctx, W, PH, v.wx, rnd, u);
     if (v.owned && st >= 6) paper(ctx, W, PH, m.k, u);
@@ -354,37 +354,63 @@ const CardArt = self.CardArt = (() => {
   } };
   FX.storm = { front: (ctx, S, W, PH) => { const u = S.u, f = A.glyphs.flake; ctx.strokeStyle = css(SNOW, 0.9); ctx.lineCap = 'round'; for (const [x, y, s, w] of [[0.2, 0.3, 16, 1.4], [0.78, 0.2, 11, 1.1], [0.62, 0.62, 22, 1.7], [0.12, 0.72, 9, 1]]) { ctx.save(); ctx.translate(W * x, PH * y); ctx.lineWidth = w * u; f(ctx, s * u); ctx.restore(); } } };
   // tracks in the snow, from the near snow into the trees: how far apart, how many walked it, what each print is
-  const TRAIL = { fox: { gap: 0.8, files: 1 }, hare: { gap: 2.0, files: 1 }, deer: { gap: 0.75, files: 3 }, ibex: { gap: 0.7, files: 2 } };
+  // tracks in the snow, the card's subject. Real trails in snow (reference photos, ski/cards/mock/v4/ref_tracks) read because the nearest
+  // prints are big, close to the viewer, and the line shrinks away into the distance: so a trail starts right at the foot of the picture,
+  // its prints drawn far larger than the wide view's scale near the bottom, and falls to true scale as it goes. Each animal keeps its own
+  // gait: fox one neat line; hare in groups of four, two long hind feet side by side ahead of two small fore feet one behind the other;
+  // deer heart-shaped cleaves, a herd in several lines; ibex split hooves in pairs, climbing.
+  const TRAIL = { fox: { gap: 0.8, files: 1, w: 0.07, h: 0.09 }, hare: { gap: 1.8, files: 1 }, deer: { gap: 0.8, files: 3, w: 0.07, h: 0.11 }, ibex: { gap: 0.75, files: 2, w: 0.07, h: 0.09 } };
+  const LMAX = { fox: 11, hare: 22, deer: 13, ibex: 12 };      // the nearest print's length on the card, in card units
   function prints(ctx, S, kind, d0, d1, l0, l1, wob) {
-    const T = S.T, rnd = S.rnd, u = S.u, Tr = TRAIL[kind] || TRAIL.fox;   // drawn larger than life, so the trail reads
-    // a print in the snow: its lit lower lip, then the shadow in the hollow, so it reads on lit snow and on shade alike
-    const lip = css(mix(T.rim, SNOW, 0.85), 1), hol = css(mix(T.near, INK, 0.6), 0.95);     // the lip stays near-white even at night, so a trail reads on blue shade
-    const dot = (x, y, rx, ry) => { rx = Math.max(0.35 * u, rx); ry = Math.max(0.25 * u, ry); ctx.fillStyle = lip; ctx.beginPath(); ctx.ellipse(x, y + ry * 0.3, rx * 1.35, ry * 1.3, 0, 0, 7); ctx.fill(); ctx.fillStyle = hol; ctx.beginPath(); ctx.ellipse(x, y - ry * 0.15, rx * 0.7, ry * 0.65, 0, 0, 7); ctx.fill(); };
+    const T = S.T, rnd = S.rnd, u = S.u, Tr = TRAIL[kind] || TRAIL.fox;
+    // a print, as the photos show it: a hole of blue shade a little darker than the snow round it, its far wall catching the light as a thin
+    // crescent, its near wall in deeper shade. No white ring all round (that reads as an eye, not a hole)
+    const hol = css(mix(mix(T.near, [70, 100, 170], 0.3), INK, 0.25), 0.8), deep = css(mix(T.near, INK, 0.7), 0.9), lit = css(mix(T.rim, SNOW, 0.7), 0.75);
+    const dot = (x, y, rx, ry, ang) => { rx = Math.max(0.4 * u, rx); ry = Math.max(0.3 * u, ry); ang = ang || 0;
+      ctx.fillStyle = hol; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, ang, 0, 7); ctx.fill();
+      if (rx > 0.9 * u) { ctx.fillStyle = deep; ctx.beginPath(); ctx.ellipse(x, y + ry * 0.2, rx * 0.85, ry * 0.72, ang, 0, Math.PI); ctx.fill();     // the near wall, toward the viewer, in shade
+        ctx.strokeStyle = lit; ctx.lineWidth = Math.max(0.3 * u, rx * 0.16); ctx.beginPath(); ctx.ellipse(x, y + ry * 0.12, rx * 0.86, ry * 0.86, ang, Math.PI + 0.35, -0.35); ctx.stroke(); } };   // the far wall, facing the viewer, lit
+    const hoof = (x, y, w, h, ang) => { dot(x - w * 0.28, y, w * 0.24, h * 0.5, ang - 0.12); dot(x + w * 0.28, y, w * 0.24, h * 0.5, ang + 0.12); };
     for (let f = 0; f < Tr.files; f++) {
-      const off = (f - (Tr.files - 1) / 2) * 2.4, ph = rnd() * 6; let d = d0, side = 1;
+      const off = (f - (Tr.files - 1) / 2) * (kind === 'deer' ? 3 + 3 * rnd() : 2.4) + (kind === 'deer' ? (rnd() - 0.5) * 4 : 0), ph = rnd() * 6, wf = kind === 'deer' ? 1.6 + rnd() : 1; let d = d0 + rnd() * 2, side = 1, last = null, yEnd = null;
+      // walk the line in small steps and put the next print down only once it is clear of the last one on screen, so the near prints,
+      // drawn big, stand apart in a row instead of running together
       while (d < d1) {
-        const t = (d - d0) / (d1 - d0), l = l0 + (l1 - l0) * t * t + Math.sin(t * 7 + ph) * wob * (1 - t) + off * (1 - 0.7 * t), p = S.atD(d, l);
-        if (p) {
-          const [x, y] = p, mm = p[2] * 6, q = 0.45;            // q: the snow seen from above at a slant, prints squashed
-          if (kind === 'hare') { dot(x - 0.06 * mm, y, 0.035 * mm, 0.07 * mm * q); dot(x + 0.06 * mm, y, 0.035 * mm, 0.07 * mm * q); dot(x + 0.01 * mm, y + 0.16 * mm * q, 0.025 * mm, 0.03 * mm * q); dot(x - 0.02 * mm, y + 0.26 * mm * q, 0.025 * mm, 0.03 * mm * q); }
-          else if (kind === 'deer' || kind === 'ibex') { const sx = x + side * 0.1 * mm; dot(sx - 0.025 * mm, y, 0.022 * mm, 0.05 * mm * q); dot(sx + 0.025 * mm, y, 0.022 * mm, 0.05 * mm * q); }
-          else dot(x + side * 0.05 * mm, y, 0.05 * mm, 0.06 * mm * q);
-          if (p[2] < 0.45 * u) break;
-        }
-        d += Tr.gap * 2.2 * (1 + d / 90); side = -side;
+        const t = (d - d0) / (d1 - d0), l = l0 + (l1 - l0) * t * t + Math.sin(t * 7 * wf + ph) * wob * wf * (1 - t) + off * (1 - 0.5 * t), p = S.atD(d, l);
+        d += 0.25 * (1 + Math.max(0, d) / 40);
+        if (!p) continue;
+        if (p[1] > S.PH * 0.94) continue;
+        if (yEnd == null) { const pe = S.atD(d1, l1); yEnd = pe ? pe[1] : S.PH * 0.4; }
+        // how big a print is drawn: by how far down the picture it lies, big at the foot, true scale (or a speck) by the time the line ends
+        const [x, y] = p, k5 = Math.max(0, Math.min(1, (y - yEnd) / (S.PH * 0.94 - yEnd))), want = LMAX[kind] * u * Math.pow(k5, 1.5), q = 0.5, mm = Math.max(p[2] * 4, want / ((kind === 'hare' ? 0.45 : Tr.h) * q));
+        const len = (kind === 'hare' ? 0.45 : Tr.h * 1.0) * mm * q + (kind === 'hare' ? 0 : 0.6 * u), gap = kind === 'hare' ? 2.3 * len : 2.6 * len + 1.2 * u;
+        if (last && Math.hypot(x - last[0], y - last[1]) < gap) continue;
+        const ang = last ? Math.max(-0.6, Math.min(0.6, Math.atan2(x - last[0], -(y - last[1])) * -0.6)) : 0; last = [x, y];
+        if (kind === 'hare') { const hw = 0.045 * mm, hh = 0.11 * mm * q; dot(x - 0.07 * mm, y, hw, hh, ang); dot(x + 0.07 * mm, y, hw, hh, ang); dot(x + 0.01 * mm, y + 0.2 * mm * q, 0.03 * mm, 0.04 * mm * q, ang); dot(x - 0.015 * mm, y + 0.32 * mm * q, 0.03 * mm, 0.04 * mm * q, ang); }
+        else if (kind === 'deer' || kind === 'ibex') dot(x + side * 0.05 * mm, y, Tr.w * 0.42 * mm, Tr.h * 0.62 * mm * q, ang);
+        else dot(x + side * 0.02 * mm, y, Tr.w * 0.5 * mm, Tr.h * 0.5 * mm * q, ang);
+        if (k5 <= 0) break;
+        side = -side;
       }
     }
   }
-  const trailOf = (S, kind, dMin, dMax) => { const r = S.rnd, l0 = (r() - 0.5) * 14, d1 = dMin + (dMax - dMin) * r(), lt = S.treeNear(d1, l0 + (r() - 0.5) * 50), l1 = lt == null ? l0 + 18 : lt; prints(S.ctx, S, kind, -42, d1, l0, l1, 3 + 6 * r()); return [d1, l1]; };
+  const trailOf = (S, kind, dMin, dMax) => { const r = S.rnd, l0 = (r() - 0.5) * 10, d1 = dMin + (dMax - dMin) * r(), lt = S.treeNear(d1, l0 + (r() - 0.5) * 50), l1 = lt == null ? l0 + 18 : lt; prints(S.ctx, S, kind, -48, d1, l0, l1, 2 + 4 * r()); return [d1, l1]; };
   FX.tracks = { ground: (ctx, S) => { S.ctx = ctx; trailOf(S, S.trail || 'fox', 80, 200); } };
   FX.den = { ground: (ctx, S) => {          // a fox's tracks that end at a hole under the trees
     S.ctx = ctx; const [d1, l1] = trailOf(S, 'fox', 60, 120), p = S.atD(d1 + 2, l1); if (!p) return;
     const [x, y, mm] = p, u = S.u; ctx.fillStyle = css(INK, 0.9); ctx.beginPath(); ctx.ellipse(x, y, Math.max(2.5 * u, 0.45 * mm), Math.max(1.6 * u, 0.3 * mm), 0, Math.PI, 0); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = css(S.T.rim, 0.7); ctx.lineWidth = 0.8 * u; ctx.beginPath(); ctx.ellipse(x, y, Math.max(3.4 * u, 0.6 * mm), Math.max(2.2 * u, 0.4 * mm), 0, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
   } };
-  FX.soar = { sky: (ctx, W, PH, T, u, seed) => {     // a bird far up, only two strokes
-    ctx.strokeStyle = css(mix(T.near, INK, 0.4), 0.85); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    for (const [x, y, s] of [[0.36 + seed * 0.04, 0.2, 1], [0.62 - seed * 0.02, 0.27, 0.6]]) { const cx = W * x, cy = PH * y, w = 9 * u * s; ctx.lineWidth = 1.1 * u * s; ctx.beginPath(); ctx.moveTo(cx - w, cy - w * 0.25); ctx.quadraticCurveTo(cx - w * 0.4, cy - w * 0.45, cx, cy); ctx.quadraticCurveTo(cx + w * 0.4, cy - w * 0.45, cx + w, cy - w * 0.25); ctx.stroke(); }
+  FX.soar = { ground: (ctx, S, W2) => {         // the eagle is not drawn; its shadow is, big and soft on the snow as it passes over
+    const u = S.u, r = S.rnd, d = 25 + 30 * r(), l = (r() - 0.5) * 20, p = S.atD(d, l); if (!p) return;
+    const [x, y, mm] = p, span = W2 * (0.32 + 0.12 * r()), a = -0.25 + 0.5 * r(), w = span / 2;
+    const wing = (sx) => { ctx.moveTo(0, -w * 0.12); ctx.quadraticCurveTo(sx * w * 0.35, -w * 0.3, sx * w * 0.8, -w * 0.2);
+      for (let k = 0; k < 5; k++) { const fx = sx * w * (0.8 + 0.05 * k), fy = -w * 0.2 + k * w * 0.07; ctx.lineTo(sx * (w * 0.97 + k * 0.01 * w), fy + w * 0.02); ctx.lineTo(fx, fy + w * 0.06); }
+      ctx.quadraticCurveTo(sx * w * 0.45, w * 0.16, sx * w * 0.1, w * 0.16); ctx.lineTo(0, w * 0.16); ctx.closePath(); };
+    ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.scale(1, 0.75);
+    for (const [g, al] of [[1.04, 0.35], [1, 1]]) { ctx.save(); ctx.scale(g, g); ctx.fillStyle = css(mix(S.T.near, INK, 0.55), 0.5 * al); ctx.beginPath(); wing(1); wing(-1);
+      ctx.moveTo(-w * 0.08, -w * 0.22); ctx.quadraticCurveTo(0, -w * 0.32, w * 0.08, -w * 0.22); ctx.lineTo(w * 0.07, w * 0.18); ctx.lineTo(w * 0.16, w * 0.4); ctx.quadraticCurveTo(0, w * 0.46, -w * 0.16, w * 0.4); ctx.lineTo(-w * 0.07, w * 0.18); ctx.closePath(); ctx.fill(); ctx.restore(); }
+    ctx.restore();
   } };
   FX.arc = { ground: (ctx, S) => {          // a kicker on the run and the flight off it, a gold dashed arc
     const u = S.u, q = S.run.find(p => p.d >= 45) || S.run[0]; if (!q) return; const l = q.l, a = S.atD(40, l), lip = S.atD(48, l), b = S.atD(110, l + 4); if (!a || !lip || !b) return;
