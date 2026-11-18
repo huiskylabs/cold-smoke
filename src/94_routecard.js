@@ -264,7 +264,7 @@ const RouteCard = self.RouteCard = (() => {
   // Beck's Tube map (stations as numbered marks with the name beside, every stop the same mark). Paper, ink, and one strong red for the line.
   function drawD(g, W, H, d, st) {
     const u = W / 1600, T = d.track, n = T.length, sA = T[0][1], sB = st.sMax;
-    const PAPER = '#f1ede4', INK = '#1d2a34', GREY = '#7c8791', RED = '#df4a2f', FOREST = [66, 106, 98], SNOWW = [251, 251, 249], LOW = [205, 221, 231], SHADE = [0.80, 0.80, 0.93], SUNW = [1.0, 0.985, 0.95];
+    const PAPER = '#f1ede4', INK = '#1d2a34', GREY = '#7c8791', RED = '#df4a2f', FOREST = [104, 138, 124], FORESTD = [78, 110, 100], SNOWW = [252, 252, 250], LOW = [221, 230, 236], SHADE = [0.90, 0.91, 0.975], SHADE2 = [0.80, 0.82, 0.93], SUNW = [1.0, 0.988, 0.955];
     g.fillStyle = PAPER; g.fillRect(0, 0, W, H);
     // the strips: as many as keep each about 1.5 km, laid right of the panel
     const N = cl(Math.round((sB - sA) / 1450), 2, 6), cX0 = 452 * u, cX1 = W - 56 * u, gap = 30 * u, cY0 = 92 * u, cY1 = H - 62 * u;
@@ -285,17 +285,17 @@ const RouteCard = self.RouteCard = (() => {
       const R = 2, sw = Math.ceil(cw / R), sh = Math.ceil(ch / R), img = g.createImageData(sw, sh), D = img.data, Hh = new Float32Array(sw * sh);
       const XY = (i, j) => { const s = C.s0 + (j * R) / k; return [C.xc(s) + (i * R - cw / 2) / k, s]; };
       for (let j = 0; j < sh; j++) for (let i = 0; i < sw; i++) { const [x, s] = XY(i, j); let h = 0, q = 0; for (const [ox, os] of [[0, 0], [9, 0], [-9, 0], [0, 9], [0, -9]]) { const v = d.H(x + ox, s + os); if (v != null) { h += v; q++; } } Hh[j * sw + i] = q ? h / q : NaN; }
-      const e = R / k;
+      const e = R / k; let mhs = 0, mq = 0; for (let j = 1; j < sh - 1; j += 3) for (let i = 0; i < sw; i += 3) { const a = Hh[(j + 1) * sw + i], b = Hh[(j - 1) * sw + i]; if (a === a && b === b) { mhs += (a - b) / (2 * e); mq++; } } mhs /= Math.max(1, mq);
       for (let j = 0; j < sh; j++) for (let i = 0; i < sw; i++) {
         const o = (j * sw + i) * 4, h = Hh[j * sw + i]; if (h !== h) { D[o] = 241; D[o + 1] = 237; D[o + 2] = 228; D[o + 3] = 255; continue; }
         const hx = (Hh[j * sw + Math.min(sw - 1, i + 1)] - Hh[j * sw + Math.max(0, i - 1)]) / (2 * e), hs = (Hh[Math.min(sh - 1, j + 1) * sw + i] - Hh[Math.max(0, j - 1) * sw + i]) / (2 * e);
-        const nl = Math.hypot(hx, hs, 1), lit = (-hx * 0.62 + -hs * -0.35 + 0.7) / nl;
+        const hd = hs - mhs, nl = Math.hypot(hx, hd, 1), lit = (-hx * 0.66 + hd * 0.3 + 0.72) / nl;          // (the fall of the whole run taken out: the slopes across it, lit or in shade)
         const band = Math.floor((h - hmin) / BAND), top = cl(band * BAND / (hmax - hmin), 0, 1);
         let c = lerpC(LOW, SNOWW, Math.pow(top, 0.7));
-        const tone = lit < 0.62 ? SHADE : lit > 0.82 ? SUNW : [1, 1, 1];
+        const tone = lit < 0.42 ? SHADE2 : lit < 0.6 ? SHADE : lit > 0.8 ? SUNW : [1, 1, 1];
         c = [c[0] * tone[0], c[1] * tone[1], c[2] * tone[2]];
         const [x, s] = XY(i, j), tr = d.T ? d.T(x, s) : 0;
-        if (tr > 0.5) c = lerpC(FOREST, [44, 78, 74], lit < 0.62 ? 0.6 : 0);
+        if (tr > 0.56) c = lit < 0.6 ? FORESTD : FOREST;
         D[o] = c[0]; D[o + 1] = c[1]; D[o + 2] = c[2]; D[o + 3] = 255;
       }
       const cv = mk(sw, sh); cv.getContext('2d').putImageData(img, 0, 0);
@@ -311,10 +311,10 @@ const RouteCard = self.RouteCard = (() => {
           const ed = (va, vb, pa, pb) => { const t = (lv - va) / (vb - va); E.push([mix(pa[0], pb[0], t), mix(pa[1], pb[1], t)]); };
           const P0 = P(i, j), P1 = P(i + 1, j), P2 = P(i + 1, j + 1), P3 = P(i, j + 1);
           if ((a > lv) !== (b > lv)) ed(a, b, P0, P1); if ((b > lv) !== (c > lv)) ed(b, c, P1, P2); if ((c > lv) !== (dd > lv)) ed(c, dd, P2, P3); if ((dd > lv) !== (a > lv)) ed(dd, a, P3, P0);
-          const gxv = (b + c - a - dd) / 2, gyv = (dd + c - a - b) / 2, gl = Math.hypot(gxv, gyv) || 1, li = (-gxv * 0.62 + gyv * 0.35) / gl;
+          const gxv = (b + c - a - dd) / 2, gyv = (dd + c - a - b) / 2 - mhs * step * e, gl = Math.hypot(gxv, gyv) || 1, li = (-gxv * 0.62 + gyv * 0.35) / gl;
           for (let q = 0; q + 1 < E.length; q += 2) (li > 0 ? lit : dark).push(E[q], E[q + 1]);
         }
-        for (const [L2, col] of [[lit, 'rgba(255,255,255,.95)'], [dark, major ? 'rgba(52,70,98,.55)' : 'rgba(60,80,108,.34)']]) {
+        for (const [L2, col] of [[lit, 'rgba(255,255,255,.8)'], [dark, major ? 'rgba(52,70,98,.5)' : 'rgba(60,80,108,.3)']]) {
           if (!L2.length) continue; g.beginPath(); for (let q = 0; q < L2.length; q += 2) { g.moveTo(L2[q][0], L2[q][1]); g.lineTo(L2[q + 1][0], L2[q + 1][1]); }
           g.strokeStyle = col; g.lineWidth = (major ? 1.5 : 0.85) * u; g.stroke(); }
       }
