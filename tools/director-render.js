@@ -7,7 +7,7 @@
 const { chromium } = require('playwright'), fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 const [outDir, W = '1280', H = '720', FPS = '30', which = 'all', scriptFile] = process.argv.slice(2);
 (async () => {
-  const gpuArgs = process.env.REALGPU ? ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--ignore-gpu-blocklist'] : ['--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader', '--enable-features=Vulkan', '--use-angle=swiftshader'];
+  const gpuArgs = process.env.REALGPU ? ['--enable-unsafe-webgpu', '--enable-gpu', '--ignore-gpu-blocklist'].concat(process.platform === 'darwin' ? ['--use-angle=metal'] : ['--enable-features=Vulkan']) : ['--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader', '--enable-features=Vulkan', '--use-angle=swiftshader'];
   const browser = await chromium.launch({ headless: !process.env.HEADED, executablePath: process.env.CHROME || undefined, args: gpuArgs.concat(['--no-sandbox', '--autoplay-policy=no-user-gesture-required']) });
   const page = await browser.newPage({ viewport: { width: +W, height: +H }, deviceScaleFactor: 1 });
   page.on('pageerror', e => console.log('pageerror:', e.message));
