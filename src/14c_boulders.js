@@ -54,14 +54,15 @@ const Boulders = (() => {
     for (let i = 0; i <= NR; i++) for (let j = 0; j < NA; j++) {
       const k = i * NA + j, q = QS[i], x = P[k * 3] + ns, y = P[k * 3 + 1], z = P[k * 3 + 2], ny = Hn[k * 3 + 1];
       const n1 = vnoise3(x * 1.3, y * 1.3, z * 1.3, 5), n2 = vnoise3(x * 3.1, y * 3.1, z * 3.1, 6), n3 = vnoise3(x * 8, y * 8, z * 8, 7);
-      const lo = 0.93 - 0.2 * amt;                                                   // (how steep a face still holds snow)
-      let sn = smooth(lo - 0.035, lo + 0.035, ny + 0.06 * n1 + 0.03 * n2);
+      // (how steep a face still holds snow: round 4, only the level top and the uphill side, where the wind banks it, keep it)
+      const lo = 0.965 - 0.07 * amt, th = j / NA * TAU, up = Math.sin(th) < 0 ? smooth(0.2, 0.8, -Math.sin(th)) * smooth(0.3, 0.7, q) : 0;
+      let sn = smooth(lo - 0.02, lo + 0.02, ny + 0.035 * n1 + 0.02 * n2 + 0.05 * up);
       sn *= smooth(1.02, 0.9, q);                                                     // (past the rim it is the ground's own snow)
       const rim = smooth(0.88, 1.03, q);                                              // (the shell tucks under the snow at its foot)
       // the stone: blocky at the size of its joints (a quantised noise reads as faces), pitted finer; cracks are thin dark grooves
       const blk = Math.round(n1 * 3) / 3 * 0.6 + n1 * 0.4;
       const crack = smooth(0.9, 0.98, 1 - Math.abs(vnoise3(x * 2.2, y * 2.2, z * 2.2, 9)));
-      const rd = (0.07 * blk + 0.035 * n2 + 0.012 * n3 - 0.035 * crack) * Math.min(1, f.h) * (1 - sn) * (1 - rim);
+      const rd = (0.10 * blk + 0.04 * n2 + 0.012 * n3 - 0.035 * crack) * Math.min(1, f.h) * (1 - sn) * (1 - rim);
       // the cap: a pillow, thickest where the face is level, rounded off at its edge
       const cd = cap * sn * (0.6 + 0.4 * smooth(0.9, 1, ny)) * (0.8 + 0.3 * n2) * (1 - rim);
       const lift = 0.025 + cd - 0.09 * rim;
@@ -138,8 +139,8 @@ fn frag(v: VOut) -> FOut {
   let sn: f32 = smoothstep(0.42, 0.58, v.pm.x + (d1.z - 0.5) * 0.12);
   // --- the stone: dark weathered granite (photographs of boulders in snow: about 0.10-0.25 against snow's 0.9), mottled, a little warmer
   // or colder from one stone to the next, darker in its cracks, a faint green-grey of lichen on its shoulders
-  var alb: vec3f = mix(vec3f(0.11, 0.108, 0.115), vec3f(0.26, 0.24, 0.215), saturate(v.pm.z * 1.1 + (d2.z - 0.5) * 1.0 - 0.2));
-  alb *= 0.78 + 0.44 * d1.x;
+  var alb: vec3f = mix(vec3f(0.15, 0.145, 0.15), vec3f(0.34, 0.315, 0.28), saturate(v.pm.z * 1.1 + (d2.z - 0.5) * 1.0 - 0.2));
+  alb *= 0.62 + 0.76 * d1.x * d1.x + 0.2 * (d1.y - 0.5);
   alb = mix(alb, vec3f(0.19, 0.20, 0.165), smoothstep(0.62, 0.8, d2.x) * smoothstep(0.3, 0.7, N.y) * 0.6);
   // (dark streaks down the faces where meltwater runs off the cap, and the stone just under the cap wet and dark)
   let stk: f32 = tex(tDetail, vec2f((wxz.x + wxz.y) * 0.9, v.wp.y * 0.08)).z;
@@ -148,7 +149,7 @@ fn frag(v: VOut) -> FOut {
   alb *= 0.45 + 0.55 * ao;
   let Nr: vec3f = normalize(N + (vec3f(d1.x, d1.y, d1.w) - vec3f(0.5)) * 0.3);
   let ndl: f32 = dot(Nr, L);
-  let amb: vec3f = U.ambSky.rgb * (0.55 + 0.45 * Nr.y) + U.ambGnd.rgb * (0.5 - 0.5 * Nr.y) * 1.6 + twiLight(Nr);
+  let amb: vec3f = U.ambSky.rgb * (0.8 + 0.4 * Nr.y) + U.ambGnd.rgb * (0.5 - 0.5 * Nr.y) * 1.6 + twiLight(Nr);
   let Hh: vec3f = normalize(V + L);
   var rock: vec3f = alb * (U.sunCol.rgb * (saturate(ndl) * sh) + amb * (0.35 + 0.65 * ao));
   rock += U.sunCol.rgb * (sh * 0.04 * pow(max(dot(Nr, Hh), 0.0), 24.0) * saturate(ndl * 4.0));
