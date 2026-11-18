@@ -1060,6 +1060,7 @@ fn frag(v: VOut) -> FOut {
     var rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
     ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.06, 0.97, 0.92), 0.20); }' : ''}
     col = mix(col, rc, rock * (1.0 - 0.9 * lip));
+    ${typeof location !== 'undefined' && /dbgl/.test(location.search) ? 'col = vec3f(rock, lip, saturate(dist / 4000.0)) * 0.6;' : ''}      // (test renders: R bare rock, G snow on it, B distance)
   }
   // distant forest reads as a dark speckled carpet with long shadows
   // (金色雪旗 above the trees, round 3: the course's stands are drawn as real trees out to ~1.2 km; the carpet laid on top of them read as
