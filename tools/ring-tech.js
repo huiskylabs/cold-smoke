@@ -46,11 +46,18 @@ const lines = (process.argv[4] || 'a,x').split(','), diffs = (process.argv[5] ||
           mog.push({ s: Math.round(q.s), ty, u: +q.u.toFixed(1), chan: ch === null ? null : +ch.toFixed(1), gapNext: nx ? Math.round(nx.s - q.s) : null, trough: +(hb - hh).toFixed(2), r: q.r });
         }
       });
+      // where each ring stands (越野线 is meant to be off the run, in the places the run does not go)
+      const where = {}, side = []; for (const q of rings) { const c = C.at(q.s), u = q.x - c.cx, e = Math.abs(u) - c.hw; let w;
+        const lane = (C.waysK ? C.waysK(q.s) : []).find(l => Math.abs(u - l.u) < l.w * 1.3);
+        let drop = false; for (let bb = Math.floor((q.s - 40) / 32); bb <= Math.floor((q.s + 40) / 32); bb++) for (const f of C.feats.get(bb) || []) if (f.kind === 'drop' && q.s - f.lip > -12 && q.s - f.lip < 24 && Math.abs(u - f.u) < f.wid * 0.6) drop = true;
+        if (q.fin) w = '终点'; else if (q.air) w = '跳台空中'; else if (drop) w = '跳崖'; else if (lane) w = lane.kind === 'gully' ? '林间雪槽' : '林间小道';
+        else if (c.gul > 0.6 && e < 18) w = '主道雪槽'; else if (c.mog > 0.5 && e < 2) w = '主道蘑菇'; else if (e < 0) w = '主道'; else w = '道外树林/野雪';
+        where[w] = (where[w] || 0) + 1; side.push(q.fin ? '' : e < 0 ? '|' : u < 0 ? 'L' : 'R'); }
       const n = rings.length, gs = C.segs.filter(g => g.s0 < (L.sEnd || 1e9)).map(g => g.type + '@' + Math.round(g.s0));
-      return { n, segs: gs, gully, mog };
+      return { n, segs: gs, gully, mog, where, side: side.join('').replace(/(.)\1+/g, '$1') };
     });
     const r = res[line + d], g = r.gully, m = r.mog;
-    console.log(line + d, 'rings', r.n, '| gully', g.length, 'onBank', g.filter(q => q.onBank).length, 'up', g.map(q => q.up).join(','), '| moguls', m.length, 'gaps', m.map(q => q.gapNext).join(','), 'trough', m.map(q => q.trough).join(','));
+    console.log(line + d, 'rings', r.n, '| gully', g.length, 'onBank', g.filter(q => q.onBank).length, 'up', g.map(q => q.up).join(','), '| moguls', m.length, 'gaps', m.map(q => q.gapNext).join(','), 'trough', m.map(q => q.trough).join(','), '\n   where', JSON.stringify(r.where), 'sides', r.side);
   }
   fs.writeFileSync(out, JSON.stringify(res, null, 1)); console.log('errors:', errs.length ? errs.join(' | ') : 'none');
   await b.close();

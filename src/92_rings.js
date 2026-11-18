@@ -372,22 +372,27 @@ const Rings = (() => {
     const sE = lineEnd(), df = L.diff || 'b';
     if (L.xp && L.xp.sE === sE && L.xp.df === df) return L.xp;
     const t0 = Date.now(), TC = 4.5, NU = 181, U0 = -90, n = Math.floor(sE / 4) + 1, o = {};
-    const rows = [], cost = new Float32Array(n * NU), lanes = [];
+    const rows = [], cost = new Float32Array(n * NU), lanes = [], lk = [], dr = [];
     for (let k = 0; k < n; k++) {
       const s = k * 4, c = Course.at(s, pc), cx = c.cx, hw = c.hw || 14, j0 = Math.floor(-s / TC), tr = [];
       for (let j = j0 - 2; j <= j0 + 2; j++) for (let i = Math.floor((cx + U0 - 8) / TC); i <= Math.floor((cx - U0 + 8) / TC); i++) { Course.treeInCell(i, j, o); if (o.ok) tr.push([o.x, -o.z, o.r]); }
       rows.push({ s, cx, hw, tr }); const ln = Course.ways(s).slice(1); lanes.push(ln);
+      lk.push(Course.waysK ? Course.waysK(s) : []); const fd = []; for (let bb = Math.floor((s - 60) / 32); bb <= Math.floor((s + 40) / 32); bb++) for (const f of Course.feats.get(bb) || []) if (f.kind === 'drop' && f.lip - s > -18 && f.lip - s < 34 && !fd.includes(f)) fd.push(f); dr.push(fd);
       const dist = new Float32Array(NU).fill(1e9);
       for (const t of tr) { const ds = t[1] - s; if (Math.abs(ds) > 8) continue; for (let ui = Math.max(0, Math.floor(t[0] - cx - U0 - 8)); ui < NU && ui + U0 + cx < t[0] + 8; ui++) { const d = Math.hypot(ui + U0 + cx - t[0], ds) - t[2]; if (d < dist[ui]) dist[ui] = d; } }
       for (let ui = 0; ui < NU; ui++) {
         const u = ui + U0, e = Math.abs(u) - hw, d = dist[ui]; let onl = false; for (const lu of ln) if (Math.abs(u - lu) < 5) onl = true;
         let q = (d < 1.6 ? 1e6 : 0) + (d < 3.5 ? (3.5 - d) * 6 : 0);
-        if (e < -2) q += 3; if (e > 40 && !onl) q += (e - 40) * (e - 40) * 0.5 + 20; if (onl && e > 0) q -= 4; if (e > 6 && e < 40) q -= 2.5; if (e >= -2 && e <= 6) q += 1;
+        if (e < -2) q += 4.5;          // (用户 17:40/17:48 UTC: 不需要完全离开主线，可以偶尔交错: mostly out, now and then across it to the other side)
+         if (e > 40 && !onl) q += (e - 40) * (e - 40) * 0.5 + 20; if (onl && e > 0) q -= 4; if (e > 6 && e < 40) q -= 2.5; if (e >= -2 && e <= 6) q += 1;
         if (s < 60 || s > sE - 120) q += Math.abs(u) * 2;
-        // (用户 17:20 UTC: 引导正确地滑) where the line crosses a gully it rides inside it, wall to wall, and through a mogul field it goes
-        // through the bumps: no going round either on the bank or out in the trees
-        if (c.gul > 0.6) { const ug = u - c.goff, bell = Math.exp(-(ug * ug) / (c.gw * c.gw)), pr = c.gU > 0.001 && Course.uWall ? bell + (Course.uWall(ug, c) - bell) * c.gU : bell; q += pr < 0.04 ? 14 : -3; }
-        else if (c.mog > 0.5 && Math.abs(u) > hw * 0.8) q += 14; else if (c.mog > 0.5) q -= 3;
+        // (用户 17:29 UTC: 越野线不跑标准道，去探索平常标准道不会去到的、好玩的地方) the run's own gully and mogul field are the 速降线's: the
+        // line keeps out of them and off the gully's rim just above (17:20 UTC: a ring up there is not what a gully is for), and goes
+        // out to the ways the run does not: a gully lane in the trees most of all (a small half-pipe of its own), and over a drop's lip
+        if (c.gul > 0.3) { const ug = u - c.goff, bell = Math.exp(-(ug * ug) / (c.gw * c.gw)), pr = c.gU > 0.001 && Course.uWall ? bell + (Course.uWall(ug, c) - bell) * c.gU : bell, rim = (c.gU > 0.5 ? 1.75 : 1.3) * c.gw; q += pr > 0.04 ? 12 : Math.abs(ug) < rim + 14 ? 9 * (1 - (Math.abs(ug) - rim) / 20) : 0; }
+        if (c.mog > 0.5 && e < 2) q += 9;
+        for (const w of lk[k]) if (w.kind === 'gully' && Math.abs(u - w.u) < w.w * 0.9) q -= 4;
+        for (const f of dr[k]) { const ds = f.lip - s; if (ds > -18 && ds < 34 && Math.abs(u - f.u) < f.wid * 0.35) q -= 9; }
         cost[k * NU + ui] = q;
       }
     }
@@ -405,15 +410,25 @@ const Rings = (() => {
     const rr = () => { r0 = (r0 * 16807) % 2147483647; return (r0 - 1) / 2147483646; };
     const rings = []; let s = 40, side = 1;
     for (;;) {
-      // (a gully: a ring on each wall in turn; a mogul field: one in a trough every few crests, side to side; elsewhere along the way searched)
-      const ca = Course.at(s + 20, pc), inG = ca.gul > 0.6, inM = !inG && ca.mog > 0.5;
-      s += inM ? (ZIPROWS[df] || 2) * Course.mogShape().L : inG ? (26 + 8 * rr()) * gk : (34 + 14 * rr()) * gk; if (s > sE - 70) break;
-      if (inG || inM) {
-        side = -side; let tu = null, ts = s;
-        if (inG) tu = wallU(s, side, WALLK[df] || 0.6); else { const z = zipU(s, side); if (z) { ts = z.s; tu = z.u; } }
-        if (tu !== null) { rings.push({ s: ts, u: tu, r: inM ? (df === 'a' ? 2.25 : 1.5) : sz[0], off: false, how: inG ? 'wall' : 'zip' }); s = ts; continue; }
+      // (where the way rides a gully lane in the trees: a ring on each of its walls in turn, as in the run's own gully; where it goes over a
+      // drop: one on the run-in at the lip, so the line takes the drop, and one in the landing; elsewhere on the way searched)
+      const k0 = Math.min(n - 1, Math.round((s + 20) / 4)), lg = lk[k0].find(w => w.kind === 'gully' && Math.abs(pu[k0] - w.u) < w.w * 1.2);
+      const dp = dr[k0].find(f => f.lip > s + 4 && Math.abs(pu[Math.min(n - 1, Math.round(f.lip / 4))] - f.u) < f.wid * 0.5);
+      if (dp) {
+        for (const [ds, rr2] of [[-5, sz[0]], [16, sz[0]]]) { const ts = dp.lip + ds; if (ts > sE - 70) break; rings.push({ s: ts, u: ds < 0 ? dp.u : pu[Math.min(n - 1, Math.round(ts / 4))], r: rr2, off: true, how: 'drop' }); }
+        s = dp.lip + 16; continue;
+      }
+      // (in among trees: closer, through the gaps, a tree run's rhythm; out in the open as before)
+      const kt = Math.min(n - 1, Math.round((s + 14) / 4)); let near = 1e9; for (const tt of rows[kt].tr) near = Math.min(near, Math.hypot(tt[0] - rows[kt].cx - pu[kt], tt[1] - rows[kt].s) - tt[2]);
+      s += lg ? (16 + 6 * rr()) * gk : near < 7 ? (20 + 8 * rr()) * gk : (34 + 14 * rr()) * gk; if (s > sE - 70) break;
+      if (lg) {
+        // (the lane's own gully: its bell is 1.35 w wide, steepest at about 0.95 w out from its middle; trees stand only beyond that)
+        side = -side; const kq = Math.min(n - 1, Math.round(s / 4)), w = lk[kq].find(q => q.kind === 'gully' && Math.abs(pu[kq] - q.u) < q.w * 1.6) || lg;
+        const tu = w.u + side * w.w * (0.6 + 0.5 * (WALLK[df] || 0.6)), R = rows[kq], xr = R.cx + tu; let room = 1e9; for (const tt of R.tr) room = Math.min(room, Math.hypot(tt[0] - xr, tt[1] - R.s) - tt[2]);
+        if (room > sz[1] + 0.8) { rings.push({ s: R.s, u: tu, r: sz[1], off: true, how: 'lane' }); continue; }
       }
       const k = Math.min(n - 1, Math.round(s / 4)), R = rows[k], u = pu[k], x = R.cx + u;
+      { const cg = Course.at(R.s, pc); if (cg.gul > 0.3 && Math.abs(u - cg.goff) < (cg.gU > 0.5 ? 1.75 : 1.3) * cg.gw + 6) continue; }          // (never up on the rim of the run's gully)
       let r = rr() < 0.5 ? sz[0] : sz[1], room = 1e9;
       for (const t of R.tr) room = Math.min(room, Math.hypot(t[0] - x, t[1] - R.s) - t[2]);
       while (r > 1.5 && room < r + 0.8) r = r > 2.5 ? 2.25 : 1.5;
