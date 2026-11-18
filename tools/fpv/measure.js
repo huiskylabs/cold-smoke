@@ -14,7 +14,9 @@ const [PAGE = 'dist/dev.html', SEC = '60', SEEDS = '0,1,2'] = process.argv.slice
     const r = await page.evaluate(async ([seed, sec, set]) => {
       const ski = window.__ski, M = ski.m, G = M.Game, R = M.Render, Sk = M.Skier;
       const gl = M.App.gfx.gl; if (gl) gl.drawElementsInstanced = gl.drawArraysInstanced = gl.drawElements = gl.drawArrays = gl.clear = () => { };
-      ski.tod('day'); ski.reset(seed); if (set) eval(set); G.setView('fp', true);
+      ski.tod('day'); ski.reset(seed); if (set) eval(set); G.setView('fp', true); G.start();
+      for (let k = 0; k < 200 && !(G.fpv && G.fpv.ready); k++) { ski.frame(1 / 60); await new Promise(r => setTimeout(r, 100)); }      // (the first-person arms' shaders: see shot.js)
+      ski.reset(seed); G.setView('fp', true);
       const pilot = ski.pilot(0.6, 4.5); G.start();
       const ndc = n => { const J = Sk.world && Sk.world.J; if (!J || !J[n]) return null; return proj(Sk.toWorld(J[n])); };
       const proj = q => { const c = R.cam; if (!c || !c.fwd) return null; const o = R.origin || [0, 0, 0], d = [q[0] + o[0] - c.pos[0], q[1] + o[1] - c.pos[1], q[2] + o[2] - c.pos[2]];

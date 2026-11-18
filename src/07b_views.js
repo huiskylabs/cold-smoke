@@ -231,8 +231,9 @@
     // The figure as drawn is not the bare pose solved here: its lean comes in a little late, its crouch and moves flow (08_skier.js, update),
     // and in a hard turn its head stood up to 0.43 m from where this lens was (measured 2026-11-18, linked turns at 12-19 m/s): the lens was out
     // over the snow beside the head, and the arms that hang from the drawn shoulders swung out of the picture on one side. A frame old in the
-    // figure's own space is a few millimetres; only on the skier's path would it be 0.4 m)
-    else if (!brd && typeof Fpv !== 'undefined' && Fpv.carryOn && Fpv.carryOn()) { let w = null; try { w = Skier.world; } catch (_) { } if (w && w.J && w.J.head && w.root) J = w.J.head; }
+    // figure's own space is a few millimetres; only on the skier's path would it be 0.4 m. Only while these arms are drawn, which leave out the figure's head: with its own head drawn,
+    // before their shaders are ready or should they fail, a lens inside that head sees its helmet cut open round it)
+    else if (!brd && typeof Fpv !== 'undefined' && Fpv.carryOn && Fpv.carryOn() && Fpv.vis) { let w = null; try { w = Skier.world; } catch (_) { } if (w && w.J && w.J.head && w.root) J = w.J.head; }
     const Y = v3.norm(root.nrm), X = v3.norm(v3.cross(Y, v3.mul(root.fwd, -1))), Z = v3.cross(X, Y);
     // (the place over the skis rides with the snow under the skier and goes a little way over with the body in a turn)
     const T = VD.tips, tq = tk * T.pk, tx = T.side * clamp(G.pose.lean || 0, -1.2, 1.2), jx = lerp(J[0], tx, tq), jy = lerp(J[1] + VD.fp.up, T.at0, tq), jz = lerp(J[2], -T.at1, tq);

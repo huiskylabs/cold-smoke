@@ -26,15 +26,20 @@ const CASES = [
     const r = await page.evaluate(async ([c, nodraw]) => {
       const ski = window.__ski, M = ski.m, G = M.Game;
       if (nodraw) { const gl = M.App.gfx.gl; if (gl) gl.drawElementsInstanced = gl.drawArraysInstanced = gl.drawElements = gl.drawArrays = gl.clear = () => { }; }
-      ski.tod('day'); ski.reset(c.seed); G.setView('fp', true);
+      // (the first-person arms are drawn once their shaders are built, which takes a moment of real time: until then the figure's own arms and
+      // head are what shows. So the view is first held a moment, until they are)
+      ski.tod('day'); ski.reset(c.seed); G.setView('fp', true); G.start();
+      for (let k = 0; k < 200 && !(G.fpv && G.fpv.ready); k++) { ski.frame(1 / 60); await new Promise(r => setTimeout(r, 100)); }
+      const fpvReady = !!(G.fpv && G.fpv.ready);
+      ski.reset(c.seed); G.setView('fp', true);
       const pilot = ski.pilot(c.amp || 0.6, c.period || 4.5); G.start();
       // (in the air nothing is taken: run on until the skis are on the snow)
       const n = c.t * 60; let i = 0;
       for (; i < n || (G.flight && G.flight.w > 0.05) || G.s.air; i++) { M.Input.script = pilot(G.runT); if (c.tuck) M.Input.btn.tuck = i > n - c.tuck * 60; ski.frame(1 / 60); if (i > n + 600) break; }
-      return { sp: +G.s.speed.toFixed(1), lean: +(G.pose.lean || 0).toFixed(2), tuck: +(G.pose.tuck || 0).toFixed(2), backend: M.App.gfx.caps.backend + ' / ' + (M.App.gfx.caps.renderer || ''), png: nodraw ? null : await ski.shot() };
+      return { fpv: fpvReady && G.fpv.vis, sp: +G.s.speed.toFixed(1), lean: +(G.pose.lean || 0).toFixed(2), tuck: +(G.pose.tuck || 0).toFixed(2), backend: M.App.gfx.caps.backend + ' / ' + (M.App.gfx.caps.renderer || ''), png: nodraw ? null : await ski.shot() };
     }, [c, !!process.env.NODRAW]);
     if (r.png) fs.writeFileSync(path.join(OUT, `${TAG}_${c.id}.png`), Buffer.from(r.png.split(',')[1], 'base64'));
-    console.log(`${TAG} ${c.id}: 速度 ${r.sp} m/s 倾斜 ${r.lean} 压低 ${r.tuck}  ${r.backend}`);
+    console.log(`${TAG} ${c.id}: 第一视角手臂${r.fpv ? '在画' : '没在画！'} 速度 ${r.sp} m/s 倾斜 ${r.lean} 压低 ${r.tuck}  ${r.backend}`);
     await page.close();
   }
   await browser.close();
