@@ -227,6 +227,12 @@
     const brd = !!(Skier.boardOn && Skier.boardOn());
     let sv = null, J = null; try { sv = (brd ? Skier.solveBoard : Skier.solve)(Object.assign(pz, Skier.P0, G.pose)); J = sv.J.head; } catch (_) { sv = null; }
     if (!J) { let w = null; try { w = Skier.world; } catch (_) { } J = w && w.J && w.J.head || HEAD0; sv = null; }
+    // (Variants 'fphand' b: the head is taken where the figure was last drawn with it, in the figure's own space, set on this frame's skier.
+    // The figure as drawn is not the bare pose solved here: its lean comes in a little late, its crouch and moves flow (08_skier.js, update),
+    // and in a hard turn its head stood up to 0.43 m from where this lens was (measured 2026-11-18, linked turns at 12-19 m/s): the lens was out
+    // over the snow beside the head, and the arms that hang from the drawn shoulders swung out of the picture on one side. A frame old in the
+    // figure's own space is a few millimetres; only on the skier's path would it be 0.4 m)
+    else if (!brd && typeof Fpv !== 'undefined' && Fpv.carryOn && Fpv.carryOn()) { let w = null; try { w = Skier.world; } catch (_) { } if (w && w.J && w.J.head && w.root) J = w.J.head; }
     const Y = v3.norm(root.nrm), X = v3.norm(v3.cross(Y, v3.mul(root.fwd, -1))), Z = v3.cross(X, Y);
     // (the place over the skis rides with the snow under the skier and goes a little way over with the body in a turn)
     const T = VD.tips, tq = tk * T.pk, tx = T.side * clamp(G.pose.lean || 0, -1.2, 1.2), jx = lerp(J[0], tx, tq), jy = lerp(J[1] + VD.fp.up, T.at0, tq), jz = lerp(J[2], -T.at1, tq);
@@ -256,6 +262,8 @@
       const vT = clamp((hy - F.hPrev) / dt, -40, 40), w = 9; F.hv += (w * w * (hy - F.hy) + 2 * w * (vT - F.hv)) * dt; F.hy = clamp(F.hy + F.hv * dt, hy - 0.05, hy + 0.05);
     }
     F.hPrev = hy;
+    // (where the eyes face and how the lens is tipped, the player's looking about left out: the hands are held in this frame, 07d_fpv.js carry)
+    G.fpBody = { yaw: F.yaw, roll: F.roll };
     // a helmet camera shivers a little at speed and takes a landing in the neck: both as turns of the head, not as travel
     const sh = 0.28 * B.shk, t = G.t, ly = clamp(look.yaw, -0.95, 0.95), al = Math.abs(ly);
     // (looking to the side, the eyes come up off the snow toward the far slope)
@@ -299,7 +307,9 @@
       // (laid over in a hard turn, the body leans far more than the lens rolls with it, and the outside hand, carried round the turn, comes up and
       // across into the middle of the picture with the whole sleeve behind it. From the helmet it is kept down at its own corner: out, lower, and
       // not so far forward; the turn shows in the hands rising and dropping a little, not in one of them reaching across. oc: how far outside)
-      const oc = sat(-sd * Math.sin(ps.lean || 0) * 1.4) * (1 - tk) * (1 - ai) * w;
+      // (with Variants 'fphand' b the hands are carried where the eyes see them in 07d_fpv.js, and none of this pushing them away is done)
+      const cb = typeof Fpv !== 'undefined' && Fpv.carryOn && Fpv.carryOn() ? 0 : 1;
+      const oc = sat(-sd * Math.sin(ps.lean || 0) * 1.4) * (1 - tk) * (1 - ai) * w * cb;
       // what that leaves (the hand swinging up for the pole plant as the turn changes, the inside hand lifted by the slope rising under it) is kept
       // down where the picture shows it: where the glove came out in the last frame, if above or inside its corner, it is drawn down and out a
       // little more over the next frames, and let back as it settles inside it (soon, should it be going out past the picture's edge). And should
@@ -309,7 +319,7 @@
           e = on ? Math.max(0, gp[1] + 0.42) * 2.2 + Math.max(0, 0.52 - sd * gp[0]) * 1.6 : 0, en = on && el && sd * el[0] < 1.4 && el[1] > -1.3 ? (0.34 - el[2]) * 14 : -1;
         c.v = clamp(c.v + ((e > 0 ? e * 5 : on && (sd * gp[0] > 0.86 || gp[1] < -0.92) ? -1.4 - Math.max(0, sd * gp[0] - 0.86) * 12 : -0.3) - (on ? 0 : 1.5)) * dt, 0, 1);
         c.n = clamp(c.n + (en > 0 ? en * 5 : -0.6) * dt, 0, 1); }
-      const fc = smooth(0, 1, c.v) * (1 - ai) * w, fn = smooth(0, 1, c.n) * (1 - ai) * w;
+      const fc = smooth(0, 1, c.v) * (1 - ai) * w * cb, fn = smooth(0, 1, c.n) * (1 - ai) * w * cb;
       m[5] = a[0]; m[0] = a[1]; m[1] = a[2]; a[0] += sd * (0.40 * oc + 0.20 * fc - 0.30 * gx); a[1] += ay + 0.02 * g - 0.15 * oc - 0.26 * fc; a[2] += az - 0.14 * g + 0.12 * oc + 0.10 * fc - 0.22 * fn; m[4] = a[0]; m[2] = a[1]; m[3] = a[2];
     }
     armsOn = w > 0;

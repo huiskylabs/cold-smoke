@@ -267,6 +267,53 @@ const Fpv = (() => {
   }
   F.solveArm = solveArm; F.LIM = LIM;
 
+  // ---- where the hands are held, seen from the eyes (Variants 'fphand' b)
+  // A skier holds the hands out in front, a little wider than the shoulders, elbows bent: "where you can see them" is how it is taught, and it is
+  // how they show in a helmet camera's picture (ski/fpv/参考图: a fist in each lower corner, the shafts running down and back out of the
+  // picture). The figure is posed to be seen from five metres: its head is well forward over its hands, its arms all but straight, and from
+  // the lens over that head its fists were straight down, under the foot of the picture (measured 2026-11-18, 40 s of linked turns: both
+  // hands out of the picture 97% of the time on the snow, 0.1-0.3 m ahead of the lens and 0.6 m under it). What was done about it only ever
+  // pushed a hand further down and out (07b_views.js, fpArms). So here each hand is carried to where a skier holds it, measured from the lens
+  // in the body's own frame (across the shoulders, up the trunk, ahead): CARRY. What the figure does with it besides (the reach for a plant, a
+  // double-pole stroke, a hand thrown up by a bump) is kept: the hand's place off the shoulder, less its own slow average (mean, about a second).
+  // out: m to the side of the lens; dn: m below it; fw: m ahead; keep: how much of the figure's own motion is kept.
+  const CARRY = F.CARRY = { out: 0.30, dn: 0.50, fw: 0.26, keep: 0.85, mean: 1.1 };
+  if (typeof Variants !== 'undefined') Variants.def('fphand', '第一视角手位', [['a', '原来'], ['b', '手在面前']], 'b');
+  const carryOn = () => typeof Variants === 'undefined' || Variants.val.fphand !== 'a';
+  F.carryOn = carryOn;
+  // the lens and the body's frame, in the figure's space (the camera is placed before the figure is posed: this frame's)
+  function carryFrame() {
+    const c = typeof Render !== 'undefined' && Render.cam, R = Skier.world && Skier.world.root; if (!c || !R) return null;
+    const o = Render.origin || [0, 0, 0], q = [c.pos[0] - o[0] - R[12], c.pos[1] - o[1] - R[13], c.pos[2] - o[2] - R[14]];
+    const C = [q[0] * R[0] + q[1] * R[1] + q[2] * R[2], q[0] * R[4] + q[1] * R[5] + q[2] * R[6], q[0] * R[8] + q[1] * R[9] + q[2] * R[10]];
+    // The frame is the eyes' own, as they are carried by the body (07b_views.js, Game.fpBody: where the head faces and how far the lens is tipped
+    // with the lean, without the player's looking about): the hands go with the upper body, which faces down the hill with the head while the skis
+    // swing under it, so they stay put in the picture through linked turns (in the skis' frame they swung across it by most of its width each
+    // turn, and both were in it together 4% of the time); and they are held out level, under the eyes, not down along a trunk bowed forward.
+    // ahead, across, up: in the world, then in the figure's space
+    const B = Game.fpBody; let fw, X, U;
+    if (B) { fw = [Math.sin(B.yaw), 0, -Math.cos(B.yaw)]; const xh = [Math.cos(B.yaw), 0, Math.sin(B.yaw)], cr = Math.cos(B.roll), sr = Math.sin(B.roll); X = [xh[0] * cr, sr, xh[2] * cr]; U = [-xh[0] * sr, cr, -xh[2] * sr]; }
+    else { fw = [-R[8], -R[9], -R[10]]; X = [R[0], R[1], R[2]]; U = [R[4], R[5], R[6]]; }
+    const m = v => [v[0] * R[0] + v[1] * R[1] + v[2] * R[2], v[0] * R[4] + v[1] * R[5] + v[2] * R[6], v[0] * R[8] + v[1] * R[9] + v[2] * R[10]];
+    const Zm = m(fw);
+    return { C, X: m(X), U: m(U), Z: [-Zm[0], -Zm[1], -Zm[2]] };
+  }
+  function carry(A, k, sg, G1, Sh, w, cf, dt) {
+    if (!cf) return G1;
+    // (in the mirrored space the left hand is worked in, the right's numbers do for it)
+    const C = mir(cf.C, sg), X = mir(cf.X, sg), U = mir(cf.U, sg), Z = mir(cf.Z, sg);
+    // (across runs from the left shoulder to the right; mirrored it points to the left, and the left hand's outside is the other way)
+    const ox = sg > 0 ? X : v3.mul(X, -1);
+    const H = v3.add(v3.add(v3.mad(C, ox, CARRY.out), v3.mul(U, -CARRY.dn)), v3.mul(Z, -CARRY.fw));
+    // the figure's own motion of this hand, about its slow average, off its shoulder
+    const r = v3.sub(G1, Sh);
+    if (!A.cm || A.init || !(dt > 0)) A.cm = r.slice();
+    else { const e = 1 - Math.exp(-dt / CARRY.mean); for (let i = 0; i < 3; i++) A.cm[i] += (r[i] - A.cm[i]) * e; }
+    const T = v3.mad(H, v3.sub(r, A.cm), CARRY.keep);
+    return v3.lerp(G1, T, w);
+  }
+  F.carryFrame = carryFrame;
+
   // ---- each frame: the figure's pose (as it will be drawn this frame) is taken over, with a little weight of its own added
   const mkSide = sg => ({ sg, init: true, init0: true, tau: LIM.tw0, dW: 0, dP: 0, bS: 0, open: 0, bend: 0, o: [0, 0, 0], ov: [0, 0, 0], pd: [0, 0], pdv: [0, 0], m: [null, null, null, null, null], ski: null });
   const SD = [mkSide(1), mkSide(-1)], mir = (p, sg) => sg > 0 ? p : [-p[0], p[1], p[2]];
@@ -290,6 +337,7 @@ const Fpv = (() => {
     // let down and out over the first part of the drive, out of the picture's lower corners. rch: how much, by the stroke's phase; dr: the drive)
     const dpOK = fq > 0 ? (1 - tuck) * (1 - sat(ps.air || 0)) * (1 - smooth(0.14, 0.5, Math.abs(ps.lean || 0))) : 0;
     const rch = dpOK > 0 ? smooth(0, 0.12, fq) * smooth(0.50, 0.24, fq) * dpOK : 0, dr = dpOK > 0 ? smooth(0.22, 0.46, fq) * smooth(0.62, 0.50, fq) * dpOK : 0;
+    const cw = carryOn() ? own * (1 - tuck) * (1 - dropK) * (1 - sat(Math.max((ps.air || 0) / 0.5, G && G.flight ? G.flight.w || 0 : 0))) : 0, cf = cw > 0 ? carryFrame() : null;
     for (let k = 0; k < 2; k++) {
       const A = SD[k], sg = A.sg, n = sg > 0 ? 'R' : 'L', hold = sat(J['planted' + n] || 0);
       const Sh = mir(J['sh' + n], sg), Eh = mir(J['elbow' + n], sg), G0 = mir(J['grip' + n], sg), d0 = mir(J['poleD' + n], sg), T = mir(J['tip' + n], sg), acc = mir(PH.a, sg);
@@ -303,6 +351,8 @@ const Fpv = (() => {
         for (let i = 0; i < 2; i++) { const to = clamp(-(i ? acc[2] : acc[0]) * 0.011 - A.ov[i ? 2 : 0] * 0.35, -0.16, 0.16) * fr; A.pdv[i] = (A.pdv[i] + wp * wp * (to - A.pd[i]) * dt) / (1 + 2 * zp * wp * dt + wp * wp * dt * dt); A.pd[i] = clamp(A.pd[i] + A.pdv[i] * dt, -0.22, 0.22) * (hold >= 1 ? 0 : 1); }
       }
       let G1 = v3.mad(G0, A.o, own), d = v3.norm([d0[0] + A.pd[0] * own, d0[1], d0[2] + A.pd[1] * own]);
+      // (where a skier's hands are, as the eyes see them: Variants 'fphand' b, carry())
+      if (cw > 0) G1 = carry(A, k, sg, G1, Sh, cw, cf, dt);
       // (on the way down to the view of the ski tips the hands are let down and back, out of the picture behind the lens, before they are left out)
       if (dropK > 0) { G1[0] += 0.10 * dropK; G1[1] -= 0.45 * dropK; G1[2] += 0.32 * dropK; }
       // (a hand on a planted pole stays the pole's length from where the tip went in)
