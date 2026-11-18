@@ -703,6 +703,18 @@ const Course = ((vn1, vn2, h2U) => {
         if (cell <= 16) { gullies(x / 124 + 17.3, z / 124 - 5.1, dx + ez * 1.4, dz - ex * 1.4, 577); g += 10 * ALPG[2] * (1.27 - 2 * Math.sqrt(Math.max(0, 0.5 - 0.5 * _er[0]))); ex += _er[1] * 1.05; ez += _er[2] * 1.05; }
         if (cell <= 4) { gullies(x / 59 - 8.7, z / 59 + 31.9, dx + ez * 1.4, dz - ex * 1.4, 353); g += 4.2 * ALPG[3] * (1.27 - 2 * Math.sqrt(Math.max(0, 0.5 - 0.5 * _er[0]))); }
         hm += w * smooth(0.2, 0.7, sl) * (0.35 + 0.65 * m) * g;
+        // (金色雪旗 above the trees, round 15 against Okuhida: a steep face is not a smooth sweep with ribs cut into it. Its skyline and every
+        // spur are broken into crags, towers and notches tens of metres tall, at three sizes. Only where the face is steep and well off the run)
+        if (ALPG[0] > 1 && cell <= 64) {
+          const st = smooth(0.45, 1.0, sl) * w * m;
+          if (st > 0.01) {
+            const r1 = 1 - Math.abs(vnoise2(x / 130 + 5.1, z / 130 - 2.3, 91));
+            let cr = 30 * r1 * r1 - 12;
+            if (cell <= 24) { const r2 = 1 - Math.abs(vnoise2(x / 47 - 1.7, z / 47 + 6.3, 92)); cr += 12 * r2 * r2 - 5; }
+            if (cell <= 8) { const r3 = 1 - Math.abs(vnoise2(x / 17 + 3.3, z / 17 + 0.9, 93)); cr += 4.5 * r3 * r3 - 2; }
+            hm += st * cr;
+          }
+        }
       }
       if (cell < 12 && m > 0.05) hm += m * 14 * vnoise2(x / 90, z / 90, 75) + (cell < 4 ? m * 4 * vnoise2(x / 23, z / 23, 76) : 0);
       if (w > 0.01 && cell <= 20) {
