@@ -521,6 +521,18 @@ fn sparkLayer(wxz: vec2f, cell: vec2f, N: vec3f, Hh: vec3f, ja: vec2f, jb: vec2f
   return vec4f(tint, 1.0) * (pow(d, 380.0) * shape * shape);
 }
 fn snowSlope(t: vec4f) -> vec2f { let q: vec2f = t.xy * 2.0 - 1.0; return q * abs(q); }
+// (fbm noise drawn out down the fall line fd: across a, along b metres. Rotating the coordinates into the local fall line swirled them
+// into marble wherever the line bends, so four fixed directions are sampled and blended by how close each lies to the fall line)
+fn fallNoise(p: vec2f, fd: vec2f, a: f32, b: f32, o: vec2f) -> f32 {
+  var acc: f32 = 0.0; var ws: f32 = 0.0;
+  for (var i: i32 = 0; i < 4; i++) {
+    let an: f32 = f32(i) * 0.78539816; let dv: vec2f = vec2f(cos(an), sin(an));
+    let w: f32 = pow(dot(fd, dv) * dot(fd, dv), 6.0) + 1e-4;
+    let q: vec2f = vec2f(dot(p, vec2f(-dv.y, dv.x)) / a, dot(p, dv) / b) + o + f32(i) * vec2f(0.17, 0.41);
+    acc += w * tex(tDetail, q / 6.0).z; ws += w;
+  }
+  return saturate(0.5 + (acc / ws - 0.5) * 1.9);
+}
 // the lie of the rock: Course.strata term for term (p = world xz, y = world height, each known modulo 1024 m): uneven beds that swell and pinch
 fn strataAt(p: vec2f, y: f32) -> f32 {
   let k: f32 = 0.0061359232;
@@ -688,8 +700,7 @@ fn frag(v: VOut) -> FOut {
       // at any distance. The crag relief (Nc) flips from pixel to pixel near the bar and came out as grain, so the bar is read off the
       // smooth face (Nm) plus noise drawn out down the fall line (ribs ~35 m across, a couple of hundred long), and the hollows keep snow)
       let fdA: vec2f = normalize(sm.xy + vec2f(1e-5, 0.0));
-      let ribUV: vec2f = vec2f(dot(wxz, vec2f(-fdA.y, fdA.x)) / 38.0, dot(wxz, fdA) / 230.0);
-      let rib: f32 = saturate(0.5 + (tex(tDetail, (ribUV + vec2f(0.13, 0.57)) / 6.0).z - 0.5) * 1.9) * 0.7 + saturate(0.5 + (tex(tDetail, (ribUV * vec2f(2.7, 1.6) + vec2f(0.61, 0.29)) / 6.0).z - 0.5) * 1.9) * 0.3;
+      let rib: f32 = fallNoise(wxz, fdA, 38.0, 230.0, vec2f(0.13, 0.57)) * 0.7 + fallNoise(wxz, fdA, 14.0, 140.0, vec2f(0.61, 0.29)) * 0.3;
       let oc: f32 = saturate(0.5 + (tex(tDetail, (wxz / 80.0 + vec2f(0.37, 0.19)) / 6.0).z - 0.5) * 1.9);
       let ew2: f32 = 0.018 + dist * 0.00003;
       let bar: f32 = Nm.y + 0.42 * (0.5 - rib) + 0.12 * (0.5 - oc) + conc * 0.35 + shut;
@@ -975,13 +986,12 @@ fn frag(v: VOut) -> FOut {
       // (round 2, against Okuhida and Rundle: a face is not one smooth grey slab. It is fluted down the fall line: ribs, each lit or
       // shaded as it turns to the sun, and the narrow gullies between them full of snow, white lines running down through the rock)
       let fdB: vec2f = normalize(sm.xy + vec2f(1e-5, 0.0));
-      let acr: f32 = dot(wxz, vec2f(-fdB.y, fdB.x)); let alg: f32 = dot(wxz, fdB);
-      let st: f32 = saturate(0.5 + (tex(tDetail, (vec2f(acr / 9.0, alg / 95.0) + vec2f(0.71, 0.13)) / 6.0).z - 0.5) * 1.9);
-      let st2: f32 = saturate(0.5 + (tex(tDetail, (vec2f(acr / 26.0, alg / 170.0) + vec2f(0.29, 0.83)) / 6.0).z - 0.5) * 1.9);
+      let st: f32 = fallNoise(wxz, fdB, 9.0, 95.0, vec2f(0.71, 0.13));
+      let st2: f32 = fallNoise(wxz, fdB, 26.0, 170.0, vec2f(0.29, 0.83));
       let blk: f32 = tex(tDetail, wxz / 23.0 + vec2f(0.21, 0.63)).z;
-      ra = vec3f(0.29, 0.265, 0.245) * (0.50 + 0.85 * st2) * (0.80 + 0.40 * st) * (0.85 + 0.30 * blk) * (1.0 - 0.40 * smoothstep(0.36, 0.26, ck) * near);
+      ra = vec3f(0.29, 0.265, 0.245) * (0.62 + 0.60 * st2) * (0.84 + 0.32 * st) * (0.85 + 0.30 * blk) * (1.0 - 0.40 * smoothstep(0.36, 0.26, ck) * near);
       ra *= 1.0 - 0.35 * (1.0 - smoothstep(0.55, 0.95, rock));
-      lip = smoothstep(0.66, 0.74, st + 0.25 * (st2 - 0.5)) * smoothstep(1400.0, 200.0, dist);
+      lip = smoothstep(0.70, 0.80, st + 0.25 * (st2 - 0.5) + 0.35 * (Nm.y - 0.55)) * smoothstep(1400.0, 200.0, dist);
     }
     var rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
     ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.02, 0.98, 0.95), 0.35); }' : ''}
