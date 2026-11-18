@@ -402,8 +402,9 @@ const Rings = (() => {
   // the boards (小红书 only): the best of everyone and this player's place, filled in when they come back
   function board(score) {
     const set = (a, b) => { const c = L.q('card'), x = c.querySelector('.gtop'), y = c.querySelector('.grank'); if (x) x.textContent = a; if (y) y.textContent = b; };
-    if (typeof Rank === 'undefined' || !Rank.line || !Rank.on || L.diff !== 'b' || L.id !== 'a') { set('—', '—'); return; }
-    Rank.line(score).then(r => { if (L.st !== 'done') return; if (!r) { set('—', '—'); return; } set(r.top != null ? fmt(r.top) : '—', r.rank != null ? (typeof r.rank === 'number' ? '第 ' + r.rank + ' 名' : r.rank) : '—'); });
+    const bd = boardOf(L.id, L.diff);
+    if (typeof Rank === 'undefined' || !Rank.line || !Rank.on || !bd) { set('—', '—'); return; }
+    Rank.line(score, bd).then(r => { if (L.st !== 'done') return; if (!r) { set('—', '—'); return; } set(r.top != null ? fmt(r.top) : '—', r.rank != null ? (typeof r.rank === 'number' ? '第 ' + r.rank + ' 名' : r.rank) : '—'); });
   }
   // (用户 18:54 UTC: 结束后就可以停下来): through the finish the skier stops by himself, the way a skier does: held right over into a turn
   // across the hill until the skis stand still (the game's own turning brake, nothing pulls him), until 继续滑 or 再来一局 gives the skis back
@@ -482,6 +483,13 @@ const Rings = (() => {
   // free skiing; 挑战 (a button in the left column like 场景 / 视角) opens a panel: the lines with this device's best, the difficulty,
   // then 开始挑战 (or Enter), which counts down 3, 2, 1. Esc or 取消 closes it.
   const PICK = [['a', '速降 · 整圈', '12 站，从山顶到山脚'], ['b', '速降 · 前三站', '3 站，一分钟上下']];
+  // (用户 2026-11-18 02:38 UTC: 挑战是根据地图挑战，每个地图都有不同的挑战) each map has its own lines; the panel lists the current map's only.
+  // A map = an official mountain (Course.mountains). Today there is one, 寒烟山, with these two lines; a mountain with none says so
+  const MAP_LINES = { hanyan: ['a', 'b'] };
+  const mapNow = () => { try { const m = Course.mountainBySeed(); return m ? m : null; } catch (e) { return null; } };
+  const mapLines = () => { const m = mapNow(); return m && MAP_LINES[m.id] ? MAP_LINES[m.id] : []; };
+  // the ranked line's board (小红书): the 标准 run of a map's ranked line only (用户 02:40 UTC: 每张地图一条长线上榜)
+  const boardOf = (id, df) => { const m = mapNow(); return m && df === 'b' && typeof Rank !== 'undefined' && Rank.chalBoard ? Rank.chalBoard(m.id, id) : 0; };
   const RING_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5.6"/><path d="M10 1.8v1.6M10 16.6v1.6M1.8 10h1.6M16.6 10h1.6"/></svg>';
   function syncLine() { const lid = devOn() && LINES[Variants.val.rline] ? Variants.val.rline : null; if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); } }
   function chalButton() {
@@ -505,6 +513,7 @@ const Rings = (() => {
       + '#rpick .t{margin-top:12px;font-size:11px;line-height:1.7;letter-spacing:.1em;color:var(--dim)}'
       + '#rpick .bt{display:flex;gap:8px;margin-top:14px}#rpick .bt button{flex:1;text-align:center;height:40px;padding:0;border-radius:12px;letter-spacing:.2em}'
       + '#rpick .bt .go{flex:1.6;color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun);font-family:var(--f-song);font-size:15px;letter-spacing:.5em;text-indent:.5em}'
+      + '#rpick .l button i .rk{display:block;margin-top:3px;color:var(--dim);letter-spacing:.06em}#rpick .no{padding:14px 4px;font-size:13px;line-height:1.8;letter-spacing:.12em;color:var(--dim)}#rpick.none .r,#rpick.none .t,#rpick.none .go{display:none}'
       + '#rpick kbd{margin-left:.4em;font-family:var(--f-lat);font-size:.75em;letter-spacing:.04em;opacity:.6;text-indent:0}</style>'
       + '<h4>挑战 · CHALLENGE</h4><div class="l"></div><div class="r d"></div><div class="t"></div><div class="bt"><button class="go" data-go="1">开始挑战</button><button data-x="1">取消<kbd>Esc</kbd></button></div>';
     (document.getElementById('app') || document.body).appendChild(d); RG.pk = d;
@@ -520,9 +529,22 @@ const Rings = (() => {
   }
   function bestOf(id, df) { try { const k = 'coldsmoke.line.' + id + '.' + df, S = ST(); const r = S ? S.getJSON(k) : JSON.parse(localStorage.getItem(k) || 'null'); return r && r.best ? r.best.score : null; } catch (e) { return null; } }
   function pickDraw() {
-    const d = pickUI(), df = diffKey(); if (!LINES[RG.pkSel]) RG.pkSel = LINES[Variants.val.rline] ? Variants.val.rline : 'b';
+    const d = pickUI(), df = diffKey(), ids = mapLines(), m = mapNow();
+    if (!ids.includes(RG.pkSel)) RG.pkSel = ids.includes(Variants.val.rline) ? Variants.val.rline : ids[0];
     const cur = RG.pkSel;
-    d.querySelector('.l').innerHTML = PICK.map(([id, n, t]) => { const b = bestOf(id, df); return '<button data-l="' + id + '" class="' + (cur === id ? 'on' : '') + '"><b>' + n + (b != null ? '<em>最好 ' + fmt(b) + '</em>' : '') + '</b><i>' + t + '</i></button>'; }).join('');
+    d.querySelector('h4').textContent = '挑战 · ' + (m ? m.zh : '这张地图');
+    d.classList.toggle('none', !ids.length);
+    d.querySelector('.l').innerHTML = !ids.length ? '<div class="no">这张地图还没有挑战。<br>回到寒烟山就有。</div>' : PICK.filter(p => ids.includes(p[0])).map(([id, n, t]) => {
+      const b = bestOf(id, df), bd = boardOf(id, df);
+      return '<button data-l="' + id + '" class="' + (cur === id ? 'on' : '') + '"><b>' + n + (b != null ? '<em>最好 ' + fmt(b) + '</em>' : '') + '</b><i>' + t + (bd ? '<span class="rk" data-rk="' + id + '">排行榜 · 读取中…</span>' : df !== 'b' && boardOf(id, 'b') ? '<span class="rk">只有「标准」上排行榜</span>' : '') + '</i></button>';
+    }).join('');
+    // the place and the best of everyone, for the ranked line (小红书 only; elsewhere the line just says 排行榜 in the 小红书 version)
+    const sig = RG.pkSig = (RG.pkSig || 0) + 1;
+    for (const sp of d.querySelectorAll('[data-rk]')) {
+      const id = sp.dataset.rk, bd = boardOf(id, df);
+      if (typeof Rank === 'undefined' || !Rank.on || !Rank.line) { sp.textContent = '排行榜在小红书里'; continue; }
+      Rank.line(null, bd).then(r => { if (RG.pkSig !== sig || !sp.isConnected) return; sp.textContent = !r ? '排行榜暂时读不到' : (r.top != null ? '第一 ' + fmt(r.top) : '还没有人上榜') + (r.rank != null ? ' · 我 ' + (typeof r.rank === 'number' ? '第 ' + r.rank + ' 名' : r.rank) : ''); });
+    }
     d.querySelector('.d').innerHTML = ['a', 'b', 'c'].map(k => '<button data-d="' + k + '" class="' + (df === k ? 'on' : '') + '">' + DNAME[k] + '</button>').join('');
     d.querySelector('.t').textContent = '漏一个圈罚 ' + PEN[df] + ' 秒 · 开始后倒数 3、2、1 · 途中 Backspace 重来';
   }
@@ -531,7 +553,8 @@ const Rings = (() => {
     RG.pkOpen = !!on; const d = pickUI(); if (on) pickDraw(); d.classList.toggle('on', !!on);
   }
   function chalGo() {
-    const id = LINES[RG.pkSel] ? RG.pkSel : 'b';
+    const ids = mapLines(); if (!ids.length) return;
+    const id = ids.includes(RG.pkSel) ? RG.pkSel : ids[0];
     Variants.set('rline', id); syncLine(); pickOpen(false);
     RG.chal = true; if (typeof UI !== 'undefined') UI.go();
   }
