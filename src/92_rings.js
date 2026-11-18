@@ -926,7 +926,9 @@ fn dustGrain(i: u32) -> DG {
     // is drawn down into the flame (16:49 UTC: from the top down, the top first), each grain falling faster as it nears (ease-in), brightening as it
     // feeds the flame, and gone into it as the ring opens
     // (16:49 UTC) top first, the bottom last; about two grains in five are drawn into the flame, the rest fade where they are
-    let ab: f32 = M.g.y; let kk: f32 = saturate((ab - 0.6 * (1.0 - ph)) / 0.4); let suck: f32 = select(0.0, 1.0, fract(hsel.y * 71.0) < 0.4);
+    // (16:51 UTC: 不用把点挪回来，从上到下慢慢 fade out，不要太规律：上面的先消失的概率高，下面的低) no grain moves now: each goes out where
+    // it is at its own moment, the top ones likely early, the bottom ones likely late, with a good deal of chance in it
+    let ab: f32 = M.g.y; let st0: f32 = min(0.72, 0.5 * (1.0 - ph) + 0.4 * fract(hsel.y * 71.0 + hsel.z * 13.0)); let kk: f32 = saturate((ab - st0) / 0.28); let suck: f32 = 0.0;
     let ea: f32 = kk * kk * suck;
     // (16:51 UTC: 吸进来的目的地不是火团中心，而是新光圈上的位置，分散地落到圈上) each to its own place round the opening ring
     let ht: vec3f = hashu3(i * 59u + rid * 7u + 2u); let at: f32 = ht.x * 6.2831853; let rt: f32 = RN * max(open, 0.3) * (1.0 + 0.06 * (ht.y - 0.5));
