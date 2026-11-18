@@ -281,7 +281,7 @@ const RouteCard = self.RouteCard = (() => {
     }
     const colOf = s => cols[cl(Math.floor((s - (sA - 20)) / seg), 0, N - 1)];
     // the ground of each strip: flat tones from height (higher whiter), sun and shade in three steps, the forest as flat shapes
-    const hmax = T[0][2] + 60, hmin = T[n - 1][2] - 60, BAND = 60;
+    const hmax = T[0][2] + 60, hmin = T[n - 1][2] - 60, BAND = 100;
     for (const C of cols) {
       const R = 2, sw = Math.ceil(cw / R), sh = Math.ceil(ch / R), img = g.createImageData(sw, sh), D = img.data, Hh = new Float32Array(sw * sh);
       const XY = (i, j) => { const s = C.s0 + (j * R) / k; return [C.xc(s) + (i * R - cw / 2) / k, s]; };
@@ -293,8 +293,7 @@ const RouteCard = self.RouteCard = (() => {
         const hd = hs - mhs, nl = Math.hypot(hx, hd, 1), lit = (-hx * 0.66 + hd * 0.3 + 0.72) / nl;          // (the fall of the whole run taken out: the slopes across it, lit or in shade)
         const band = Math.floor((h - hmin) / BAND), top = cl(band * BAND / (hmax - hmin), 0, 1);
         let c = lerpC(LOW, SNOWW, Math.pow(top, 0.7));
-        const tone = lit < 0.42 ? SHADE2 : lit < 0.6 ? SHADE : lit > 0.8 ? SUNW : [1, 1, 1];
-        c = [c[0] * tone[0], c[1] * tone[1], c[2] * tone[2]];
+        // (owner 23:55 UTC: 不要阴影…平面设计的感觉) no light and shade: one flat tone per 100 m band of height, nothing else
         const [x, s] = XY(i, j), tr = d.T ? d.T(x, s) : 0;
         D[o] = cl(c[0], 0, 255); D[o + 1] = cl(c[1], 0, 255); D[o + 2] = cl(c[2], 0, 255); D[o + 3] = 255;
       }
@@ -304,8 +303,8 @@ const RouteCard = self.RouteCard = (() => {
       if (d.T) { const TS = 11, rr = rnd(C.c * 7919 + 17);
         for (let s = C.s0 - TS; s < C.s1 + TS; s += TS) for (let x = C.xc(s) - cw / 2 / k - TS; x < C.xc(s) + cw / 2 / k + TS; x += TS) {
           const jx = x + (rr() - 0.5) * TS * 0.8, js = s + (rr() - 0.5) * TS * 0.8, tr = d.T(jx, js), q = rr(); if (tr < 0.42 || q > (tr - 0.3) * 1.6) continue;
-          const px = C.X(jx, js), py = C.Y(js), r = (2.0 + 1.3 * rr()) * u, hx = (d.H(jx + 6, js) || 0) - (d.H(jx - 6, js) || 0);
-          g.fillStyle = rgb(hx > 0.8 ? FORESTD : FOREST, 0.92); g.beginPath(); g.arc(px, py, r, 0, 6.2832); g.fill(); } }
+          const px = C.X(jx, js), py = C.Y(js), r = (2.2 + 0.8 * rr()) * u;
+          g.fillStyle = rgb(FOREST, 1); g.beginPath(); g.arc(px, py, r, 0, 6.2832); g.fill(); } }
       // contours every 20 m, Tanaka-lit: the sun side of each line light, the shade side dark; every 100 m a little heavier
       const step = 2, gx = Math.ceil(sw / step), gy = Math.ceil(sh / step), Gv = (i, j) => Hh[Math.min(sh - 1, j * step) * sw + Math.min(sw - 1, i * step)];
       for (let lv = Math.ceil(hmin / 20) * 20; lv < hmax; lv += 20) {
@@ -318,11 +317,11 @@ const RouteCard = self.RouteCard = (() => {
           const P0 = P(i, j), P1 = P(i + 1, j), P2 = P(i + 1, j + 1), P3 = P(i, j + 1);
           if ((a > lv) !== (b > lv)) ed(a, b, P0, P1); if ((b > lv) !== (c > lv)) ed(b, c, P1, P2); if ((c > lv) !== (dd > lv)) ed(c, dd, P2, P3); if ((dd > lv) !== (a > lv)) ed(dd, a, P3, P0);
           const gxv = (b + c - a - dd) / 2, gyv = (dd + c - a - b) / 2 - mhs * step * e, gl = Math.hypot(gxv, gyv) || 1, li = (-gxv * 0.62 + gyv * 0.35) / gl;
-          for (let q = 0; q + 1 < E.length; q += 2) (li > 0 ? lit : dark).push(E[q], E[q + 1]);
+          for (let q = 0; q + 1 < E.length; q += 2) dark.push(E[q], E[q + 1]);          // (flat: every contour the same ink, no lit side)
         }
-        for (const [L2, col] of [[lit, TH.cLit], [dark, major ? TH.cDarkMajor : TH.cDark]]) {
+        for (const [L2, col] of [[dark, major ? TH.cMajor : TH.cLine]]) {
           if (!L2.length) continue; g.beginPath(); for (let q = 0; q < L2.length; q += 2) { g.moveTo(L2[q][0], L2[q][1]); g.lineTo(L2[q + 1][0], L2[q + 1][1]); }
-          g.strokeStyle = col; g.lineWidth = (major ? 1.5 : 0.85) * u; g.stroke(); }
+          g.strokeStyle = col; g.lineWidth = (major ? 1.4 : 0.8) * u; g.stroke(); }
       }
       // the groomed run: a white band with fine dashed edges
       if (d.cx) { const pts = d.cx.filter(q => q[0] >= C.s0 - 10 && q[0] <= C.s1 + 10);
@@ -417,13 +416,13 @@ const RouteCard = self.RouteCard = (() => {
   // glass, snow-white words, the sun's gold for what matters, coral for what was lost; Song serif names, light Jost figures)
   const THEMES = {
     paper: { ink: '#1d2a34', grey: '#7c8791', line: '#df4a2f', label: '#1d2a34', kmText: '#7c8791', forest: [104, 138, 124], forestD: [78, 110, 100], snow: [252, 252, 250], low: [221, 230, 236],
-      shade: [0.90, 0.91, 0.975], shade2: [0.80, 0.82, 0.93], sun: [1.0, 0.988, 0.955], off: [241, 237, 228], cLit: 'rgba(255,255,255,.8)', cDark: 'rgba(60,80,108,.3)', cDarkMajor: 'rgba(52,70,98,.5)',
+      shade: [0.90, 0.91, 0.975], shade2: [0.80, 0.82, 0.93], sun: [1.0, 0.988, 0.955], off: [241, 237, 228], cLine: 'rgba(60,80,108,.32)', cMajor: 'rgba(52,70,98,.55)',
       piste: 'rgba(253,253,251,.62)', pisteEdge: 'rgba(70,90,112,.45)', frame: 'rgba(29,42,52,.55)', lineHalo: 'rgba(255,255,255,.85)', air: '#1d2a34', bead: '#fff', miss: 'rgba(29,42,52,.55)',
       disc: '#1d2a34', discRing: '#fff', discText: '#fff', bestDisc: '#df4a2f', bestText: '#fff', halo: 'rgba(241,237,228,.92)', speedFill: 'rgba(223,74,47,.85)',
       ground: (g, W, H) => { g.fillStyle = '#f1ede4'; g.fillRect(0, 0, W, H); } },
-    game: { ink: '#f4f7fb', grey: 'rgba(244,247,251,.62)', line: '#ffd08a', label: '#f4f7fb', kmText: 'rgba(244,247,251,.75)', forest: [34, 47, 62], forestD: [24, 34, 47], snow: [168, 183, 206], low: [104, 120, 148],
-      shade: [0.86, 0.88, 0.97], shade2: [0.72, 0.76, 0.92], sun: [1.03, 1.0, 0.96], off: [24, 32, 46], cLit: 'rgba(235,242,252,.38)', cDark: 'rgba(12,18,32,.32)', cDarkMajor: 'rgba(12,18,32,.5)',
-      piste: 'rgba(214,224,238,.30)', pisteEdge: 'rgba(16,24,40,.38)', frame: 'rgba(244,247,251,.22)', lineHalo: 'rgba(8,12,20,.42)', air: '#f4f7fb', bead: '#fff8ea', miss: '#ff9d8c',
+    game: { ink: '#f4f7fb', grey: 'rgba(244,247,251,.62)', line: '#ffd08a', label: '#f4f7fb', kmText: 'rgba(244,247,251,.75)', forest: [30, 42, 58], forestD: [30, 42, 58], snow: [150, 166, 192], low: [96, 112, 142],
+      shade: [0.86, 0.88, 0.97], shade2: [0.72, 0.76, 0.92], sun: [1.03, 1.0, 0.96], off: [24, 32, 46], cLine: 'rgba(232,240,250,.28)', cMajor: 'rgba(232,240,250,.5)',
+      piste: 'rgba(206,218,234,.32)', pisteEdge: 'rgba(16,24,40,.38)', frame: 'rgba(244,247,251,.22)', lineHalo: 'rgba(8,12,20,.42)', air: '#f4f7fb', bead: '#fff8ea', miss: '#ff9d8c',
       disc: 'rgba(5,8,13,.85)', discRing: 'rgba(244,247,251,.75)', discText: '#f4f7fb', bestDisc: '#ffd08a', bestText: '#1b1408', halo: 'rgba(5,8,13,.42)', speedFill: 'rgba(255,208,138,.78)',
       // the dusk the menus sit on: a deep blue, warmer low on the left where the sun has gone down, a faint snow grain
       ground: (g, W, H, u) => { const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#141c2b'); gr.addColorStop(0.6, '#1f2a3d'); gr.addColorStop(1, '#2c3850'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
