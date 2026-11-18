@@ -25,6 +25,7 @@ const Rings = (() => {
   // the share of the ring in front so he can say which one is right
   // UPDATE (用户 05:43 UTC): keep three, 2/3, 1/2, 1/3, set by how hard the stretch is (index 0 easy .. 2 hard)
   const SIZES = [[2.5, '5 米'], [1.5, '3 米'], [1.0, '2 米']];          // (用户 2026-11-18 19:10 UTC: 试试 5、3、2: diameters in metres; were 6, 4.5, 3)
+  const COLK = [1, 0.4, 0.13];          // (下一个圈提示 细高光柱: how bright the column over the 1st, 2nd and 3rd flame still to come)
   const AHEAD = 4;                 // the ring in front + three flames
   const TONGUES = 56;
   let gfx = null, pDust = null, pDustSh = null, pFlame = null, pLight = null;
@@ -219,7 +220,7 @@ const Rings = (() => {
     const S = Game.s, s = -S.p[2], cam = Render.cam.pos, o = Render.origin, night = cl(((Sky.night || 0) - 0.2) / 0.6, 0, 1);
     const ahead = RG.rings.filter(r => r.pass < 0), fmode = typeof Variants !== 'undefined' ? ({ a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8 })[Variants.val.rflow] || 0 : 0;
     drawList = [];
-    const col1 = ahead.find(q => q.grow < 0 && !q.fin && !q.skip), colFading = RG.rings.some(q => !q.fin && !q.skip && q.colOn && q.grow >= 0 && T - q.grow < 1.6);
+    const cols = ahead.filter(q => q.grow < 0 && !q.fin && !q.skip).slice(0, 3), dtP = Math.min(0.1, Math.max(0, T - (RG.prepT || T))); RG.prepT = T;
     for (const r of RG.rings) {
       const dist = Math.hypot(r.x - cam[0], r.y - cam[1], -r.s - cam[2]), ord = r.pass >= 0 ? 0 : ahead.indexOf(r);
       const sz = Math.sqrt(r.r / 4.5), near = Math.pow(cl(1 - (dist - 25) / 280, 0.16, 1), 1.2);          // (用户 20:39 UTC: 有时候还是比较淡，亮一点、点多一点: far ones still fainter, but not lost)
@@ -239,10 +240,13 @@ const Rings = (() => {
         // (16:45 UTC: 被火团吸进去) bk 1 while the flame burns and while the column is being drawn in; ab how far in, over ~0.7 s of opening
         // (16:49 UTC: 太快了，慢一点；不用全部吸进来，有些慢慢 fade out，只要顺序从上往下) ~1.6 s from when the flame starts to open
         const abT = r.grow >= 0 ? cl((T - r.grow) / 1.6, 0, 1) : 0;
-        // (用户 20:39 UTC: 开局为什么有两条线？应该只有第一条) one column at a time: over the first flame still to open, and only once the
-        // column of the ring that last opened has faded out
-        if (r === col1 && !colFading && r.grow < 0) r.colOn = true;          // (a ring that opens without its column ever having stood gets none to fade)
-        if (!r.fin && abT < 1 && r.colOn) { bk = 1; nx = [c[0], c[1], c[2], r.r]; ap = 1; }
+        // (用户 20:45 UTC: 接下来几个圈都有这条线是好的，但要区分开：紧接着下一个最亮，第二个明显暗一点，第三个非常暗; 20:39 UTC 开局两条
+        // 一样亮的线分不清哪个是第一个) a column over each of the next three flames still to open, at 1, 0.4 and 0.13 of the brightness, each
+        // easing to its new rank in ~0.4 s as the one before it opens; an opening ring's column fades out top first from where it stood
+        const rk = cols.indexOf(r), tgt = rk >= 0 ? COLK[rk] : r.grow >= 0 ? (r.colK || 0) : 0;
+        if (rk >= 0) r.colOn = true;
+        r.colK = r.colK === undefined ? tgt : r.colK + (tgt - r.colK) * Math.min(1, dtP * 2.5);
+        if (!r.fin && abT < 1 && r.colOn && r.colK > 0.01) { bk = 1; nx = [c[0], c[1], c[2], r.r]; ap = r.colK; }
       } else if (fmode && !r.fin && (r.splash >= 0 || ord === 0)) {
         const dC = r.s - s; ap = r.splash >= 0 ? 1 : fmode === 5 || fmode === 7 || fmode === 8 ? cl(1 - (dC - 10) / 70, 0, 1) : cl(1 - (dC - 6) / 34, 0, 1); const i = RG.rings.indexOf(r); for (let k = i + 1; k < RG.rings.length; k++) { const q = RG.rings[k]; if (q.skip) continue; nx = [q.x - o[0], q.y - o[1], -q.s - o[2], q.r]; break; } }
       drawList.push({ r, nx, ap, bk, ab: fmode === 7 && r.grow >= 0 ? cl((T - r.grow) / 1.6, 0, 1) : 0, fmode, fl: r.flowT >= 0 ? T - r.flowT : -1, dist, c, sz, near, grown, dis, open, A, flameA, night, ord, flameSc: (1 + 1.6 * ease(grown / 0.35)) * (ord <= 1 ? 1 : ord === 2 ? 0.85 : 0.72), tint: ord <= 1 ? 0 : ord === 2 ? 1 : 2, hitK: r.hit || r.splash < 0 ? 1 : 0.5 });
@@ -394,10 +398,15 @@ const Rings = (() => {
       rows.push({ s, cx, hw, tr }); const ln = Course.ways(s).slice(1); lanes.push(ln);
       lk.push(Course.waysK ? Course.waysK(s) : []); const fd = []; for (let bb = Math.floor((s - 60) / 32); bb <= Math.floor((s + 40) / 32); bb++) for (const f of Course.feats.get(bb) || []) if (f.kind === 'drop' && f.lip - s > -18 && f.lip - s < 34 && !fd.includes(f)) fd.push(f); dr.push(fd);
       const dist = new Float32Array(NU).fill(1e9);
-      for (const t of tr) { const ds = t[1] - s; if (Math.abs(ds) > 8) continue; for (let ui = Math.max(0, Math.floor(t[0] - cx - U0 - 8)); ui < NU && ui + U0 + cx < t[0] + 8; ui++) { const d = Math.hypot(ui + U0 + cx - t[0], ds) - t[2]; if (d < dist[ui]) dist[ui] = d; } }
+      const dens = new Uint8Array(NU);
+      for (const t of tr) { const ds = t[1] - s; if (Math.abs(ds) > 8) continue; for (let ui = Math.max(0, Math.floor(t[0] - cx - U0 - 8)); ui < NU && ui + U0 + cx < t[0] + 8; ui++) { const d = Math.hypot(ui + U0 + cx - t[0], ds) - t[2]; if (d < dist[ui]) dist[ui] = d; if (d < 7 && dens[ui] < 255) dens[ui]++; } }
       for (let ui = 0; ui < NU; ui++) {
         const u = ui + U0, e = Math.abs(u) - hw, d = dist[ui]; let onl = false; for (const lu of ln) if (Math.abs(u - lu) < 5) onl = true;
         let q = (d < 1.6 ? 1e6 : 0) + (d < 3.5 ? (3.5 - d) * 6 : 0);
+        // (用户 20:43 UTC: 越野可以钻树林，但只是很小的一些树林) thick wood costs more the thicker it is, so the way goes through small stands and
+        // glades, not deep forest where the rings ahead are lost
+        // (20:44 UTC: 越野可以加一些钻小树林) a few trees about (2-4 within 7 m) is a small stand to weave through and is sought out a little
+        if (dens[ui] > 5) q += (dens[ui] - 5) * 1.8; else if (dens[ui] >= 2) q -= 1.2;
         if (e < -2) q += 4.5;          // (用户 17:40/17:48 UTC: 不需要完全离开主线，可以偶尔交错: mostly out, now and then across it to the other side)
          if (e > 40 && !onl) q += (e - 40) * (e - 40) * 0.5 + 20; if (onl && e > 0) q -= 4; if (e > 6 && e < 40) q -= 2.5; if (e >= -2 && e <= 6) q += 1;
         // (用户 18:08/18:11 UTC: 所有线的第一个圈在正前方，慢慢预热；只要第一个就可以) the way leaves the gate straight, through the first ring
@@ -436,14 +445,31 @@ const Rings = (() => {
       }
       // (in among trees: closer, through the gaps, a tree run's rhythm; out in the open as before)
       const kt = Math.min(n - 1, Math.round((s + 14) / 4)); let near = 1e9; for (const tt of rows[kt].tr) near = Math.min(near, Math.hypot(tt[0] - rows[kt].cx - pu[kt], tt[1] - rows[kt].s) - tt[2]);
-      s += lg ? (30 + 8 * rr()) * gk : near < 7 ? (20 + 8 * rr()) * gk : (34 + 14 * rr()) * gk; if (s > sE - 70) break;
+      // (用户 20:43 UTC: 树林里的圈一定要离得近，冲过去就钻进林子什么都看不见了) among trees the next ring is the furthest of 20..10 m on whose
+      // straight line from the last ring no trunk stands (it can be seen from there, column and all); never further
+      if (near < 7 && !lg) {
+        const pl0 = rings.length ? rings[rings.length - 1] : null, p0 = pl0 && pl0.s >= s - 1 ? pl0 : { s, u: pu[Math.min(n - 1, Math.round(s / 4))] }; let pick = 10;          // (from the last ring, or from where the search last stood if a ring was left out there: always onward)
+        for (const st of [20, 18, 16, 14, 12, 10]) {
+          const s2 = p0.s + st, k2 = Math.min(n - 1, Math.round(s2 / 4)), x2 = rows[k2].cx + pu[k2], x1 = Course.at(p0.s, pc).cx + p0.u; let ok = true;
+          for (let j = 1; j < st && ok; j++) { const f = j / st, xs = x1 + (x2 - x1) * f, ss = p0.s + j, kk = Math.min(n - 1, Math.round(ss / 4)); for (const tt of rows[kk].tr) if (Math.hypot(tt[0] - xs, tt[1] - ss) - tt[2] < 1.0) { ok = false; break; } }
+          if (ok) { pick = st; break; }
+        }
+        s = p0.s + pick;
+      } else s += lg ? (30 + 8 * rr()) * gk : (34 + 14 * rr()) * gk;
+      if (s > sE - 70) break;
       if (lg) {
         // (the lane's own gully: its bell is 1.35 w wide, steepest at about 0.95 w out from its middle; trees stand only beyond that)
         side = -side; const kq = Math.min(n - 1, Math.round(s / 4)), w = lk[kq].find(q => q.kind === 'gully' && Math.abs(pu[kq] - q.u) < q.w * 1.6) || lg;
         const tu = w.u + side * w.w * (0.6 + 0.5 * (WALLK[df] || 0.6)), R = rows[kq], xr = R.cx + tu; let room = 1e9; for (const tt of R.tr) room = Math.min(room, Math.hypot(tt[0] - xr, tt[1] - R.s) - tt[2]);
         if (room > sz[1] + 0.8) { rings.push({ s: R.s, u: tu, r: sz[1], off: true, how: 'lane' }); continue; }
       }
-      const k = Math.min(n - 1, Math.round(s / 4)), R = rows[k], u = rings.length ? pu[k] : 0, x = R.cx + u;
+      const k = Math.min(n - 1, Math.round(s / 4)), R = rows[k];
+      // (用户 20:44 UTC: 越野也要尽量摆在路中间、空隙之间，别人左拐右拐从这儿钻过去，路线比较明确) between trees the ring stands in the middle of
+      // the gap the way goes through: halfway between the nearest trunk on either side (when the gap is under 14 m)
+      let u = rings.length ? pu[k] : 0;
+      if (rings.length) { let lt = -1e9, rt = 1e9; const xw = R.cx + u; for (const tt of R.tr) { if (Math.abs(tt[1] - R.s) > 3) continue; const dx = tt[0] - xw; if (dx < 0 && dx > -8 && tt[0] + tt[2] > lt) lt = tt[0] + tt[2]; if (dx >= 0 && dx < 8 && tt[0] - tt[2] < rt) rt = tt[0] - tt[2]; }
+        if (lt > -1e8 && rt < 1e8 && rt - lt < 14) u = (lt + rt) / 2 - R.cx; }
+      const x = R.cx + u;
       { const cg = Course.at(R.s, pc); if (cg.gul > 0.3 && Math.abs(u - cg.goff) < (cg.gU > 0.5 ? 1.75 : 1.3) * cg.gw + 6) continue; }          // (never up on the rim of the run's gully)
       let r = rr() < 0.5 ? sz[0] : sz[1], room = 1e9;
       for (const t of R.tr) room = Math.min(room, Math.hypot(t[0] - x, t[1] - R.s) - t[2]);
