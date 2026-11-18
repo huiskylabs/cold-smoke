@@ -62,12 +62,20 @@ const LabMo = (() => {
     const sv = (lean >= 0 ? 1 : -1) * Math.min(1, sa / ref);
     if (dt > 0 && S.sv != null) { const h = Math.min(dt, 0.05);
       S.svv += (wn * wn * (sv - S.sv) - 2 * wn * S.svv) * h; S.sv += S.svv * h;
-      S.suv += (wn * wn * (S.u - S.su) - 2 * wn * S.suv) * h; S.su += S.suv * h; }
-    else { S.sv = sv; S.svv = 0; S.su = S.u; S.suv = 0; }
-    const e2 = 0.25; return { v: Math.min(1, (Math.sqrt(S.sv * S.sv + e2 * e2) - e2) / (Math.sqrt(1 + e2 * e2) - e2)), side: S.sv >= 0 ? 1 : -1, u: S.su, lean };
+      S.suv += (wn * wn * (S.u - S.su) - 2 * wn * S.suv) * h; S.su += S.suv * h;
+      S.lev = (S.lev || 0) + (wn * wn * (lean - S.le) - 2 * wn * (S.lev || 0)) * h; S.le += S.lev * h; }      // (le: the lean eased exactly as the posture's share is, so the two stay in step)
+    else { S.sv = sv; S.svv = 0; S.su = S.u; S.suv = 0; S.le = lean; S.lev = 0; }
+    const e2 = 0.25; return { v: Math.min(1, (Math.sqrt(S.sv * S.sv + e2 * e2) - e2) / (Math.sqrt(1 + e2 * e2) - e2)), side: S.sv >= 0 ? 1 : -1, u: S.su, lean, le: S.le == null ? lean : S.le };
   }
   // a turn table at share v, going in / coming out by u
-  const at = (T, v, u) => { const a = row(T.rise, v), b = row(T.fall, v); return a.map((q, k) => (q + b[k]) * 0.5 + (b[k] - q) * 0.5 * u); };
+  // (owner 2026-11-18, playing: a short turn left, one right, let go, and as the body came back upright the trunk twisted the other way and back,
+  // "像弹簧": measured, the chest 16 deg toward the turn going in, 11 deg the other way coming out, the shoulder line from 22 deg banked in to 10 deg
+  // the other way within 0.4 s. That is the lab skier's way out of a turn, which already winds up for the next one, played whether a next one comes
+  // or not. Under the new solver the trunk, head and arms take the posture half way between the way in and the way out at that lean, and only a
+  // little of the difference (UK): they go over and come back by the same road, facing down the run, and the legs keep the whole rhythm under them)
+  const UK = (() => { const k = new Array(39).fill(1); for (let i = 3; i < 9; i++) k[i] = 0.5; for (let i = 9; i < 39; i++) k[i] = 0.15; return k; })();
+  const quietU = () => typeof Variants !== 'undefined' && Variants.val.solver === 'b';
+  const at = (T, v, u) => { const a = row(T.rise, v), b = row(T.fall, v), qu = quietU(); return a.map((q, k) => (q + b[k]) * 0.5 + (b[k] - q) * 0.5 * u * (qu ? UK[k] : 1)); };
   const mirRow = r => { const V = i => [r[i], r[i + 1], r[i + 2]], mx = q => [-q[0], q[1], q[2]], mX = q => [q[0], -q[1], -q[2]];
     return [...mx(V(0)), ...mX(V(3)), ...mx(V(6)), ...mX(V(9)), ...mx(V(12)), ...mX(V(15)), ...mx(V(18)), ...mX(V(21)), ...mx(V(24)), ...mx(V(30)), ...mx(V(27)), ...mx(V(36)), ...mx(V(33))]; };
   const mix = (a, b, t) => a.map((q, k) => q + (b[k] - q) * t);
@@ -79,12 +87,13 @@ const LabMo = (() => {
     else { S.w = wT; S.wv = 0; } return S.w;
   };
   const out = { w: 0, cref: 0.21, pel: [0, 0, 0], pb: null, t1: null, t2: null, hb: null, ua: [null, null], fa: [null, null] };
-  function fill(o, S, r, cr, axis) {
-    const V = i => [r[i], r[i + 1], r[i + 2]], cs = Math.cos(cr), sn = Math.sin(cr);
-    const R = axis === 'z' ? q => [q[0] * cs + q[1] * sn, -q[0] * sn + q[1] * cs, q[2]] : q => [q[0], q[1] * cs + q[2] * sn, -q[1] * sn + q[2] * cs];
+  // (crT: the roll the trunk, head and arms take, when it is not the hips' own (新求解器, M.step))
+  function fill(o, S, r, cr, axis, crT) {
+    const V = i => [r[i], r[i + 1], r[i + 2]], rot = c => { const cs = Math.cos(c), sn = Math.sin(c); return axis === 'z' ? q => [q[0] * cs + q[1] * sn, -q[0] * sn + q[1] * cs, q[2]] : q => [q[0], q[1] * cs + q[2] * sn, -q[1] * sn + q[2] * cs]; };
+    const R = rot(cr), T = crT == null ? R : rot(crT), H = crT == null ? R : rot((cr + crT) / 2);
     o.w = S.w; o.cref = S.cref; o.pel = R(V(0));
-    o.pb = ortho(R(V(3)), R(V(6))); o.t1 = ortho(R(V(9)), R(V(12))); o.t2 = ortho(R(V(15)), R(V(18))); o.hb = ortho(R(V(21)), R(V(24)));
-    o.ua[0] = nrm(R(V(27))); o.ua[1] = nrm(R(V(30))); o.fa[0] = nrm(R(V(33))); o.fa[1] = nrm(R(V(36)));
+    o.pb = ortho(H(V(3)), H(V(6))); o.t1 = ortho(T(V(9)), T(V(12))); o.t2 = ortho(T(V(15)), T(V(18))); o.hb = ortho(T(V(21)), T(V(24)));
+    o.ua[0] = nrm(T(V(27))); o.ua[1] = nrm(T(V(30))); o.fa[0] = nrm(T(V(33))); o.fa[1] = nrm(T(V(36)));
     return o;
   }
   M.step = function (p, sec, dt, speed) {
@@ -100,7 +109,15 @@ const LabMo = (() => {
       for (let i = 0; i < 39; i++) r[i] += cw[c] * y[i]; }
     // the rest of the lean: the whole figure rolled about the skis (the game's pelvis stands out by H sin(lean) + 0.07 sin(lean): about 1.07 lean)
     out.clip = cw; out.v = ph.v; out.u = ph.u;
-    return fill(out, st, r, ph.lean * 1.07 - Math.atan2(r[0], r[1]), 'z');
+    // (新求解器: the hips go where the game's lean puts them this frame, but the posture is the one of the lean a tenth of a second ago (eased, above).
+    // Rolled whole by the difference, the trunk was thrown over by however fast the lean was changing: 17 deg toward the new side at the moment the
+    // lean crossed zero, 8 deg against the lean on the way back. The trunk is rolled by the eased lean the posture belongs to: it tips with the
+    // lean and comes back with it)
+    // (and owner, the same day: "高手…归位的时候，躯干和重心尽量在一条直线上". The lab's posture holds the trunk upright over hips that are far inside
+    // (measured here: 5 deg the other way at 30 deg of lean); TRUNK_IN of the lean is given back to the trunk, so it lies most of the way along the
+    // line from the skis through the hips, and stands up with it)
+    const TRUNK_IN = 0.6, lab = Math.atan2(r[0], r[1]);
+    return fill(out, st, r, ph.lean * 1.07 - lab, 'z', quietU() ? ph.le * 1.07 - lab + TRUNK_IN * ph.le : null);
   };
   // ---- on a snowboard (Variants 'ride' b, 08a_board.js): the lab's board turn. Toe and heel turns are not mirror images, so each has its own
   // table (the end of a toe turn is the start of a heel turn); everything is in the board solver's rider space (x toward the tail, y up, z toward

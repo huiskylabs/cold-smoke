@@ -11,6 +11,7 @@ const PAGE = path.resolve(process.env.PAGE || path.join(__dirname, '..', '..', '
 // 每个场景：seg 路段类型（null = 原山）、s0 起点、dur 秒、ctl 名字（页面里的控制函数）
 const SCN = [
   { id: 'start', seg: null, s0: 14, dur: 14, ctl: 'none', note: '静止出发：撑杖 → 滑行 → 自动收成团身' },
+  { id: 'taps', seg: '', s0: 14, dur: 12, ctl: 'taps', note: '起步后短按左、马上短按右，再松手' },
   { id: 'keys_mid', seg: 'bowl', s0: 60, dur: 45, ctl: 'keys', per: 2.6, note: '键盘左右交替，每弯 1.3 秒（中弯）' },
   { id: 'keys_short', seg: 'bowl', s0: 60, dur: 40, ctl: 'keys', per: 1.3, note: '键盘左右交替，每弯 0.65 秒（小回转）' },
   { id: 'keys_long', seg: 'steeps', s0: 60, dur: 45, ctl: 'keys', per: 4.4, note: '陡坡，键盘每弯 2.2 秒（大弯，高速）' },
@@ -39,6 +40,8 @@ const mkCtl = function (sc) {
   const key = d => { I.keys.ArrowLeft = d < 0; I.keys.ArrowRight = d > 0; };
   return {
     none: t => { key(0); },
+    // （主人 2026-11-18 试玩：起步后短按左、马上短按右，看回正时上身扭不扭）
+    taps: t => { const u = [[4, 4.45, -1], [4.5, 4.95, 1], [7, 7.3, -1], [7.35, 7.65, 1], [9.5, 9.9, -1]].find(x => t >= x[0] && t < x[1]); key(u ? u[2] : 0); },
     turnback: t => { const u = (t - 3) % sc.per, k = Math.floor((t - 3) / sc.per); key(t < 3 || u > sc.hold ? 0 : (k % 2 ? 1 : -1)); },
     keys: t => { key(t < 3 ? 0 : (Math.floor((t - 3) / (sc.per / 2)) % 2 ? -1 : 1)); },
     sine: t => { I.script = t < 3 ? 0 : sc.amp * Math.sin((t - 3) * 2 * Math.PI / sc.per); },
