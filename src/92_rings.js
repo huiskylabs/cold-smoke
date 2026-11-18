@@ -188,10 +188,11 @@ const Rings = (() => {
       if (fmode === 7) {
         // (用户 16:44 UTC: 喜欢细高光柱；一开始有一个光柱，等火团变成光球以后，光柱比较快地消失) the column stands over each of the next two
         // rings for as long as it is a flame, and goes in about 0.3 s once the flame opens into a ring
-        if (!r.fin && r.pass < 0 && ord <= 1) { bk = 1 - cl(grown / 0.33, 0, 1); if (bk > 0) { nx = [c[0], c[1], c[2], r.r]; ap = bk; } }
+        // (16:45 UTC: 被火团吸进去) bk 1 while the flame burns and while the column is being drawn in; ab how far in, over ~0.7 s of opening
+        if (!r.fin && r.pass < 0 && ord <= 1 && grown < 0.78) { bk = 1; nx = [c[0], c[1], c[2], r.r]; ap = 1; }
       } else if (fmode && !r.fin && (r.splash >= 0 || ord === 0)) {
         const dC = r.s - s; ap = r.splash >= 0 ? 1 : fmode === 5 || fmode === 7 || fmode === 8 ? cl(1 - (dC - 10) / 70, 0, 1) : cl(1 - (dC - 6) / 34, 0, 1); const i = RG.rings.indexOf(r); for (let k = i + 1; k < RG.rings.length; k++) { const q = RG.rings[k]; if (q.skip) continue; nx = [q.x - o[0], q.y - o[1], -q.s - o[2], q.r]; break; } }
-      drawList.push({ r, nx, ap, bk, fmode, fl: r.flowT >= 0 ? T - r.flowT : -1, dist, c, sz, near, grown, dis, open, A, flameA, night, ord, flameSc: (1 + 1.6 * ease(grown / 0.35)) * (ord <= 1 ? 1 : ord === 2 ? 0.85 : 0.72), tint: ord <= 1 ? 0 : ord === 2 ? 1 : 2, hitK: r.hit || r.splash < 0 ? 1 : 0.5 });
+      drawList.push({ r, nx, ap, bk, ab: fmode === 7 ? cl(grown / 0.78, 0, 1) : 0, fmode, fl: r.flowT >= 0 ? T - r.flowT : -1, dist, c, sz, near, grown, dis, open, A, flameA, night, ord, flameSc: (1 + 1.6 * ease(grown / 0.35)) * (ord <= 1 ? 1 : ord === 2 ? 0.85 : 0.72), tint: ord <= 1 ? 0 : ord === 2 ? 1 : 2, hitK: r.hit || r.splash < 0 ? 1 : 0.5 });
     }
     drawList.sort((a, b) => b.dist - a.dist);          // far first: the near ring's tube writes depth over what lies behind it
   }
@@ -202,7 +203,7 @@ const Rings = (() => {
   }
 
   // ---- the GPU side
-  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, d.nx ? d.fmode : 0], e: [Math.round(9600 * d.sz * (d.r.fin ? 2 : 1)), Math.round(800 * d.sz * (d.r.fin ? 2 : 1)), 0, d.ap || 0], f: d.nx || [0, 0, 0, 0], g: [d.fl, 0, 0, 0] });
+  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, d.nx ? d.fmode : 0], e: [Math.round(9600 * d.sz * (d.r.fin ? 2 : 1)), Math.round(800 * d.sz * (d.r.fin ? 2 : 1)), 0, d.ap || 0], f: d.nx || [0, 0, 0, 0], g: [d.fl, d.ab || 0, 0, 0] });
   const ringLive = d => d.grown > 0.3 && d.dis < 1 && d.open > 0.01;
   RG.init = function (g) {
     gfx = g;
@@ -918,9 +919,16 @@ fn dustGrain(i: u32) -> DG {
     let ph: f32 = fract(T / 4.5 + hsel.y * 11.0); let hh: f32 = pow(ph, 0.8) * 35.0; let a0: f32 = hsel.z * 6.2831853 + T * 0.6;
     let rj: f32 = RN * 0.18 * sqrt(fract(hsel.y * 37.0)) * (1.0 - 0.5 * ph);
     let sw: f32 = sin(T * 0.45 + f32(rid) * 0.37) * 0.04 * hh;
-    flowP = N + vec3f(cos(a0) * rj + sw, RN * 0.4 + hh, sin(a0) * rj);
-    flowSt = vec3f(0.0, -0.5, 0.0);
+    let colP: vec3f = N + vec3f(cos(a0) * rj + sw, RN * 0.4 + hh, sin(a0) * rj);
+    // (用户 16:45 UTC: 光柱逐渐被火团吸进去一样，然后变成光圈) M.g.y: 0 while the flame burns, then 0..1 over ~0.7 s as it opens. The column
+    // is drawn down into the flame from the bottom up, the top last, each grain falling faster as it nears (ease-in), brightening as it
+    // feeds the flame, and gone into it as the ring opens
+    let ab: f32 = M.g.y; let kk: f32 = saturate((ab - 0.55 * ph) / 0.45); let ea: f32 = kk * kk;
+    let tgt: vec3f = N + (hashu3(i * 59u + rid * 7u + 2u) - vec3f(0.5)) * 0.5;
+    flowP = mix(colP, tgt, ea);
+    flowSt = mix(vec3f(0.0, -0.5, 0.0), normalize(colP - tgt + vec3f(0.0, 0.001, 0.0)) * (0.3 + 1.2 * ea), select(0.0, 1.0, ab > 0.0));
     b = 0.45 * apr * min(1.0, ph * 10.0) * pow(1.0 - ph, 1.3) * (1.0 - saturate(dis * 2.0));
+    b = select(b, 0.45 * apr * min(1.0, ph * 10.0) * (1.0 + 1.2 * ea) * (1.0 - saturate((kk - 0.85) / 0.15)), ab > 0.0);
     useFlow = 1.0;
   } else if (md > 7.5 && md < 8.5 && kind == 0u && hsel.x < 0.05 && apr > 0.0) {
     // 8 螺旋光柱: two strands of grains winding up round the next ring's axis, narrowing as they rise, fading at 24 m
