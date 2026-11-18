@@ -19,6 +19,8 @@ const Replay = self.Replay = (() => {
   const G = Game, S = G.s;
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
   const CAMS = [['chase', '追尾'], ['fp', '第一人称'], ['tips', '雪板尖'], ['low', '贴雪'], ['high', '俯瞰'], ['side', '侧面'], ['front', '正面'], ['far', '远摄'], ['tv', '转播'], ['orbit', '环绕']];
+  // (a phone on its side has room down its right edge for five: the ones most picked; the others behind 更多)
+  const PHONE5 = ['chase', 'fp', 'side', 'front', 'tv'];
   const SPEEDS = [0.25, 0.5, 1, 2], TAIL = 2.5;           // TAIL: s of the run kept past the finish ring (its burst, the skier riding on)
 
   // ---- one frame of the run, packed: every number of Game.s, Game.pose and Game.root in a fixed order (laid out at 出发), in a Float64Array
@@ -277,8 +279,8 @@ const Replay = self.Replay = (() => {
       + '#replay .cams{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;min-width:0}#replay .cams::-webkit-scrollbar{display:none}#replay .cams button,#replay .camc button{font-family:var(--f-song);letter-spacing:.2em}#replay .camc{display:none}'
       // (a phone on its side: the cameras stand down the right edge, under the thumb, the six most used; the rest behind 更多)
       + '@media (max-height:520px){#replay .cams,#replay .row .sep.c,#replay .row kbd{display:none}#replay .t{min-width:0}'
-      + '#replay .camc{display:flex;position:absolute;right:var(--gr);top:calc(var(--gt) + 46px);bottom:calc(var(--gb) + 74px);flex-direction:column;align-items:flex-end;gap:6px;overflow-y:auto;scrollbar-width:none;pointer-events:auto;text-shadow:none}'
-      + '#replay .camc button{background:rgba(5,8,13,.42);height:30px;flex:none}#replay .camc button.on{background:rgba(5,8,13,.55)}#replay .camc button.x6{display:none}#replay .camc.all button.x6{display:inline-flex}#replay.idle .camc{opacity:0;pointer-events:none}#replay .camc{transition:opacity .45s}}'
+      + '#replay .camc{display:flex;position:absolute;right:var(--gr);top:calc(var(--gt) + 44px);bottom:calc(var(--gb) + 76px);flex-direction:column;align-items:flex-end;gap:5px;overflow-y:auto;scrollbar-width:none;pointer-events:auto;text-shadow:none}'
+      + '#replay .camc button{background:rgba(5,8,13,.42);height:28px;padding:0 10px;flex:none}#replay .camc button.on{background:rgba(5,8,13,.55)}#replay .camc button.x6{display:none}#replay .camc.all button.x6{display:inline-flex}#replay.idle .camc{opacity:0;pointer-events:none}#replay .camc{transition:opacity .45s}}'
       + '</style>'
       + '<div class="surf"></div>'
       + '<div class="ui"><div class="tag"><i></i><em>回放</em>REPLAY</div><button class="x" data-a="x" aria-label="退出回放"><svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg></button>'
@@ -288,7 +290,7 @@ const Replay = self.Replay = (() => {
       + '<span class="sp">' + SPEEDS.map(s => '<button data-sp="' + s + '">' + (s === 0.25 ? '¼' : s === 0.5 ? '½' : s) + '×</button>').join('') + '</span><span class="sep c"></span>'
       + '<span class="cams">' + CAMS.map(([id, n], i) => '<button data-cam="' + id + '">' + n + '<kbd>' + ((i + 1) % 10) + '</kbd></button>').join('') + '</span>'
       + '<span class="gap"></span><button data-a="hide">隐藏<kbd>H</kbd></button></div></div>'
-      + '<div class="camc">' + CAMS.map(([id, n], i) => '<button data-cam="' + id + '"' + (i >= 6 ? ' class="x6"' : '') + '>' + n + '</button>').join('') + '<button class="more" data-a="more">更多</button></div></div>';
+      + '<div class="camc">' + CAMS.map(([id, n]) => '<button data-cam="' + id + '"' + (PHONE5.includes(id) ? '' : ' class="x6"') + '>' + n + '</button>').join('') + '<button class="more" data-a="more">更多</button></div></div>';
     appEl().appendChild(d);
     el = { root: d, q: s => d.querySelector(s) };
     // the camera buttons move to the edge of a phone on its side: they are taken out of the bar there, so the bar's own hiding does not take them
