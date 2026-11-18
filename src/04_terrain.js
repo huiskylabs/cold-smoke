@@ -970,13 +970,19 @@ fn frag(v: VOut) -> FOut {
     // (金色雪旗 above the tree line: grey limestone of one tone, broken by blocks and joints, not dark beds striped with white lines.
     // Where it meets the snow the rock is in the snow's own shadow a little (the snow is thick and stands up off it))
     if (${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'true' : 'false'} && U.world.x > 2.5) {
+      // (round 2, against Okuhida and Rundle: a face is not one smooth grey slab. It is fluted down the fall line: ribs, each lit or
+      // shaded as it turns to the sun, and the narrow gullies between them full of snow, white lines running down through the rock)
+      let fdB: vec2f = normalize(sm.xy + vec2f(1e-5, 0.0));
+      let acr: f32 = dot(wxz, vec2f(-fdB.y, fdB.x)); let alg: f32 = dot(wxz, fdB);
+      let st: f32 = tex(tNoise, vec2f(acr / 9.0, alg / 95.0) + vec2f(0.71, 0.13)).z;
+      let st2: f32 = tex(tNoise, vec2f(acr / 26.0, alg / 170.0) + vec2f(0.29, 0.83)).z;
       let blk: f32 = tex(tDetail, wxz / 23.0 + vec2f(0.21, 0.63)).z;
-      ra = vec3f(0.24, 0.24, 0.25) * (0.78 + 0.30 * e1.z + 0.22 * (blk - 0.5)) * (1.0 - 0.40 * smoothstep(0.36, 0.26, ck) * near);
+      ra = vec3f(0.29, 0.265, 0.245) * (0.50 + 0.85 * st2) * (0.80 + 0.40 * st) * (0.85 + 0.30 * blk) * (1.0 - 0.40 * smoothstep(0.36, 0.26, ck) * near);
       ra *= 1.0 - 0.35 * (1.0 - smoothstep(0.55, 0.95, rock));
-      lip = 0.0;
+      lip = smoothstep(0.66, 0.74, st + 0.25 * (st2 - 0.5)) * smoothstep(1400.0, 200.0, dist);
     }
     var rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
-    ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(0.92, 0.95, 1.0), 0.75); }' : ''}
+    ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.02, 0.98, 0.95), 0.35); }' : ''}
     col = mix(col, rc, rock * (1.0 - 0.9 * lip));
   }
   // distant forest reads as a dark speckled carpet with long shadows
