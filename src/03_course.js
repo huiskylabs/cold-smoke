@@ -70,6 +70,9 @@ if (typeof Variants !== 'undefined') {
   // 金色雪旗 above the tree line (owner 2026-11-18 03:56, with a photo of the Rockies above the trees: "两面是山…山上的云雾缭绕…没有树…很多石头
   // …有些石头裸露出来…大面积的白雪"): no trees, rock breaking through the walls, wide white snow, cloud wrapped round the mountains
   Variants.def('dalp', '高山 (金色雪旗)', [['a', '林海'], ['b', '林线以上：无树、多石、云雾']], 'b');
+  // (defined here, not in 05_sky.js where it is used most: the terrain shader text in 04_terrain.js is put together when that file loads, and
+  // read dlight as undefined, so the clear-day changes to the faces never reached them)
+  Variants.def('dlight', '光 (金色雪旗)', [['a', '旧图的光（迎着太阳）'], ['b', '自己的光（金色、侧后光、无积云）'], ['c', '晴天（八海山视频：深蓝天、白雪、蓝影、云海）']], 'c');
   Variants.def('shape', '山体', [['a', '现在的'], ['b', '峡谷'], ['c', '开阔'], ['d', '山腰临空']], 'a');
   // (a change lays the same mountain out again)
   Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'route' || n === 'rclear' || n === 'shape' || n === 'start' || n === 'world') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
