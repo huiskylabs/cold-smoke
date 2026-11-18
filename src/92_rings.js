@@ -151,7 +151,7 @@ const Rings = (() => {
     const v = Math.max(6, S.speed || 0), dCur = cur.s - s;
     // (用户 15:54 UTC: 一群光游过去 没有效果) it set off at the splash, 1.6 m before the ring, lost in the splash's own burst and then riding
     // along with the camera. Now it leaves while the ring is still ahead, ~0.6 s out (at least 12 m), so it is seen swimming off toward the next
-    if (cur.flowT === undefined && !cur.fin && dCur < Math.max(12, v * 0.6)) cur.flowT = T;
+    if (cur.flowT === undefined && !cur.fin && dCur < Math.max(18, v * 1.0)) cur.flowT = T;          // (Mac check 16:1x UTC: at 0.6 s / 4.5% it was barely seen: now ~1 s out)
     if (dCur < Math.max(14, v * 0.8) && ahead[1] && ahead[1].grow < 0) ahead[1].grow = T;          // nearly there: the next flame swells and opens
     // (用户 05:16 UTC: 离圈一两米、头碰到圈面之前就要 splash 散开，半米一米时能不能过已经定了): the splash starts 1.6 m before the ring's plane
     if (dCur < 1.6 && cur.splash < 0) {
@@ -808,7 +808,7 @@ fn dustGrain(i: u32) -> DG {
     let w: f32 = pow(max(0.0, cos(ang - angD)), 10.0) * dk * apr * (1.0 - saturate(dis * 3.0));
     b = b * (1.0 + 2.2 * w); rr = rr + w * 0.22 * sz;
   }
-  if (md > 0.5 && md < 1.5 && M.g.x >= 0.0 && kind == 0u && hsel.x < 0.045) {
+  if (md > 0.5 && md < 1.5 && M.g.x >= 0.0 && kind == 0u && hsel.x < 0.07) {
     // a swarm (用户 08:06 UTC: 不要每颗直线飞过去，突兀；要像一群 swarm，沿一条不规则的曲线一起游到下一个圈). The grains gather off the ring's
     // side that faces the next one into a loose cloud, the cloud swims on one shared, meandering curve (a cubic plus two slow wiggles that
     // die at both ends), each grain circling inside it on its own orbit and lagging a little, the cloud swelling mid-way and drawing in
@@ -828,14 +828,14 @@ fn dustGrain(i: u32) -> DG {
     let c2: vec3f = P1 - D * 0.3 + sd * (hr.z - 0.5) * 0.35 * dl + vec3f(0.0, (0.05 + 0.1 * hr.x) * dl, 0.0);
     let ts: f32 = M.g.x;
     let delay: f32 = 0.15 * hd.y;
-    let dur: f32 = clamp(0.7 + dl * 0.004, 0.7, 1.2);
+    let dur: f32 = clamp(1.0 + dl * 0.005, 1.0, 1.5);
     let t: f32 = saturate((ts - delay) / dur);
     let e: f32 = mix(t * t * (3.0 - 2.0 * t), 1.0 - (1.0 - t) * (1.0 - t), 0.5);
     let bell: f32 = sin(3.1415927 * e);
     let mw: vec3f = (sd * sin(e * 9.4 + hr.x * 6.0) * 0.07 + vec3f(0.0, sin(e * 7.1 + hr.y * 6.0), 0.0) * 0.04) * dl * bell;
     let core: vec3f = bez3(P0, c1, c2, P1, e) + mw;
     let th: f32 = hf.x * 6.2831853 + T * (1.5 + 2.5 * hf.z) * select(-1.0, 1.0, hd.z > 0.5);
-    let rs: f32 = (0.35 + 1.1 * hf.y) * sz * (0.5 + 0.9 * bell);
+    let rs: f32 = (0.5 + 1.6 * hf.y) * (0.5 + 0.9 * bell);
     let orb: vec3f = sd * (cos(th) * rs) + vec3f(0.0, sin(th) * rs * 0.7, 0.0) + vec3f(0.0, 0.0, (hd.x - 0.5) * 0.8 * sz * bell);
     let swarm: vec3f = core + orb;
     let gather: f32 = smoothstep(0.0, 0.22, e); let spread: f32 = smoothstep(0.78, 1.0, e);
@@ -843,7 +843,8 @@ fn dustGrain(i: u32) -> DG {
     flowSt = vec3f(0.0);
     let after: f32 = ts - delay - dur;
     let land: f32 = select(1.0, 1.0 - saturate(after / 0.35), after > 0.0);
-    b = b * mix(1.0, 0.75, saturate(t * 5.0)) * land;
+    b = b * mix(1.0, 1.1, saturate(t * 5.0)) * land;
+    wsz = wsz * mix(1.0, 2.2, gather * (1.0 - spread)); minPx = mix(minPx, 2.6, gather * (1.0 - spread));          // (bigger grains in flight: at 20-50 m the swarm's 1.8 px dots were lost)
     useFlow = 1.0;
   } else if (md > 1.5 && md < 2.5 && dis > 0.0 && kind == 0u && hsel.x < 0.012) {
     // one thread: every grain on the same curve (handles from the ring's own hash), strung out along it by when it leaves
