@@ -7,12 +7,15 @@
 const Solver = (() => {
   const K = Skier, sat = x => Math.max(0, Math.min(1, x));
   Variants.def('solver', '新求解器', [['a', '关'], ['b', '雪板贴真实雪面']], 'a');
-  const ZS = [-0.75, -0.5625, -0.375, -0.1875, 0, 0.1875, 0.375, 0.5625, 0.75], EL = new Array(ZS.length), ER = new Array(ZS.length), EC = new Array(ZS.length), HALF = 0.6, DROP = 30, PUSH = 120;
+  const ZS = [-0.75, -0.5625, -0.375, -0.1875, 0, 0.1875, 0.375, 0.5625, 0.75], EL = new Array(ZS.length), ER = new Array(ZS.length), EC = new Array(ZS.length), HALF = 0.6, DROP = 60, PUSH = 120;
   // One ski, standing at (x0, z0) in the figure's frame, as what it is: a stiff bar that the snow can push up anywhere along its length but cannot pull
   // down. Each frame its two ends first fall as a thing falls that a leg pushes down (at most DROP), then the bar is lifted where the snow stands
   // over it, turning about the place it is hit as a bar does. So it lies on the high points of the snow under it; where the snow falls away faster
   // than it can fall (the back of a bump at speed) it is light for a moment; and over a lip its tail stays on the table while its tip comes down
   // at the pace a ski can turn, instead of the whole ski tipping in a frame. This is all the smoothing there is here: the contact itself.
+  // (DROP was 30 until the second contact sheets, 2026-11-18: at 24 m/s through the mogul field a ski thrown up by one bump was still 0.5 m in the
+  // air over the next. A leg pushes a boot and a ski down harder than that; at 60 the frames with both skis more than 10 cm off the snow fell from
+  // 46 to 18 of 91 and the count of jolts stayed the same.)
   // q[k..k+3]: front end's height and speed, rear end's height and speed. Returns the height under the boot in q[k], q[k + 2] (as ends).
   function read(E, x0, z0, toW, ref, iy) { for (let i = 0; i < ZS.length; i++) { const q3 = toW([x0, 0, z0 + ZS[i]]); E[i] = (Course.height(q3[0], q3[2], 0.5) - q3[1] - ref) * iy; } }
   function lay(q, k, E, dt) {
@@ -35,13 +38,14 @@ const Solver = (() => {
   // on a path with no step in it. q[13..15]: where the figure was (its velocity is read off that), q[16], q[17]: the lift and its speed.
   const AHEAD = 0.4, TRAVEL = 0.38, SPARE = 0.04, LW = 9;
   function bump(x, z, mk) { const real = Course.height(x, z, 0.5); if (!(mk < 1)) return 0; const k0 = Course.mogK; Course.mogK = mk; const ph = Course.height(x, z, 0.5); Course.mogK = k0; return real - ph; }
-  function lift(q, cur, root, dt, on) {
+  function lift(q, cur, root, dt, on, over) {
     const p = root.pos; let vx = 0, vz = 0;
     if (dt > 0 && q[13] != null) { vx = (p[0] - q[13]) / dt; vz = (p[2] - q[15]) / dt; } q[13] = p[0]; q[15] = p[2];
     if (!(dt > 0) || q[16] == null) { q[16] = 0; q[17] = 0; }
     let need = 0;
     if (on && (cur.mogK == null ? 1 : cur.mogK) < 1) { const room = TRAVEL * (1 - sat(cur.crouch == null ? 0.21 : cur.crouch)) - SPARE;
       for (let k = 0; k <= 4; k++) { const t = AHEAD * k / 4; need = Math.max(need, (bump(p[0] + vx * t, p[2] + vz * t, cur.mogK) - room) * (1 - 0.5 * k / 4)); } }
+    need = Math.max(need, over || 0);
     if (dt > 0) { const d = q[16] - need, e = Math.exp(-LW * dt), b = (q[17] + LW * d) * dt; q[16] = need + (d + b) * e; q[17] = (q[17] - LW * b) * e; }
     return q[16];
   }
@@ -53,9 +57,8 @@ const Solver = (() => {
   K.ground = (cur, root, Y, toW, sec, dt) => {
     if (Variants.val.solver !== 'b' || typeof Course === 'undefined' || (K.boardOn && K.boardOn())) { sec.gs = null; return null; }
     const q = sec.gs || (sec.gs = new Array(24).fill(null)), on = cur.onSnow == null ? (cur.air || 0) < 0.5 : cur.onSnow > 0, out = [0, 0, 0, 0, 0];
-    out[4] = lift(q, cur, root, dt, on);
     if (!(dt > 0)) { for (let k = 0; k < 13; k++) q[k] = null; for (let k = 18; k < 22; k++) q[k] = null; }
-    if (!on) { const e = Math.exp(-OUT * (dt > 0 ? dt : 0)); for (let k = 0; k < 4; k++) { q[9 + k] = (q[9 + k] || 0) * e; out[k] = q[9 + k]; } q[8] = 0; for (let k = 0; k < 8; k++) q[k] = null; for (let k = 18; k < 22; k++) q[k] = null; return out; }
+    if (!on) { out[4] = lift(q, cur, root, dt, on, 0); const e = Math.exp(-OUT * (dt > 0 ? dt : 0)); for (let k = 0; k < 4; k++) { q[9 + k] = (q[9 + k] || 0) * e; out[k] = q[9 + k]; } q[8] = 0; for (let k = 0; k < 8; k++) q[k] = null; for (let k = 18; k < 22; k++) q[k] = null; return out; }
     // (the physics has the skis at root.pos, sunk into soft snow as far as it says: the snow is read relative to that, so the sinking stays)
     // (2026-11-18: by the game's own count, pose.sink, not by reading the snow under the one point root.pos: past a lip that point is over the drop a
     // frame before the physics lets go, and everything read against it jumped)
@@ -68,12 +71,21 @@ const Solver = (() => {
     // while the other lay flat in the trough beside it, the skis crossed in an X and one knee came up to the chest.) So a third bar lies on the
     // higher of the two skis' snow, as one wide ski would, and each ski of its own may hang below that one by at most APART at either end:
     // the ski over the lower snow is carried, light or just off the snow, as the inside ski is over a trough in a real mogul line.
-    for (let k = 0; k < 8; k += 2) { const lowest = q[18 + (k & 2)] - APART; if (q[k] < lowest) { q[k] = lowest; q[k + 1] = q[19 + (k & 2)]; } }
+    // (measured against the higher of that bar and the other ski: a ski the snow is already throwing up can be ahead of the bar for some frames)
+    for (let e = 0; e < 4; e += 2) { const top = Math.max(q[18 + e], q[e], q[4 + e]), vt = top === q[18 + e] ? q[19 + e] : top === q[e] ? q[1 + e] : q[5 + e];
+      for (let k = e; k < 8; k += 4) if (q[k] < top - APART) { q[k] = top - APART; q[k + 1] = Math.max(q[k + 1], vt); } }
     q[8] = q[8] == null ? IN : Math.min(q[8] + (dt > 0 ? dt : 0), IN); const u = q[8] / IN, m = u * u * (3 - 2 * u);
     for (let k = 0; k < 2; k++) { const f = q[k * 4], r = q[k * 4 + 2];
       const h = (f + r) / 2, pt = -Math.atan((r - f) / (2 * HALF));
       if (m >= 1) { q[9 + k * 2] = h; q[10 + k * 2] = pt; }
       out[k * 2] = m >= 1 ? h : (q[9 + k * 2] || 0) * (1 - m) + h * m; out[k * 2 + 1] = m >= 1 ? pt : (q[10 + k * 2] || 0) * (1 - m) + pt * m; }
+    // A leg has only so far to fold (TRAVEL, less what the pose has already folded and a little to spare). Where the snow lifts a foot by more
+    // than that, the rest is the body's to go up by (lift takes it, on the same smooth path as the bumps it saw coming), and until the body is
+    // there the foot waits: for those frames the ski is in the face of the bump, as the old figure's was all the time, and the knee is not at the chest
+    // (second contact sheets, 2026-11-18: at 24 m/s through the mogul field the feet came up 0.8 m under a body that stayed where it was).
+    const room = TRAVEL * (1 - sat(cur.crouch == null ? 0.21 : cur.crouch)) - SPARE;
+    out[4] = lift(q, cur, root, dt, on, Math.max(out[0], out[2]) - room);
+    out[0] = Math.min(out[0], room + out[4]); out[2] = Math.min(out[2], room + out[4]);
     return out;
   };
   return {};
