@@ -524,7 +524,9 @@ const Trees = (() => {
   // spire firs loaded with snow, and a few larch stands, bare and warm. Stands a couple of hundred metres across)
   function dStand(x, z) {
     const n = vnoise2(x / 170, z / 170, 81) + 0.35 * vnoise2(x / 60, z / 60, 82);
-    return n > 0.05 ? 'f' : n > -0.32 ? 'd' : 'e';
+    // (round 2: the rime pines came out as stacks of grey plates, nothing like a snow ghost; until a real rime tree is built, the stands
+    // are snow-loaded spire firs (Whistler, the 八海山 video's conifers) with a few larch stands among them)
+    return n > -0.45 ? 'd' : 'e';
   }
   function describe(out, o, x, z, h, rot, hint, seed, kind) {
     const q = hash2U(Math.floor(x * 8), Math.floor(z * 8)) & 0xffff, r1 = hash2(q, 71), r2 = hash2(q, 72), r3 = hash2(q, 73), r4 = hash2(q, 74), mode = Variants.val.world === 'd' && Variants.val.tvar === 'c' ? (Variants.val.dalp === 'b' ? dStand(x, z) : 'd') : Variants.val.tvar;   // (the lake world's own wood: the spire firs, the owner's pick 2026-11-17)

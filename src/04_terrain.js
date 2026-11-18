@@ -681,8 +681,17 @@ fn frag(v: VOut) -> FOut {
       // texture (d2, a few metres) and so came out as speckle and brush streaks. Real snow on a Rockies face (Rundle, Cascade) lies where
       // the face eases and runs down the gullies; its edge is ragged at the size of a boulder or a slab, never finer. So: no d2 here, the
       // strata bands of the old map gone, and the edge drawn from the 80 m and 73 m relief only, a little soft)
-      let oc: f32 = tex(tNoise, wxz / 80.0 + vec2f(0.37, 0.19)).z * 0.6 + e3.z * 0.4;
-      rock = smoothstep(0.585, 0.535, Nc.y + 0.36 * (0.5 - oc) + hold * 0.8 + conc * 0.15 + shut) * step(0.001, rgate);
+      // (round 2, the owner 2026-11-18 07:00 "一点儿也不真实，没有细节"; the photos: Okuhida's ridge, Rundle, Whistler's Harmony peak. A
+      // face above the trees is ribs of rock running down the fall line with snow filling the chutes between them, the snow's edge clean
+      // at any distance. The crag relief (Nc) flips from pixel to pixel near the bar and came out as grain, so the bar is read off the
+      // smooth face (Nm) plus noise drawn out down the fall line (ribs ~35 m across, a couple of hundred long), and the hollows keep snow)
+      let fdA: vec2f = normalize(sm.xy + vec2f(1e-5, 0.0));
+      let ribUV: vec2f = vec2f(dot(wxz, vec2f(-fdA.y, fdA.x)) / 38.0, dot(wxz, fdA) / 230.0);
+      let rib: f32 = tex(tNoise, ribUV + vec2f(0.13, 0.57)).z * 0.7 + tex(tNoise, ribUV * vec2f(2.7, 1.6) + vec2f(0.61, 0.29)).z * 0.3;
+      let oc: f32 = tex(tNoise, wxz / 80.0 + vec2f(0.37, 0.19)).z;
+      let ew2: f32 = 0.018 + dist * 0.00003;
+      let bar: f32 = Nm.y + 0.42 * (0.5 - rib) + 0.12 * (0.5 - oc) + conc * 0.35 + shut;
+      rock = smoothstep(0.60 + ew2, 0.60 - ew2, bar) * step(0.001, rgate);
     } else { rock = rock * 0.45; }
   }
   let sdir0: vec2f = normalize(L.xz + vec2f(1e-4, 0.0)); let tanE0: f32 = L.y / max(length(L.xz), 1e-3);
