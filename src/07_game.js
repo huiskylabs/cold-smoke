@@ -636,8 +636,10 @@ const Game = (() => {
   }
   // a spin of n half turns about the body's own axis (base: half turns already made, i.e. starting from switch)
   function spinShape(q, u, d, n, base, c) {
-    const a = (base + n * turn(u)) * PI, b = bell(0.02, 0.2, 0.7, 0.95, u);
-    q.yaw = d * a; q.c = c; q.own = b; q.tuck = 0.12 * b; q.sep = d * 0.38 * bell(0, 0.18, 0.28, 0.55, u);
+    // (新求解器, fl.pre: the turn was thrown on the snow, shoulders first (THROW, below). The skis leave already turning at the rate they keep, and the
+    // shoulders, ahead by the throw, are caught up by the hips through the first half)
+    const th = !!fl.pre && !base, a = (base + n * (th ? turn(u, 0.12) : turn(u))) * PI, b = bell(0.02, 0.2, 0.7, 0.95, u);
+    q.yaw = d * a; q.c = c; q.own = b; q.tuck = 0.12 * b; q.sep = d * 0.38 * (th ? 1 - smooth(0.28, 0.55, u) : bell(0, 0.18, 0.28, 0.55, u));
     // (the head leads the turn and finds the landing before the body comes round to it; landed switch, it looks back down the hill)
     q.head = d * Math.min(Math.ceil((base + n) / 2) * TAU - a, 1.15) * (base ? 1 : smooth(0, 0.12, u));
   }
@@ -715,7 +717,7 @@ const Game = (() => {
     }
     let tot = 0; const c = [];
     for (const id in TRICKS) {
-      const m = TRICKS[id][0]; if (m > U || (!big && !HOP[id]) || (big < 2 && ODD(id)) || !fpOK(id)) continue;
+      const m = TRICKS[id][0]; if (m > U || (!big && !HOP[id]) || (big < 2 && ODD(id)) || !fpOK(id) || (id === 'eagle' && SOLV())) continue;      // (新求解器 does not make the eagle yet: forced on a flat kicker, cloud 2026-11-18, the knee folds backwards for 11 frames and the ankles turn right over. Left out until its legs are made for this figure)
       // (wanted most when the air is a little more than it needs: not rushed, and fading out as the air outgrows it)
       const wt = TRICKS[id][1] * sat((U - m) / 0.15 + 0.35) * Math.exp(-Math.max(0, U - m - 0.15) / TRICKS[id][2]) * (id === fl.last ? 0.04 : id === fl.last2 ? 0.4 : 1);
       c.push(id, wt); tot += wt;
@@ -726,7 +728,7 @@ const Game = (() => {
   // (what was planned on the way in stands while it suits the air there is: with too little for it, or a good deal more than it was
   // chosen to fill, something else is picked; a turn keeps the side it has been wound up to)
   const planFor = (U, old, pred) => { const big = bigAir(pred); if (old && old.min <= U && U - old.U < 0.25 && (big === 2 || (big && !ODD(old.id)) || HOP[old.id] || G.forceTrick) && (fpOK(old.id) || G.forceTrick) && (!G.forceTrick || old.id === String(G.forceTrick))) return old; const t = pickTrick(U, big); if (t) { t.U = U; t.big = big; t.k = /\d|flip|grab/.test(t.id) ? 1 : clamp((t.seq ? U / 2 : U) / 0.62, 0.5, 1); if (old && old.spin && t.spin) t.dir = old.dir; } return t; };
-  const SOLV = () => Variants.val.solver === 'b', PRE_T = 0.13, PRE_U = 0.10;
+  const SOLV = () => Variants.val.solver === 'b', PRE_T = 0.13, PRE_U = 0.10, SPIN_LEAN = 0.22;     // (SPIN_LEAN: a spin is thrown from a flat, square stance. Leaving the lip banked over 35 deg in a turn, a 360 swapped the bent leg for the straight one a quarter turn in; from there another trick is taken)
   function startTrick(tr) { fl.tr = tr; fl.ph = 0; fl.swT = 0; if (tr.id !== 'pivot' && !tr.base) { fl.last2 = fl.last; fl.last = tr.id; G.events.push({ type: 'trick', id: tr.id, dir: tr.dir }); } }
   function flightReset() {
     Object.assign(fl, { air: false, on: false, t: 0, rem: 0, pred: 0, big: 0, w: 0, wV: 0, wu: 0, wuV: 0, plL: 0, plLV: 0, plR: 0, plRV: 0, kc: 0, kcV: 0, lipT: 9, lipAir: 0, lipAge: 9, prepL: 0, prepLV: 0, prep: 0, aK: 0, mL: 0, reach: 0, reachV: 0, soak: 0, soakV: 0, hit: 0, ph: 1, tr: null, plan: null, took: false,
@@ -771,22 +773,25 @@ const Game = (() => {
     if (!lip && !S.air && fl.lipAge > 0.6) fl.plan = null;
     // (新求解器: a planned spin begins on the snow, in the last tenth of a second before the lip or through the push of a jump: the shoulders go
     // first (the shape's own sep), the skis come round a few degrees, and the body leaves the snow already turning at its full rate)
-    if (SOLV() && !S.air && !fl.tr && fl.plan && fl.plan.spin && S.contact && S.crash <= 0 && ((lip && fl.lipT < PRE_T) || (S.popT >= 0 && fl.lipAir >= 0.42 && fl.lipAge < 0.6))) { startTrick(fl.plan); fl.pre = 1; fl.preT = 0; }
+    if (SOLV() && !S.air && !fl.tr && fl.plan && fl.plan.spin && Math.abs(fl.lb) < SPIN_LEAN && S.contact && S.crash <= 0 && ((lip && fl.lipT < PRE_T) || (S.popT >= 0 && fl.lipAir >= 0.42 && fl.lipAge < 0.6))) { startTrick(fl.plan); fl.pre = 1; fl.preT = 0; fl.thr = 0; fl.back = 0; }
     // the trick runs on the time there is: its phase moves so as to be done `tOut` before the skis touch, however the forecast shifts
     const tr = fl.tr;
     if (tr) {
       if (tr.id === 'pivot') fl.ph = Math.min(1, fl.ph + dt / 0.5);
-      else if (fl.pre && !fl.on) { fl.preT += dt; const k = sat(Math.max(fl.lipT < 9 ? 1 - fl.lipT / PRE_T : 0, S.popT >= 0 ? S.popT / POP_T : 0)); fl.ph = Math.max(fl.ph, PRE_U * k * k);      // (held there if the skis stay on the snow longer than the lip promised: tried 2026-11-18, turning on at that rate, it reached 47 deg on the snow)
-        if (fl.preT > 0.45) { fl.tr = null; fl.pre = 0; clearQ(q); } }      // (thrown, and the snow did not let go: taken back)
+      else if (fl.pre && !fl.on) { fl.preT += dt; const k = sat(Math.max(fl.lipT < 9 ? 1 - fl.lipT / PRE_T : 0, S.popT >= 0 ? S.popT / POP_T : 0)); fl.thr = Math.max(fl.thr || 0, k * k * (3 - 2 * k)); fl.ph = 0;
+        // (Mac round 20: begun as the spin itself, the skis came round 15-23 deg while the track stayed straight, a sideslip with snow thrown off the
+        // tails; then they waited seven frames for the lip, and jumped to full rate. On the snow only the shoulders go, the skis hold their line)
+        if (fl.preT > 0.45 || Math.abs(fl.lb) > SPIN_LEAN * 1.3) { fl.tr = null; fl.pre = 0; fl.back = tr.dir * fl.thr; fl.thr = 0; clearQ(q); } }      // (thrown, and the snow did not let go, or the skier banked into a turn: the shoulders are let back, below)
       else if (fl.on) { if (fl.t > 0.05 || fl.pre) fl.ph = Math.min(1, fl.ph + dt * Math.min((1 - fl.ph) / Math.max(fl.rem - fl.tOut, 0.02), 6)); }
       else fl.ph = Math.min(1, fl.ph + dt * 6);                      // (met the snow early: what is left of it is finished there, quickly)
-      if (fl.tr) trickShape(tr, fl.ph, q);
+      if (fl.tr && fl.pre && !fl.on) { clearQ(q); q.sep = tr.dir * 0.38 * (fl.thr || 0); q.head = tr.dir * 0.5 * (fl.thr || 0); } else if (fl.tr) trickShape(tr, fl.ph, q);
       if (fl.ph >= 1 && !fl.on) {
         if (!(tr.spin && ((tr.base + tr.n) & 1))) { fl.tr = null; clearQ(q); }
         // landed switch: ride it out for a moment, then pivot round on the snow
         else { fl.swT += dt; if (fl.swT > 0.6 && S.contact && S.crash <= 0) startTrick({ id: 'pivot', dir: tr.dir, spin: true, n: 1, base: 1, amp: 1, min: 0 }); }
       }
     }
+    if (!fl.tr && fl.back) { const b0 = fl.back; fl.back = Math.abs(b0) < 0.02 ? 0 : b0 * Math.exp(-7 * dt); q.sep = 0.38 * fl.back; q.head = 0.5 * fl.back; }      // (a throw taken back: the shoulders come round square again in a quarter second)
     fl.trick = fl.tr ? fl.tr.id : ''; fl.sw = fl.tr && fl.tr.spin && fl.ph >= 1 && ((fl.tr.base + fl.tr.n) & 1) ? fl.tr.dir : 0;
     // how far the body has gone over to its flight shape: in over the first fifth of a second, out again before the skis touch
     // (through a spring: a forecast that changes its mind for a step, grazing a mogul, must not twitch the whole figure)
@@ -906,7 +911,7 @@ const Game = (() => {
     // quick: a hundredth of a second or two through an edge change, a fifth of a second while it is only trembling about a held angle)
     { const r = fl.lbR = first || dt <= 0 ? Math.abs(fl.lbV) : damp(fl.lbR || 0, Math.abs(fl.lbV), 8, dt), fc = (FB ? 2.5 : 0.8 + 3.5 * r) + 30 * Math.max(w, sat(crash * 5), q.own);
       fl.lbF = first || dt <= 0 || fl.lbF == null ? fl.lb : fl.lbF + (fl.lb - fl.lbF) * (1 - Math.exp(-TAU * fc * dt)); fl.lb = fl.lbF; }
-    const Lv = fl.lb * cy * (1 - 0.7 * q.own * w), sL = Math.sin(Lv); pose.lean = Lv;
+    const Lv = fl.lb * cy * (1 - (fl.pre && fl.on && q.yaw ? 1 : 0.7 * w) * q.own), sL = Math.sin(Lv); pose.lean = Lv;
     // (feel b: the body goes first. The hips cross over into the new turn and the edges follow them a tenth of a second or so later, through a
     // critically damped spring, instead of rolling with the body to the same instant)
     // (medge b: to the same instant after all. A ski boot holds the shin square to the ski sideways, so an edge a tenth of a second behind the
@@ -1026,7 +1031,7 @@ const Game = (() => {
     const kS = lerp(lerp(0.3, 0.8, smooth(-0.04, 0.04, skR * fl.lean * cy)), 1, fl.mogU), skL = spring(fl, 'skL', skR, 6, kd);
     const sepM = clamp((1 - kS) * skL - skR, -0.85, 0.85) * (fl.gS = damp(fl.gS == null ? gnd : fl.gS, gnd, 12, kd)), hdM = spring(fl, 'hdM', clamp((0.35 * trR - 0.34 * skR) * gnd - 0.15 * skR * gnd, -0.7, 0.7) * (1 - fl.mogU), 9, kd);
     pose.quiet = fl.mogU;
-    pose.sep = lerp(lerp(fl.sepB * cy, sepM, mo), lerp(fl.sepB * cy, MC.sep, gnd), mcK) + q.sep - spring(fl, 'wu', fl.plan && fl.plan.spin ? fl.plan.dir * 0.3 * fl.prep : 0, 20, kd); pose.headYaw = clamp(spring(fl, 'hd', lerp(lerp(fl.hy * cy, hdM, mo), fl.hy * cy * (1 - gnd), mcK) + q.head, 16, kd), -1.3, 1.3);
+    pose.sep = lerp(lerp(fl.sepB * cy, sepM, mo), lerp(fl.sepB * cy, MC.sep, gnd), mcK) + q.sep - spring(fl, 'wu', fl.plan && fl.plan.spin && !fl.pre ? fl.plan.dir * 0.3 * fl.prep : 0, 20, kd); pose.headYaw = clamp(spring(fl, 'hd', lerp(lerp(fl.hy * cy, hdM, mo), fl.hy * cy * (1 - gnd), mcK) + q.head, 16, kd), -1.3, 1.3);
     // (the inside ski draws ahead as the edges come up: hardly at all in a shallow turn)
     pose.lead = 0.19 * sL * Math.abs(sL) + q.lead; pose.stance = 0.31 + 0.16 * Math.abs(sL) + 0.04 * w + q.st;
     fl.foreS = damp(fl.foreS || 0, clamp(-0.25 * w * (1 - q.own) + q.fore - 0.5 * fl.soak, -1, 1), 8, kd); pose.fore = fl.foreS;

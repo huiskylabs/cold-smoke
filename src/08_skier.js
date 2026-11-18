@@ -543,7 +543,10 @@ const Skier = (() => {
       const e = v3.mad(sh, v3.norm(v3.sub(v3.lerp(J['elbow' + sd], le, wa), sh)), LEN.uarm), g = v3.mad(e, v3.norm(v3.sub(v3.lerp(J['grip' + sd], lg, wa), e)), LEN.farm + LEN.grip);
       const g0 = J['grip' + sd]; J['elbow' + sd] = e; J['grip' + sd] = g; h.e = e; h.w = g;
       // (the pole trails from the hand where it is now; its tip kept a little off the snow)
-      let d = (MO2 || sec.gnd) && h.planted < 1 ? v3.norm(v3.sub(v3.mad(g0, h.d, PL), g)) : h.d; if (sec.gnd) { const ty = g[1] + d[1] * PL, ty2 = -smin(-ty, -0.03, 0.06);      // (新求解器: the tip is eased onto its 3 cm over the snow, not stopped there: where it came down onto the limit and left it again the shaft turned a corner, a jolt at every edge change)
+      // (新求解器: the shaft keeps the line hand() gave it and goes with the hand. Aimed back at the tip the OTHER hand position would have had, it took
+      // that hand's corners with it: its in/out offsets break at zero lean, and at every edge change the shaft turned a corner (4.6 deg/frame^2,
+      // cloud 2026-11-18, turnM.bowl.e f280; with this, 0 jolts in that run))
+      let d = MO2 && !sec.gnd && h.planted < 1 ? v3.norm(v3.sub(v3.mad(g0, h.d, PL), g)) : h.d; if (sec.gnd) { const ty = g[1] + d[1] * PL, ty2 = -smin(-ty, -0.03, 0.06);      // (新求解器: the tip is eased onto its 3 cm over the snow, not stopped there: where it came down onto the limit and left it again the shaft turned a corner, a jolt at every edge change)
         if (ty2 > ty + 1e-5) { const hz = Math.hypot(d[0], d[2]) || 1, dy = clamp((ty2 - g[1]) / PL, -1, 1), k2 = Math.sqrt(1 - dy * dy) / hz; d = [d[0] * k2, dy, d[2] * k2]; } }
       else if (g[1] + d[1] * PL < 0.03) { const hz = Math.hypot(d[0], d[2]) || 1, dy = clamp((0.03 - g[1]) / PL, -1, 1), k2 = Math.sqrt(1 - dy * dy) / hz; d = [d[0] * k2, dy, d[2] * k2]; }
       h.d = d; J['poleD' + sd] = d; }
