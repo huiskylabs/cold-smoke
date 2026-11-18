@@ -170,7 +170,7 @@ const Rings = (() => {
   // what each ring is this frame: how far open, how far scattered, how bright (far ones barely there), and its flame
   function prep(T) {
     const S = Game.s, s = -S.p[2], cam = Render.cam.pos, o = Render.origin, night = cl(((Sky.night || 0) - 0.2) / 0.6, 0, 1);
-    const ahead = RG.rings.filter(r => r.pass < 0), fmode = typeof Variants !== 'undefined' ? ({ a: 1, b: 2, c: 3, d: 4, e: 5 })[Variants.val.rflow] || 0 : 0;
+    const ahead = RG.rings.filter(r => r.pass < 0), fmode = typeof Variants !== 'undefined' ? ({ a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8 })[Variants.val.rflow] || 0 : 0;
     drawList = [];
     for (const r of RG.rings) {
       const dist = Math.hypot(r.x - cam[0], r.y - cam[1], -r.s - cam[2]), ord = r.pass >= 0 ? 0 : ahead.indexOf(r);
@@ -186,7 +186,7 @@ const Rings = (() => {
       // ap: how near this ring is, 0 far .. 1 close (the cues that show before the ring is reached grow with it; the 光柱 starts further out)
       let nx = null, ap = 0;
       if (fmode && !r.fin && (r.splash >= 0 || ord === 0)) {
-        const dC = r.s - s; ap = r.splash >= 0 ? 1 : fmode === 5 ? cl(1 - (dC - 10) / 70, 0, 1) : cl(1 - (dC - 6) / 34, 0, 1); const i = RG.rings.indexOf(r); for (let k = i + 1; k < RG.rings.length; k++) { const q = RG.rings[k]; if (q.skip) continue; nx = [q.x - o[0], q.y - o[1], -q.s - o[2], q.r]; break; } }
+        const dC = r.s - s; ap = r.splash >= 0 ? 1 : fmode === 5 || fmode === 7 || fmode === 8 ? cl(1 - (dC - 10) / 70, 0, 1) : cl(1 - (dC - 6) / 34, 0, 1); const i = RG.rings.indexOf(r); for (let k = i + 1; k < RG.rings.length; k++) { const q = RG.rings[k]; if (q.skip) continue; nx = [q.x - o[0], q.y - o[1], -q.s - o[2], q.r]; break; } }
       drawList.push({ r, nx, ap, fmode, fl: r.flowT >= 0 ? T - r.flowT : -1, dist, c, sz, near, grown, dis, open, A, flameA, night, ord, flameSc: (1 + 1.6 * ease(grown / 0.35)) * (ord <= 1 ? 1 : ord === 2 ? 0.85 : 0.72), tint: ord <= 1 ? 0 : ord === 2 ? 1 : 2, hitK: r.hit || r.splash < 0 ? 1 : 0.5 });
     }
     drawList.sort((a, b) => b.dist - a.dist);          // far first: the near ring's tube writes depth over what lies behind it
@@ -253,7 +253,7 @@ const Rings = (() => {
   // ---- 穿圈拖影 (用户 18:51 UTC: 钻进光圈的时候来一个延迟摄影、拖影子的效果，试一下，只是一个分支; 18:53 UTC: 每隔比如 0.5 米留一个残影).
   // Like a sequence photo of a skier: from a few metres before a ring until just after it, every 0.5 m the skier leaves a see-through copy of
   // himself (his pose at that moment), which fades in about half a second. Only the body, never the camera or the time: the game runs on as is.
-  if (typeof Variants !== 'undefined') Variants.def('rflow', '下一个圈提示', [['off', '关'], ['a', '一群光游过去'], ['b', '一缕光线'], ['c', '细流引路'], ['d', '亮边指方向'], ['e', '远处光柱']], 'a');
+  if (typeof Variants !== 'undefined') Variants.def('rflow', '下一个圈提示', [['off', '关'], ['a', '一群光游过去'], ['b', '一缕光线'], ['c', '细流引路'], ['d', '亮边指方向'], ['e', '远处光柱'], ['f', '溪流（连成一条）'], ['g', '细高光柱'], ['h', '螺旋光柱']], 'f');
   if (typeof Variants !== 'undefined') Variants.def('rtrail', '穿圈拖影', [['off', '关'], ['a', '残影·白'], ['b', '残影·光圈色']], 'off');
   const TR = { list: [], last: null, now: 0, done: 0, passT: null, STEP: 0.5, LIFE: 0.8, REACH: 3.2, BEFORE: 7, AFTER: 0.4 };
   function trail() {
@@ -799,6 +799,7 @@ fn dustGrain(i: u32) -> DG {
   //   3 细流引路    from ~40 m out a few grains keep peeling off and drifting to the next ring, a faint living trickle that points the way
   //   4 亮边指方向  the side of this ring facing the next one glows brighter and leans out, a compass on the ring itself
   //   5 远处光柱    a faint column of grains rises 20 m over the next ring, seen above a crest that hides the ring itself
+  //   6 溪流 / 7 细高光柱 / 8 螺旋光柱: 16:23 UTC variants of 3 and 5 (see each below)
   var flowP: vec3f = vec3f(0.0); var flowSt: vec3f = vec3f(0.0); var useFlow: f32 = 0.0;
   let hsel: vec3f = hashu3(i * 37u + rid * 613u + 21u);
   let md: f32 = M.d.w; let apr: f32 = M.e.w;
@@ -880,12 +881,49 @@ fn dustGrain(i: u32) -> DG {
     flowSt = (bez3(P0, c1, c2, P1, ep) - flowP) * 0.3;
     b = 0.45 * apr * sin(3.1415927 * t) * (1.0 - saturate(dis * 3.0));
     useFlow = 1.0;
-  } else if (md > 4.5 && kind == 0u && hsel.x < 0.03 && apr > 0.0) {
+  } else if (md > 4.5 && md < 5.5 && kind == 0u && hsel.x < 0.03 && apr > 0.0) {
     // a beacon: grains rise slowly in a loose column over the next ring and fade at the top
     let ph: f32 = fract(T / 3.2 + hsel.y * 11.0); let a0: f32 = hsel.z * 6.2831853 + T * 0.4; let rj: f32 = RN * 0.45 * sqrt(fract(hsel.y * 37.0));
     flowP = N + vec3f(cos(a0) * rj, RN * 0.6 + ph * 20.0, sin(a0) * rj);
     flowSt = vec3f(0.0, -0.35, 0.0);
     b = 0.4 * apr * sin(3.1415927 * ph) * (1.0 - 0.6 * ph) * (1.0 - saturate(dis * 2.0));
+    useFlow = 1.0;
+  } else if (md > 5.5 && md < 6.5 && kind == 0u && hsel.x < 0.022 && apr > 0.0) {
+    // 6 溪流 (用户 16:23 UTC: 细流和光柱都不错，再研究): the trickle made one stream. All its grains run on one shared curve from the side of this
+    // ring facing the next to the next one, meandering like a brook (two slow bends that drift with time), each grain a little to one
+    // side of the line and on its own phase, so the stream is a dotted, living line that keeps flowing for as long as the ring is ahead
+    let hr: vec3f = hashu3(rid * 131u + 7u);
+    let P0: vec3f = C + vec3f(cos(angD), sin(angD), 0.0) * R0 * open;
+    let P1: vec3f = N + vec3f(cos(angD + 3.1415927), sin(angD + 3.1415927), 0.0) * RN * 0.85;
+    let D: vec3f = P1 - P0; let dl: f32 = length(D);
+    let sd: vec3f = normalize(vec3f(-D.z, 0.0, D.x) + vec3f(0.0001, 0.0, 0.0));
+    let c1: vec3f = P0 + vec3f(cos(angD), sin(angD), 0.0) * 1.5 * sz + vec3f(0.0, 0.8 + hr.x, 0.0) + D * 0.3 + sd * (hr.y - 0.5) * 0.2 * dl;
+    let c2: vec3f = P1 - D * 0.3 + sd * (hr.z - 0.5) * 0.2 * dl + vec3f(0.0, 0.06 * dl, 0.0);
+    let Pd: f32 = clamp(1.2 + dl * 0.02, 1.4, 2.6); let ph: f32 = fract(T / Pd + hsel.y * 13.0); let e: f32 = ph;
+    let bell: f32 = sin(3.1415927 * e);
+    let mw: vec3f = (sd * sin(e * 9.0 + T * 0.7 + hr.x * 6.0) * 0.05 + vec3f(0.0, sin(e * 6.0 + T * 0.5 + hr.y * 6.0), 0.0) * 0.02) * dl * bell;
+    let hj: vec3f = hashu3(i * 47u + rid * 19u + 5u) - vec3f(0.5);
+    flowP = bez3(P0, c1, c2, P1, e) + mw + (sd * hj.x + vec3f(0.0, hj.y * 0.6, 0.0)) * 0.35 * sz * (0.4 + bell) + vec3f(0.0, 0.04 * sin(T * 5.0 + hsel.z * 30.0), 0.0);
+    flowSt = vec3f(0.0);
+    b = 0.5 * apr * min(1.0, e * 8.0) * min(1.0, (1.0 - e) * 6.0) * (1.0 - saturate(dis * 3.0));
+    wsz = wsz * 1.4; minPx = 2.0;
+    useFlow = 1.0;
+  } else if (md > 6.5 && md < 7.5 && kind == 0u && hsel.x < 0.035 && apr > 0.0) {
+    // 7 细高光柱: a thin tall column over the next ring, 35 m, densest at the bottom, swaying a little at the top, grains streaming upward
+    let ph: f32 = fract(T / 4.5 + hsel.y * 11.0); let hh: f32 = pow(ph, 0.8) * 35.0; let a0: f32 = hsel.z * 6.2831853 + T * 0.6;
+    let rj: f32 = RN * 0.18 * sqrt(fract(hsel.y * 37.0)) * (1.0 - 0.5 * ph);
+    let sw: f32 = sin(T * 0.45 + f32(rid) * 0.37) * 0.04 * hh;
+    flowP = N + vec3f(cos(a0) * rj + sw, RN * 0.4 + hh, sin(a0) * rj);
+    flowSt = vec3f(0.0, -0.5, 0.0);
+    b = 0.45 * apr * min(1.0, ph * 10.0) * pow(1.0 - ph, 1.3) * (1.0 - saturate(dis * 2.0));
+    useFlow = 1.0;
+  } else if (md > 7.5 && md < 8.5 && kind == 0u && hsel.x < 0.03 && apr > 0.0) {
+    // 8 螺旋光柱: two strands of grains winding up round the next ring's axis, narrowing as they rise, fading at 24 m
+    let ph: f32 = fract(T / 4.0 + hsel.y * 11.0); let st2: f32 = select(0.0, 3.1415927, hsel.z > 0.5);
+    let a0: f32 = ph * 12.566 + T * 1.1 + st2; let rj: f32 = RN * 0.55 * (1.0 - 0.45 * ph) + (fract(hsel.y * 53.0) - 0.5) * 0.25;
+    flowP = N + vec3f(cos(a0) * rj, RN * 0.5 + ph * 24.0, sin(a0) * rj);
+    flowSt = vec3f(0.0);
+    b = 0.45 * apr * sin(3.1415927 * ph) * (1.0 - saturate(dis * 2.0));
     useFlow = 1.0;
   } else if (dis > 0.0) {
     let hd: vec3f = hashu3(i * 23u + rid * 101u + 9u);
