@@ -134,7 +134,7 @@ const RouteCard = self.RouteCard = (() => {
         if ((a > lv) !== (b > lv)) ed(a, b, P0, P1); if ((b > lv) !== (c > lv)) ed(b, c, P1, P2); if ((c > lv) !== (dd > lv)) ed(c, dd, P2, P3); if ((dd > lv) !== (a > lv)) ed(dd, a, P3, P0);
         for (let q = 0; q + 1 < E.length; q += 2) { g.moveTo(E[q][0], E[q][1]); g.lineTo(E[q + 1][0], E[q + 1][1]); }
       }
-      g.strokeStyle = major ? 'rgba(214,226,245,.34)' : 'rgba(214,226,245,.13)'; g.lineWidth = (major ? 1.3 : 0.8) * u; g.stroke();
+      g.strokeStyle = major ? 'rgba(214,226,245,.34)' : 'rgba(214,226,245,.08)'; g.lineWidth = (major ? 1.3 : 0.8) * u; g.stroke();
       // the height of the bold ones, small, where they cross the top band
       if (major) { const sx = s0 + ((lv / 100) % 7 + 1) * (s1 - s0) / 9; }
     }
@@ -150,13 +150,18 @@ const RouteCard = self.RouteCard = (() => {
       g.fillStyle = 'rgba(244,247,251,.78)'; g.font = '400 ' + 16 * u + 'px ' + SONG; g.fillText(q.name.replace(/^\d+ /, ''), x, y + up * (up < 0 ? 52 : 66) * u);
       g.fillStyle = 'rgba(244,247,251,.42)'; g.font = '500 ' + 11 * u + 'px ' + LAT; g.fillText(String(i + 1).padStart(2, '0'), x, y + up * (up < 0 ? 72 : 46) * u); });
     g.restore();
-    route(g, d, i => [X(T[i][1]), Y(T[i][0])], 2.4 * u, st);
-    ringsOn(g, d, q => [X(q.s), Y(q.x)], 2.1 * u);
-    ends(g, X(T[0][1]), Y(T[0][0]), X(T[T.length - 1][1]), Y(T[T.length - 1][0]), u);
+    // where the mountain known to the card ends, the map fades into the night (no hard edge)
+    let yT = 0, yB = H; { const sm = (s0 + s1) / 2; for (let y = 0; y < H; y += 4) if (d.H(IY(y), sm) != null) { yT = y; break; } for (let y = H; y > 0; y -= 4) if (d.H(IY(y), sm) != null) { yB = y; break; } }
+    g.save(); g.fillStyle = '#070b12'; g.fillRect(0, 0, W, yT); g.fillRect(0, yB, W, H - yB);
+    const fa = g.createLinearGradient(0, yT, 0, yT + 110 * u); fa.addColorStop(0, '#070b12'); fa.addColorStop(1, 'rgba(7,11,18,0)'); g.fillStyle = fa; g.fillRect(0, yT, W, 110 * u);
+    const fb = g.createLinearGradient(0, yB, 0, yB - 110 * u); fb.addColorStop(0, '#070b12'); fb.addColorStop(1, 'rgba(7,11,18,0)'); g.fillStyle = fb; g.fillRect(0, yB - 110 * u, W, 110 * u); g.restore();
     // a scale bar
     g.save(); const bw = 500 * k, bx = W - 72 * u - bw, by = H * 0.5 + 250 * u; g.strokeStyle = 'rgba(244,247,251,.5)'; g.lineWidth = 1 * u;
     g.beginPath(); g.moveTo(bx, by - 5 * u); g.lineTo(bx, by); g.lineTo(bx + bw, by); g.lineTo(bx + bw, by - 5 * u); g.stroke();
     g.fillStyle = 'rgba(244,247,251,.5)'; g.font = '500 ' + 11 * u + 'px ' + LAT; g.textAlign = 'right'; g.fillText('500 M', bx + bw, by - 10 * u); g.restore();
+    route(g, d, i => [X(T[i][1]), Y(T[i][0])], 2.4 * u, st);
+    ringsOn(g, d, q => [X(q.s), Y(q.x)], 2.1 * u);
+    ends(g, X(T[0][1]), Y(T[0][0]), X(T[T.length - 1][1]), Y(T[T.length - 1][0]), u);
     words(g, W, H, d, st, { shade: 'rgba(5,8,13,.78)' });
     frame(g, W, H, 'rgba(255,208,138,.35)');
   }
@@ -176,7 +181,7 @@ const RouteCard = self.RouteCard = (() => {
     const D = new Float32Array(n); for (let i = 1; i < n; i++) D[i] = D[i - 1] + Math.hypot(T[i][0] - T[i - 1][0], T[i][1] - T[i - 1][1]);
     const L = D[n - 1], yTop = T[0][2], yBot = T[n - 1][2];
     // the frame: the profile runs from 90 px to W - 90 px; top of the run at 30% of the height, the finish at 82%; behind, ridges up to 12%
-    const xA = 90 * u, xB = W - 90 * u, X = dd => xA + (dd / L) * (xB - xA), vk = (H * 0.52) / Math.max(1, yTop - yBot), Y = y => H * 0.30 + (yTop - y) * vk;
+    const xA = 90 * u, xB = W - 90 * u, X = dd => xA + (dd / L) * (xB - xA), vk = (H * 0.44) / Math.max(1, yTop - yBot), Y = y => H * 0.36 + (yTop - y) * vk;
     // sky
     const sky = g.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#050a16'); sky.addColorStop(0.55, '#0d1830'); sky.addColorStop(1, '#1a2742');
     g.fillStyle = sky; g.fillRect(0, 0, W, H);
@@ -190,7 +195,7 @@ const RouteCard = self.RouteCard = (() => {
     const far = [96, 122, 160], near = [16, 26, 44];
     for (const [off, nr] of offs) {
       const c = lerpC(far, near, nr); g.fillStyle = rgb(c); g.beginPath(); g.moveTo(0, H);
-      for (let k = 0; k <= 160; k++) { const i = Math.min(n - 1, Math.round(k / 160 * (n - 1))), p = T[i], h = d.H(p[0] + off, p[1]); const y = Y(h == null ? p[2] : h) - (1 - nr) * 40 * u; g.lineTo(k === 0 ? 0 : k === 160 ? W : X(D[i]), y); }
+      for (let k = 0; k <= 160; k++) { const i = Math.min(n - 1, Math.round(k / 160 * (n - 1))), p = T[i], h = d.H(p[0] + off, p[1]); const y = Y(h == null ? p[2] : h) - (1 - nr) * 26 * u; g.lineTo(k === 0 ? 0 : k === 160 ? W : X(D[i]), y); }
       g.lineTo(W, H); g.closePath(); g.fill();
       // a little snow light on the ridge tops
       g.strokeStyle = rgb(lerpC(c, SNOW, 0.35), 0.5); g.lineWidth = 1 * u; g.stroke();
@@ -204,15 +209,15 @@ const RouteCard = self.RouteCard = (() => {
     const stn = stations(d); stn.forEach((q, i) => { const j = at(T, Math.max(T[0][1] + 5, q.s)), x = X(D[j]), y = Y(hs(j));
       g.strokeStyle = 'rgba(244,247,251,.16)'; g.lineWidth = 1 * u; g.beginPath(); g.moveTo(x, y + 8 * u); g.lineTo(x, H - 150 * u); g.stroke();
       if (i % 2 === 0 || true) { g.fillStyle = 'rgba(244,247,251,.36)'; g.font = '500 ' + 10 * u + 'px ' + LAT; g.fillText(String(i + 1).padStart(2, '0'), x + 5 * u, H - 152 * u);
-        g.save(); g.translate(x + 6 * u, y + 16 * u); g.fillStyle = 'rgba(244,247,251,.5)'; g.font = '400 ' + 13 * u + 'px ' + SONG; g.fillText(q.name.replace(/^\d+ /, ''), 0, 0); g.restore(); } });
+        g.save(); g.translate(x + 6 * u, y + 34 * u); g.fillStyle = 'rgba(244,247,251,.5)'; g.font = '400 ' + 13 * u + 'px ' + SONG; g.fillText(q.name.replace(/^\d+ /, ''), 0, 0); g.restore(); } });
     g.restore();
     // the route on it, the skier's own height (so a jump leaves the snow), and the rings over it
     route(g, d, i => [X(D[i]), Y(T[i][2])], 2.2 * u, st);
     ringsOn(g, d, q => { const j = at(T, q.s); return [X(D[j]), Y(q.y) - 6 * u]; }, 2 * u);
     ends(g, X(0), Y(T[0][2]), X(L), Y(T[n - 1][2]), u);
     // heights at the two ends
-    g.save(); g.fillStyle = 'rgba(244,247,251,.55)'; g.font = '500 ' + 12 * u + 'px ' + LAT; g.fillText(Math.round(yTop) + ' M', X(0) + 14 * u, Y(yTop) - 14 * u);
-    g.textAlign = 'right'; g.fillText(Math.round(yBot) + ' M', X(L) - 16 * u, Y(yBot) - 16 * u); g.restore();
+    g.save(); g.fillStyle = 'rgba(244,247,251,.55)'; g.font = '500 ' + 12 * u + 'px ' + LAT; g.font = '400 ' + 14 * u + 'px ' + SONG; g.fillText('出发', X(0) + 14 * u, Y(yTop) - 14 * u);
+    g.textAlign = 'right'; g.fillText('终点  ↓ ' + Math.round(yTop - yBot).toLocaleString('en-US') + ' M', X(L) - 16 * u, Y(yBot) - 16 * u); g.restore();
     words(g, W, H, d, st, { shade: 'rgba(5,8,13,.6)' });
     frame(g, W, H, 'rgba(255,208,138,.35)');
   }
@@ -222,12 +227,12 @@ const RouteCard = self.RouteCard = (() => {
     const u = W / 1600, T = d.track, n = T.length, sA = T[0][1], sB = st.sMax;
     let xm = 0; for (const p of T) xm += p[0]; xm /= n;
     // the eye stands below and beyond the finish, above the snow, looking up the line
-    const sEye = sB + 2600, hEye = T[n - 1][2] + 1500, F = W * 1.05;
+    const sEye = sB + 3000, hEye = T[n - 1][2] + 1700, F = W * 0.95;
     const pitch = Math.atan2((T[0][2] + T[n - 1][2]) / 2 - hEye, sEye - (sA + sB) / 2), cp = Math.cos(pitch), sp = Math.sin(pitch);
-    const proj = (x, s, h) => { const zf = sEye - s, dy = h - hEye, zc = zf * cp + dy * sp, yc = -zf * sp + dy * cp; if (zc < 50) return null; return [W * 0.5 + (x - xm) * F / zc, H * 0.52 - yc * F / zc]; };
+    const proj = (x, s, h) => { const zf = sEye - s, dy = h - hEye, zc = zf * cp + dy * sp, yc = -zf * sp + dy * cp; if (zc < 50) return null; return [W * 0.58 + (x - xm) * F / zc, H * 0.40 - yc * F / zc]; };
     g.fillStyle = '#05070b'; g.fillRect(0, 0, W, H);
     const dS = 50, half = 1000, dx = 12;
-    const secs = []; for (let s = sA - 100; s <= sB + 150; s += dS) secs.push(s);
+    const secs = []; for (let s = sA - 100; s <= sB + 60; s += dS) secs.push(s);
     // far (up the mountain) to near: each section hides what is behind it, then the route between it and the next nearer one
     let ti = 0;
     for (let q = 0; q < secs.length; q++) {
@@ -245,7 +250,7 @@ const RouteCard = self.RouteCard = (() => {
     }
     const p0 = proj(T[0][0], T[0][1], T[0][2] + 1.5), p1 = proj(T[n - 1][0], T[n - 1][1], T[n - 1][2] + 1.5);
     if (p0 && p1) ends(g, p0[0], p0[1], p1[0], p1[1], u * 0.8);
-    words(g, W, H, d, st, { shade: 'rgba(5,7,11,.85)' });
+    words(g, W, H, d, st, { shade: 'rgba(5,7,11,.95)' });
     frame(g, W, H, 'rgba(255,208,138,.3)');
   }
 
