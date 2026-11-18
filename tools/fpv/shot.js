@@ -11,6 +11,9 @@ const CASES = [
   { id: '4_高速', seed: 1, t: 30 },
   { id: '5_高速转弯', seed: 2, t: 26 },
   { id: '6_俯冲', seed: 1, t: 34, tuck: 3 },
+  // hard: the last so many seconds the stick is held hard over (a hockey stop: the skis and the body swing across under the eyes)
+  { id: '7_急转刹车左', seed: 0, t: 12, hard: [-0.85, 1.6] },
+  { id: '8_急转刹车右', seed: 0, t: 20, hard: [0.85, 2.2] },
 ];
 (async () => {
   const args = process.env.REALGPU ? ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--enable-gpu', '--use-angle=metal'] : ['--use-angle=swiftshader', '--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader'];
@@ -35,7 +38,7 @@ const CASES = [
       const pilot = ski.pilot(c.amp || 0.6, c.period || 4.5); G.start();
       // (in the air nothing is taken: run on until the skis are on the snow)
       const n = c.t * 60; let i = 0;
-      for (; i < n || (G.flight && G.flight.w > 0.05) || G.s.air; i++) { M.Input.script = pilot(G.runT); if (c.tuck) M.Input.btn.tuck = i > n - c.tuck * 60; ski.frame(1 / 60); if (i > n + 600) break; }
+      for (; i < n || (G.flight && G.flight.w > 0.05) || G.s.air; i++) { M.Input.script = c.hard && i > n - c.hard[1] * 60 ? c.hard[0] : pilot(G.runT); if (c.tuck) M.Input.btn.tuck = i > n - c.tuck * 60; ski.frame(1 / 60); if (i > n + 600) break; }
       return { fpv: fpvReady && G.fpv.vis, sp: +G.s.speed.toFixed(1), lean: +(G.pose.lean || 0).toFixed(2), tuck: +(G.pose.tuck || 0).toFixed(2), backend: M.App.gfx.caps.backend + ' / ' + (M.App.gfx.caps.renderer || ''), png: nodraw ? null : await ski.shot() };
     }, [c, !!process.env.NODRAW]);
     if (r.png) fs.writeFileSync(path.join(OUT, `${TAG}_${c.id}.png`), Buffer.from(r.png.split(',')[1], 'base64'));
