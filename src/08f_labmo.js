@@ -120,6 +120,10 @@ const LabMo = (() => {
     // (the arms do not tip over with the trunk: hung from a trunk that leans in, the inside hand and forearm came down onto the inside thigh
     // (Mac round 16: hand x thigh 0 -> 136 frames). They keep the lab's own line, hands level, as a skier carries them)
     const ARM_IN = 0.0;
+    // (owner 2026-11-18: "刻滑的过程中头眼睛需要面向哪里". A carving skier's eyes are on the exit of this turn and the start of the next, a second or so
+    // ahead, held level. The head reads the lean HEAD_FAR s ahead at its present rate (soft-capped at 0.8 rad): through the apex that is this turn, and
+    // as the lean comes off it already points into the next one, instead of being held back to nothing until the edges change)
+    const HEAD_FAR = 0.8, HEAD_CAP = 0.5;
     const TRUNK_LEAD_T = 0.07, TRUNK_UNLAG = 0, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.14, LOOK_H = 0.5, LOOK_C = 0.35, LOOK_END = 0.6, HEAD_AHEAD = 0.16, CHEST_AHEAD = 0.03, PEL_SQ = 0.3, HEAD_ROLL_KEEP = 0.45;
     const TRUNK_IN = 0.27, TRUNK_IN_SLOW = -0.06, SLOW_V0 = 5, SLOW_V1 = 13, BAL = 0.18, lab = Math.atan2(r[0], r[1]);
     if (!quietU()) return fill(out, st, r, ph.lean * 1.07 - lab, 'z');
@@ -177,7 +181,7 @@ const LabMo = (() => {
     // (PEL_SQ: the lab's pelvis stands 13-16 deg into the turn at 25-35 deg of lean, 4-6 deg MORE than the chest, measured in the leaned body (Mac
     // round 23, seen from above too): hips rotated in ahead of the shoulders, a learner's turn. It is squared back by PEL_SQ rad per rad of lean)
     const wOf = l => st.eff * 9.81 * Math.tan(Math.max(-1, Math.min(1, l))) / Math.max(speed, 6);
-    const a = -capY(LOOK_C * kC * wOf(lt + CHEST_AHEAD * lr), 0.30), aH = -capY(LOOK_H * kH * wOf(lt + HEAD_AHEAD * lr), 0.45), aP = capY(PEL_SQ * lt, 0.12),      // (squared by the lean the trunk reads, lt: on the eased lean the squaring came late and the hips changed sides before the chest, Mac round 24)
+    const a = -capY(LOOK_C * kC * wOf(lt + CHEST_AHEAD * lr), 0.30), aH = HEAD_FAR ? -capY(LOOK_H * wOf(0.8 * Math.tanh((lt + HEAD_FAR * lr) / 0.8)), HEAD_CAP) : -capY(LOOK_H * kH * wOf(lt + HEAD_AHEAD * lr), 0.45), aP = capY(PEL_SQ * lt, 0.12),      // (squared by the lean the trunk reads, lt: on the eased lean the squaring came late and the hips changed sides before the chest, Mac round 24)
       
        tb = B => ortho(rotY(B.X, a), rotY(B.Y, a)), t1b = B => ortho(rotY(B.X, (a + aP) / 2), rotY(B.Y, (a + aP) / 2));
     out.pb = ortho(rotY(out.pb.X, aP), rotY(out.pb.Y, aP));
