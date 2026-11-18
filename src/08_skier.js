@@ -543,7 +543,9 @@ const Skier = (() => {
       const e = v3.mad(sh, v3.norm(v3.sub(v3.lerp(J['elbow' + sd], le, wa), sh)), LEN.uarm), g = v3.mad(e, v3.norm(v3.sub(v3.lerp(J['grip' + sd], lg, wa), e)), LEN.farm + LEN.grip);
       const g0 = J['grip' + sd]; J['elbow' + sd] = e; J['grip' + sd] = g; h.e = e; h.w = g;
       // (the pole trails from the hand where it is now; its tip kept a little off the snow)
-      let d = (MO2 || sec.gnd) && h.planted < 1 ? v3.norm(v3.sub(v3.mad(g0, h.d, PL), g)) : h.d; if (g[1] + d[1] * PL < 0.03) { const hz = Math.hypot(d[0], d[2]) || 1, dy = clamp((0.03 - g[1]) / PL, -1, 1), k2 = Math.sqrt(1 - dy * dy) / hz; d = [d[0] * k2, dy, d[2] * k2]; }
+      let d = (MO2 || sec.gnd) && h.planted < 1 ? v3.norm(v3.sub(v3.mad(g0, h.d, PL), g)) : h.d; if (sec.gnd) { const ty = g[1] + d[1] * PL, ty2 = -smin(-ty, -0.03, 0.06);      // (新求解器: the tip is eased onto its 3 cm over the snow, not stopped there: where it came down onto the limit and left it again the shaft turned a corner, a jolt at every edge change)
+        if (ty2 > ty + 1e-5) { const hz = Math.hypot(d[0], d[2]) || 1, dy = clamp((ty2 - g[1]) / PL, -1, 1), k2 = Math.sqrt(1 - dy * dy) / hz; d = [d[0] * k2, dy, d[2] * k2]; } }
+      else if (g[1] + d[1] * PL < 0.03) { const hz = Math.hypot(d[0], d[2]) || 1, dy = clamp((0.03 - g[1]) / PL, -1, 1), k2 = Math.sqrt(1 - dy * dy) / hz; d = [d[0] * k2, dy, d[2] * k2]; }
       h.d = d; J['poleD' + sd] = d; }
     J.wristL = v3.mad(J.elbowL, v3.norm(v3.sub(J.gripL, J.elbowL)), LEN.farm); J.wristR = v3.mad(J.elbowR, v3.norm(v3.sub(J.gripR, J.elbowR)), LEN.farm);
     J.tipL = v3.mad(J.gripL, hL.d, PL); J.tipR = v3.mad(J.gripR, hR.d, PL); J.plantedL = hL.planted; J.plantedR = hR.planted;
