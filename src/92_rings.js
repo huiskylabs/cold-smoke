@@ -104,6 +104,7 @@ const Rings = (() => {
   let wallSide = 1, cursor = null;
   function spawn() {
     // (where the last ring, or the last place passed over without one, stood: a stretch with no ground rings is still walked through)
+    const first = !!L.id && !cursor;
     if (!cursor) cursor = { s: -Game.s.p[2] + 25, u: Game.s.p[0] - Course.at(-Game.s.p[2], pc).cx };
     const s0 = cursor.s, u0 = cursor.u;
     const D = DIFF[(typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b'] || DIFF.b;
@@ -151,6 +152,7 @@ const Rings = (() => {
     else { const dir = Math.abs(u0) > 2 ? -Math.sign(u0) : (rand() < 0.5 ? -1 : 1); u = u0 + dir * (0.6 + 0.6 * rand()) * pl.side * 1.6 * D.side; }          // (side to side, a slalom: always back across the run)
     const c = Course.at(s, pc), hw2 = c.hw || 14;
     if (!tech) u = cl(u, -hw2 * 0.6, hw2 * 0.6);
+    if (first && !tech) u = u0;          // (用户 18:08/18:11 UTC: 第一个圈在正前方，慢慢预热；只要第一个)
     const uu = tech ? clear(s, u, hw2, 40) : clear(s, u, hw2); if (uu === null) { cursor = { s, u: u0 }; RG.rings.push({ id: serial++, s, skip: true }); return; }
     // (用户 04:47 UTC 一整个圈; 16:55 UTC 不要接到雪地上，留一点空间，悬浮起来): the whole ring floats, its lowest point a little above the snow
     const lv = cl(Math.round(pl.lv + D.off + (pl.how === 'zip' ? 0.4 : (rand() - 0.5) * 1.3)), 0, 2), pick = SIZES[lv], r = pick[0], x = c.cx + uu;
@@ -385,7 +387,8 @@ const Rings = (() => {
         let q = (d < 1.6 ? 1e6 : 0) + (d < 3.5 ? (3.5 - d) * 6 : 0);
         if (e < -2) q += 4.5;          // (用户 17:40/17:48 UTC: 不需要完全离开主线，可以偶尔交错: mostly out, now and then across it to the other side)
          if (e > 40 && !onl) q += (e - 40) * (e - 40) * 0.5 + 20; if (onl && e > 0) q -= 4; if (e > 6 && e < 40) q -= 2.5; if (e >= -2 && e <= 6) q += 1;
-        if (s < 60 || s > sE - 120) q += Math.abs(u) * 2;
+        // (用户 18:08/18:11 UTC: 所有线的第一个圈在正前方，慢慢预热；只要第一个就可以) the way leaves the gate straight, through the first ring
+        if (s < 100 || s > sE - 120) q += Math.abs(u) * 2;
         // (用户 17:29 UTC: 越野线不跑标准道，去探索平常标准道不会去到的、好玩的地方) the run's own gully and mogul field are the 速降线's: the
         // line keeps out of them and off the gully's rim just above (17:20 UTC: a ring up there is not what a gully is for), and goes
         // out to the ways the run does not: a gully lane in the trees most of all (a small half-pipe of its own), and over a drop's lip
@@ -427,7 +430,7 @@ const Rings = (() => {
         const tu = w.u + side * w.w * (0.6 + 0.5 * (WALLK[df] || 0.6)), R = rows[kq], xr = R.cx + tu; let room = 1e9; for (const tt of R.tr) room = Math.min(room, Math.hypot(tt[0] - xr, tt[1] - R.s) - tt[2]);
         if (room > sz[1] + 0.8) { rings.push({ s: R.s, u: tu, r: sz[1], off: true, how: 'lane' }); continue; }
       }
-      const k = Math.min(n - 1, Math.round(s / 4)), R = rows[k], u = pu[k], x = R.cx + u;
+      const k = Math.min(n - 1, Math.round(s / 4)), R = rows[k], u = rings.length ? pu[k] : 0, x = R.cx + u;
       { const cg = Course.at(R.s, pc); if (cg.gul > 0.3 && Math.abs(u - cg.goff) < (cg.gU > 0.5 ? 1.75 : 1.3) * cg.gw + 6) continue; }          // (never up on the rim of the run's gully)
       let r = rr() < 0.5 ? sz[0] : sz[1], room = 1e9;
       for (const t of R.tr) room = Math.min(room, Math.hypot(t[0] - x, t[1] - R.s) - t[2]);
