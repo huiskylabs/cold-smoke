@@ -102,7 +102,7 @@ const Skier = (() => {
   // lean/edge: body and ski roll (+ = to the skier's right); crouch 0..1: how far the legs are folded (0.38 m of travel); tuck, air 0..1; sep, headYaw: twist of
   // trunk and head; lead, stance, lift*, pitch*: where the skis are; arm*: offsets of the hands; plant*: the pole touch at a turn; dp: phase of a double-pole
   // stroke (0 = none); grab*: that hand takes hold of the same-side ski beside the binding
-  const P0 = { lean: 0, edge: 0, crouch: 0.21, tuck: 0, air: 0, sep: 0, headYaw: 0, lead: 0, stance: 0.31, fore: 0, fa: 0, armL: [0, 0, 0], armR: [0, 0, 0], swing: 0, liftL: 0, liftR: 0, pitchL: 0, pitchR: 0, plantL: 0, plantR: 0, dp: 0, grabL: 0, grabR: 0 };
+  const P0 = { lean: 0, edge: 0, crouch: 0.21, tuck: 0, air: 0, sep: 0, headYaw: 0, lead: 0, stance: 0.31, fore: 0, fa: 0, armL: [0, 0, 0], armR: [0, 0, 0], swing: 0, liftL: 0, liftR: 0, pitchL: 0, pitchR: 0, plantL: 0, plantR: 0, dp: 0, dpn: 0, grabL: 0, grabR: 0 };
   const SEC0 = { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: null, idle: null };
 
   // ---- the double-pole stroke (pose.dp = phase): reach 0..PLANT, tips in the snow PLANT..REL while the body goes past them, release, recover
@@ -117,13 +117,22 @@ const Skier = (() => {
   const DP_LOCUS = [[0, [0.255, 1.055, -0.56]], [0.30, [0.280, 0.905, -0.40]], [0.58, [0.300, 0.735, -0.18]], [0.82, [0.295, 0.645, 0.02]], [1, [0.285, 0.615, 0.16]]];
   // (given for the upright figure; `rl` tips it over sideways with the body, about the line between the skis)
   const tip = (x, y, z, rl) => { const cs = Math.cos(rl), sn = Math.sin(rl); return [x * cs + y * sn, -x * sn + y * cs, z]; };
-  const dpLocus = (u, side, rl, yo) => { const c = spl(DP_LOCUS, u); return tip(c[0] * side, c[1] + yo, c[2], rl); };
+  // (新求解器: the same path, entered and left at the speed it is travelled at. As given, a path through its points starts and ends at rest: the hand
+  // stood still at the plant for a frame and at the arm's full length for another. One more point beyond each end, the mirror of the one inside it)
+  const DP_LOCUS2 = (() => { const L = DP_LOCUS.map((k, i) => [k[0], [k[1][0] + [0, 0, 0.008, 0.015, 0.01][i], k[1][1], k[1][2]]]), n = L.length - 1, mir = (a, b, t) => [t, a[1].map((x, i) => 2 * x - b[1][i])]; return [mir(L[0], L[1], -L[1][0])].concat(L, [mir(L[n], L[n - 1], 2 * L[n][0] - L[n - 1][0])]); })();
+  // (...and a centimetre and a half wider where it passes the thigh and the hip: there the hand was inside the room it is owed from the leg, was pushed
+  // out by that much as it came by, and came back in in the frame it let go)
+  let dpNat = false;
+  const dpLocus = (u, side, rl, yo) => { const c = dpNat ? spl(DP_LOCUS2, u) : spl(DP_LOCUS, u); return tip(c[0] * side, c[1] + yo, c[2], rl); };
   // the point of the locus from which the planted tip is exactly a pole length away
   function dpSolveU(T, side, rl, yo, PL) {
     const g = u => v3.len(v3.sub(dpLocus(u, side, rl, yo), T)) - PL;
     if (g(0) <= 0) return 0; if (g(1) >= 0) return 1 + Math.min(1, g(1) / 0.3);     // (> 1: the tip is out of reach behind: time to let go)
     let a = 0, b = 1; for (let i = 0; i < 18; i++) { const m = (a + b) / 2; if (g(m) > 0) a = m; else b = m; } return (a + b) / 2;
   }
+  // (新求解器: where, and how fast per unit of phase, the hand passes from one stroke's recovery into the next stroke's reach: a fifth of the way from its
+  // resting place n to the top of the reach, still going forward and up)
+  const dpWrap = (n, side, rl, yo) => { const d = v3.sub(v3.add(dpLocus(0, side, rl, yo), [0, 0.16, -0.09]), n); return { W: v3.mad(n, d, 0.2), V: v3.mul(d, 5.5) }; };      // (the top of a usual reach: see hand)
   K.DP = DP;
 
   function solve(p, sec) {
@@ -291,10 +300,18 @@ const Skier = (() => {
     // hands: forward and wide in the stance, elbows soft; inside hand reaches for the snow in a turn; in front of the chin in a tuck; wide in the air
     // (they are carried in front of the body at the height of the navel: they do not sink toward the knees as the chest tips forward)
     const hf = basis(sep, hinge * 0.4, leanT * 0.85), hl = basis(sep, 0, leanT * 0.6), reach = (LEN.uarm + LEN.farm + LEN.grip) * 0.975;
+    dpNat = !!sec.gnd; sec.dpmv = sec.gnd ? ez(sec, 'dpm', p.dpn ? 1 : 0, 12) : 0;      // (whether another stroke follows this one, eased: see dpWrap)
     const dpd = sec.dp || null, wide = Math.max(0, stance - 0.36) * 0.35, pl = basis((p.sep || 0) * 0.35, 0, lean * 0.62 + gS * 0.10);
     // (when the stroke lets go of the snow: at its time, or, with a tip that either hand can no longer reach, at the step before this one)
     let dpRel = dpd ? dpd.rel : DP.REL, dpOut = false;
     if (dpw > 0 && dpd && dpd.T && dpd.g && f >= DP.PLANT && f < dpRel) for (let k = 0; k < 2; k++) if (dpSolveU([dpd.T[k * 2], DP.TIPY, dpd.T[k * 2 + 1]], k ? 1 : -1, lean, dpy, PL) > 1) { dpRel = dpd.gf; dpOut = true; }
+    // (新求解器: ...and before the arm is at its full length, if the hand is still going away from the shoulder: four and a half frames of that speed short of it,
+    // which is the room it takes to lose that speed over nine frames and not in one. Measured 2026-11-18, second stroke of a start at 5 m/s: the hand
+    // met the end of its arm going out at 7 cm a frame)
+    if (sec.gnd && dpw > 0 && dpd && dpd.T && dpd.g && dpd.v && f >= DP.PLANT && f < dpRel && sec.pfDt > 0) for (let k = 0; k < 2; k++) { const sd = k ? 1 : -1, shk = k ? J.shR : J.shL;
+      const gu = dpLocus(Math.min(dpSolveU([dpd.T[k * 2], DP.TIPY, dpd.T[k * 2 + 1]], sd, lean, dpy, PL), 1), sd, lean, dpy), r = v3.sub(gu, shk), l = v3.len(r) || 1;
+      const vr = (dpd.v[k * 3] * r[0] + dpd.v[k * 3 + 1] * r[1] + dpd.v[k * 3 + 2] * r[2]) / l * sec.pfDt / DP.T;
+      if (l + 4.5 * Math.max(vr, 0) > (LEN.uarm + LEN.farm + LEN.grip) * 0.975) { dpRel = dpd.gf; dpOut = true; } }
     // how far the shaft of a pole held at g and pointing along d is from the body (negative: it cuts through)
     const shaftGap = (g, d) => { let m = 1e9; const p0 = v3.mad(g, d, 0.15), p1 = v3.mad(g, d, PL);
       for (let i = 0; i < caps.length; i++) { const cp = caps[i], r = segSeg(p0, p1, cp[0], cp[1]); m = Math.min(m, v3.len(v3.sub(r[0], r[1])) - lerp(cp[2], cp[3], r[3]) - 0.028); } return m; };
@@ -333,7 +350,7 @@ const Skier = (() => {
       // (Once the tip is in, the snow has it: it stays where it went in, its place kept in the world by update, while the body goes past and the hand
       // rides up over it if it must; then it is left behind and comes round to trail again, without swinging out a second time)
       const plant = sat((side < 0 ? p.plantL : p.plantR) || 0), ps = plant * plant * (3 - 2 * plant), pin = smooth(0.6, 1, ps), pp = sec.pl && dpw <= 0 ? sec.pl[side < 0 ? 0 : 1] : null;
-      let planted = 0, tipT = null, low = 0, deep = 0, uo = 0, ur = 0, Tm = null, hp = null;
+      let planted = 0, tipT = null, low = 0, deep = 0, uo = 0, ur = 0, Tm = null, hp = null, relH = null, hk = null;
       // at ease: the pole stands in the snow where it was set down and the hand rests on its grip, so a breath or a shift of weight turns the pole about
       // its tip and does not drag it. (The first stroke of the run has taken the pole over before it is half way to its own plant)
       const rs = id && id.T ? id.rest * (1 - tuck) * (1 - air) * (1 - g) * (1 - sat(plant * 4)) * (1 - smooth(0, 0.16, f)) : 0;
@@ -359,13 +376,36 @@ const Skier = (() => {
         if (f < DP.PLANT) {
           // reach: hands swing forward and up, the tips swing forward low over the snow to where they will go in
           g2 = spl([[0, nT], [0.11, tip(side * 0.25, 1.33 + dpy, -0.49, lean)], [DP.PLANT, C0], [0.34, dpLocus(0.3, side, lean, dpy)]], f);
+          // (新求解器: one path through the whole stroke, meeting what comes before and after it at the same place and the same speed.
+          // - a stroke that follows another does not start from the resting hand: the recovery before it never went there, it came on
+          //   forward and up through dpW at dpV, and the reach goes on from there (measured 2026-11-18: the hand came back to rest for one
+          //   frame between strokes and left again at 6 cm a frame);
+          // - it comes to the plant already going as the hand will go once the snow has the tip, which is as fast as the body is passing
+          //   the pole: pressed onto it, not stopped by it. From a standing start, when that is hardly at all, the hands do not go up so high)
+          // (...and the top of the reach is where a hand that is to arrive like that comes from: ahead of the plant and above it by what it will be
+          // doing after, so the hands are thrown forward and are already coming back and down as the tips go in; and 4 cm above that, to press down
+          // into the snow. Never more than 14 cm so: the rest of the difference is taken up over the way down. From a standing start, when the hand
+          // will hardly move once the tip is in, that is hardly any lift at all. Before: one place, 28 cm up, whatever the speed)
+          if (sec.gnd) { const A = 0.11, hh = DP.PLANT - A, vb = Math.max(sec.vb || 0, 0), c = sec.dpc || 0, wp = dpWrap(nT, side, lean, dpy), S0 = v3.lerp(nT, wp.W, c), dq = 0.02, e = 1e-3;
+            const uA = Math.min(1, dpSolveU([T0[0], T0[1], T0[2] + vb * DP.T * dq], side, lean, dpy, PL)), vA = v3.mul(v3.sub(dpLocus(uA, side, lean, dpy), C0), 1 / dq);
+            const of = v3.mul(vA, 2 * hh / 3), ol = v3.len(of), H = v3.add(v3.sub(v3.mad(C0, v3.sub(C0, S0), -hh / 3 / DP.PLANT), v3.mul(of, ol > 0.14 ? 0.14 / ol : 1)), [0, 0.04, 0]);
+            const KR = [[0, S0], [A, H], [DP.PLANT, C0], [0.34, dpLocus(0.3, side, lean, dpy)]];
+            g2 = spl(KR, f);
+            const v1 = v3.mul(v3.sub(C0, spl(KR, DP.PLANT - e)), 1 / e);
+            if (f < A) { const q = f / A; g2 = v3.mad(g2, wp.V, c * A * q * (1 - q) * (1 - q)); }
+            else { const q = (f - A) / hh; g2 = v3.mad(g2, v3.sub(vA, v1), hh * q * q * (q - 1)); } }
           const s = smooth(0, DP.PLANT, f), n0 = v3.mad(nT, nD, PL), tp = v3.lerp(n0, T0, s); tp[1] += 0.10 * Math.sin(PI * s) * (1 - s * 0.3);
+          // (新求解器: and the tip comes to the snow standing still over it, which, seen from a body going forward, is going backward as fast as the body
+          // goes: swung a little further ahead on the way and brought back. Come to rest beside the skier and then held by the snow, the pole
+          // turned 2.5 degrees more in that frame than in the one before)
+          if (sec.gnd) { const q = f / DP.PLANT; tp[2] += Math.max(sec.vb || 0, 0) * DP.T * DP.PLANT * q * q * (q - 1); }
           d2 = v3.norm(v3.sub(tp, g2)); if (f > DP.PLANT - 0.03) { planted = smooth(DP.PLANT - 0.03, DP.PLANT, f); tipT = T0; }
+          if (sec.gnd) low = smooth(DP.PLANT - 0.10, DP.PLANT, f);      // (新求解器: the tip is let down to the snow over the last six frames of its way there. Kept 3.5 cm above it until the last two, as any pole not being planted is, it dropped in at 2.5 degrees of pole a frame)
         } else {
           // the tip stays where it went in (the snow holds it: its place is tracked in the world, or assumed from a usual gliding speed when
           // there is no history) and the hand rides the shaft down and back as the body goes past; then the pole is let go to trail
           const rel = dpRel, held = f < rel;
-          const T = dpd && dpd.T ? [dpd.T[k * 2], DP.TIPY, dpd.T[k * 2 + 1]] : [T0[0], T0[1], T0[2] + DP.V * DP.T * (Math.min(f, rel) - DP.PLANT)];
+          const T = dpd && dpd.T ? [dpd.T[k * 2], DP.TIPY, dpd.T[k * 2 + 1]] : [T0[0], T0[1], T0[2] + (sec.gnd ? Math.max(sec.vb || 0, 0) : DP.V) * DP.T * (Math.min(f, rel) - DP.PLANT)];      // (新求解器: at the speed the body is really going, not a usual one: the frame the tip went in, the hand was a centimetre off where the next frame found it)
           const raw = dpSolveU(T, side, lean, dpy, PL), u = dpd && !held ? dpd.u[k] : Math.min(raw, 1), gu = dpLocus(u, side, lean, dpy), du = v3.norm(v3.sub(T, gu));
           Tm = T; uo = u; ur = raw;
           if (held) { g2 = gu; d2 = du; planted = 1; tipT = T; }
@@ -378,6 +418,25 @@ const Skier = (() => {
             let vel;      // (how fast the hand was going when it let go, per unit of phase)
             if (dpd && dpd.v) vel = [dpd.v[k * 3], dpd.v[k * 3 + 1], dpd.v[k * 3 + 2]];
             else { const e = 0.02, Tb = [T[0], T[1], T[2] - DP.V * DP.T * e]; vel = v3.mul(v3.sub(gu, dpLocus(Math.min(dpSolveU(Tb, side, lean, dpy, PL), 1), side, lean, dpy)), 1 / e); }
+            // (新求解器: let go, the hand goes on the way it was going, on the end of its arm: round the shoulder, back and up behind the hip, slowing
+            // evenly to its turn, so the faster the stroke the further behind it swings; then it comes forward, and on into the next reach if there
+            // is one (dpW), or to rest. Before, the hand was sent to one place behind the hip however fast it was going: at 5 m/s it went from
+            // 4 cm a frame down to 2 cm a frame up in two frames)
+            // (all of it reckoned from the shoulder as it was at the moment of letting go, and carried with the shoulder since: the arm swings, in its
+            // own plane fore and aft, and the trunk coming up carries it. Reckoned from where the shoulder is now, the swing was a different one each frame)
+            if (sec.gnd) { const s0 = dpd && dpd.s ? [dpd.s[k * 3], dpd.s[k * 3 + 1], dpd.s[k * 3 + 2]] : sh, vS = dpd && dpd.vs ? [dpd.vs[k * 3], dpd.vs[k * 3 + 1], dpd.vs[k * 3 + 2]] : [0, 0, 0];
+              const G0 = v3.add(g0, v3.sub(sh, s0)), vR = v3.sub(vel, vS), dx = g0[0] - s0[0], rS = [0, g0[1] - s0[1], g0[2] - s0[2]], rl = v3.len(rS) || 1, rn = v3.mul(rS, 1 / rl), vr = v3.dot(vR, rn);
+              const vt = [0, vR[1] - vr * rn[1], vR[2] - vr * rn[2]], sp = v3.len(vt), th = Math.min(sp * 0.14 / 1.5 / rl, 0.8), qc = clamp(sp > 1e-6 ? th * rl * 1.5 / sp / (1 - rel) : 0.24, 0.15, 0.5);      // (as far round as it takes to lose its speed with the slowing coming on from nothing: two thirds of the way it would have gone at full speed, in about a seventh of a stroke; never past 45 degrees, sooner there if it is going faster)
+              const rF = Math.min(Math.max(Math.sqrt(Math.max(reach * reach - dx * dx, 0.01)) - 0.005, rl), rl + Math.max(vr, 0) * (1 - rel) * qc / 3);      // (and out as far as the speed it still has away from the shoulder takes it, within the arm's length)
+              const fc = sp > 1e-6 ? v3.add([G0[0], sh[1], sh[2]], v3.add(v3.mul(rn, rF * Math.cos(th)), v3.mul(vt, rF / sp * Math.sin(th)))) : G0, m = sec.dpmv || 0, wp = dpWrap(nT, side, lean, dpy);
+              // (forward again as it went back, on a long arm: it passes under its shoulder four fifths of an arm below it, and only then comes up. Brought
+              // straight up to the next reach from behind, or past a place by the hip that the shoulder of a folded trunk was 25 cm ahead of, the hand came
+              // close under its shoulder while still behind it, and the elbow stood up above the shoulder. A little under half way through what is left)
+              const md = v3.lerp(v3.lerp(fc, nT, 0.45), [sh[0] + side * 0.11, sh[1] - 0.82 * reach, sh[2] + 0.03], (0.4 + 0.6 * u) * w), qm = qc + (1 - qc) * 0.45;
+              g2 = spl([[-0.3, v3.mad(fc, vR, -(1 - rel) * (qc + 0.3))], [0, G0], [qc, fc], [qm, md], [1, v3.lerp(nT, wp.W, m)]], q);
+              if (dpd && dpd.h) relH = v3.mul([dpd.h[k * 3], dpd.h[k * 3 + 1], dpd.h[k * 3 + 2]], (1 - smooth(0, 0.4, q)) * dpw);
+              if (q > qm) { const r = (q - qm) / (1 - qm); g2 = v3.mad(g2, wp.V, m * (1 - rel) * (1 - qm) * r * r * (r - 1)); } }
+            else
             g2 = spl([[-0.3, v3.mad(fin, vel, -(1 - rel) * 0.54)], [0, g0], [0.24, fin], [0.62, mid], [1, nT]], q);
             const dR = dpd && dpd.d ? [dpd.d[k * 3], dpd.d[k * 3 + 1], dpd.d[k * 3 + 2]] : du, trail = nlerp(nlerp(dR, nD, 0.3), v3.norm(tip(side * 0.06, -0.26, 0.96, lean)), w);
             d2 = q < 0.3 ? nlerp(dR, trail, smooth(0, 0.3, q)) : nlerp(trail, nD, smooth(0.3, 1, q));
@@ -399,9 +458,13 @@ const Skier = (() => {
       { const hq = sec.pf ? sec.pf[side < 0 ? 0 : 1] : null;
         if (hq) { if (hq.hn !== sec.pfN) { hq.hp = hq.ho; hq.hn = sec.pfN; } const r = v3.sub(t, sh), wv = (1 - planted) * (1 - dpw);
           if (hq.hp && sec.pfDt > 0 && wv > 0) t = v3.add(sh, v3.lerp(r, v3.lerp(hq.hp, r, 1 - Math.exp(-sec.pfDt / 0.04)), wv)); hq.ho = v3.sub(t, sh); } }
-      let slip = 0;
-      if (planted >= 1 && tipT) { const dv = v3.sub(t, tipT), l = v3.len(dv), k = 1 - smooth(0.02, 0.03, Math.abs(l - PL)); t = v3.lerp(t, v3.mad(tipT, dv, PL / l), k);
-        const ds = v3.sub(t, sh), ls = v3.len(ds); if (ls > reach) t = v3.mad(sh, ds, reach / ls); slip = Math.abs(v3.len(v3.sub(t, tipT)) - PL); }
+      let slip = 0; const tb = t;
+      // (新求解器: held on a planted pole the hand is kept a pole's length from the tip, whatever body and reach had done to it: hk, how far that moved it.
+      // Let go, it is not dropped in a frame: the recovery starts with it and lets it go over its first part. Measured 2026-11-18: 4 cm in the frame of release)
+      if (relH) t = v3.add(t, relH);
+      // (新求解器: 0.999. Eased in, the stroke's weight ends at 0.99999998 and never at 1: none of this was ever done in a stroke)
+      if (planted >= (sec.gnd ? 0.999 : 1) && tipT) { const dv = v3.sub(t, tipT), l = v3.len(dv), k = 1 - smooth(0.02, 0.03, Math.abs(l - PL)); t = v3.lerp(t, v3.mad(tipT, dv, PL / l), k);
+        const ds = v3.sub(t, sh), ls = v3.len(ds); if (ls > reach) t = v3.mad(sh, ds, reach / ls); slip = Math.abs(v3.len(v3.sub(t, tipT)) - PL); if (dpw > 0) hk = v3.sub(t, tb); }
       // elbows hang: down and a little out and back, never winged out sideways
       // (down when the arm reaches forward, back when it hangs, out when it is stretched behind: each counts for as much as it is square to the arm)
       const ax = v3.norm(v3.sub(t, sh)), sq = (v, w) => { const q = v3.sub(v, v3.mul(ax, v3.dot(v, ax))); return v3.mul(q, w * v3.dot(q, q)); };
@@ -453,11 +516,11 @@ const Skier = (() => {
         d = nlerp(d, v3.norm(v3.sub(v3.mad(tp, xh, side * (-smin(-o, -0.21, 0.06) - o)), t)), (1 - planted) * (1 - g) * (1 - tuck) * (1 - air)); }
       // (and the tip never goes under the snow, except to be planted)
       { const sy = clamp((lerp(0.035, DP.TIPY, low) - 0.045 * deep - t[1]) / PL, -1, 1); if (d[1] < sy) { const hz = Math.hypot(d[0], d[2]), k = Math.sqrt(1 - sy * sy) / (hz || 1); d = hz > 1e-6 ? [d[0] * k, sy, d[2] * k] : [0, sy, Math.sqrt(1 - sy * sy)]; } }
-      return { w: t, e, d, planted, T: Tm, u: uo, ur, slip, hp };
+      return { w: t, e, d, planted, T: Tm, u: uo, ur, slip, hp, hk };
     };
     let hL = hand(-1), hR = hand(1);
     if (dpd && dpd.g && f < dpRel && Math.max(hL.slip, hR.slip) > 1e-4) { dpRel = dpd.gf; dpOut = true; hL = hand(-1); hR = hand(1); }
-    J.gripL = hL.w; J.elbowL = hL.e; J.gripR = hR.w; J.elbowR = hR.e; J.poleDL = hL.d; J.poleDR = hR.d;
+    J.dpHL = hL.hk; J.dpHR = hR.hk; J.gripL = hL.w; J.elbowL = hL.e; J.gripR = hR.w; J.elbowR = hR.e; J.poleDL = hL.d; J.poleDR = hR.d;
     J.wristL = v3.mad(J.elbowL, v3.norm(v3.sub(J.gripL, J.elbowL)), LEN.farm); J.wristR = v3.mad(J.elbowR, v3.norm(v3.sub(J.gripR, J.elbowR)), LEN.farm);
     // (the lab's arms, except while a pole is being planted or held in the snow, or in a double-pole stroke: those are the game's own)
     if (!(L && L.w > 0)) { ez(sec, 'wa0', 0, 18); ez(sec, 'wa1', 0, 18); }
@@ -1143,7 +1206,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     // (standing at ease changes what the pose asks for: before anything is made of it)
     sec.idle = ease(root, pose, cut, cut ? 0 : dt, X, Z, toW);
     sec.pfN++; sec.pfDt = cut ? 0 : Math.max(dt, 0); if (cut) for (const q of sec.pf) { q.o = q.p = q.ho = q.hp = q.ko = q.kp = q.fo = q.fp = null; }
-    if (cut) { st.lean = [cur.lean, 0]; st.cf = [cur.crouch, 0]; st.crouch = [cur.crouch, 0]; st.dp = null; st.pp[0] = st.pp[1] = null; st.f0 = f; dt = 0; }
+    if (cut) { st.lean = [cur.lean, 0]; st.cf = [cur.crouch, 0]; st.crouch = [cur.crouch, 0]; st.dp = null; st.dpc = 0; st.pp[0] = st.pp[1] = null; st.f0 = f; dt = 0; }
     // (2026-11-15, the owner: every change of move must flow, nothing may snap. What the game asks of the body can change in a frame: the legs
     // thrown long for a take-off, a tuck dropped into, a grab, the air begun or ended, the arms told somewhere new. The body is carried there
     // over a few hundredths of a second on a critically damped path (no overshoot, nothing springs back): its speed never jumps, so a joint
@@ -1166,10 +1229,11 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     sec.hand[1] = clamp(dc * 0.16, -0.05, 0.07) * quiet; sec.hand[2] = clamp(-dc * 0.06, -0.03, 0.03) * quiet;
     // double-pole stroke: once the tips are in they belong to the snow, not to the skier: their place is kept in the world and handed back in the
     // skier's frame, until the stroke lets go (or a hand cannot reach its pole any more) and a new stroke begins
+    if (f < st.f0 - 1e-6) st.dpc = sec.dpmv || 0;      // (a stroke begins where the one before it was led to end: see dpWrap)
     if (!(f > 0) || f < st.f0 - 1e-6) st.dp = null;
     if (st.dp) for (let k = 0; k < 2; k++) { const w = st.dp.W[k], d = [w[0] - root.pos[0], w[1] - root.pos[1], w[2] - root.pos[2]]; st.dp.T[k * 2] = v3.dot(d, X); st.dp.T[k * 2 + 1] = v3.dot(d, Z); }
     if (st.dp && f >= st.dp.rel && !st.dp.gone) { st.dp.gone = true; if (st.dp.g) st.dp.rel = st.dp.gf; }      // let go: the recovery starts from the last moment the pole was held
-    sec.dp = st.dp;
+    sec.dp = st.dp; sec.dpc = st.dpc || 0;
     // the pole plant of a turn: the same. From the moment the tip goes in it is the snow's (W: where, in the world; T: the same in the skier's frame)
     // until the plant is taken back or the hand has left it behind; then the pole comes round to trail again (d: how it pointed when let go, w: how far
     // along; g: the pose taking it over again)
@@ -1181,6 +1245,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     sec.labB = typeof LabMo !== 'undefined' && K.boardOn() ? LabMo.stepB(cur, sec, cut ? 0 : dt) : null;
     // (实验室人物, developer mode: the lab's skeleton and motion set every bone, 08i_labride.js; until its frames are solved the game's own stand in)
     sec.gnd = K.ground ? K.ground(cur, root, Y, toW, sec, cut ? 0 : dt) : null;
+    sec.vb = st.hm.v ? -v3.dot(st.hm.v, Z) : 0;      // (how fast the body is going forward, for the stroke: see hand)
     const s = (K.labSolve && K.labSolve(cur, sec, cut ? 0 : dt)) || (K.boardOn() ? K.solveBoard(cur, sec) : solve(cur, sec));
     for (let k = 0; k < 2; k++) { const P = st.pp[k], sd = k ? 'R' : 'L', tp = s.J['tip' + sd], gp = s.J['grip' + sd];
       if (!P) { if (!cut && dt > 0 && !(f > 0) && pq[k] > st.pq[k] && pq[k] > 0.5 && tp[1] <= 0) st.pp[k] = { W: toW(tp), T: [tp[0], tp[2]], d: null, h: null, w: 0, g: 0, rel: 0 }; }
@@ -1192,7 +1257,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
       if (!st.dp) { if (st.f0 < DP.PLANT && f >= DP.PLANT) st.dp = { W: [toW(s.dp.T[0]), toW(s.dp.T[1])], T: [0, 0, 0, 0], rel: DP.REL, u: s.dp.u, d: null, v: null, g: null, gf: f }; }
       else if (f < st.dp.rel) { const D = st.dp, gn = [s.J.gripL[0], s.J.gripL[1], s.J.gripL[2], s.J.gripR[0], s.J.gripR[1], s.J.gripR[2]];
         if (s.dp.out && D.g) { D.rel = D.gf; D.gone = true; }      // (out of reach: let go at the step before, and the solver has drawn it so)
-        else { if (D.g && f > D.gf + 1e-5) D.v = gn.map((x, i) => (x - D.g[i]) / (f - D.gf)); D.g = gn; D.gf = f;
+        else { const sn = [s.J.shL[0], s.J.shL[1], s.J.shL[2], s.J.shR[0], s.J.shR[1], s.J.shR[2]]; if (D.g && f > D.gf + 1e-5) { D.v = gn.map((x, i) => (x - D.g[i]) / (f - D.gf)); if (D.s) D.vs = sn.map((x, i) => (x - D.s[i]) / (f - D.gf)); } D.g = gn; D.s = sn; D.gf = f; D.h = s.J.dpHL && s.J.dpHR ? [s.J.dpHL[0], s.J.dpHL[1], s.J.dpHL[2], s.J.dpHR[0], s.J.dpHR[1], s.J.dpHR[2]] : null;
           D.u = s.dp.u; D.d = [s.J.poleDL[0], s.J.poleDL[1], s.J.poleDL[2], s.J.poleDR[0], s.J.poleDR[1], s.J.poleDR[2]]; if (s.dp.out) D.rel = f; } }
     }
     st.f0 = f;
