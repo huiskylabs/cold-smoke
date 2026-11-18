@@ -273,6 +273,14 @@ const Skier = (() => {
     // body shapes the hands and the poles have to stay out of
     const caps = [[hipL, J.kneeL, 0.115, 0.095], [hipR, J.kneeR, 0.115, 0.095], [J.kneeL, J.ankleL, 0.09, 0.085], [J.kneeR, J.ankleR, 0.09, 0.085], [v3.add(v3.mad(hipL, pb.Z, 0.03), v3.mul(pb.X, 0.035)), v3.add(v3.mad(hipR, pb.Z, 0.03), v3.mul(pb.X, -0.035)), 0.15, 0.15],
       [pel, J.chest, 0.155, 0.165], [J.chest, v3.mad(J.neck, t2.Y, -0.07), 0.165, 0.15], [v3.add(v3.mad(J.chest, t2.Z, 0.19), v3.mul(t2.Y, -0.16)), v3.add(v3.mad(J.chest, t2.Z, 0.18), v3.mul(t2.Y, 0.12)), 0.115, 0.10], [J.head, J.head, 0.135, 0.135]];
+    // (新求解器: the same shapes as one smooth surface: where two of them meet the corner is round, so how far a point is from the body is one number
+    // that changes evenly, and so does the way out. An elbow sliding along a thigh onto the shin is turned evenly, not thrown from one to the other)
+    const bodyD = (q, n) => { let m = 1e9; for (let i = 0; i < (n || caps.length); i++) { const cp = caps[i], a = cp[0], b = cp[1], ab = v3.sub(b, a), l2 = v3.dot(ab, ab), t = l2 > 1e-9 ? sat(v3.dot(v3.sub(q, a), ab) / l2) : 0;
+      m = smin(m, v3.len(v3.sub(q, v3.mad(a, ab, t))) - lerp(cp[2], cp[3], t), 0.03); } return m; };
+    // (and the way out of it for a point that is free to go anywhere, a fist: straight away from the surface, to the same evenly growing clearance)
+    const clearOf = (q, r) => { for (let it = 0; it < 3; it++) { const g0 = bodyD(q) - r, M = 0.005, Bd = 0.02, T = g0 >= M + Bd ? g0 : g0 <= M - Bd ? M : g0 + (M + Bd - g0) * (M + Bd - g0) / (4 * Bd); if (T <= g0 + 1e-5) break;
+      const h = 0.01, n = [bodyD([q[0] + h, q[1], q[2]]) - bodyD([q[0] - h, q[1], q[2]]), bodyD([q[0], q[1] + h, q[2]]) - bodyD([q[0], q[1] - h, q[2]]), bodyD([q[0], q[1], q[2] + h]) - bodyD([q[0], q[1], q[2] - h])], l = v3.len(n); if (l < 1e-6) break; q = v3.mad(q, n, (T - g0) / l); }
+      return q; };
     const pushOut = (q, r, side, n) => {
       for (let i = 0; i < (n || caps.length); i++) { const cp = caps[i], a = cp[0], b = cp[1], ab = v3.sub(b, a), l2 = v3.dot(ab, ab), t = l2 > 1e-9 ? sat(v3.dot(v3.sub(q, a), ab) / l2) : 0, cpt = v3.mad(a, ab, t), R = lerp(cp[2], cp[3], t) + r;
         let dv = v3.sub(q, cpt), dl = v3.len(dv); if (dl >= R) continue; if (dl < 1e-4) { dv = [side, 0, 0]; dl = 1; } q = v3.mad(cpt, dv, R / dl); }
@@ -374,7 +382,7 @@ const Skier = (() => {
       // (...nor so close to it that the arm has nowhere to fold: it gives way forward and down, the more the closer it is pressed)
       const inReach = q => { const dv = v3.sub(q, sh), l = v3.len(dv); return l > reach ? v3.mad(sh, dv, reach / l) : l < 0.21 ? v3.mad(sh, v3.norm(v3.add(dv, v3.mul(fr(hl, side * 0.02, -0.02, -0.03), sat((0.21 - l) / 0.05)))), 0.21) : q; };
       if (t[1] < 0.09) t[1] = 0.09 + (t[1] - 0.09) * 0.2;
-      t = inReach(t); if (g < 1) { const q = pushOut(pushOut(t, 0.062, side), 0.062, side); t = inReach(g > 0 ? v3.lerp(q, t, g) : q); }
+      t = inReach(t); if (g < 1) { const q = sec.gnd ? clearOf(t, 0.062) : pushOut(pushOut(t, 0.062, side), 0.062, side); t = inReach(g > 0 ? v3.lerp(q, t, g) : q); }
       // (kept off its path like that, a hand on a planted pole would drag the tip through the snow. A little of it the wrist takes up, the hand keeping
       // to the pole; more, and the pole has already been let go: see below)
       // (the fist the same, where it sits against its shoulder: a rule handing over to another moved it a few centimetres in a frame. Not on a
@@ -394,6 +402,18 @@ const Skier = (() => {
       const kb = dpw > 0 ? dpw * smooth(0, 0.45, v3.dot(ax, hl.Z)) : 0;
       const ep = v3.add(v3.add(sq(kb > 0 ? fr(hl, side * lerp(0.25, 0.08, kb), lerp(-1, 1, kb), 0.25) : fr(hl, side * 0.25, -1, 0.25), 1), sq(fr(hl, 0, 0, 1), 0.35)), sq(fr(hl, side, 0, 0.2), lerp(0.15, 0.10, tuck)));
       let e = ik2(sh, t, LEN.uarm, LEN.farm + LEN.grip, ep);
+      if (sec.gnd) {
+        // (新求解器: shoulder and fist given, the elbow lies on a circle. It starts where it hangs by itself and is turned along the circle, once, to the
+        // clearance it is owed: nothing if it is clear by 4 cm, 2 cm kept if it is touching, evenly between)
+        const cc = v3.mad(sh, ax, v3.dot(v3.sub(e, sh), ax)), u0 = v3.sub(e, cc), rho = v3.len(u0);
+        if (rho > 1e-4) { const u = v3.mul(u0, 1 / rho), w = v3.cross(ax, u), at = th => v3.add(cc, v3.add(v3.mul(u, rho * Math.cos(th)), v3.mul(w, rho * Math.sin(th)))), G = th => { const q = at(th); return smin(bodyD(q, 7) - 0.055, bodyD(v3.lerp(q, t, 0.45), 7) - 0.05, 0.02); };      // (the elbow, and the forearm a little below it)
+          const g0 = G(0), M = 0.005, Bd = 0.02, T = g0 >= M + Bd ? g0 : g0 <= M - Bd ? M : g0 + (M + Bd - g0) * (M + Bd - g0) / (4 * Bd);
+          // (never turned further than the clearance asked for would take it straight out: where turning hardly clears it, it is left nearly where it
+          // hangs. Turned as far as it took, an elbow lying along a thigh went 5 cm out and came back in one frame)
+          if (T > g0 + 1e-5) { let th = 0, g = g0; const dg0 = (G(0.02) - G(-0.02)) / 0.04, sg = Math.sign(dg0), lim = (T - g0) / (rho * 0.8);
+            if (sg) for (let it = 0; it < 3; it++) { const dg = it ? (G(th + 0.02) - G(th - 0.02)) / 0.04 : dg0; th = clamp(th + (T - g) / (sg * Math.max(sg * dg, rho * 0.8)), -lim, lim); g = G(th); if (g >= T - 1e-4) break; }
+            e = at(th); } }
+      } else
       { const q = pushOut(e, 0.055, side, 7); if (q !== e) e = ik2(sh, t, LEN.uarm, LEN.farm + LEN.grip, v3.sub(q, v3.lerp(sh, t, 0.5))); }
       if (planted > 0 && tipT) d = nlerp(d, v3.norm(v3.sub(tipT, t)), planted);
       // (a pole on its way to the plant brushes past its own leg: it gives way round it, the nearest way out, and does not wait behind it)
