@@ -1,7 +1,7 @@
 // 雪道上的石头：改前（雪包）/改后（石头带残雪）同机位对比图。
 // 用法: node build.js && node tools/boulders/shot.js <输出目录> [宽=1600] [高=900]
 // REALGPU=1 用本机显卡（Mac 上用这个）。总是无头、无窗口，只用 playwright 自带的 Chromium，不碰装好的 Chrome。
-// NODRAW=1 只跑脚本不出图（检查脚本本身）。
+// NODRAW=1 只跑脚本不出图（检查脚本本身）。VARS=b 只出改后。
 // 每张图：同一块石头、同一个镜头，a = 现在的雪包，b = 石头带残雪；地形难度 c（野雪，雪道中间也有石头）和 b（标准，只有边上的）各取几块。
 const { chromium } = require('playwright'), fs = require('fs'), path = require('path');
 const [OUT = 'boulder-shots', W = '1600', H = '900'] = process.argv.slice(2);
@@ -18,7 +18,7 @@ const CASES = [{ tdiff: 'c', pick: [0, 1, 3] }, { tdiff: 'b', pick: [0, 2] }];
   const browser = await chromium.launch({ headless: true, args: args.concat(['--no-sandbox']) });
   fs.mkdirSync(OUT, { recursive: true });
   const page0 = path.resolve(__dirname, '../../dist/dev.html');
-  for (const cs of CASES) for (const v of ['a', 'b']) {
+  for (const cs of CASES) for (const v of (process.env.VARS || 'a,b').split(',')) {
     const page = await browser.newPage({ viewport: { width: +W, height: +H }, deviceScaleFactor: 1 });
     page.on('pageerror', e => console.log('pageerror:', e.message));
     await page.goto('file://' + page0 + `?dev&manual&w=${W}&h=${H}&gov=0&offscreen=1&v-boulder=${v}&v-tdiff=${cs.tdiff}&v-terr=b`);
