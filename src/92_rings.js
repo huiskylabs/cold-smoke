@@ -225,7 +225,7 @@ const Rings = (() => {
     let top = -1e9; for (let i = -6; i <= 6; i++) { const a = i / 6 * 1.2, dx = Math.sin(a) * r, dy = -Math.cos(a) * r; top = Math.max(top, Course.height(x + dx * cy, -(s - dx * sy), 0.5) - dy); }
     return Math.max(y, top + GAP);
   }
-  function reset() { RG.rings.length = 0; RG.passed = RG.missed = 0; rnd = L.id ? L.seed : 1 + Math.floor((Date.now() % 100000)); lastS = null; drawList = []; cursor = null; L.fin = false; }
+  function reset() { RG.rings.length = 0; RG.passed = RG.missed = 0; RG.streak = 0; rnd = L.id ? L.seed : 1 + Math.floor((Date.now() % 100000)); lastS = null; drawList = []; cursor = null; L.fin = false; }
 
   // ---- each frame, before the game draws
   function update(T) {
@@ -269,8 +269,10 @@ const Rings = (() => {
       const dy = (S.p[1] + 0.9) - cur.y;
       cur.hit = cur.air ? (Math.hypot(dA, dy) < cur.r) : (Math.abs(dA) < cur.r * 0.85);          // (ground rings: judged across only, the skier rides through the lower part)
       if (cur.splash < 0) cur.splash = T;
-      if (cur.fin) { cur.hit = true; cur.pass = T; lineFinish(); return; }
+      if (cur.fin) { cur.hit = true; cur.pass = T; ringNote(0, true, 0); lineFinish(); return; }
       cur.pass = T; if (cur.hit) RG.passed++; else RG.missed++;
+      // (用户 2026-11-18 22:58 UTC: 过圈音乐蹦一个音) the score answers each ring passed, climbing while the run of rings goes on (18b_music.js S.ring)
+      RG.streak = cur.hit ? (RG.streak || 0) + 1 : 0; if (cur.hit) ringNote(RG.streak - 1, false, dA / Math.max(1, cur.r));
       if (ahead[1] && ahead[1].grow < 0 && ahead[1].s - s < OPEN) ahead[1].grow = T;
     }
   }
@@ -612,6 +614,7 @@ const Rings = (() => {
   }
   RG.xPlan = () => L.id === 'x' ? xPlan() : null;          // (for test scripts)
   RG.PLAN = PLAN; RG.ZIPROWS = ZIPROWS; RG.columns = () => drawList.filter(d => d.bk > 0).length;          // (for tools/ring-expert.js: how far apart a smooth expert line can take the rings)
+  function ringNote(k, fin, side) { try { const R = typeof Sound !== 'undefined' && Sound.rig; if (R && R.ring && Sound.on !== false && Sound.ctx) R.ring(Sound.ctx.currentTime, k, fin, side); } catch (e) { } }
   function beep(f, d, g) {
     try { const A = Sound.ctx; if (!A || !Sound.on) return; const o = A.createOscillator(), v = A.createGain(), t = A.currentTime; o.type = 'sine'; o.frequency.value = f; v.gain.setValueAtTime(0, t); v.gain.linearRampToValueAtTime(g, t + 0.012); v.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(v); v.connect(A.destination); o.start(t); o.stop(t + d + 0.05); } catch (e) { }
   }

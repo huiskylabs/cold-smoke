@@ -250,6 +250,7 @@ const Sound = (() => {
     // leaving the ground (fly: how long the flight is going to last, hgt: how high over the snow) and coming back to it: the score's business
     R.takeoff = (t, fly, hgt) => { if (mus) mus.takeoff(t, fly, hgt); };
     R.down = (t, v, airT) => { if (mus) mus.down(t, v, airT); };
+    R.ring = (t, k, fin, side) => { if (mus) mus.ring(t, k, fin, side); };          // (92_rings.js: through a ring)
     R.hoof = (t, amp, pn) => {             // a pair of hooves driving into the snow: a soft thump and the crust giving
       if (hfP.pan) hfP.pan.setTargetAtTime(pn, t, 0.02); R.hoofs = (R.hoofs || 0) + 1;
       hit(hfG, t, 1.5 * amp, 0.004, 0.018, 0.05); hit(hcG, t + 0.004, 0.36 * amp, 0.004, 0.022, 0.06);
