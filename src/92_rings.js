@@ -219,6 +219,7 @@ const Rings = (() => {
     const S = Game.s, s = -S.p[2], cam = Render.cam.pos, o = Render.origin, night = cl(((Sky.night || 0) - 0.2) / 0.6, 0, 1);
     const ahead = RG.rings.filter(r => r.pass < 0), fmode = typeof Variants !== 'undefined' ? ({ a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8 })[Variants.val.rflow] || 0 : 0;
     drawList = [];
+    const col1 = ahead.find(q => q.grow < 0 && !q.fin && !q.skip), colFading = RG.rings.some(q => !q.fin && !q.skip && q.colOn && q.grow >= 0 && T - q.grow < 1.6);
     for (const r of RG.rings) {
       const dist = Math.hypot(r.x - cam[0], r.y - cam[1], -r.s - cam[2]), ord = r.pass >= 0 ? 0 : ahead.indexOf(r);
       const sz = Math.sqrt(r.r / 4.5), near = Math.pow(cl(1 - (dist - 25) / 280, 0.16, 1), 1.2);          // (用户 20:39 UTC: 有时候还是比较淡，亮一点、点多一点: far ones still fainter, but not lost)
@@ -238,7 +239,10 @@ const Rings = (() => {
         // (16:45 UTC: 被火团吸进去) bk 1 while the flame burns and while the column is being drawn in; ab how far in, over ~0.7 s of opening
         // (16:49 UTC: 太快了，慢一点；不用全部吸进来，有些慢慢 fade out，只要顺序从上往下) ~1.6 s from when the flame starts to open
         const abT = r.grow >= 0 ? cl((T - r.grow) / 1.6, 0, 1) : 0;
-        if (!r.fin && abT < 1 && (r.grow >= 0 || (r.pass < 0 && ord <= 1))) { bk = 1; nx = [c[0], c[1], c[2], r.r]; ap = 1; }
+        // (用户 20:39 UTC: 开局为什么有两条线？应该只有第一条) one column at a time: over the first flame still to open, and only once the
+        // column of the ring that last opened has faded out
+        if (r === col1 && !colFading && r.grow < 0) r.colOn = true;          // (a ring that opens without its column ever having stood gets none to fade)
+        if (!r.fin && abT < 1 && r.colOn) { bk = 1; nx = [c[0], c[1], c[2], r.r]; ap = 1; }
       } else if (fmode && !r.fin && (r.splash >= 0 || ord === 0)) {
         const dC = r.s - s; ap = r.splash >= 0 ? 1 : fmode === 5 || fmode === 7 || fmode === 8 ? cl(1 - (dC - 10) / 70, 0, 1) : cl(1 - (dC - 6) / 34, 0, 1); const i = RG.rings.indexOf(r); for (let k = i + 1; k < RG.rings.length; k++) { const q = RG.rings[k]; if (q.skip) continue; nx = [q.x - o[0], q.y - o[1], -q.s - o[2], q.r]; break; } }
       drawList.push({ r, nx, ap, bk, ab: fmode === 7 && r.grow >= 0 ? cl((T - r.grow) / 1.6, 0, 1) : 0, fmode, fl: r.flowT >= 0 ? T - r.flowT : -1, dist, c, sz, near, grown, dis, open, A, flameA, night, ord, flameSc: (1 + 1.6 * ease(grown / 0.35)) * (ord <= 1 ? 1 : ord === 2 ? 0.85 : 0.72), tint: ord <= 1 ? 0 : ord === 2 ? 1 : 2, hitK: r.hit || r.splash < 0 ? 1 : 0.5 });
@@ -452,7 +456,7 @@ const Rings = (() => {
     return L.xp;
   }
   RG.xPlan = () => L.id === 'x' ? xPlan() : null;          // (for test scripts)
-  RG.PLAN = PLAN; RG.ZIPROWS = ZIPROWS;          // (for tools/ring-expert.js: how far apart a smooth expert line can take the rings)
+  RG.PLAN = PLAN; RG.ZIPROWS = ZIPROWS; RG.columns = () => drawList.filter(d => d.bk > 0).length;          // (for tools/ring-expert.js: how far apart a smooth expert line can take the rings)
   function beep(f, d, g) {
     try { const A = Sound.ctx; if (!A || !Sound.on) return; const o = A.createOscillator(), v = A.createGain(), t = A.currentTime; o.type = 'sine'; o.frequency.value = f; v.gain.setValueAtTime(0, t); v.gain.linearRampToValueAtTime(g, t + 0.012); v.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(v); v.connect(A.destination); o.start(t); o.stop(t + d + 0.05); } catch (e) { }
   }
