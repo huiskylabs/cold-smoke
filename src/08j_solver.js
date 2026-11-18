@@ -7,7 +7,7 @@
 const Solver = (() => {
   const K = Skier, sat = x => Math.max(0, Math.min(1, x));
   Variants.def('solver', '新求解器', [['a', '关'], ['b', '雪板贴真实雪面']], 'a');
-  const ZS = [-0.75, -0.5625, -0.375, -0.1875, 0, 0.1875, 0.375, 0.5625, 0.75], E = new Array(ZS.length), HALF = 0.6, DROP = 30;
+  const ZS = [-0.75, -0.5625, -0.375, -0.1875, 0, 0.1875, 0.375, 0.5625, 0.75], E = new Array(ZS.length), HALF = 0.6, DROP = 30, PUSH = 120;
   // One ski, standing at (x0, z0) in the figure's frame, as what it is: a stiff bar that the snow can push up anywhere along its length but cannot pull
   // down. Each frame its two ends first fall as a thing falls that a leg pushes down (at most DROP), then the bar is lifted where the snow stands
   // over it, turning about the place it is hit as a bar does. So it lies on the high points of the snow under it; where the snow falls away faster
@@ -22,6 +22,10 @@ const Solver = (() => {
       const b = (n * sze - sz * se) / (n * szz - sz * sz), a = (se - b * sz) / n; f = a + b * zf; r = a + b * zr; }
     else { f = f0 + (q[k + 1] - DROP * dt) * dt; r = r0 + (q[k + 3] - DROP * dt) * dt; }
     for (let it = 0; it < 4; it++) for (let i = 0; i < n; i++) { const wr = (ZS[i] - zf) / (zr - zf), wf = 1 - wr, d = E[i] - (f * wf + r * wr); if (d > 0) { const g = d / (wf * wf + wr * wr); f += g * wf; r += g * wr; } }
+    // (and the snow cannot throw a ski up at any pace either: a boot, a ski and the leg above them weigh some kilograms, and snow gives way when it
+    // is hit: an end's speed upward grows by at most PUSH. Measured without it, in a mogul field at 18 m/s: the foot's speed turned from 1.8 m/s down
+    // to 3 m/s up in one frame, 30 g, and the knee's angle with it. For the frame or two that this takes, the ski cuts into the face of the bump)
+    if (!fresh) { const vf = Math.min((f - f0) / dt, q[k + 1] + PUSH * dt), vr = Math.min((r - r0) / dt, q[k + 3] + PUSH * dt); f = f0 + vf * dt; r = r0 + vr * dt; }
     q[k + 1] = fresh ? 0 : Math.max(-6, Math.min(6, (f - f0) / dt)); q[k + 3] = fresh ? 0 : Math.max(-6, Math.min(6, (r - r0) / dt)); q[k] = f; q[k + 2] = r;
   }
   // The physics carries the body over a mogul field as legs that absorb would: it rides only a part of each bump's height (pose.mogK; the game's
