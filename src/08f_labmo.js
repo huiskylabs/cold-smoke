@@ -97,7 +97,7 @@ const LabMo = (() => {
     o.ua[0] = nrm(Ar(V(27))); o.ua[1] = nrm(Ar(V(30))); o.fa[0] = nrm(Ar(V(33))); o.fa[1] = nrm(Ar(V(36)));
     return o;
   }
-  M.step = function (p, sec, dt, speed) {
+  M.step = function (p, sec, dt, speed, latA) {
     p.idleRest = sec.idle ? sec.idle.rest || 0 : 0;
     const ph = phase(st, p, dt, D.clips.carve.peak, 16); weight(st, p, dt, p.dp > 0 ? 0 : 1);
     if (st.w < 1e-3) return null;
@@ -120,7 +120,7 @@ const LabMo = (() => {
     // (the arms do not tip over with the trunk: hung from a trunk that leans in, the inside hand and forearm came down onto the inside thigh
     // (Mac round 16: hand x thigh 0 -> 136 frames). They keep the lab's own line, hands level, as a skier carries them)
     const ARM_IN = 0.0;
-    const TRUNK_LEAD_T = 0.07, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.35, LOOK_H = 0.5, LOOK_C = 0.35, HEAD_ROLL_KEEP = 0.45;
+    const TRUNK_LEAD_T = 0.03, TRUNK_UNLAG = 0.5, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.35, LOOK_H = 0.5, LOOK_C = 0.35, LOOK_END = 0.6, HEAD_ROLL_KEEP = 0.45;
     const TRUNK_IN = 0.6, lab = Math.atan2(r[0], r[1]);
     if (!quietU()) return fill(out, st, r, ph.lean * 1.07 - lab, 'z');
     // (新求解器, owner 2026-11-18: "想左转，一定是身体跟肩膀先倾过来…头稍微往正回一点点". Measured (turnM): the shoulders tipped 6 frames AFTER the hips
@@ -136,13 +136,24 @@ const LabMo = (() => {
     //   kin       deep in a turn the trunk gives back less of the lean (TRUNK_IN_DEEP): the hips go in, the shoulders stay nearer level
     //   yaw       see the heading order below)
     const lr = LEAD_RATE_MAX * Math.tanh(ph.lev / LEAD_RATE_MAX), lt = ph.le + (2 / ph.wn + TRUNK_LEAD_T) * lr, kin = TRUNK_IN + (TRUNK_IN_DEEP - TRUNK_IN) * sm(0.45, 0.85, Math.abs(lt));
-    fill(out, st, r, ph.lean * 1.07 - lab, 'z', ph.le * 1.07 - lab + kin * lt, lt * 1.07 - lab + ARM_IN * ph.le);
+    // (the trunk's own roll rides on the lean without the easing's lag (l0), not on the eased lean: on the eased one its lead was eaten, and against
+    // the leg line (feet to pelvis) the shoulders went over 0.01 s BEFORE to 0.01 s AFTER the legs: together, not first (scorer Rshlead / Rshlead0, 2026-11-18))
+    const l0 = ph.le + TRUNK_UNLAG * (2 / ph.wn) * lr;      // (TRUNK_UNLAG 1, lead 0.115 s: at a linked edge change the trunk stood 16 deg off the leg line, Rshline0; 0.5 is tried for about 0.06 s)
+    fill(out, st, r, ph.lean * 1.07 - lab, 'z', l0 * 1.07 - lab + kin * lt, lt * 1.07 - lab + ARM_IN * ph.le);
     // (heading order, owner 2026-11-18 (the research on sports games, adopted): the head looks where the skier will be going in LOOK_H s, the chest
     // LOOK_C, the skis last. The way the line is about to turn is read from the lean the trunk already leads with (lt): a
     // carving skier's heading turns at g tan(lean) / v. Each is held under its cap, so head over chest and chest over hips never twist far.
     // Before: the shoulders 0.15 of the lean, the head HALF of that: the head followed the shoulders, it did not lead them)
-    const psi = 9.81 * Math.tan(Math.max(-1, Math.min(1, lt))) / Math.max(speed, 6), capY = (x, m) => m * Math.tanh(x / m), rotY = (q, a) => { const c = Math.cos(a), n = Math.sin(a); return [q[0] * c + q[2] * n, q[1], -q[0] * n + q[2] * c]; };
-    const a = -capY(LOOK_C * psi, 0.30), aH = -capY(LOOK_H * psi, 0.45), aP = 0,      // (the hips are left as the lab's posture has them: measured 2026-11-18 (turnM), the pelvis already stands 17 deg into the turn at 30 deg of lean, more than the chest's 9; LOOK_P s of look-ahead on top made it 20)
+    // (how much of that the line really turns: LOOK_EFF, the path's own turning (its sideways acceleration over its speed) against the lean's promise,
+    // followed slowly. In short turns the skis skid and the body's lean promises four times the turn the path makes: Mac round 23, the head
+    // looked 13 deg into a turn whose line came round 3 deg in the half second)
+    { const wl = 9.81 * Math.tan(Math.max(-1, Math.min(1, ph.le))) / Math.max(speed, 6), wa = (latA || 0) / Math.max(speed, 6);
+      if (st.eff == null) st.eff = 0.6; if (dt > 0 && Math.abs(wl) > 0.12) st.eff += (Math.max(0.2, Math.min(1, wa / wl)) - st.eff) * (1 - Math.exp(-dt * 2.5)); }
+    const psi = st.eff * 9.81 * Math.tan(Math.max(-1, Math.min(1, lt))) / Math.max(speed, 6), capY = (x, m) => m * Math.tanh(x / m), rotY = (q, a) => { const c = Math.cos(a), n = Math.sin(a); return [q[0] * c + q[2] * n, q[1], -q[0] * n + q[2] * c]; };
+    // (and no further ahead than the turn lasts: while the lean is coming off, the look-ahead is held to LOOK_END of the time the lean has left
+    // (lean over its rate). In short turns half a second ahead is already the NEXT turn: the head stayed looking into a turn that was ending)
+    const left = lt * lr < 0 ? LOOK_END * Math.abs(lt) / Math.max(Math.abs(lr), 1e-3) : 9, sminT = (x, y) => -Math.log(Math.exp(-x / 0.05) + Math.exp(-y / 0.05)) * 0.05, kH = sminT(LOOK_H, left) / LOOK_H, kC = sminT(LOOK_C, left) / LOOK_C;
+    const a = -capY(LOOK_C * kC * psi, 0.30), aH = -capY(LOOK_H * kH * psi, 0.45), aP = 0,      // (the hips are left as the lab's posture has them: measured 2026-11-18 (turnM), the pelvis already stands 17 deg into the turn at 30 deg of lean, more than the chest's 9; LOOK_P s of look-ahead on top made it 20)
        tb = B => ortho(rotY(B.X, a), rotY(B.Y, a)), t1b = B => ortho(rotY(B.X, (a + aP) / 2), rotY(B.Y, (a + aP) / 2));
     out.pb = ortho(rotY(out.pb.X, aP), rotY(out.pb.Y, aP));
     out.t1 = t1b(out.t1); out.t2 = tb(out.t2);
