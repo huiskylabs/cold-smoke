@@ -115,6 +115,7 @@ const I18N = (() => {
     '宽旗': 'Wide flags', '羽毛旗': 'Feather flags', '浅': 'Shallow', '适中': 'Medium', '深': 'Deep', '大一点': 'Louder', '更大': 'Loudest',
     '按半秒就搓': 'Skid after ½ s', '按两秒才搓': 'Skid after 2 s', '横过来才搓': 'Side-on only',
     '滑行手感': 'Ski feel',
+    '换刃咬雪': 'Edge bite', '随雪况·轻': 'By snow, light', '随雪况·重': 'By snow, heavy', '跳键提前按': 'Early jump press', '落地就跳': 'Jump on landing',
   };
   const KEY = 'coldsmoke.lang';
   const L = { EN, lang: 'zh', subs: [] };

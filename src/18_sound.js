@@ -286,7 +286,8 @@ const Sound = (() => {
       // ---- how hard the edges are moving snow. The same recipe that feeds the spray, but from what the body is doing (lean, skid) and the
       // load on the legs averaged over a tenth of a second: the ear hears one scrape per turn, not every bounce of the knees
       loadS = damp(loadS, s.run && s.contact ? s.load : 0, 9, dt);
-      const tl = Math.tan(Math.min(Math.abs(s.lean), 1.1)), sk = sat(s.skid / 0.45), pwF = 0.6 + 0.6 * pw, hard = 1 - pw;
+      const tl = Math.tan(Math.min(Math.abs(s.edge ?? s.lean), 1.1)),      // (the edges' own angle: with 'ebite' b, c they bite after the body)
+      sk = sat(s.skid / 0.45), pwF = 0.6 + 0.6 * pw, hard = 1 - pw;
       const E = smooth(1.5, 13, v) * (0.62 * Math.pow(tl, 1.3) + 1.25 * s.skid * (0.4 + 0.6 * sat(tl))) * lerp(0.35, 1.25, sat(loadS / 1.8)) * pwF;
       const eL = Math.pow(sat(E * 0.85), 0.8);
       // ---- glide: quiet next to the scrape of a turn, finer and brighter with speed, muffled in powder
@@ -347,7 +348,7 @@ const Sound = (() => {
   A.now = () => A.ctx.currentTime + 0.012;
   A.snapshot = function () {
     const S = Game.s, c = Course.at(-S.p[2], A.pc), sg = Course.segAt(-S.p[2]), wd = Game.feel ? Game.feel.wind : null;
-    return { run: Game.mode === 'run', title: Game.mode === 'title', speed: Math.hypot(S.v[0], S.v[1], S.v[2]), contact: S.contact, lat: S.aReac / 9.81, skid: Math.abs(Math.sin(S.beta)), load: S.load / 9.81, powder: S.powder, I: Spray.intensity, tuck: S.tuck, lean: S.lean,
+    return { run: Game.mode === 'run', title: Game.mode === 'title', speed: Math.hypot(S.v[0], S.v[1], S.v[2]), contact: S.contact, lat: S.aReac / 9.81, skid: Math.abs(Math.sin(S.beta)), load: S.load / 9.81, powder: S.powder, I: Spray.intensity, tuck: S.tuck, lean: S.lean, edge: S.edge ?? S.lean,
       ridge: c.ridge || 0, forest: Math.max(c.forest || 0, c.glade || 0),
       wind: wd ? wd.v : null, push: wd ? wd.b : 0, tk: Math.max(S.tuck, S.tuckIn || 0),       // (for the wind: what is met, the blow of the moment, either tuck)
       air: S.air, airT: S.airT, ts: Game.timeScale || 1, kind: sg.type, slope: sg.p.slope, sun: Sky.sunElev,       // (for the score)
