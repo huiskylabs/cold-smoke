@@ -24,7 +24,7 @@ const Rings = (() => {
   // (用户 05:28 UTC: 现在的圈太大，随机混 3、4 种：现在的 2/3、1/2、1/3，钻着试): radii as shares of the 4.5 m ring he saw; the HUD names
   // the share of the ring in front so he can say which one is right
   // UPDATE (用户 05:43 UTC): keep three, 2/3, 1/2, 1/3, set by how hard the stretch is (index 0 easy .. 2 hard)
-  const SIZES = [[3.0, '2/3'], [2.25, '1/2'], [1.5, '1/3']];
+  const SIZES = [[2.5, '5 米'], [1.5, '3 米'], [1.0, '2 米']];          // (用户 2026-11-18 19:10 UTC: 试试 5、3、2: diameters in metres; were 6, 4.5, 3)
   const AHEAD = 4;                 // the ring in front + three flames
   const TONGUES = 56;
   let gfx = null, pDust = null, pDustSh = null, pFlame = null, pLight = null;
@@ -78,7 +78,8 @@ const Rings = (() => {
   // 所有道的目标都是引导玩家正确地滑这条道). Both lines use these wherever they cross a gully or a mogul field.
   // wallU: across the run, the point a share k of the way up the gully's wall on one side (side ±1); the wall is the gully's own shape
   // (Course.uWall for the U, the trough's bell otherwise), measured from the trough's line. null where there is no gully
-  const WALLK = { a: 0.45, b: 0.6, c: 0.72 };
+  // (用户 19:08 UTC: 圈还是太靠上，放在斜坡中间，S 型滑的时候正好穿过去): the ring floats (r + gap, more on a slope), so the point it stands over is low on the wall
+  const WALLK = { a: 0.3, b: 0.38, c: 0.48 };
   function wallU(s, side, k) {
     const c = Course.at(s, pc); if (!(c.gul > 0.6)) return null;
     for (let a = 0; a <= 34; a += 0.25) {
@@ -135,7 +136,7 @@ const Rings = (() => {
     // kickers (tools/kicker-air.js, 15-18 m/s at the lip): 14 m past the lip, skiing flat over it the body is 2.6-4.9 m below the lip,
     // with the jump held it is 0.1-2.2 m below. So the ring hangs there, its centre 1 m below the lip, and is small (1.9 / 1.6 / 1.35 m
     // by 光圈难度): only a real jump goes through it
-    if (f) { const lip = lipOf(f), sr = lip.s + 14, c = Course.at(sr, pc), z = SIZES[lvAir], ra = [1.9, 1.6, 1.35][lvAir]; RG.rings.push({ id: serial++, s: sr, u: f.u, x: c.cx + f.u, y: floatY(c.cx + f.u, sr, ra, lip.y - 1.0), r: ra, tag: z[1], air: true, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sr, u: f.u }; return; }
+    if (f) { const lip = lipOf(f), sr = lip.s + 14, c = Course.at(sr, pc), z = SIZES[lvAir], ra = [1.9, 1.6, 1.35][lvAir]; RG.rings.push({ id: serial++, s: sr, u: f.u, x: c.cx + f.u, y: floatY(c.cx + f.u, sr, ra, lip.y - 1.0), r: ra, tag: (ra * 2).toFixed(1) + ' 米', air: true, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sr, u: f.u }; return; }
     if (pl.how === 'none') { cursor = { s, u: u0 }; RG.rings.push({ id: serial++, s, skip: true }); return; }
     const c0 = Course.at(s, pc), hw = c0.hw || 14;
     let u, tech = false;
@@ -239,7 +240,7 @@ const Rings = (() => {
   function hud() {
     if (!RG.hud) { RG.hud = document.createElement('div'); RG.hud.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);font:500 13px/1 system-ui,sans-serif;letter-spacing:.12em;color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(0,0,0,.45);pointer-events:none;z-index:3'; document.body.appendChild(RG.hud); }
     RG.hud.style.display = RG.on && !L.id ? '' : 'none'; if (L.id) return;
-    const cur = RG.rings.find(r => r.pass < 0 && !r.skip), dn = { a: '轻松', b: '标准', c: '难' }[(typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b'] || '标准', t = '光圈（' + dn + '） ' + RG.passed + ' / ' + (RG.passed + RG.missed) + (cur && cur.tag ? '　·　这个圈 ' + cur.tag + ' 大' : ''); if (RG.hud.textContent !== t) RG.hud.textContent = t;
+    const cur = RG.rings.find(r => r.pass < 0 && !r.skip), dn = { a: '轻松', b: '标准', c: '难' }[(typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b'] || '标准', t = '光圈（' + dn + '） ' + RG.passed + ' / ' + (RG.passed + RG.missed) + (cur && cur.tag ? '　·　这个圈直径 ' + cur.tag : ''); if (RG.hud.textContent !== t) RG.hud.textContent = t;
   }
 
   // ---- the GPU side
@@ -369,7 +370,7 @@ const Rings = (() => {
   // the trees beside it cheap, a lane through the forest cheapest; beyond 40 m off the run and not in a lane it climbs the banks, very dear.
   // It starts and ends on the run (the gate, the finish ring), and goes at most 3 m across for 4 m down. Rings every 34-48 m along it
   // (further apart on 轻松, closer on 难), sized by 光圈难度 and made smaller where the trees leave no room. tools/ring-plan.js draws it.
-  const XSZ = { a: [[3.0, 2.25], 1.2], b: [[2.25, 1.5], 1.0], c: [[1.5, 1.5], 0.85] };
+  const XSZ = { a: [[2.5, 1.5], 1.2], b: [[1.5, 1.0], 1.0], c: [[1.0, 1.0], 0.85] };
   function xPlan() {
     const sE = lineEnd(), df = L.diff || 'b';
     if (L.xp && L.xp.sE === sE && L.xp.df === df) return L.xp;
@@ -434,7 +435,7 @@ const Rings = (() => {
       { const cg = Course.at(R.s, pc); if (cg.gul > 0.3 && Math.abs(u - cg.goff) < (cg.gU > 0.5 ? 1.75 : 1.3) * cg.gw + 6) continue; }          // (never up on the rim of the run's gully)
       let r = rr() < 0.5 ? sz[0] : sz[1], room = 1e9;
       for (const t of R.tr) room = Math.min(room, Math.hypot(t[0] - x, t[1] - R.s) - t[2]);
-      while (r > 1.5 && room < r + 0.8) r = r > 2.5 ? 2.25 : 1.5;
+      while (r > 1.0 && room < r + 0.8) r = r > 2 ? 1.5 : 1.0;
       if (room < 2) continue;
       rings.push({ s: R.s, u, r, off: Math.abs(u) > R.hw });
     }
