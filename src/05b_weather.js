@@ -131,7 +131,12 @@ const Weather = (() => {
     return id;
   };
   W.sun = function (v) { W.hold = v == null ? null : +v; W.hole = holeAt(App.t); W.v = sunIn(W.hole); W.ex = null; };
-  W.mix = function () { W.kc = smoother(0, 0.75, W.k); W.ks = smoother(0.2, 1, W.k); };
+  W.mix = function () {
+    W.kc = smoother(0, 0.75, W.k); W.ks = smoother(0.2, 1, W.k);
+    // (金色雪旗 above the tree line, the owner's photo: a standing broken overcast over the peaks, bright white-grey, the sun now and then
+    // through a break, and no snow falling out of it unless a snowfall comes)
+    if (typeof Metro !== 'undefined' && Metro.kind() === 'd' && Variants.val.dalp === 'b') W.kc = Math.max(W.kc, 0.55);
+  };
   { const q = typeof location !== 'undefined' ? location.search : '', m = /[?&]wx=(\w+)/.exec(q); if (m) W.set(m[1], true); if (/[?&]manual\b/.test(q)) W.auto = false; }   // (test renders hold the weather)
 
   // ---- lightning. Two or three return strokes down the same channel within a third of a second, each a blink of a few hundredths of a

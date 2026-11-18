@@ -678,7 +678,7 @@ fn frag(v: VOut) -> FOut {
     if (${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'true' : 'false'}) {
       // (above the tree line: the walls break through the snow in outcrops and bands wherever they steepen, broken at the size of a slab)
       let oc: f32 = tex(tNoise, wxz / 80.0 + vec2f(0.37, 0.19)).z * 0.65 + d2.z * 0.35;
-      rock = max(rock, smoothstep(0.64, 0.57, Nc.y + 0.45 * (0.5 - oc) + hold + shut) * step(0.001, rgate));
+      rock = max(rock * 0.35, smoothstep(0.58, 0.52, Nc.y + 0.40 * (0.5 - oc) + hold + shut) * step(0.001, rgate));
     } else { rock = rock * 0.45; }
   }
   let sdir0: vec2f = normalize(L.xz + vec2f(1e-4, 0.0)); let tanE0: f32 = L.y / max(length(L.xz), 1e-3);
