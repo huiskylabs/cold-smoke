@@ -205,7 +205,7 @@ const Game = (() => {
   //   kring b: at a keyboard the ring that fills as a jump is wound up (the jump button's, on a phone) is shown too (19_ui.js, #chg)
   if (typeof Variants !== 'undefined') {
     Variants.def('mo1', '动作·时序', [['a', '现在的'], ['b', '修正']], 'a'); Variants.def('medge', '板刃时序', [['a', '身体先走'], ['b', '和身体同步']], 'a');
-    Variants.def('mo2', '动作·雪杖', [['a', '现在的'], ['b', '修正']], 'a'); Variants.def('mo3', '动作·头和上身', [['a', '现在的'], ['b', '修正']], 'a'); Variants.def('mo4', '动作·起跳和落地', [['a', '现在的'], ['b', '修正']], 'a'); Variants.def('kring', '电脑上的蓄力圈', [['a', '不显示'], ['b', '显示']], 'b');
+    Variants.def('mo2', '动作·雪杖', [['a', '现在的'], ['b', '修正']], 'a'); Variants.def('mo3', '动作·头和上身', [['a', '现在的'], ['b', '修正']], 'a'); Variants.def('mo4', '动作·起跳和落地', [['a', '现在的'], ['b', '修正']], 'a'); Variants.def('land', '落地缓冲', [['a', '之前的'], ['b', '伸腿接雪，蹲得更深']], 'b'); Variants.def('kring', '电脑上的蓄力圈', [['a', '不显示'], ['b', '显示']], 'b');
     let dev = false; try { dev = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (/[?&]dev(=|&|$)/.test(location.search) || /\/dev\/?$/.test(location.pathname) || !!(self.COLD_SMOKE && self.COLD_SMOKE.dev)); } catch (e) { }
     if (!dev) for (const n of ['mo1', 'medge', 'mo2', 'mo3', 'mo4']) Variants.val[n] = 'a';      // (kring: shown to everyone, owner 2026-11-18)
   }
@@ -569,7 +569,8 @@ const Game = (() => {
   const legP = () => S.leg !== undefined ? S.leg : S.contact ? Math.min(S.e, E_MAX) : E_MAX;
   // (mo4 b) how long the legs are reached out for a landing and after a jump, from the hips (m; 0.08 is as straight as the figure's legs go), and
   // how much further than the physics' own sinking the hips fold into a landing (of the legs' 0.38 m of travel)
-  const L_R = 0.045, ABS = 0.22;
+  const L_R = 0.045, ABS = 0.22, AB_DEC = 25, FOLD_MIN = -0.25;      // (FOLD_MIN: the deepest the legs fold in a landing, m: below it the figure's crouch ran into its own end, crouch 1, and stopped dead)
+       // (AB_DEC, land b: the most the legs brake a landing's fold, m/s^2)
   const fl = G.flight = { P: [0, 0, 0], a: [0, -GRAV, 0], q: {}, lip: [0, 0], last: '', last2: '' };
   // a critically damped spring stepped exactly (stable whatever the frame time): o[k] follows `to`, o[k + 'V'] is its rate
   function spring(o, k, to, w, dt) { const kv = k + 'V', x = (o[k] || 0) - to, v = o[kv] || 0, e = Math.exp(-w * dt), b = (v + w * x) * dt; o[k] = to + (x + b) * e; o[kv] = (v - w * b) * e; return o[k]; }
@@ -637,6 +638,7 @@ const Game = (() => {
     q.c = Math.max(q.c, 0.93); q.own = Math.max(q.own, kn); q.tuck += 0.3 * kn; q.st -= 0.05 * kn; hand(q, -d, 0.2, 0.2, 0.06, kn);
   }
   // a spin of n half turns about the body's own axis (base: half turns already made, i.e. starting from switch)
+  const PIVOT_T = 1.15;      // seconds the pivot back from switch takes on the snow (was 0.5)
   function spinShape(q, u, d, n, base, c) {
     // (新求解器, fl.pre: the turn was thrown on the snow, shoulders first (THROW, below). The skis leave already turning at the rate they keep, and the
     // shoulders, ahead by the throw, are caught up by the hips through the first half)
@@ -677,7 +679,15 @@ const Game = (() => {
     flip(q, u) { const b = bell(0.06, 0.28, 0.66, 0.93, u); q.flip = TAU * turn(u, 0.18, 0.2); q.c = 0.92; q.own = bell(0.02, 0.22, 0.7, 0.95, u); q.tuck = 0.3 * b; hands(q, -0.04, -0.14, -0.03, b); },
     flipgrab(q, u, d) { SHAPES.flip(q, u); q.ax = q.ay = q.az = q.bx = q.by = q.bz = 0; grabShape(q, u, d, 0.24, 0.76); },
     // (riding switch after a half turn: a quick pivot on the snow brings the skier round to face the hill again)
-    pivot(q, u, d) { spinShape(q, u, d, 1, 1, 0.3); q.dip = 0.22 * bell(0, 0.3, 0.35, 0.8, u); },
+    // (owner 2026-11-18: "它一下就转过去了，不可能，转正应该有一个过程". It was half a turn at a constant 444 deg/s, begun from nothing. Now PIVOT_T long and in
+    // three parts: a sink with the shoulders and head going round first (the wind-up, skis still on their line), the legs pushed long and the
+    // skis, light, brought round under the body with a rate that eases in and out (360 deg/s at most), then a sink to take the skis' bite, and up)
+    pivot(q, u, d) {
+      const a = (1 + smooth(0.2, 0.84, u)) * PI, b = bell(0.02, 0.2, 0.7, 0.95, u);
+      q.yaw = d * a; q.c = 0.3; q.own = b; q.tuck = 0.12 * b; q.sep = d * 0.38 * bell(0, 0.2, 0.34, 0.62, u);
+      q.head = d * Math.min(TAU - a, SOLV() ? 0.7 : 1.15);
+      q.dip = 0.2 * bell(0, 0.2, 0.24, 0.46, u) - 0.05 * bell(0.26, 0.44, 0.56, 0.74, u) + 0.16 * bell(0.66, 0.84, 0.86, 1, u);
+    },
   };
   // the least usable air each needs (seconds), how often it is chosen, and how much air to spare it bears before it is a small thing
   // lost in a big flight (a tweak fills a hop; the biggest air goes to the turns, the somersaults and the combinations)
@@ -780,7 +790,7 @@ const Game = (() => {
     // the trick runs on the time there is: its phase moves so as to be done `tOut` before the skis touch, however the forecast shifts
     const tr = fl.tr;
     if (tr) {
-      if (tr.id === 'pivot') fl.ph = Math.min(1, fl.ph + dt / 0.5);
+      if (tr.id === 'pivot') fl.ph = Math.min(1, fl.ph + dt / PIVOT_T);
       else if (fl.pre && !fl.on) { fl.preT += dt; const k = sat(Math.max(fl.lipT < 9 ? 1 - fl.lipT / PRE_T : 0, S.popT >= 0 ? S.popT / POP_T : 0)); fl.thr = Math.max(fl.thr || 0, k * k * (3 - 2 * k)); fl.ph = 0;
         // (Mac round 20: begun as the spin itself, the skis came round 15-23 deg while the track stayed straight, a sideslip with snow thrown off the
         // tails; then they waited seven frames for the lip, and jumped to full rate. On the snow only the shoulders go, the skis hold their line)
@@ -806,7 +816,7 @@ const Game = (() => {
     // the player holds (S.charge: there the physics itself sits the body down, so the legs need no more from here: only arms and shoulders)
     { const to = lip && fl.lipT > 0.085 ? 0.8 * smooth(0.42, 0.75, fl.lipAir) : 0; spring(fl, 'prepL', to, to > fl.prepL ? 10 : 24, dt); fl.prep = 1 - (1 - sat(fl.prepL)) * (1 - (S.charge || 0)); }
     // (mo4 b: on the snow it is let go over half a second or so, as the skier stands up out of the landing, not in a seventh: see Xr in updatePose)
-    spring(fl, 'reach', fl.on ? fl.big * smooth(0.40, 0.12, fl.rem) : 0, fl.on ? 14 : typeof Variants !== 'undefined' && Variants.val.mo4 === 'b' ? 5 : 22, dt);
+    spring(fl, 'reach', fl.on ? fl.big * smooth(0.40, 0.12, fl.rem) : 0, fl.on ? 14 : typeof Variants !== 'undefined' && Variants.val.mo4 === 'b' ? 5 : Variants.val.land === 'b' ? lerp(22, 5, fl.rlK || 0) : 22, dt);
     // the landing: a blow that the body and the lens take up and let go of
     fl.hit = damp(fl.hit, 0, 5, dt); spring(fl, 'soak', fl.hit, 15, dt);
     // the lens leaves the snow's lead a moment before the skis do (it crosses the lip a fifth of a second behind them) and comes back to it after
@@ -860,7 +870,7 @@ const Game = (() => {
   }
   function updatePose(dt) {
     const first = !pose.init, k = first ? 1e6 : 1, kd = dt * k; pose.init = true;
-    const FB = typeof Variants !== 'undefined' && Variants.val.feel === 'b', MO4 = typeof Variants !== 'undefined' && Variants.val.mo4 === 'b';
+    const FB = typeof Variants !== 'undefined' && Variants.val.feel === 'b', MO4 = typeof Variants !== 'undefined' && Variants.val.mo4 === 'b', MOL = MO4 || typeof Variants !== 'undefined' && Variants.val.land === 'b';
     // (speeds are the body's own: S.speed, the speed along the snow under the skis, collapses for a few steps over a lip)
     const P = fl.P, v = S.v, vh = Math.hypot(v[0], v[2]), sp = Math.hypot(vh, v[1]), q = fl.q, w = fl.w, cy = Math.cos(q.yaw);
     // the snow under the body at this instant: the snow that is drawn (hv) and, over bumps, the smoother one the body is told about (hb)
@@ -966,9 +976,12 @@ const Game = (() => {
     // A hard landing needs none of it: there the physics' own legs go to the end of their travel)
     let Xr = (0.12 + 2.7 * (L_AIR - 0.08)) * fl.reach;
     fl.tl = S.air ? 0 : (fl.tl || 0) + dt;      // (how long the skis have been back on the snow)
-    if (MO4) {
+    // (land b: how much of a landing this one is. A brush off a roller's crest or a mogul, a few frames off the snow at 1 or 2 m/s, is not one, and
+    // the quick fold, the slow let-go and the extra squat were jolting the whole figure at every crest: they go by this, set once at touchdown)
+    if (S.air) fl.airT0 = S.airT; else if (fl.tl <= dt + 1e-6) fl.rlK = smooth(2, 4, S.landV || 0) * smooth(0.12, 0.3, fl.airT0 || 0);
+    if (MOL) {
       if (S.air) { const held = fl.rrP > 0.01 ? (fl.rxP || 0) * Math.min(fl.reach / fl.rrP, 1) : 0; Xr = Math.max(sat(fl.reach / Math.max(fl.big, 0.2)) * Math.max(((fl.L || 0) - L_R) / 0.38 - Xo, 0), held); fl.rx0 = Xr; fl.rr0 = fl.reach; }
-      else { const r = fl.rr0 > 0.01 ? Math.min(fl.reach / fl.rr0, 1) : 0, tl = fl.tl || 0; Xr = (fl.rx0 || 0) * r + ABS * smooth(0.5, 2.5, S.landV || 0) * smooth(8, 4, S.landV || 0) * fl.big * (1 - Math.exp(-tl / 0.035)) * Math.exp(-tl / 0.3) / 0.688; }
+      else { const r = fl.rr0 > 0.01 ? Math.min(fl.reach / fl.rr0, 1) : 0, tl = fl.tl || 0; Xr = (fl.rx0 || 0) * r + ABS * smooth(0.5, 2.5, S.landV || 0) * fl.big * (1 - Math.exp(-tl / 0.035)) * Math.exp(-tl / 0.3) / 0.688; }
       fl.rxP = Xr; fl.rrP = fl.reach;
     }
     let Xs = clamp(Xo + Xr, -0.1, 0.8);
@@ -987,7 +1000,15 @@ const Game = (() => {
         : Math.min(l0 + (V0 < 0 ? Math.min(V0 + 120 * dt, 60 * dt) : Math.min(V0 + 60 * dt, V_LEG)) * dt, E_MAX + 0.03 - 0.38 * Xs);
       // (...which is in the way: the skis are on it, less what it still holds of them)
       if (lw >= eH) lw = eH + Math.max(l0 - fl.eH0, 0) * Math.exp(-20 * dt);
-      let l = l0 + clamp((lw - l0) / dt, Math.max(V0 - 120 * dt, -V_LEG), Math.min(V0 + 120 * dt, V_LEG)) * dt; if (l > eH + 0.45) l = eH + 0.45;
+      // (land b: in a landing the legs fold as fast as the snow comes up: the feet stop and the hips come on at the speed of the fall, 6 m/s and more,
+      // which no 3.4 m/s leg follows. Held to that the skis were drawn a hand deep in the snow at every hard landing)
+      const fold = MOL && !S.air && (fl.tl || 0) < 0.25 && (fl.rlK || 0) > 0.5,      // (a real landing only: not every brush off a roller's crest)
+        vF = fold ? Math.max(V_LEG, Math.min(S.landV || 0, 8)) : V_LEG, aF = fold ? 360 : 120;
+      // (and, folding, it comes to the bottom the way a person does, braking at no more than AB_DEC: stopped dead on its target the hips jolted)
+      let vT = (lw - l0) / dt; if (fold && V0 < 0) { const lS = Math.max(lw, eH - 0.01, FOLD_MIN); if (lS < l0) vT = Math.max(vT, -Math.sqrt(2 * AB_DEC * (l0 - lS))); }
+      let l = l0 + clamp(vT, Math.max(V0 - aF * dt, -vF), Math.min(V0 + (fold ? AB_DEC : 120) * dt, V_LEG)) * dt;
+      if (fold && l < Math.max(eH, FOLD_MIN) && l < l0) l = Math.min(l0, Math.max(eH, FOLD_MIN));      // (and no further than the snow: caught up, the skis are on it)
+      if (l > eH + 0.45) l = eH + 0.45;
       fl.lV = (l - l0) / dt; fl.l = l; fl.L = l + 0.38 * Xs; fl.LV = (fl.L - L0) / dt;
     }
     fl.eH0 = eH; fl.sink = Math.max(fl.l - eH, 0);
@@ -1039,11 +1060,16 @@ const Game = (() => {
     pose.lead = 0.19 * sL * Math.abs(sL) + q.lead; pose.stance = 0.31 + 0.16 * Math.abs(sL) + 0.04 * w + q.st;
     fl.foreS = damp(fl.foreS || 0, clamp(-0.25 * w * (1 - q.own) + q.fore - 0.5 * fl.soak, -1, 1), 8, kd); pose.fore = fl.foreS;
     // (mo4 b: reaching for a landing the chest stays forward over the feet, and through the landing while the legs fold: see solve)
-    pose.reach = MO4 ? fl.reach : 0;
+    pose.reach = MOL ? fl.reach : 0;
+    // (land b, the owner 2026-11-18: "跳得高，落地有一个比较明显的蹲下去缓冲，而且是一接地赶紧缓冲". Stopping a fall of v over a distance d costs v^2 / 2d: met at
+    // 6 m/s and stopped in the 16 cm the hips used to travel that is 11 g, in 45 cm 4 g, which is why a person lands on long legs and folds deep. The
+    // physics' own legs are stiffer than a person's (they stop 6 m/s in 28 cm), so for a hard landing the figure sits further down by itself
+    // (pose.lnd, LND_H in 08_skier.js): in over 0.07 s from the touch, deepest 0.13 s after it, out over 0.4 s)
+    { const tl = fl.tl || 0; pose.lnd = MOL && !S.air ? smooth(4, 8, S.landV || 0) * (fl.rlK || 0) * (fl.bigL || 0) * (1 - Math.exp(-tl / 0.07)) * Math.exp(-tl / 0.4) / 0.61 : 0; if (S.air) fl.bigL = fl.big; }
     // (mo4 b: for the first quarter second of a landing the figure takes the knee bend it is given more quickly (08_skier.js, flow). That bend is
     // already paced as legs move (V_LEG, above); eased a second time at the usual rate it reached its depth 0.08 s after the legs did, and a
     // hard landing read as a slow sink after the snow had been met)
-    pose.cfast = !MO4 || S.air ? 0 : 1 - smooth(0.2, 0.4, fl.tl);
+    pose.cfast = !MOL || S.air ? 0 : (MO4 ? 1 : fl.rlK || 0) * (1 - smooth(0.2, 0.4, fl.tl));
     // (fore/aft, Variants 'fa': the stance itself moved, not a spring on it. Forward: hips over the toes, shins pressed into the tongues, chest a
     // little lower; back: hips behind the heels, sitting into the boots. 08_skier.js draws it from pose.fa; nothing of it in the air or a trick)
     pose.fa = damp(pose.fa || 0, (S.fa || 0) * (1 - w) * (1 - q.own) * (1 - sat(S.crash * 5)) * (1 - smooth(0.3, 0.9, pose.tuck)), 9, kd);
