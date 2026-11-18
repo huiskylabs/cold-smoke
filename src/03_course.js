@@ -68,7 +68,7 @@ if (typeof Variants !== 'undefined') {
   // of snow); b, the same swell, the same shape, but skinned as a stone (14c_boulders.js): dark weathered rock wherever it is too steep to
   // hold snow, old snow lying on its top and up its long uphill side. Everything that looks like a stone stops the skier, the mounds along
   // the edges included
-  Variants.def('boulder', '石头', [['a', '雪包'], ['b', '石头带残雪']], 'a');
+  Variants.def('boulder', '石头', [['a', '雪包'], ['b', '石头带残雪']], 'b');      // (owner, 2026-11-18 08:10 UTC: "可以了")
   Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'route' || n === 'rclear' || n === 'boulder') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
 }
 // slope scale and how much further a run of ~30 s then reaches (pace: the test pilot's distance over 30 s against a, 2026-11-14)

@@ -9,7 +9,9 @@
 // The shells are built on the CPU when a boulder comes near (a few a frame) into a pool of slots; drawn with the trees, cast into the shadow map.
 const Boulders = (() => {
   const B = { far: 300, stats: { n: 0, built: 0 } };
-  const NR = 34, NA = 72, NV = (NR + 1) * NA, SLOTS = 28, PER = 3;     // rings, around, vertices; shells kept at once; built per frame
+  const NR = 30, NA = 60, NV = (NR + 1) * NA, SLOTS = 28, NEAR = 70;    // rings, around, vertices; shells kept at once; closer than NEAR it is built now
+  // (a shell takes about 3 ms to build on a laptop: one a frame while it is far off, and only one nearer than NEAR, which happens
+  // only when the lens jumps, is built at once with the rest)
   let gfx, ib, nIdx = 0, slots = [], pipe, pipeSh, live = [];
   const on = () => typeof Course !== 'undefined' && Course.boulder && Course.rich;
   // the rings: q from the middle out to a little past the rim (where the shell tucks under the snow), closer together toward the rim
@@ -101,11 +103,11 @@ const Boulders = (() => {
     const px = cam.pos[0], pz = cam.pos[2], cs = -pz, want = [];
     Course.boulders(cs - 80, cs + B.far, (f, x, z) => { const d = Math.hypot(x - px, z - pz); if (d < B.far) want.push([d, f]); });
     want.sort((a, b) => a[0] - b[0]);
-    let builds = PER;
+    let builds = 1;
     for (const w of want.slice(0, SLOTS)) {
       const f = w[1]; let s = slots.find(t => t.f === f);
       if (!s) {
-        if (builds <= 0) continue;
+        if (builds <= 0 && w[0] > NEAR) continue;
         s = slots.find(t => !t.f) || slots.reduce((a, b) => (a.seen < b.seen ? a : b));
         build(f, s); builds--;
       }
