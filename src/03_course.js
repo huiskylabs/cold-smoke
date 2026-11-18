@@ -195,17 +195,17 @@ const Course = ((vn1, vn2, h2U) => {
   // at the lake. deep: how many times the usual trough's depth (6 m); the trough widens with it so the walls stay about 40 degrees
   const ROUTE_E = [
     { type: 'bowl', wind: 0.45, lam: 420 },                                  // 火山顶：开阔，第一眼看到湖
-    { type: 'gully', U: 1, deep: 2.2, wind: 0.80, lam: 260, sec: 34 },      // 进槽：两边的墙高过人
-    { type: 'gully', U: 1, deep: 2.6, wind: 0.90, lam: 220, sec: 30 },      // 更深更弯
+    { type: 'gully', U: 1, deep: 2.8, wind: 0.80, lam: 260, sec: 34 },      // 进槽：两边的墙高过人
+    { type: 'gully', U: 1, deep: 3.2, wind: 0.90, lam: 220, sec: 30 },      // 更深更弯
     { type: 'ridge', aim: 1 },                                               // 出槽一次：正对湖
-    { type: 'gully', U: 1, deep: 2.4, wind: 0.85, lam: 240, sec: 34 },
-    { type: 'gully', U: 1, deep: 2.8, wind: 0.90, lam: 200, sec: 32 },      // 最深、弯最急的一段
-    { type: 'powder', aim: 1 },                                              // 第二次看湖
-    { type: 'gully', U: 1, deep: 2.2, wind: 0.80, lam: 260, sec: 30 },
-    { type: 'gully', U: 1, deep: 2.6, wind: 0.90, lam: 220, sec: 30 },
+    { type: 'gully', U: 1, deep: 3.0, wind: 0.85, lam: 240, sec: 34 },
+    { type: 'gully', U: 1, deep: 3.4, wind: 0.90, lam: 200, sec: 32 },      // 最深、弯最急的一段
+    { type: 'gully', U: 1, deep: 3.2, wind: 0.85, lam: 240, sec: 30 },
+    { type: 'gully', U: 1, deep: 2.8, wind: 0.80, lam: 260, sec: 30 },
+    { type: 'gully', U: 1, deep: 3.2, wind: 0.90, lam: 220, sec: 30 },
     { type: 'kickers' },                                                     // 出槽的跳台
-    { type: 'gully', U: 1, deep: 2.4, wind: 0.85, lam: 240, sec: 30 },
-    { type: 'gully', U: 1, deep: 2.0, wind: 0.80, lam: 280, sec: 30 },
+    { type: 'gully', U: 1, deep: 3.0, wind: 0.85, lam: 240, sec: 30 },
+    { type: 'gully', U: 1, deep: 2.6, wind: 0.80, lam: 280, sec: 30 },
   ];
   const ROUTES = { b: ROUTE_B, c: ROUTE_C, d: ROUTE_D, e: ROUTE_E };
   let ROUTE = ROUTE_B;
@@ -290,7 +290,7 @@ const Course = ((vn1, vn2, h2U) => {
       if (st) {
         if (st.sec && C.segs.length) len *= st.sec / 30;
         if (st.enc) p.enc = st.enc;
-        if (st.U) { const dp = st.deep || 1; p.gU = 1; p.gul = 6 * dp * (0.92 + 0.16 * rng()); p.gw = 10 * Math.pow(dp, 0.85); p.gAmp = 8; p.forest = 0.9; p.enc = 0.5; if (dp > 1) p.hw = Math.max(p.hw, 1.75 * p.gw); }
+        if (st.U) { const dp = st.deep || 1; p.gU = 1; p.gul = 6 * dp * (0.92 + 0.16 * rng()); p.gw = 10 * Math.pow(dp, 0.7); p.gAmp = 8; p.forest = 0.9; p.enc = 0.5; if (dp > 1) p.hw = Math.max(p.hw, 1.75 * p.gw); }
       }
       const seg = { type, s0: planned, len, p, idx: C.segs.length, seed: (rng() * 1e9) | 0 };
       if (st) { seg.st = st; seg.ph = rng() < 0.5 ? 0 : PI; }
@@ -635,7 +635,8 @@ const Course = ((vn1, vn2, h2U) => {
   // each meander stands taller (the cut bank of a stream) and the inside one lower: that is where the line climbs. Depth 0..1 (times gul)
   const UF = 0.5, UW = 1.25;
   function uWall(ug, c) {
-    const a = Math.abs(ug), fw = UF * c.gw, w = UW * c.gw, sd = clamp((ug > 0 ? 1 : -1) * c.goff / 8, -1, 1);
+    const a = Math.abs(ug), fw = UF * c.gw * (1 - 0.45 * smooth(8, 16, c.gul)), w = UW * c.gw,      // (the deep troughs of 金色雪旗: a narrower floor)
+      sd = clamp((ug > 0 ? 1 : -1) * c.goff / 8, -1, 1);
     const prof = a <= fw ? 1 : a >= fw + w ? 0 : 0.5 + 0.5 * Math.cos(PI * (a - fw) / w);
     return prof - 0.22 * sd * smooth(fw, fw + w, a) * (1 - smooth(fw + w + 2, fw + w + 12, a));
   }
