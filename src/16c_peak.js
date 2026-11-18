@@ -521,6 +521,8 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     wc2 += U.sunCol.rgb * (pow(saturate(dot(rd, U.sunDir.xyz)), 90.0) * (0.25 + 1.6 * saturate(fine + 0.35) * (0.3 + wind)) * 0.55 * sunK * sunIn);
   }
   var c: vec3f = mix(land, wc2, water);
+  // (from the volcano's top the near half of the lake runs on under our own mountain, whose far edge fades into this picture: a boat
+  // there showed through the snow. So from up there they keep to the far, open part of the lake)
   // 金色雪旗: boats on the lake (U.world.y of them). Far too small to see at their true size, so each is drawn some hundreds of metres
   // long: a dark hull, one pale sail, a lantern at the stern that lies in the water under it as a long trembling streak. They drift.
   if (U.world.y > 0.5 && U.world.x > 2.5 && water > 0.2) {
@@ -528,8 +530,8 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
       let fi: f32 = f32(i);
       if (fi >= U.world.y) { break; }
       let h1: f32 = hash21(vec2f(fi * 7.0 + 1.0, 3.0)); let h2: f32 = hash21(vec2f(fi * 13.0 + 5.0, 9.0)); let h3: f32 = hash21(vec2f(fi * 3.0 + 2.0, 17.0));
-      let by: f32 = ${f((P.LC[1] - 0.70 * P.LR[1]) * P.K)} + ${f(1.25 * P.LR[1] * P.K)} * h2 + U.camPos.w * 6.0 * (h3 - 0.5);
-      let bp: vec2f = vec2f((2.0 * h1 - 1.0) * 0.40 * by + U.camPos.w * 9.0 * (h3 - 0.5), by);
+      let by: f32 = ${f((P.LC[1] - (P.sum ? 0.15 : 0.70) * P.LR[1]) * P.K)} + ${f((P.sum ? 0.85 : 1.25) * P.LR[1] * P.K)} * h2 + U.camPos.w * 6.0 * (h3 - 0.5);
+      let bp: vec2f = vec2f((2.0 * h1 - 1.0) * ${P.sum ? '0.22' : '0.40'} * by + U.camPos.w * 9.0 * (h3 - 0.5), by);
       let db: f32 = length(bp); let ab: f32 = atan2(bp.x, bp.y); let tb: f32 = atan(${f(P.H * P.K)} / db);
       let sz: f32 = clamp(${f(700 * P.K)} / db, 0.0035, 0.0105) * (0.75 + 0.5 * h3);
       let dirn: f32 = sign(h3 - 0.5);
