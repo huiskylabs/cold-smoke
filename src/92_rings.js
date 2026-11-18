@@ -35,7 +35,7 @@ const Rings = (() => {
   // ---- where the rings go
   function lipOf(f) { const xk = s => Course.at(s, pc).cx + f.u, hgt = s => Course.height(xk(s), -s, 0.5); let sc = f.s + f.len, best = 1e9; for (let s = f.s + 2; s <= f.s + f.len + 6; s += 0.5) { const c = hgt(s + 0.5) + hgt(s - 0.5) - 2 * hgt(s); if (c < best) { best = c; sc = s; } } return { s: sc, y: hgt(sc), x: xk(sc) }; }
   function kickerIn(s0, s1) { for (let b = Math.floor((s0 - 40) / 32); b <= Math.floor(s1 / 32); b++) for (const f of Course.feats.get(b) || []) if (f.mark && f.s + f.len > s0 && f.s < s1) return f; return null; }
-  function clear(s, u, hw) { for (const d of [0, -2.5, 2.5, -5, 5, -7.5, 7.5]) { const uu = cl(u + d, -hw + 4, hw - 4), x = Course.at(s, pc).cx + uu; let ok = true; for (const dz of [-6, 0, 6]) { Course.nearTree(x, -s + dz, tn); if (tn.ok && !tn.soft && tn.d < 5.5) ok = false; } if (Course.rockHit && Course.rockHit(x, -s, rk)) ok = false; if (ok) return uu; } return null; }
+  function clear(s, u, hw, lim = hw - 4) { for (const d of [0, -2.5, 2.5, -5, 5, -7.5, 7.5]) { const uu = cl(u + d, -lim, lim), x = Course.at(s, pc).cx + uu; let ok = true; for (const dz of [-6, 0, 6]) { Course.nearTree(x, -s + dz, tn); if (tn.ok && !tn.soft && tn.d < 5.5) ok = false; } if (Course.rockHit && Course.rockHit(x, -s, rk)) ok = false; if (ok) return uu; } return null; }
   // ---- how the rings are laid out (用户 05:43 UTC: 三档大小按难度定，再想想圈怎么排布). Each station of the designed run (Course.ROUTE,
   // 经典编排) has its own way: lv how hard it is (0 big rings, 2 small), gap metres between rings, how they stand across the run:
   //   weave  side to side, a slalom feel (open slopes)
@@ -43,18 +43,20 @@ const Rings = (() => {
   //          until you are in it (藏), then there
   //   centre in the middle of the run where it opens to the city: the ring frames the view (露, 借景)
   //   crest  just over the top of a roller: hidden behind the crest, seen as you top it
-  //   wall   up on one wall of the U gully, then the other: ride the walls
+  //   wall   up on one wall of the U gully, then the other: ride the walls. On the wall's own slope, a little over half way up, measured
+  //          from the trough's line (which meanders up to 13 m off the run's middle), never on the bank above it
+  //   zip    the mogul field: in the troughs between the bumps, one row-crest after another, side to side: turn round the bumps
   //   none   no ground rings (the jumps: the ring is in the air past each kicker)
   // 光圈难度 moves every station a step: 轻松 bigger rings, gentler side steps, more room; 难 smaller, wider steps, closer together
   const PLAN = {
     bowl: { lv: 0, gap: [45, 60], how: 'weave', side: 7 },
     corridor: { lv: 1, gap: [55, 75], how: 'apex' },
-    steeps: { lv: 1, gap: [50, 65], how: 'weave', side: 6 },
+    steeps: { lv: 1, gap: [34, 44], how: 'weave', side: 4.5 },          // (short, linked turns down a steep pitch, not long traverses)
     glade: { lv: 1, gap: [38, 52], how: 'weave', side: 6 },
     kickers: { lv: 0, gap: [60, 80], how: 'none' },
-    gully: { lv: 1, gap: [40, 55], how: 'wall' },
+    gully: { lv: 1, gap: [26, 34], how: 'wall' },          // (one wall to the other is ~21 m across the U: a ring on every wall)
     ridge: { lv: 0, gap: [60, 80], how: 'centre' },
-    moguls: { lv: 1, gap: [35, 45], how: 'weave', side: 4 },
+    moguls: { lv: 1, gap: [11, 11], how: 'zip' },
     powder: { lv: 0, gap: [50, 70], how: 'weave', side: 9 },
     rollers: { lv: 1, gap: [45, 60], how: 'crest' },
   };
@@ -72,14 +74,43 @@ const Rings = (() => {
   }
   const bend = s => { const a = Course.at(s - 15, pc).cx, b = Course.at(s + 15, pc).cx, c = Course.at(s, pc).cx; return a + b - 2 * c; };
   const hump = s => { const cx = t => Course.at(t, pc).cx, h = t => Course.height(cx(t), -t, 0.5); return h(s - 8) + h(s + 8) - 2 * h(s); };
+  // ---- laid by technique (用户 2026-11-18 17:20 UTC: 雪槽里的圈应该在雪槽的斜面上，鼓励在槽内滑；蘑菇区圈更密，鼓励在蘑菇上拐来拐去；
+  // 所有道的目标都是引导玩家正确地滑这条道). Both lines use these wherever they cross a gully or a mogul field.
+  // wallU: across the run, the point a share k of the way up the gully's wall on one side (side ±1); the wall is the gully's own shape
+  // (Course.uWall for the U, the trough's bell otherwise), measured from the trough's line. null where there is no gully
+  const WALLK = { a: 0.45, b: 0.6, c: 0.72 };
+  function wallU(s, side, k) {
+    const c = Course.at(s, pc); if (!(c.gul > 0.6)) return null;
+    for (let a = 0; a <= 34; a += 0.25) {
+      const ug = side * a, bell = Math.exp(-(ug * ug) / (c.gw * c.gw)), p = c.gU > 0.001 && Course.uWall ? bell + (Course.uWall(ug, c) - bell) * c.gU : bell;
+      if (p <= 1 - k) return c.goff + ug;
+    }
+    return null;
+  }
+  // zipU: in a mogul field, the trough between two bumps on the crest row nearest s, beside the smooth line (the side with more bumps, kept for
+  // the whole field), a little left or right (side ±1) of that strip's middle. { s, u } or null where there are no bumps
+  let zipSide = 0, zipSeg = -1;
+  function zipU(s, side) {
+    const c = Course.at(s, pc); if (!(c.mog > 0.5) || !Course.mogShape || !Course.mogChan) return null;
+    const M = Course.mogShape(), r0 = Math.round(s / M.L - M.Q), sr = (r0 + M.Q) * M.L, cr = Course.at(sr, pc), hw = cr.hw || 14, ch = Course.mogChan(sr, hw);
+    const lo = [-hw * 0.8 + 1, ch - 6.5 - 1], hi = [ch + 6.5 + 1, hw * 0.8 - 1], sgi = station(sr).sg, id = sgi ? sgi.idx : -1;
+    if (id !== zipSeg) { zipSeg = id; zipSide = (lo[1] - lo[0]) > (hi[1] - hi[0]) ? -1 : 1; }
+    const z = zipSide < 0 ? lo : hi, w = z[1] - z[0]; if (w < 4) return null;
+    const mid = (z[0] + z[1]) / 2, t = mid + side * Math.min(M.W * 0.5, w / 2 - 1.5);
+    let best = t, bh = 1e9; for (let u = t - M.W * 0.5; u <= t + M.W * 0.5; u += 0.25) { if (u < z[0] || u > z[1]) continue; const h = Course.height(cr.cx + u, -sr, 0.5); if (h < bh) { bh = h; best = u; } }
+    return { s: sr, u: best };
+  }
+  const ZIPROWS = { a: 3, b: 2, c: 2 };
   let wallSide = 1, cursor = null;
   function spawn() {
     // (where the last ring, or the last place passed over without one, stood: a stretch with no ground rings is still walked through)
     if (!cursor) cursor = { s: -Game.s.p[2] + 25, u: Game.s.p[0] - Course.at(-Game.s.p[2], pc).cx };
     const s0 = cursor.s, u0 = cursor.u;
     const D = DIFF[(typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b'] || DIFF.b;
-    const { pl } = station(s0 + 40);
-    let s = s0 + (pl.gap[0] + (pl.gap[1] - pl.gap[0]) * rand()) * D.gap;
+    const dk = (typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b';
+    let { pl } = station(s0 + 40);
+    if (pl.how !== 'zip' && station(s0 + 12).pl.how === 'zip') pl = station(s0 + 12).pl;          // (the bumps start before the 40 m look-ahead says so)
+    let s = pl.how === 'zip' ? s0 + (ZIPROWS[dk] || 2) * Course.mogShape().L : s0 + (pl.gap[0] + (pl.gap[1] - pl.gap[0]) * rand()) * D.gap;
     // (a line: its last ring is the finish, big and in the middle of the run; nothing comes after it)
     if (L.id) {
       const sE = lineEnd();
@@ -106,7 +137,7 @@ const Rings = (() => {
     if (f) { const lip = lipOf(f), sr = lip.s + 14, c = Course.at(sr, pc), z = SIZES[lvAir], ra = [1.9, 1.6, 1.35][lvAir]; RG.rings.push({ id: serial++, s: sr, u: f.u, x: c.cx + f.u, y: floatY(c.cx + f.u, sr, ra, lip.y - 1.0), r: ra, tag: z[1], air: true, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sr, u: f.u }; return; }
     if (pl.how === 'none') { cursor = { s, u: u0 }; RG.rings.push({ id: serial++, s, skip: true }); return; }
     const c0 = Course.at(s, pc), hw = c0.hw || 14;
-    let u;
+    let u, tech = false;
     if (pl.how === 'apex') {
       // the bend's apex within the next stretch: where the run curves most; the ring on its inside
       let best = s, bk = 0; for (let t = s - 15; t <= s + 25; t += 5) { const k = bend(t); if (Math.abs(k) > Math.abs(bk)) { bk = k; best = t; } }
@@ -114,14 +145,15 @@ const Rings = (() => {
     } else if (pl.how === 'crest') {
       let best = s, bk = 0; for (let t = s - 15; t <= s + 20; t += 2.5) { const k = hump(t); if (k < bk) { bk = k; best = t; } }
       s = best + 5; u = u0 + (Math.abs(u0) > 2 ? -Math.sign(u0) : (rand() < 0.5 ? -1 : 1)) * (4 + 5 * rand()) * D.side;
-    } else if (pl.how === 'wall') { wallSide = -wallSide; u = wallSide * hw * (0.45 + 0.15 * cl(D.off + 1, 0, 2) / 2); }
+    } else if (pl.how === 'wall') { wallSide = -wallSide; u = wallU(s, wallSide, WALLK[dk] || 0.6); tech = u !== null; if (!tech) u = u0 + (Math.abs(u0) > 2 ? -Math.sign(u0) : 1) * 6 * D.side; }
+    else if (pl.how === 'zip') { wallSide = -wallSide; const z = zipU(s, wallSide); tech = !!z; if (z) { s = z.s; u = z.u; } else u = u0 + (Math.abs(u0) > 2 ? -Math.sign(u0) : 1) * 5 * D.side; }
     else if (pl.how === 'centre') u = (rand() - 0.5) * 3;
     else { const dir = Math.abs(u0) > 2 ? -Math.sign(u0) : (rand() < 0.5 ? -1 : 1); u = u0 + dir * (0.6 + 0.6 * rand()) * pl.side * 1.6 * D.side; }          // (side to side, a slalom: always back across the run)
     const c = Course.at(s, pc), hw2 = c.hw || 14;
-    u = cl(u, -hw2 * 0.6, hw2 * 0.6);
-    const uu = clear(s, u, hw2); if (uu === null) { cursor = { s, u: u0 }; RG.rings.push({ id: serial++, s, skip: true }); return; }
+    if (!tech) u = cl(u, -hw2 * 0.6, hw2 * 0.6);
+    const uu = tech ? clear(s, u, hw2, 40) : clear(s, u, hw2); if (uu === null) { cursor = { s, u: u0 }; RG.rings.push({ id: serial++, s, skip: true }); return; }
     // (用户 04:47 UTC 一整个圈; 16:55 UTC 不要接到雪地上，留一点空间，悬浮起来): the whole ring floats, its lowest point a little above the snow
-    const lv = cl(Math.round(pl.lv + D.off + (rand() - 0.5) * 1.3), 0, 2), pick = SIZES[lv], r = pick[0], x = c.cx + uu;
+    const lv = cl(Math.round(pl.lv + D.off + (pl.how === 'zip' ? 0.4 : (rand() - 0.5) * 1.3)), 0, 2), pick = SIZES[lv], r = pick[0], x = c.cx + uu;
     cursor = { s, u: uu };
     RG.rings.push({ id: serial++, s, u: uu, x, y: floatY(x, s, r, -1e9), r, tag: pick[1], air: false, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 });
   }
@@ -352,6 +384,10 @@ const Rings = (() => {
         let q = (d < 1.6 ? 1e6 : 0) + (d < 3.5 ? (3.5 - d) * 6 : 0);
         if (e < -2) q += 3; if (e > 40 && !onl) q += (e - 40) * (e - 40) * 0.5 + 20; if (onl && e > 0) q -= 4; if (e > 6 && e < 40) q -= 2.5; if (e >= -2 && e <= 6) q += 1;
         if (s < 60 || s > sE - 120) q += Math.abs(u) * 2;
+        // (用户 17:20 UTC: 引导正确地滑) where the line crosses a gully it rides inside it, wall to wall, and through a mogul field it goes
+        // through the bumps: no going round either on the bank or out in the trees
+        if (c.gul > 0.6) { const ug = u - c.goff, bell = Math.exp(-(ug * ug) / (c.gw * c.gw)), pr = c.gU > 0.001 && Course.uWall ? bell + (Course.uWall(ug, c) - bell) * c.gU : bell; q += pr < 0.04 ? 14 : -3; }
+        else if (c.mog > 0.5 && Math.abs(u) > hw * 0.8) q += 14; else if (c.mog > 0.5) q -= 3;
         cost[k * NU + ui] = q;
       }
     }
@@ -367,9 +403,16 @@ const Rings = (() => {
     // the rings along it
     const [sz, gk] = XSZ[df] || XSZ.b; let r0 = 1 + { a: 11, b: 12, c: 13 }[df] * 7919;
     const rr = () => { r0 = (r0 * 16807) % 2147483647; return (r0 - 1) / 2147483646; };
-    const rings = []; let s = 40;
+    const rings = []; let s = 40, side = 1;
     for (;;) {
-      s += (34 + 14 * rr()) * gk; if (s > sE - 70) break;
+      // (a gully: a ring on each wall in turn; a mogul field: one in a trough every few crests, side to side; elsewhere along the way searched)
+      const ca = Course.at(s + 20, pc), inG = ca.gul > 0.6, inM = !inG && ca.mog > 0.5;
+      s += inM ? (ZIPROWS[df] || 2) * Course.mogShape().L : inG ? (26 + 8 * rr()) * gk : (34 + 14 * rr()) * gk; if (s > sE - 70) break;
+      if (inG || inM) {
+        side = -side; let tu = null, ts = s;
+        if (inG) tu = wallU(s, side, WALLK[df] || 0.6); else { const z = zipU(s, side); if (z) { ts = z.s; tu = z.u; } }
+        if (tu !== null) { rings.push({ s: ts, u: tu, r: inM ? (df === 'a' ? 2.25 : 1.5) : sz[0], off: false, how: inG ? 'wall' : 'zip' }); s = ts; continue; }
+      }
       const k = Math.min(n - 1, Math.round(s / 4)), R = rows[k], u = pu[k], x = R.cx + u;
       let r = rr() < 0.5 ? sz[0] : sz[1], room = 1e9;
       for (const t of R.tr) room = Math.min(room, Math.hypot(t[0] - x, t[1] - R.s) - t[2]);

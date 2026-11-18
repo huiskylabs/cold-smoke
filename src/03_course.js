@@ -693,6 +693,8 @@ const Course = ((vn1, vn2, h2U) => {
   C.MOGF = MOGF; C.mogShape = () => MOGF[Variants.val.mogf] || MOGF.a;
   // where the bumps of a mogul field stand (0..1): across the run short of its edges, except along one smooth line that winds down
   // through them. That line is the fast way; the bumps either side of it are slow going and throw the skier about
+  // (the smooth line's centre across the run, for whoever lays the way through the bumps beside it: 92_rings.js)
+  C.mogChan = (s, hw) => 0.5 * hw * vnoise1(s / 105 + 7.3, C.seed + 31);
   function mogField(u, s, hw) { return smooth(hw * 1.1, hw * 0.8, Math.abs(u)) * smooth(2.4, 6.5, Math.abs(u - 0.5 * hw * vnoise1(s / 105 + 7.3, C.seed + 31))); }
   // the snow under a lens: the highest of the fine surface there and 0.6 m either way. What a lens has to keep clear of is not only the
   // point under it: the corners of the picture's near plane reach a few tenths of a metre out from it, and on a gully wall or a mogul the
