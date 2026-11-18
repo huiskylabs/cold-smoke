@@ -1052,6 +1052,10 @@ fn frag(v: VOut) -> FOut {
       let up: f32 = Nr.y - Nm.y;
       lip = max(lip, smoothstep(0.04, 0.16, up + 0.22 * (dn - 0.5) + 0.12 * (dn2 - 0.5)) * 0.95 * max(kB, 0.7 * kA) * crack);
       lip = max(lip, smoothstep(0.60, 0.72, dn2 * 0.6 + dn * 0.4) * 0.85 * smoothstep(2400.0, 300.0, dist));
+      // (round 16, Okuhida close up: the frost is finest of all, flecks and streaks a metre or two across laid over the whole face, so a
+      // patch of bare rock is speckled with white, never one clean brown. Faded out before a pixel grows as big as a fleck)
+      let dn3: f32 = saturate(0.5 + (tex(tDetail, (vec2f(wxz.x + wxz.y * 0.5, wy) / 2.4 + vec2f(0.29, 0.61)) / 6.0).z - 0.5) * 1.9);
+      lip = max(lip, smoothstep(0.62, 0.74, dn3 * 0.55 + dn * 0.30 + dn2 * 0.15 + 0.25 * up) * 0.75 * smoothstep(700.0, 120.0, dist));
     }
     var rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
     ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.06, 0.97, 0.92), 0.20); }' : ''}

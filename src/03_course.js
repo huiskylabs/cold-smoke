@@ -706,7 +706,7 @@ const Course = ((vn1, vn2, h2U) => {
         // (金色雪旗 above the trees, round 15 against Okuhida: a steep face is not a smooth sweep with ribs cut into it. Its skyline and every
         // spur are broken into crags, towers and notches tens of metres tall, at three sizes. Only where the face is steep and well off the run)
         if (ALPG[0] > 1 && cell <= 64) {
-          const st = smooth(0.45, 1.0, sl) * w * m;
+          const st = smooth(0.45, 1.0, sl) * w * Math.max(m, smooth(60, 260, ek));      // (round 16: the near ridges too, not only the far ones)
           if (st > 0.01) {
             const r1 = 1 - Math.abs(vnoise2(x / 130 + 5.1, z / 130 - 2.3, 91));
             let cr = 30 * r1 * r1 - 12;
