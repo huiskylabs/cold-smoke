@@ -819,8 +819,9 @@ fn dustGrain(i: u32) -> DG {
     let prv: vec3f = bez3(P0, c1, c2, P1, ep) + wobp;
     flowSt = (prv - flowP) * select(0.0, 1.0, t > 0.0 && t < 1.0);
     let after: f32 = ts - delay - dur;
-    let land: f32 = select(1.0, (1.0 + 2.0 * exp(-after * 14.0)) * (1.0 - saturate(after / 0.3)), after > 0.0);
-    b = b * select(1.0, 1.7, t > 0.0) * land * mix(1.0, hitK, 0.4);          // (用户 07:58 UTC: 亮度不用压，粒子少了自然就好)
+    let land: f32 = select(1.0, (1.0 + 0.5 * exp(-after * 14.0)) * (1.0 - saturate(after / 0.3)), after > 0.0);
+    // (用户 08:01 UTC: 2% 还是有点晃眼，亮度调成有点半透明，更 subtle) in flight a grain is about a third as bright as on the ring
+    b = b * mix(1.0, 0.35, saturate(t * 6.0)) * land * mix(1.0, hitK, 0.4);
     useFlow = 1.0;
   } else if (dis > 0.0) {
     let hd: vec3f = hashu3(i * 23u + rid * 101u + 9u);
