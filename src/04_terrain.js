@@ -995,7 +995,7 @@ fn frag(v: VOut) -> FOut {
       // (round 7, Okuhida: the face is laced with snow, thin runnels a few metres across down every groove and on every small ledge, so from
       // any distance the rock reads as dark ribs between white threads, not as a bare grey slab)
       let fine: f32 = fallNoise(wxz, fdB, 3.5, 38.0, vec2f(0.47, 0.91));
-      lip = max(lip, smoothstep(0.62, 0.72, fine + 0.30 * (st - 0.5)) * 0.9 * smoothstep(1800.0, 150.0, dist));
+      lip = max(lip, smoothstep(0.66, 0.76, fine + 0.30 * (st - 0.5) + 0.25 * (st2 - 0.5)) * 0.85 * smoothstep(1800.0, 150.0, dist));      // (fewer, and broken by the larger ribs: all of them read as regular candy stripes)
     }
     var rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
     ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.02, 0.98, 0.95), 0.15); }' : ''}
