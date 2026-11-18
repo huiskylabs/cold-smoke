@@ -276,8 +276,8 @@ const Fpv = (() => {
   // pushed a hand further down and out (07b_views.js, fpArms). So here each hand is carried to where a skier holds it, measured from the lens
   // in the body's own frame (across the shoulders, up the trunk, ahead): CARRY. What the figure does with it besides (the reach for a plant, a
   // double-pole stroke, a hand thrown up by a bump) is kept: the hand's place off the shoulder, less its own slow average (mean, about a second).
-  // out: m to the side of the lens; dn: m below it; fw: m ahead; keep: how much of the figure's own motion is kept.
-  const CARRY = F.CARRY = { out: 0.30, dn: 0.50, fw: 0.26, keep: 0.85, mean: 1.1 };
+  // out: m to the side of the lens; dn: m below it; fw: m ahead; keep: how much of the figure's own motion is kept; reach: the most from shoulder to fist (m).
+  const CARRY = F.CARRY = { out: 0.30, dn: 0.50, fw: 0.26, keep: 0.85, mean: 1.1, reach: 0.52 };
   if (typeof Variants !== 'undefined') Variants.def('fphand', '第一视角手位', [['a', '原来'], ['b', '手在面前']], 'b');
   const carryOn = () => typeof Variants === 'undefined' || Variants.val.fphand !== 'a';
   F.carryOn = carryOn;
@@ -309,7 +309,13 @@ const Fpv = (() => {
     const r = v3.sub(G1, Sh);
     if (!A.cm || A.init || !(dt > 0)) A.cm = r.slice();
     else { const e = 1 - Math.exp(-dt / CARRY.mean); for (let i = 0; i < 3; i++) A.cm[i] += (r[i] - A.cm[i]) * e; }
-    const T = v3.mad(H, v3.sub(r, A.cm), CARRY.keep);
+    let T = v3.mad(H, v3.sub(r, A.cm), CARRY.keep);
+    // (and never further from the shoulder than a bent arm holds it: the shoulders turn with the trunk, the lens with the head, and with the
+    // trunk turned away a hand held off the lens was out at the end of a straight arm, its glove and pole twisted round the wrist)
+    { const v = v3.sub(T, Sh), l = v3.len(v), lm = CARRY.reach; if (l > lm) T = v3.mad(Sh, v, lm / l); }
+    // the elbow is let hang down and a little out, as a held arm's does, not wherever the figure's was (that one came up beside the lens
+    // and the sleeve was cut open by the near plane: black shards across the picture). solveArm only takes the side the elbow bends to from it
+    A.eh = v3.lerp(A.eh0, v3.add(v3.add(Sh, v3.mul(ox, 0.14)), v3.add(v3.mul(U, -0.32), v3.mul(Z, 0.04))), w);
     return v3.lerp(G1, T, w);
   }
   F.carryFrame = carryFrame;
@@ -352,7 +358,7 @@ const Fpv = (() => {
       }
       let G1 = v3.mad(G0, A.o, own), d = v3.norm([d0[0] + A.pd[0] * own, d0[1], d0[2] + A.pd[1] * own]);
       // (where a skier's hands are, as the eyes see them: Variants 'fphand' b, carry())
-      if (cw > 0) G1 = carry(A, k, sg, G1, Sh, cw, cf, dt);
+      A.eh0 = Eh; A.eh = Eh; if (cw > 0) G1 = carry(A, k, sg, G1, Sh, cw, cf, dt);
       // (on the way down to the view of the ski tips the hands are let down and back, out of the picture behind the lens, before they are left out)
       if (dropK > 0) { G1[0] += 0.10 * dropK; G1[1] -= 0.45 * dropK; G1[2] += 0.32 * dropK; }
       // (a hand on a planted pole stays the pole's length from where the tip went in)
@@ -361,7 +367,7 @@ const Fpv = (() => {
       // (and a fist never comes in past a hand's breadth of the body's middle: from the helmet two fists that meet there are seen to cross, the
       // forearms in an X. A soft floor, nothing kept from frame to frame: well out to its own side a hand is not touched at all)
       { const mid = sg * (J.shR[0] + J.shL[0]) * 0.5, h = Math.max(0.08 - Math.abs(G1[0] - mid - 0.15), 0) / 0.08; G1[0] = Math.max(G1[0], mid + 0.15) + h * h * 0.02; }
-      solveArm(A, Sh, G1, d, Eh, hold, T, dt);
+      solveArm(A, Sh, G1, d, A.eh, hold, T, dt);
       A.init = false; A.hold = hold;
       A.M = A.M || []; for (let i = 0; i < 4; i++) A.M[i] = sg > 0 ? A.m[i] : flipM(A.m[i]);
       A.foot = s.F[Sk ? Sk.B['foot' + n] : (sg > 0 ? 15 : 12)];
@@ -810,6 +816,9 @@ fn frag(v: VOut) -> FOut {
   const GONE = ['uarmL', 'farmL', 'handL', 'uarmR', 'farmR', 'handR', 'poleL', 'poleR', 'elbowL', 'elbowR', 'head'];      // (the head too: the lens is inside it, and the goggles' frame crossed the view)
   // (on a board the arms go too: the front one hung right across the lens, the board under it)
   const GONE_B = GONE.filter(n => n.indexOf('pole') < 0).concat(['chest', 'shL', 'shR', 'neck']);      // (and the chest: standing sideways, the front shoulder is right before the lens)
+  // (Variants 'fphand' b: the lens is in the drawn head now, not beside it, and the neck and collar round it were cut open by the near plane:
+  // black shards across the middle of the picture. They go too; with ?fphide=2 the chest and shoulders as well, as on a board, to compare)
+  const GONE_C = GONE.concat(/[?&]fphide=2/.test(typeof location !== 'undefined' ? location.search : '') ? ['neck', 'chest', 'shL', 'shR'] : /[?&]fphide=0/.test(typeof location !== 'undefined' ? location.search : '') ? [] : ['neck']);
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   // the snow off the shovels in the view of the ski tips: crumbs thrown up and aside from where each ski meets the snow, and a thin mist of the
   // finest of it. rate: lumps a second flat out in deep snow (a third of them mist); dens: how thick a crumb is; life, brake: how soon it
@@ -822,7 +831,7 @@ fn frag(v: VOut) -> FOut {
     gfx.updateTexture(boneTex, 0, 0, 4, 16, boneData);
     if (figData) {
       hideData.set(figData);
-      for (const nm of (board() ? GONE_B : GONE)) { const b = Skier.B[nm]; if (b == null) continue; const p = m4.tp(R, Skier.world.J[nm === 'head' ? 'skull' : nm.slice(-1) === 'L' ? 'shL' : nm.slice(-1) === 'R' ? 'shR' : 'neck']), o = b * 16, e = 0.002; hideData.fill(0, o, o + 16); hideData[o] = e; hideData[o + 5] = e; hideData[o + 10] = e; hideData[o + 12] = p[0]; hideData[o + 13] = p[1]; hideData[o + 14] = p[2]; hideData[o + 15] = 1; }
+      for (const nm of (board() ? GONE_B : carryOn() ? GONE_C : GONE)) { const b = Skier.B[nm]; if (b == null) continue; const p = m4.tp(R, Skier.world.J[nm === 'head' ? 'skull' : nm.slice(-1) === 'L' ? 'shL' : nm.slice(-1) === 'R' ? 'shR' : 'neck']), o = b * 16, e = 0.002; hideData.fill(0, o, o + 16); hideData[o] = e; hideData[o + 5] = e; hideData[o + 10] = e; hideData[o + 12] = p[0]; hideData[o + 13] = p[1]; hideData[o + 14] = p[2]; hideData[o + 15] = 1; }
       gfx.updateTexture(hideTex, 0, 0, 4, 32, hideData);
     }
     const S = Game.s, ps = Game.pose || {}, t = (typeof App !== 'undefined' ? App.t : 0) % 512, ch = Game.feel && Game.feel.chatter || 0, sp = S.speed || 0, on = S.air ? 0 : 1;
