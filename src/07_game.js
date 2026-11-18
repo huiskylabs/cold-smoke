@@ -49,9 +49,9 @@ const Input = (() => {
   // edge bite by the snow (owner 2026-11-18, the research on 'animation commitment': the body goes over first, the skis take hold a moment
   // later, and how soon depends on the snow). a: as it was, the line turns with the body's lean. b, c: the edges (S.edge) follow the lean the way
   // a ski's edge takes hold, the new edge running behind the body by EB_T s from the first number on hard, icy snow to the second in deep
-  // powder; the old edge lets go twice as fast. (b is the one the owner played and liked, 2026-11-18; c twice its delay, to compare) The carve, its limit, the wash and the scrape heard read the edges; the body's
+  // powder; the old edge lets go twice as fast. (b is the one the owner played and chose, default since 2026-11-18; c twice its delay, tried and not chosen) The carve, its limit, the wash and the scrape heard read the edges; the body's
   // lean, which the pose reads, still leads. Read in step()
-  Variants.def('ebite', '换刃咬雪', [['a', '原来'], ['b', '随雪况'], ['c', '两倍延迟']], 'a');
+  Variants.def('ebite', '换刃咬雪', [['a', '原来'], ['b', '随雪况'], ['c', '两倍延迟']], 'b');
   const I = { u: 0, fa: 0, faV: 0, faT: 0, faScript: null, btn: { jump: false, tuck: false }, jump: false, tuck: false, mode: 'touch', xr: null, tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
   I.init = function (el) {
     addEventListener('keydown', e => { if (e.code !== I.mute) I.keys[e.code] = true; }); addEventListener('keyup', e => { I.keys[e.code] = false; if (e.code === I.mute) I.mute = null; });
