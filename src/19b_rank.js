@@ -21,17 +21,24 @@ const Rank = self.Rank = (() => {
   const T = s => I18N.t(s), EN = () => I18N.en();
   const mins = v => { v = Math.round(v); if (v < 60) return v + (EN() ? ' min' : ' 分钟'); const h = Math.floor(v / 60), m = v % 60; return EN() ? h + ' h ' + m + ' min' : h + ' 小时 ' + m + ' 分'; };
   // what is shown: a chip each; which board holds it for each period
+  // (用户 2026-11-18 02:40 UTC: 排行榜只留玩的时间，剩下的都给挑战的排行榜) boards 1-4 are the challenges' now, one per map's ranked line:
+  // 寒烟山 · 整圈 · 标准 on board 4 (the board it already had), boards 1-3 kept for the maps to come. 极速, 最远飞行 and 今日之山 are no longer
+  // shown or sent. Their old figures stay on the server for good (km/h, metres; board 4's old minutes): a challenge time goes up as
+  // 6000 − seconds, so anything outside 4200..6000 (a time over 30 min) is an old figure and is left out of the lists.
+  // (用户 2026-11-18 06:51 UTC: 每张地图两条线，速降线和越野线) 寒烟山 · 越野线 · 标准 on board 3 (今日之山's old km/h figures are all under 4200)
+  const CHAL = [{ map: 'hanyan', line: 'a', board: 4, name: '寒烟山 · 速降线' }, { map: 'hanyan', line: 'x', board: 3, name: '寒烟山 · 越野线' }];
+  const tfmt = v => { const t = Math.max(0, Math.round((6000 - v) * 100) / 100), m = Math.floor(t / 60), r = t - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(2); };
+  const tok = v => v > 4200 && v < 6000;
   const VIEWS = [
-    { id: 'v', name: '极速', boards: { day: 1, week: 1, all: 1 }, fmt: v => v.toFixed(1) + ' km/h' },
-    { id: 'air', name: '最远飞行', boards: { day: 2, week: 2, all: 2 }, fmt: v => v.toFixed(1) + ' m' },
-    { id: 'd3', name: '今日之山', boards: { day: 3 }, fmt: v => v.toFixed(1) + ' km/h' },
+    ...CHAL.map(c => ({ id: 'c-' + c.map + '-' + c.line, name: c.name, boards: { day: c.board, week: c.board, all: c.board }, fmt: tfmt, ok: tok, chal: true })),
     { id: 'time', name: '滑雪时长', boards: { all: 5 }, fmt: mins },
   ];
-  // board 3 stays as it is on the server. The chip and the race are dev-only; normal play does not show or submit them.
-  const views = () => VIEWS.filter(v => v.id !== 'd3' || (typeof UI !== 'undefined' && UI.dev));
+  // the challenges are dev-only for now: normal play shows 滑雪时长 alone
+  const views = () => VIEWS.filter(v => !v.chal || (typeof UI !== 'undefined' && UI.dev) || (typeof Rings !== 'undefined' && Rings.share));
+  R.chalBoard = (map, line) => { const c = CHAL.find(q => q.map === map && q.line === line); return c ? c.board : 0; };
   const PERIODS = [['day', '今日'], ['week', '本周'], ['all', '总榜']];
   const FLUSH_EVERY = 30000, CACHE = 45000, KEY = 'coldsmoke.playtime';
-  let mt = null, el = null, view = 'v', period = 'day', lastFlush = 0, cool = 0, flushing = null, sig = 0, saved = 0, last = '';
+  let mt = null, el = null, view = 'time', period = 'day', lastFlush = 0, cool = 0, flushing = null, sig = 0, saved = 0, last = '';
   const sent = {}, pend = {}, cache = {};
 
   const api = () => { try { const m = window.xhs && window.xhs.miniTool; return m && typeof m.submitScore === 'function' && typeof m.getRankList === 'function' && typeof m.getMyRank === 'function' ? m : null; } catch (e) { return null; } };
@@ -97,12 +104,6 @@ const Rank = self.Rank = (() => {
     roll();
     const live = typeof Game !== 'undefined' && Game.mode === 'run' && !document.hidden;
     if (live && dt > 0) { const k = Math.min(dt, 0.25); P.ds += k; P.ws += k; P.as += k; }
-    const sp = typeof UI !== 'undefined' && UI.sp, run = sp && sp.run, d = P.d;
-    if (run) {
-      const v = Math.round(run.v * 36) / 10, a = Math.round(run.air * 10) / 10;
-      if (v <= 400) want(1, v, d); if (a <= 600) want(2, a, d);
-    }
-    const d3 = sp && sp.d3; if (d3 && d3.d === d && d3.v * 3.6 <= 400) want(3, Math.round(d3.v * 36) / 10, d);
     want(5, Math.min(999999, Math.floor(P.as / 60)), 0);
     if (Date.now() - saved > FLUSH_EVERY) save();
     if (Object.keys(pend).length && Date.now() - lastFlush > FLUSH_EVERY && Date.now() > cool) R.flush();
@@ -150,6 +151,7 @@ const Rank = self.Rank = (() => {
   const node = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   const who = n => (n == null || n === '') ? T('雪友') : String(n);
   function myLine(bd, me) {
+    if (me.status === 'EXACT' && bd.ok && !bd.ok(+me.score)) return T('还没有成绩，滑一趟就会上榜');
     if (me.status === 'EXACT' && me.rank != null) return T('我') + ' · ' + (EN() ? '#' + me.rank : '第 ' + me.rank + ' 名') + ' · ' + bd.fmt(+me.score);
     if (me.status === 'OVER_LIMIT') return T('我') + ' · 500+';
     return T('还没有成绩，滑一趟就会上榜');
@@ -170,8 +172,9 @@ const Rank = self.Rank = (() => {
       await R.flush();
       const r = await read(board, period); if (my !== sig) return;
       me.textContent = myLine(bd, r.me);
-      if (!r.list.length) box.appendChild(node('li', 'rk-none', T(period === 'day' ? '今天还没有人上榜' : '还没有人上榜')));
-      for (const it of r.list.slice(0, 100)) {
+      const rows = bd.ok ? r.list.filter(it => bd.ok(+it.score)) : r.list;
+      if (!rows.length) box.appendChild(node('li', 'rk-none', T(period === 'day' ? '今天还没有人上榜' : '还没有人上榜')));
+      for (const it of rows.slice(0, 100)) {
         const li = node('li', it.rank <= 3 ? 'top' : '');
         li.appendChild(node('b', null, String(it.rank))); li.appendChild(node('span', null, who(it.nickname))); li.appendChild(node('em', null, bd.fmt(+it.score)));
         box.appendChild(li);
@@ -181,18 +184,19 @@ const Rank = self.Rank = (() => {
       if (fatal(code(e))) { off(e); return; }
       me.textContent = T(code(e) === 2002 ? '榜单还在准备，稍后再看' : '暂时读不到榜单，稍后再看');
     }
-    s.appendChild(node('p', 'note', T(view === 'd3' ? '今日之山：从山顶一口气滑完前三段的平均速度，北京时间零点换山。每人只留最好的一次。' : view === 'time' ? '滑雪时长只算总榜，一直累计。' : '今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。')));
+    s.appendChild(node('p', 'note', T(bd.chal ? '挑战：这张地图的这条线，标准难度，用时越短越好（含罚时）。今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。' : view === 'd3' ? '今日之山：从山顶一口气滑完前三段的平均速度，北京时间零点换山。每人只留最好的一次。' : view === 'time' ? '滑雪时长只算总榜，一直累计。' : '今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。')));
   }
   // ---- 光圈速降线 (dev, 用户 18:54 UTC 成绩页跟个人最好、全部最好比，还有排名): board 4, all time, the 标准 line only. A shorter time is
   // better but the platform keeps each player's highest, so a time goes up as 6000 − seconds (to a tenth) and comes back the same way.
   // Returns { top, mine, rank } (top: the best time of all players; rank: this player's place, or '500+'), or null outside the container.
-  R.line = async function (t) {
+  // b: the line's board (R.chalBoard); t null = only read it (the 挑战 panel shows the place and the best before a run)
+  R.line = async function (t, b) {
     if (!R.on || !mt) return null;
+    b = b || 4;
     const sc = Math.round((6000 - t) * 10) / 10, back = v => Math.round((6000 - v) * 10) / 10;
     try {
-      if (t > 0 && t < 3000) await mt.submitScore({ board: 4, score: sc });
-      delete cache['4:all'];
-      const r = await read(4, 'all'), top = r.list[0], me = r.me;
+      if (t > 0 && t < 1800) { await mt.submitScore({ board: b, score: sc }); delete cache[b + ':all']; }
+      const r = await read(b, 'all'), top = r.list.find(it => tok(+it.score)), me = r.me.status === 'EXACT' && !tok(+r.me.score) ? {} : r.me;
       return { top: top ? back(+top.score) : null, topName: top ? who(top.nickname) : '', mine: me.status === 'EXACT' ? back(+me.score) : null, rank: me.status === 'EXACT' ? me.rank : me.status === 'OVER_LIMIT' ? '500+' : null };
     } catch (e) { if (fatal(code(e))) off(e); return null; }
   };

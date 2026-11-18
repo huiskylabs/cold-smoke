@@ -1395,7 +1395,7 @@ const Game = (() => {
       if (n === 10) acc = 0;
       G.dist = -S.p[2]; G.drop = G.y0 - S.p[1]; if (S.speed > G.topSpeed) G.topSpeed = S.speed;
     }
-    Course.rockCap = ROCK_CAP; G.nSteps = n; updateFlight(dt, n); Course.rockCap = 0; updatePose(dt); updateCamera(dt);
+    Course.rockCap = ROCK_CAP; G.nSteps = n; updateFlight(dt, n); Course.rockCap = 0; updatePose(dt); if (G.afterPose) G.afterPose(dt); updateCamera(dt);          // (afterPose: the replay puts the run's own pose back here, 93_replay.js)
   };
   G.step = step;
   return G;

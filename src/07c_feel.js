@@ -115,7 +115,7 @@ const Feel = (() => {
   F.update = function (dt) {
     // ts: how much slower than life a jump's slow motion runs; tk: that, and the world being taken up again after a pause (App.resumeK, the
     // interface's, where there is one); rdt: real seconds
-    const S = Game.s, st = App.state, run = Game.mode === 'run', ts = clamp(Game.timeScale || 1, 0.05, 1), tk = ts * clamp(App.resumeK || 1, 0.05, 1), rdt = dt / tk;
+    const S = Game.s, st = App.state, run = Game.mode === 'run' || Game.mode === 'replay', ts = clamp(Game.timeScale || 1, 0.05, 1), tk = ts * clamp(App.resumeK || 1, 0.05, 1), rdt = dt / tk;
     // a new run, or the skier set down somewhere else: that is a cut, and after a cut things simply are what the place makes them
     const cut = !F.init || Game.runT < F.runT || Math.hypot(S.p[0] - F.px, S.p[2] - F.pz) > 15; F.init = true; F.runT = Game.runT; F.px = S.p[0]; F.pz = S.p[2];
 

@@ -14,6 +14,10 @@ const Rings = (() => {
   const RG = { on: false, rings: [], passed: 0, missed: 0, hud: null, n: 0, pipes: [] };
   if (typeof Variants !== 'undefined') Variants.def('rings', '光圈挑战', [['off', '关'], ['on', '开']], 'off');
   // (developer mode only for now, as the other trial switches: without ?dev it is off, whatever an address or an earlier pick says)
+  // (用户 2026-11-18 16:57 UTC: 一个可以分享给别人试玩的链接，只看得到挑战，看不到其他 dev 的东西，也没有版本对比) ?chal in the address: the 挑战
+  // button, the two lines, the rings, the result card and the replay, with every other dev thing (场景, 今日之山, 版本对比, the switches) off
+  const shareOn = () => { try { return !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && /[?&]chal(=|&|$)/.test(location.search); } catch (e) { return false; } };
+  const chalOn = () => devOn() || shareOn();
   const devOn = () => { try { return !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (/[?&]dev(=|&|$)/.test(location.search) || /\/dev\/?$/.test(location.pathname) || !!(self.COLD_SMOKE && self.COLD_SMOKE.dev)); } catch (e) { return false; } };
   const cl = (v, a, b) => Math.max(a, Math.min(b, v));
   const ease = x => 1 - Math.pow(1 - cl(x, 0, 1), 3);
@@ -80,14 +84,26 @@ const Rings = (() => {
     if (L.id) {
       const sE = lineEnd();
       if (L.fin) { RG.rings.push({ id: serial++, s: 1e9, skip: true }); return; }
-      if (s > sE - 25 || s0 + 60 > sE - 25) {
-        const c = Course.at(sE, pc), r = 6.0; L.fin = true;          // (用户 18:54 UTC: 终点是更大的白圈)
+      // (越野线: the rings were all laid when the line was set up, along its own way through the trees; the next one past the last)
+      if (L.id === 'x') {
+        const q = xPlan().rings.find(q => q.s > s0 + 0.5);
+        if (q && q.s <= sE - 70) { const c = Course.at(q.s, pc), x = c.cx + q.u, pick = SIZES.find(z => z[0] === q.r) || [q.r, '']; cursor = { s: q.s, u: q.u }; RG.rings.push({ id: serial++, s: q.s, u: q.u, x, y: floatY(x, q.s, q.r, -1e9), r: q.r, tag: pick[1], air: false, off: q.off, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); return; }
+        s = sE;
+      }
+      // (用户 21:18 UTC: 最后一个圈要跟倒数第二个离得远一点): a ring that would stand within 70 m of the finish is left out, so the finish
+      // ring stands on its own, a long straight run in after the last ring
+      if (s > sE - 70) {
+        const c = Course.at(sE, pc), r = 7.0; L.fin = true;          // (用户 18:54 UTC 终点是更大的圈; 21:33 UTC 不变颜色，还是绿色，更大、更密、动得更明显)
         RG.rings.push({ id: serial++, s: sE, u: 0, x: c.cx, y: floatY(c.cx, sE, r, -1e9), r, tag: '终点', fin: true, air: false, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sE, u: 0 }; return;
       }
     }
     const f = kickerIn(s0 + 10, s + 20);
     const lvAir = cl(D.off, 0, 2);
-    if (f) { const lip = lipOf(f), sr = lip.s + 8, c = Course.at(sr, pc), z = SIZES[lvAir]; RG.rings.push({ id: serial++, s: sr, u: f.u, x: c.cx + f.u, y: floatY(c.cx + f.u, sr, z[0], lip.y - 0.7), r: z[0], tag: z[1], air: true, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sr, u: f.u }; return; }
+    // (用户 20:47 UTC: 跳台的圈离跳台远一点，必须真的跳出一定距离和高度才穿得过去，而不是顺着跳台滑过去就一定通过). Measured on the run's three
+    // kickers (tools/kicker-air.js, 15-18 m/s at the lip): 14 m past the lip, skiing flat over it the body is 2.6-4.9 m below the lip,
+    // with the jump held it is 0.1-2.2 m below. So the ring hangs there, its centre 1 m below the lip, and is small (1.9 / 1.6 / 1.35 m
+    // by 光圈难度): only a real jump goes through it
+    if (f) { const lip = lipOf(f), sr = lip.s + 14, c = Course.at(sr, pc), z = SIZES[lvAir], ra = [1.9, 1.6, 1.35][lvAir]; RG.rings.push({ id: serial++, s: sr, u: f.u, x: c.cx + f.u, y: floatY(c.cx + f.u, sr, ra, lip.y - 1.0), r: ra, tag: z[1], air: true, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sr, u: f.u }; return; }
     if (pl.how === 'none') { cursor = { s, u: u0 }; RG.rings.push({ id: serial++, s, skip: true }); return; }
     const c0 = Course.at(s, pc), hw = c0.hw || 14;
     let u;
@@ -110,7 +126,7 @@ const Rings = (() => {
     RG.rings.push({ id: serial++, s, u: uu, x, y: floatY(x, s, r, -1e9), r, tag: pick[1], air: false, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 });
   }
   // Every ring floats: the snow under any part of its lower half stays at least GAP below it (ground rings and air rings alike).
-  const GAP = 0.35;
+  const GAP = 0.9;          // (用户 20:47 UTC: 离地再高一点; was 0.35)
   function floatY(x, s, r, y) {
     let top = -1e9; for (let i = -6; i <= 6; i++) { const a = i / 6 * 1.2, dx = Math.sin(a) * r, dy = -Math.cos(a) * r; top = Math.max(top, Course.height(x + dx, -s, 0.5) - dy); }
     return Math.max(y, top + GAP);
@@ -135,8 +151,11 @@ const Rings = (() => {
     for (let tries = 0; live < AHEAD && tries < 20; tries++) { spawn(); const r = RG.rings[RG.rings.length - 1]; if (r.skip) RG.rings.pop(); else live++; }
     const ahead = RG.rings.filter(r => r.pass < 0);
     const cur = ahead[0]; if (!cur) return;
-    if (cur.grow < 0) cur.grow = T;          // the first ring of a run opens at once
+    if (cur.grow < 0 && L.st !== 'count') cur.grow = T;          // the first ring of a run opens at once; on a challenge line (用户 22:34 UTC) it waits as a flame through 3-2-1 and opens on 出发
     const v = Math.max(6, S.speed || 0), dCur = cur.s - s;
+    // (用户 15:54 UTC: 一群光游过去 没有效果) it set off at the splash, 1.6 m before the ring, lost in the splash's own burst and then riding
+    // along with the camera. Now it leaves while the ring is still ahead, ~0.6 s out (at least 12 m), so it is seen swimming off toward the next
+    if (cur.flowT === undefined && !cur.fin && dCur < Math.max(18, v * 1.0)) cur.flowT = T;          // (Mac check 16:1x UTC: at 0.6 s / 4.5% it was barely seen: now ~1 s out)
     if (dCur < Math.max(14, v * 0.8) && ahead[1] && ahead[1].grow < 0) ahead[1].grow = T;          // nearly there: the next flame swells and opens
     // (用户 05:16 UTC: 离圈一两米、头碰到圈面之前就要 splash 散开，半米一米时能不能过已经定了): the splash starts 1.6 m before the ring's plane
     if (dCur < 1.6 && cur.splash < 0) {
@@ -155,19 +174,31 @@ const Rings = (() => {
   // what each ring is this frame: how far open, how far scattered, how bright (far ones barely there), and its flame
   function prep(T) {
     const S = Game.s, s = -S.p[2], cam = Render.cam.pos, o = Render.origin, night = cl(((Sky.night || 0) - 0.2) / 0.6, 0, 1);
-    const ahead = RG.rings.filter(r => r.pass < 0);
+    const ahead = RG.rings.filter(r => r.pass < 0), fmode = typeof Variants !== 'undefined' ? ({ a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8 })[Variants.val.rflow] || 0 : 0;
     drawList = [];
     for (const r of RG.rings) {
       const dist = Math.hypot(r.x - cam[0], r.y - cam[1], -r.s - cam[2]), ord = r.pass >= 0 ? 0 : ahead.indexOf(r);
-      const sz = Math.sqrt(r.r / 4.5), near = Math.pow(cl(1 - (dist - 25) / 170, 0.04, 1), 1.6);
-      if (r.fin && r.grow < 0) r.grow = r.born - 1;          // (the finish is a whole white ring from the moment it is there, never a flame)
+      const sz = Math.sqrt(r.r / 4.5), near = Math.pow(cl(1 - (dist - 25) / 280, 0.16, 1), 1.2);          // (用户 20:39 UTC: 有时候还是比较淡，亮一点、点多一点: far ones still fainter, but not lost)
+      if (r.fin && r.grow < 0) r.grow = r.born - 1;          // (the finish is a whole ring from the moment it is there, never a flame)
       const grown = r.grow >= 0 ? cl((T - r.grow) / 0.9, 0, 1) : 0;
       const dis = r.splash >= 0 ? cl((T - r.splash) / 2.2, 0, 1) : 0;
       const ordK = ord <= 1 ? 1 : ord === 2 ? 0.62 : 0.4;
       const flameA = r.fin ? 0 : (grown < 1 ? (1 - cl((grown - 0.35) / 0.35, 0, 1)) : 0) * near * ordK * cl((T - r.born) / 0.6, 0, 1);
-      const open = grown > 0.3 ? ease((grown - 0.3) / 0.6) : 0, A = cl((grown - 0.3) / 0.3, 0, 1) * Math.max(0.35, near);
+      const open = grown > 0.3 ? ease((grown - 0.3) / 0.6) : 0, A = cl((grown - 0.3) / 0.3, 0, 1) * Math.max(0.5, near);
       const c = [r.x - o[0], r.y - o[1], -r.s - o[2]];
-      drawList.push({ r, dist, c, sz, near, grown, dis, open, A, flameA, night, ord, flameSc: (1 + 1.6 * ease(grown / 0.35)) * (ord <= 1 ? 1 : ord === 2 ? 0.85 : 0.72), tint: ord <= 1 ? 0 : ord === 2 ? 1 : 2, hitK: r.hit || r.splash < 0 ? 1 : 0.5 });
+      // (下一个圈提示, Variants rflow): the next ring along, for the ring being ridden at (and the one just splashing): where the cue points.
+      // ap: how near this ring is, 0 far .. 1 close (the cues that show before the ring is reached grow with it; the 光柱 starts further out)
+      let nx = null, ap = 0, bk = 0;
+      if (fmode === 7) {
+        // (用户 16:44 UTC: 喜欢细高光柱；一开始有一个光柱，等火团变成光球以后，光柱比较快地消失) the column stands over each of the next two
+        // rings for as long as it is a flame, and goes in about 0.3 s once the flame opens into a ring
+        // (16:45 UTC: 被火团吸进去) bk 1 while the flame burns and while the column is being drawn in; ab how far in, over ~0.7 s of opening
+        // (16:49 UTC: 太快了，慢一点；不用全部吸进来，有些慢慢 fade out，只要顺序从上往下) ~1.6 s from when the flame starts to open
+        const abT = r.grow >= 0 ? cl((T - r.grow) / 1.6, 0, 1) : 0;
+        if (!r.fin && abT < 1 && (r.grow >= 0 || (r.pass < 0 && ord <= 1))) { bk = 1; nx = [c[0], c[1], c[2], r.r]; ap = 1; }
+      } else if (fmode && !r.fin && (r.splash >= 0 || ord === 0)) {
+        const dC = r.s - s; ap = r.splash >= 0 ? 1 : fmode === 5 || fmode === 7 || fmode === 8 ? cl(1 - (dC - 10) / 70, 0, 1) : cl(1 - (dC - 6) / 34, 0, 1); const i = RG.rings.indexOf(r); for (let k = i + 1; k < RG.rings.length; k++) { const q = RG.rings[k]; if (q.skip) continue; nx = [q.x - o[0], q.y - o[1], -q.s - o[2], q.r]; break; } }
+      drawList.push({ r, nx, ap, bk, ab: fmode === 7 && r.grow >= 0 ? cl((T - r.grow) / 1.6, 0, 1) : 0, fmode, fl: r.flowT >= 0 ? T - r.flowT : -1, dist, c, sz, near, grown, dis, open, A, flameA, night, ord, flameSc: (1 + 1.6 * ease(grown / 0.35)) * (ord <= 1 ? 1 : ord === 2 ? 0.85 : 0.72), tint: ord <= 1 ? 0 : ord === 2 ? 1 : 2, hitK: r.hit || r.splash < 0 ? 1 : 0.5 });
     }
     drawList.sort((a, b) => b.dist - a.dist);          // far first: the near ring's tube writes depth over what lies behind it
   }
@@ -178,12 +209,12 @@ const Rings = (() => {
   }
 
   // ---- the GPU side
-  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, 0], e: [Math.round(5200 * d.sz), Math.round(500 * d.sz), 0, 0] });
+  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, d.nx ? d.fmode : 0], e: [Math.round(9600 * d.sz * (d.r.fin ? 2 : 1)), Math.round(800 * d.sz * (d.r.fin ? 2 : 1)), 0, d.ap || 0], f: d.nx || [0, 0, 0, 0], g: [d.fl, d.ab || 0, 0, 0] });
   const ringLive = d => d.grown > 0.3 && d.dis < 1 && d.open > 0.01;
   RG.init = function (g) {
     gfx = g;
     const lib = [SL.common, SL.hash, SL.fog, RING_SSL];
-    const UR = { a: 'vec4f', b: 'vec4f', c: 'vec4f', d: 'vec4f', e: 'vec4f' };
+    const UR = { a: 'vec4f', b: 'vec4f', c: 'vec4f', d: 'vec4f', e: 'vec4f', f: 'vec4f', g: 'vec4f' };
     pDust = gfx.pipeline({
       name: 'ringDust', lib: lib.concat([DUST_SSL]), buffers: [], topology: 'strip', cull: 'none', blend: 'premul', depthWrite: false, depthFunc: 'lequal',
       varyings: { uv: 'vec2f', col: 'vec4f', sh: 'vec4f' }, uniforms: UR, textures: { tSky: '2d' }, vs: DUST_VS, fs: SPARK_FS,
@@ -203,7 +234,7 @@ const Rings = (() => {
     RG.pipes = [pDust, pDustSh, pFlame, pLight];
     if (gfx.finishPipelineAsync) for (const P of RG.pipes) gfx.finishPipelineAsync(P).catch(e => console.warn('rings pipeline', P.name, e && e.message ? e.message : e));
   };
-  const active = () => RG.on && gfx && typeof Game !== 'undefined' && Game.s && (Game.mode === 'run' || Game.mode === 'hold') && drawList.length;
+  const active = () => RG.on && gfx && typeof Game !== 'undefined' && Game.s && (Game.mode === 'run' || Game.mode === 'hold' || Game.mode === 'park' || Game.mode === 'replay') && drawList.length;
   RG.drawShadow = function () {
     if (!active()) return;
     for (const d of drawList) if (ringLive(d)) { const u = ringU(d, lastT % 4096); gfx.draw(pDustSh, { u, count: 4, instances: u.e[0] + u.e[1] }); }
@@ -216,6 +247,11 @@ const Rings = (() => {
       if (ringLive(d)) {
         const u = ringU(d, T);
         gfx.draw(pDust, { u, tex, count: 4, instances: u.e[0] + u.e[1] + u.e[2] });
+      } else if (d.bk > 0) {
+        // (性能: a flame's column alone) only the column's own grains are drawn, not the whole ring's thousands: g.z tells the shader
+        // that every instance here is a column grain
+        const u = ringU(d, T); u.g[2] = 1;
+        gfx.draw(pDust, { u, tex, count: 4, instances: Math.round(u.e[0] * 0.035) });
       }
     }
   };
@@ -233,6 +269,7 @@ const Rings = (() => {
   // ---- 穿圈拖影 (用户 18:51 UTC: 钻进光圈的时候来一个延迟摄影、拖影子的效果，试一下，只是一个分支; 18:53 UTC: 每隔比如 0.5 米留一个残影).
   // Like a sequence photo of a skier: from a few metres before a ring until just after it, every 0.5 m the skier leaves a see-through copy of
   // himself (his pose at that moment), which fades in about half a second. Only the body, never the camera or the time: the game runs on as is.
+  if (typeof Variants !== 'undefined') Variants.def('rflow', '下一个圈提示', [['off', '关'], ['a', '一群光游过去'], ['b', '一缕光线'], ['c', '细流引路'], ['d', '亮边指方向'], ['e', '远处光柱'], ['f', '溪流（连成一条）'], ['g', '细高光柱'], ['h', '螺旋光柱']], 'g');
   if (typeof Variants !== 'undefined') Variants.def('rtrail', '穿圈拖影', [['off', '关'], ['a', '残影·白'], ['b', '残影·光圈色']], 'off');
   const TR = { list: [], last: null, now: 0, done: 0, passT: null, STEP: 0.5, LIFE: 0.8, REACH: 3.2, BEFORE: 7, AFTER: 0.4 };
   function trail() {
@@ -275,13 +312,14 @@ const Rings = (() => {
   // green or red against the best. The last ring is the finish, big and in the middle of the run: through it the clock stops and flares, the
   // time comes up in the middle, and a card slides in from the right while the skier rides on (no rings after it: free skiing again).
   // Backspace starts the line again from the gate; on the card Enter = 再来一局, Esc = 继续滑. Records stay on this device.
-  if (typeof Variants !== 'undefined') Variants.def('rline', '光圈路线', [['off', '关'], ['a', '速降·整圈'], ['b', '速降·前三站']], 'off');
-  const LINES = { a: { n: 12, name: '速降线 · 整圈' }, b: { n: 3, name: '速降线 · 前三站' } };
+  // (用户 2026-11-18 06:51 UTC: 每张地图两条线，速降线沿主路，越野线钻树林、走奇怪的地方，为了 explore；前三站不要了)
+  if (typeof Variants !== 'undefined') Variants.def('rline', '光圈路线', [['off', '关'], ['a', '速降线'], ['x', '越野线']], 'off');
+  const LINES = { a: { n: 12, name: '速降线' }, x: { n: 12, name: '越野线' } };
   const PEN = { a: 2, b: 4, c: 5 }, DNAME = { a: '轻松', b: '标准', c: '难' }, DNEXT = { a: 'b', b: 'c' };
   const L = { id: null, diff: null, st: 'idle', seed: 1, fin: false, sEnd: 0, segs: null, cut: [], names: [], split: [], ci: 0, pen: 0, missSeen: 0, cT: 0, lastF: 0, el: null, rec: null };
   const diffKey = () => (typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b';
-  const fmt = t => { t = Math.max(0, t); const m = Math.floor(t / 60), r = t - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(1); };
-  const sgn = d => Math.abs(d) < 0.05 ? '持平' : (d < 0 ? '−' : '+') + Math.abs(d).toFixed(1);
+  const fmt = t => { t = Math.max(0, t); const m = Math.floor(t / 60), r = t - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(2); };          // (用户 21:25 UTC: 计时精确到 2 位)
+  const sgn = d => Math.abs(d) < 0.005 ? '持平' : (d < 0 ? '−' : '+') + Math.abs(d).toFixed(2);
   function lineEnd() {
     if (L.sEnd && L.segs === Course.segs && L.seg0 === Course.segs[0]) return L.sEnd;
     const n = LINES[L.id].n, segs = Course.segs;
@@ -291,6 +329,59 @@ const Rings = (() => {
     L.names = segs.slice(0, n).map((g, i) => (i + 1) + ' ' + ((typeof SEG_NAMES !== 'undefined' && SEG_NAMES[g.type]) || g.type));
     return L.sEnd;
   }
+  // ---- 越野线: one way down through the trees beside the run, the same for every player, found once when the line is set up.
+  // A shortest-path search down the run every 4 m, across it every metre (−90..90 m from the run's centre line): the trees are walls
+  // (within 1.6 m of a crown: never; within 3.5 m: dear), the groomed run is dear (that is the 速降线's), its edge a little dear, in among
+  // the trees beside it cheap, a lane through the forest cheapest; beyond 40 m off the run and not in a lane it climbs the banks, very dear.
+  // It starts and ends on the run (the gate, the finish ring), and goes at most 3 m across for 4 m down. Rings every 34-48 m along it
+  // (further apart on 轻松, closer on 难), sized by 光圈难度 and made smaller where the trees leave no room. tools/ring-plan.js draws it.
+  const XSZ = { a: [[3.0, 2.25], 1.2], b: [[2.25, 1.5], 1.0], c: [[1.5, 1.5], 0.85] };
+  function xPlan() {
+    const sE = lineEnd(), df = L.diff || 'b';
+    if (L.xp && L.xp.sE === sE && L.xp.df === df) return L.xp;
+    const t0 = Date.now(), TC = 4.5, NU = 181, U0 = -90, n = Math.floor(sE / 4) + 1, o = {};
+    const rows = [], cost = new Float32Array(n * NU), lanes = [];
+    for (let k = 0; k < n; k++) {
+      const s = k * 4, c = Course.at(s, pc), cx = c.cx, hw = c.hw || 14, j0 = Math.floor(-s / TC), tr = [];
+      for (let j = j0 - 2; j <= j0 + 2; j++) for (let i = Math.floor((cx + U0 - 8) / TC); i <= Math.floor((cx - U0 + 8) / TC); i++) { Course.treeInCell(i, j, o); if (o.ok) tr.push([o.x, -o.z, o.r]); }
+      rows.push({ s, cx, hw, tr }); const ln = Course.ways(s).slice(1); lanes.push(ln);
+      const dist = new Float32Array(NU).fill(1e9);
+      for (const t of tr) { const ds = t[1] - s; if (Math.abs(ds) > 8) continue; for (let ui = Math.max(0, Math.floor(t[0] - cx - U0 - 8)); ui < NU && ui + U0 + cx < t[0] + 8; ui++) { const d = Math.hypot(ui + U0 + cx - t[0], ds) - t[2]; if (d < dist[ui]) dist[ui] = d; } }
+      for (let ui = 0; ui < NU; ui++) {
+        const u = ui + U0, e = Math.abs(u) - hw, d = dist[ui]; let onl = false; for (const lu of ln) if (Math.abs(u - lu) < 5) onl = true;
+        let q = (d < 1.6 ? 1e6 : 0) + (d < 3.5 ? (3.5 - d) * 6 : 0);
+        if (e < -2) q += 3; if (e > 40 && !onl) q += (e - 40) * (e - 40) * 0.5 + 20; if (onl && e > 0) q -= 4; if (e > 6 && e < 40) q -= 2.5; if (e >= -2 && e <= 6) q += 1;
+        if (s < 60 || s > sE - 120) q += Math.abs(u) * 2;
+        cost[k * NU + ui] = q;
+      }
+    }
+    let acc = cost.slice(0, NU); const back = new Int8Array(n * NU);
+    for (let k = 1; k < n; k++) {
+      const nx = new Float32Array(NU);
+      for (let ui = 0; ui < NU; ui++) { let b = Infinity, bd = 0; for (let du = -3; du <= 3; du++) { const pi = ui - du; if (pi < 0 || pi >= NU) continue; const v = acc[pi] + 0.6 * du * du; if (v < b) { b = v; bd = du; } } nx[ui] = b + cost[k * NU + ui]; back[k * NU + ui] = bd; }
+      acc = nx;
+    }
+    const path = new Int16Array(n); path[n - 1] = -U0;
+    for (let k = n - 1; k > 0; k--) path[k - 1] = path[k] - back[k * NU + path[k]];
+    const pu = []; for (let k = 0; k < n; k++) { let a = 0; for (let m = -2; m <= 2; m++) a += path[Math.min(n - 1, Math.max(0, k + m))] + U0; pu.push(a / 5); }
+    // the rings along it
+    const [sz, gk] = XSZ[df] || XSZ.b; let r0 = 1 + { a: 11, b: 12, c: 13 }[df] * 7919;
+    const rr = () => { r0 = (r0 * 16807) % 2147483647; return (r0 - 1) / 2147483646; };
+    const rings = []; let s = 40;
+    for (;;) {
+      s += (34 + 14 * rr()) * gk; if (s > sE - 70) break;
+      const k = Math.min(n - 1, Math.round(s / 4)), R = rows[k], u = pu[k], x = R.cx + u;
+      let r = rr() < 0.5 ? sz[0] : sz[1], room = 1e9;
+      for (const t of R.tr) room = Math.min(room, Math.hypot(t[0] - x, t[1] - R.s) - t[2]);
+      while (r > 1.5 && room < r + 0.8) r = r > 2.5 ? 2.25 : 1.5;
+      if (room < 2) continue;
+      rings.push({ s: R.s, u, r, off: Math.abs(u) > R.hw });
+    }
+    let off = 0; for (let k = 0; k < n; k++) if (Math.abs(pu[k]) > rows[k].hw) off++;
+    L.xp = { sE, df, rings, path: pu, off: off / n, ms: Date.now() - t0 };
+    return L.xp;
+  }
+  RG.xPlan = () => L.id === 'x' ? xPlan() : null;          // (for test scripts)
   function beep(f, d, g) {
     try { const A = Sound.ctx; if (!A || !Sound.on) return; const o = A.createOscillator(), v = A.createGain(), t = A.currentTime; o.type = 'sine'; o.frequency.value = f; v.gain.setValueAtTime(0, t); v.gain.linearRampToValueAtTime(g, t + 0.012); v.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(v); v.connect(A.destination); o.start(t); o.stop(t + d + 0.05); } catch (e) { }
   }
@@ -304,29 +395,40 @@ const Rings = (() => {
   function ui() {
     if (L.el) return L.el;
     const d = document.createElement('div'); d.id = 'rline';
-    d.innerHTML = '<style>#rline{position:fixed;inset:0;pointer-events:none;z-index:4;font-family:system-ui,-apple-system,sans-serif;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.5)}'
-      + '#rline .tm{position:absolute;top:10px;left:50%;transform:translateX(-50%);font:600 30px/1 system-ui,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:.02em;transition:transform .25s,color .25s}'
-      + '#rline .tm.fin{color:#ffe9a8;transform:translateX(-50%) scale(1.25)}'
-      + '#rline .sub{position:absolute;top:46px;left:50%;transform:translateX(-50%);font:500 12px/1 system-ui,sans-serif;letter-spacing:.12em;opacity:.85;white-space:nowrap}'
-      + '#rline .pop{position:absolute;top:12px;left:calc(50% + 74px);font:700 18px/1 system-ui,sans-serif;color:#ff6b6b;opacity:0;transition:opacity .2s,transform .8s}'
+    // (用户 20:58 UTC: 结束这些菜单的 UI 要跟现在整个 UI 的风格一样): the game's own type and colours (template.html: --snow, --dim, --faint,
+    // --hair, --sun; Jost light for figures, the Song serif for words that are names, small spaced Jost capitals for labels, a hairline of
+    // amber as the accent, dark glass for what has to sit on the picture). Inside #app, so its margins and the turned phone apply
+    d.innerHTML = '<style>#rline{position:absolute;inset:0;pointer-events:none;z-index:4;font-family:var(--f-ui);color:var(--snow);text-shadow:0 1px 16px rgba(5,8,13,.55)}'
+      + '#rline .tm{position:absolute;top:var(--gt);left:50%;transform:translateX(-50%);font-family:var(--f-lat);font-weight:300;font-size:clamp(26px,6.4vmin,42px);line-height:1;letter-spacing:.02em;font-variant-numeric:tabular-nums;transition:transform .5s cubic-bezier(.2,.6,.2,1),color .5s}'
+      + '#rline .tm.fin{color:var(--sun);transform:translateX(-50%) scale(1.12)}'
+      + '#rline .sub{position:absolute;top:calc(var(--gt) + clamp(34px,7.6vmin,50px));left:50%;transform:translateX(-50%);font-weight:500;font-size:11px;letter-spacing:.3em;margin-right:-.3em;color:var(--dim);white-space:nowrap}'
+      + '#rline .pop{position:absolute;top:var(--gt);left:calc(50% + clamp(62px,12vmin,90px));font-family:var(--f-lat);font-weight:400;font-size:clamp(16px,3.4vmin,22px);color:#ff9d8c;opacity:0;transition:opacity .25s,transform .9s cubic-bezier(.2,.6,.2,1)}'
       + '#rline .pop.on{opacity:1;transform:translateY(-6px)}'
-      + '#rline .spl{position:absolute;top:66px;left:50%;transform:translateX(-50%);font:600 13px/1 system-ui,sans-serif;letter-spacing:.06em;opacity:0;transition:opacity .3s;white-space:nowrap}'
-      + '#rline .spl.on{opacity:1}#rline .g{color:#7dffb0}#rline .r{color:#ff8a8a}'
-      + '#rline .cd{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);font:700 96px/1 system-ui,sans-serif;opacity:0;transition:opacity .15s}'
-      + '#rline .cd.on{opacity:1}'
-      + '#rline .ban{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);text-align:center;opacity:0;transition:opacity .4s}'
-      + '#rline .ban.on{opacity:1}#rline .ban b{display:block;font:700 56px/1.05 system-ui,sans-serif;font-variant-numeric:tabular-nums;color:#ffe9a8}#rline .ban i{display:block;font:500 15px/1.6 system-ui,sans-serif;font-style:normal;letter-spacing:.1em}'
-      + '#rline .card{position:absolute;top:50%;right:16px;width:min(320px,44vw);max-height:84vh;overflow:auto;transform:translate(120%,-50%);transition:transform .45s cubic-bezier(.2,.8,.2,1);background:rgba(14,20,32,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:14px;padding:14px 16px;pointer-events:auto;text-shadow:none;font-size:12px}'
-      + '#rline .card.on{transform:translate(0,-50%)}#rline .card h3{margin:0 0 2px;font:600 12px/1.4 system-ui,sans-serif;letter-spacing:.12em;opacity:.7}'
-      + '#rline .card .big{font:700 34px/1.1 system-ui,sans-serif;font-variant-numeric:tabular-nums}#rline .card .dl{font-weight:600;margin:2px 0 8px}'
-      + '#rline .card .row{display:flex;gap:12px;opacity:.85;margin-bottom:8px}#rline table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}'
-      + '#rline td,#rline th{padding:3px 2px;text-align:right;font-weight:500}#rline th{opacity:.55;font-size:11px}#rline td:first-child,#rline th:first-child{text-align:left}'
-      + '#rline tr.worst td{background:rgba(255,120,120,.14)}#rline .tip{margin-top:6px;opacity:.75}#rline .tip:empty{display:none}'
-      + '#rline .cmp{display:flex;gap:6px;margin-top:10px}#rline .cmp div{flex:1;background:rgba(255,255,255,.07);border-radius:8px;padding:6px 8px}#rline .cmp span{display:block;font-size:10px;opacity:.6;letter-spacing:.08em}#rline .cmp b{display:block;font:600 15px/1.3 system-ui,sans-serif;font-variant-numeric:tabular-nums}'
-      + '#rline .bt{display:flex;gap:8px;margin-top:12px}#rline button{flex:1;border:0;border-radius:9px;padding:9px 0;font:600 13px system-ui,sans-serif;cursor:pointer;background:rgba(255,255,255,.14);color:#fff}#rline button.p{background:#7dffb0;color:#0b1a12}</style>'
-      + '<div class="tm"></div><div class="sub"></div><div class="pop"></div><div class="spl"></div><div class="cd"></div><div class="ban"><b></b><i></i></div><div class="card"></div>';
-    document.body.appendChild(d); L.el = d;
-    d.addEventListener('click', e => { const a = e.target && e.target.dataset && e.target.dataset.a; if (a === 'again') lineRestart(); else if (a === 'harder') lineHarder(); else if (a === 'free') lineFree(); });
+      + '#rline .spl{position:absolute;top:calc(var(--gt) + clamp(56px,11vmin,74px));left:50%;transform:translateX(-50%);font-size:12px;letter-spacing:.1em;font-variant-numeric:tabular-nums;opacity:0;transition:opacity .45s;white-space:nowrap}'
+      + '#rline .spl.on{opacity:1}#rline .spl .k{font-family:var(--f-song);letter-spacing:.2em;color:rgba(244,247,251,.82)}'
+      + '#rline .g{color:var(--sun)}#rline .r{color:#ff9d8c}'
+      + '#rline .cd{position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);font-family:var(--f-lat);font-weight:300;font-size:clamp(72px,20vmin,132px);line-height:1;opacity:0;transition:opacity .15s}'
+      + '#rline .cd.on{opacity:1}#rline .cd.w{font-family:var(--f-song);font-size:clamp(40px,11vmin,72px);letter-spacing:.6em;margin-right:-.6em;color:var(--sun)}'
+      + '#rline .ban{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;text-align:center;opacity:0;transition:opacity .5s}'
+      + '#rline .ban.on{opacity:1}#rline .ban b{display:block;font-family:var(--f-lat);font-weight:300;font-size:clamp(46px,12vmin,84px);line-height:1;font-variant-numeric:tabular-nums}'
+      + '#rline .ban .rule{width:26px;height:1px;background:var(--sun);margin:14px 0 12px}#rline .ban i{display:block;font-family:var(--f-song);font-weight:300;font-style:normal;font-size:clamp(13px,3.4vmin,16px);letter-spacing:.34em;margin-right:-.34em}'
+      + '#rline .card{position:absolute;top:50%;right:var(--gr);width:min(330px,44vw);max-height:calc(100% - var(--gt) - var(--gb));overflow:auto;scrollbar-width:none;transform:translate(calc(100% + var(--gr) + 20px),-50%);transition:transform .6s cubic-bezier(.2,.6,.2,1);background:rgba(5,8,13,.52);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:18px 20px;pointer-events:auto;text-shadow:none;font-size:12px}'
+      + '#rline .card::-webkit-scrollbar{display:none}#rline .card.on{transform:translate(0,-50%)}'
+      + '#rline .card h3{margin:0;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.4em;color:var(--dim);white-space:nowrap}#rline .card h3 em{font-family:var(--f-song);font-style:normal;font-size:12px;letter-spacing:.24em;color:var(--snow);margin-right:.6em}'
+      + '#rline .card .big{margin-top:10px;font-family:var(--f-lat);font-weight:300;font-size:clamp(34px,7vmin,46px);line-height:1;font-variant-numeric:tabular-nums}'
+      + '#rline .card .rule{width:26px;height:1px;background:var(--sun);margin:12px 0 10px}#rline .card .dl{font-size:12px;letter-spacing:.12em}'
+      + '#rline .fs{display:flex;gap:clamp(14px,3vmin,24px);margin-top:14px}#rline .fs>div{display:flex;flex-direction:column}#rline .fs b{font-family:var(--f-lat);font-weight:300;font-size:clamp(16px,3.2vmin,20px);line-height:1;font-variant-numeric:tabular-nums}'
+      + '#rline .fs span{margin-top:6px;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.3em;white-space:nowrap;color:var(--dim)}'
+      + '#rline table{width:100%;margin-top:14px;border-collapse:collapse;font-variant-numeric:tabular-nums}#rline td,#rline th{padding:4px 2px;text-align:right;font-weight:400;border-top:1px solid rgba(244,247,251,.08)}'
+      + '#rline th{border-top:0;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.24em;color:var(--faint)}#rline td:first-child,#rline th:first-child{text-align:left}#rline td:first-child{font-family:var(--f-song);letter-spacing:.1em}'
+      + '#rline tr.worst td{color:#ffc4b8}#rline .tip{margin-top:10px;font-size:11px;line-height:1.7;letter-spacing:.1em;color:var(--dim)}#rline .tip:empty{display:none}'
+      + '#rline .bt{display:flex;gap:8px;margin-top:16px}#rline button{flex:1;appearance:none;-webkit-appearance:none;margin:0;border:0;height:38px;border-radius:12px;font-family:var(--f-ui);font-size:12px;letter-spacing:.14em;cursor:pointer;color:var(--dim);background:rgba(5,8,13,.25);box-shadow:inset 0 0 0 1px var(--hair);transition:color .2s,box-shadow .2s}'
+      + '#rline button.p{color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun);font-family:var(--f-song);letter-spacing:.3em}'
+      + '@media (hover:hover){#rline button:hover{color:var(--snow);box-shadow:inset 0 0 0 1px rgba(244,247,251,.5)}#rline button.p:hover{color:#ffe2b5;box-shadow:inset 0 0 0 1px #ffe2b5}}'
+      + '#rline kbd{margin-left:.5em;font-family:var(--f-lat);font-size:.85em;letter-spacing:.04em;opacity:.6}</style>'
+      + '<div class="tm"></div><div class="sub"></div><div class="pop"></div><div class="spl"></div><div class="cd"></div><div class="ban"><b></b><span class="rule"></span><i></i></div><div class="card"></div>';
+    (document.getElementById('app') || document.body).appendChild(d); L.el = d;
+    d.addEventListener('click', e => { const a = e.target && e.target.dataset && e.target.dataset.a, cb = e.target && e.target.closest && e.target.closest('[data-cb]'); if (cb) { const b = RG.cardButtons[+cb.dataset.cb]; if (b && b.on) b.on(); return; } if (a === 'again') lineRestart(); else if (a === 'harder') lineHarder(); else if (a === 'free') lineFree(); });
     L.q = k => d.querySelector('.' + k);
     return d;
   }
@@ -351,7 +453,13 @@ const Rings = (() => {
     L.st = 'go'; L.pen = 0; L.split = []; L.ci = 0; L.missSeen = 0; L.rec = recLoad();
     Game.mode = 'title'; GS0.call(Game);          // (the game's own push-off: G.start sets the clock to 0 here)
     lineEnd();
+    emit('go', { line: L.id, name: LINES[L.id].name, diff: L.diff, sEnd: L.sEnd });
   }
+  // ---- hooks for other parts (the replay, 93_replay.js): RG.hooks.go / .finish get { line, diff, ... } when a challenge pushes off and
+  // crosses the finish; RG.cardButtons [{ label, key, on() }] are added to the result card's row; RG.cardShow(on) hides / brings back the card
+  RG.hooks = { go: [], finish: [] }; RG.cardButtons = [];
+  function emit(k, o) { for (const f of RG.hooks[k] || []) try { f(o); } catch (e) { console.warn('rings hook ' + k + ':', e); } }
+  RG.cardShow = on => { if (L.el && L.st === 'done') L.q('card').classList.toggle('on', !!on); };
   function lineFinish() {
     if (L.st !== 'go') return;
     L.st = 'done'; L.tEnd = Game.runT; L.split.push(L.tEnd); brake(true);
@@ -361,48 +469,78 @@ const Rings = (() => {
     const isNew = !best || score < best.score - 1e-6;
     const rec = { best: isNew ? { score, t: L.tEnd, miss, tot, date: Date.now() } : best, seg: seg.map((d, i) => segBest[i] != null ? Math.min(segBest[i], d) : d), runs: ((old && old.runs) || 0) + 1 };
     recSave(rec);
-    try { if (typeof Cards !== 'undefined' && Cards.emit) Cards.emit('ring.line', { line: 'speed', full: miss === 0, t: L.tEnd, missed: miss }); } catch (e) { }          // (集卡: the card system picks it up when it is there)
+    try { if (typeof Cards !== 'undefined' && Cards.emit) Cards.emit('ring.line', { line: L.id === 'x' ? 'cross' : 'speed', full: miss === 0, t: L.tEnd, missed: miss }); } catch (e) { }          // (集卡: the card system picks it up when it is there)
     setTxt('tm', fmt(score)); L.q('tm').classList.add('fin'); setTxt('sub', '光圈 ' + RG.passed + ' / ' + tot + (miss ? ' · 罚时 +' + miss * p + ' 秒' : ' · 全部穿过'));
     const ban = L.q('ban'); ban.querySelector('b').textContent = fmt(score);
-    ban.querySelector('i').textContent = isNew ? (best ? '新纪录！快了 ' + (best.score - score).toFixed(1) + ' 秒' : '第一次完成') : '比最好慢 ' + (score - best.score).toFixed(1) + ' 秒';
+    ban.querySelector('i').textContent = isNew ? (best ? '新纪录！快了 ' + (best.score - score).toFixed(2) + ' 秒' : '第一次完成') : '比最好慢 ' + (score - best.score).toFixed(2) + ' 秒';
     ban.classList.add('on'); setTimeout(() => ban.classList.remove('on'), 1400);          // (gone before the card slides in)
     beep(880, 0.25, 0.18); setTimeout(() => beep(1320, 0.6, 0.16), 140);
     // the card: what this run was, against the best before it
     let worst = -1, wd = 0;
     const rows = seg.map((d, i) => { const b = segBest[i]; const df = b != null ? d - b : null; if (df != null && df >= 0.3 && df > wd) { wd = df; worst = i; } return { n: L.names[i] || (i + 1) + '', d, b, df }; });
-    const td = r => '<td>' + (r.b != null ? fmt(r.b) : '—') + '</td><td class="' + (r.df == null || Math.abs(r.df) < 0.05 ? '' : r.df < 0 ? 'g' : 'r') + '">' + (r.df == null ? '' : sgn(r.df)) + '</td>';
-    L.q('card').innerHTML = '<h3>' + LINES[L.id].name + ' · ' + DNAME[L.diff] + '</h3><div class="big">' + fmt(score) + '</div>'
-      + '<div class="dl ' + (isNew ? 'g' : 'r') + '">' + (isNew ? (best ? '新纪录 · 快了 ' + (best.score - score).toFixed(1) + ' 秒' : '第一次完成 · 这就是你的纪录') : '最好 ' + fmt(best.score) + ' · 慢了 ' + (score - best.score).toFixed(1) + ' 秒') + '</div>'
-      + '<div class="row"><span>用时 ' + fmt(L.tEnd) + '</span><span>光圈 ' + RG.passed + ' / ' + tot + '</span><span>罚时 ' + (miss ? '+' + miss * p + ' 秒' : '0') + '</span></div>'
+    const td = r => '<td>' + (r.b != null ? fmt(r.b) : '—') + '</td><td class="' + (r.df == null || Math.abs(r.df) < 0.005 ? '' : r.df < 0 ? 'g' : 'r') + '">' + (r.df == null ? '' : sgn(r.df)) + '</td>';
+    const fs = items => '<div class="fs">' + items.map(([v, k, c]) => '<div><b' + (c ? ' class="' + c + '"' : '') + '>' + v + '</b><span>' + k + '</span></div>').join('') + '</div>';
+    L.q('card').innerHTML = '<h3><em>' + LINES[L.id].name + '</em>' + DNAME[L.diff] + '</h3><div class="big">' + fmt(score) + '</div><div class="rule"></div>'
+      + '<div class="dl ' + (isNew ? 'g' : 'r') + '">' + (isNew ? (best ? '新纪录，快了 ' + (best.score - score).toFixed(2) + ' 秒' : '第一次完成，这就是你的纪录') : '比最好慢 ' + (score - best.score).toFixed(2) + ' 秒') + '</div>'
+      + fs([[fmt(L.tEnd), '用时'], [RG.passed + ' / ' + tot, '光圈'], [miss ? '+' + miss * p : '0', '罚时', miss ? 'r' : '']])
       + '<table><tr><th>分站</th><th>本局</th><th>之前最好</th><th></th></tr>' + rows.map((r, i) => '<tr' + (i === worst ? ' class="worst"' : '') + '><td>' + r.n + '</td><td>' + fmt(r.d) + '</td>' + td(r) + '</tr>').join('') + '</table>'
-      + '<div class="tip">' + [miss ? '漏了 ' + miss + ' 个圈，罚时 +' + miss * p + ' 秒' : '', worst >= 0 ? '最慢的一站：' + rows[worst].n + '（比最好慢 ' + wd.toFixed(1) + ' 秒）' : ''].filter(Boolean).join('；') + '</div>'
-      + '<div class="cmp"><div><span>个人最好</span><b>' + fmt(rec.best.score) + '</b></div><div><span>全部最好</span><b class="gtop">…</b></div><div><span>排名</span><b class="grank">…</b></div></div>'
-      + '<div class="bt"><button class="p" data-a="again">再来一局 ⏎</button>' + (DNEXT[L.diff] ? '<button data-a="harder">增加难度 ↑</button>' : '') + '<button data-a="free">继续滑 Esc</button></div>';
+      + '<div class="tip">' + [miss ? '漏了 ' + miss + ' 个圈，罚时 +' + miss * p + ' 秒' : '', worst >= 0 ? '最慢的一站：' + rows[worst].n + '，比最好慢 ' + wd.toFixed(2) + ' 秒' : ''].filter(Boolean).join('；') + '</div>'
+      + fs([[fmt(rec.best.score), '个人最好'], ['…', '全部最好', 'gtop'], ['…', '排名', 'grank']])
+      + '<div class="bt"><button class="p" data-a="again">再来一局<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">增加难度</button>' : '') + '' + RG.cardButtons.map((b, i) => '<button data-cb="' + i + '">' + b.label + (b.key ? '<kbd>' + b.key + '</kbd>' : '') + '</button>').join('') + '<button data-a="free">继续滑<kbd>Esc</kbd></button></div>';
+    emit('finish', { line: L.id, name: LINES[L.id].name, diff: L.diff, score, t: L.tEnd, missed: miss, passed: RG.passed, splits: L.split.slice(), names: L.names.slice(), isNew });
     board(score);
-    clearTimeout(L.cardT); L.cardT = setTimeout(() => { if (L.st === 'done') L.q('card').classList.add('on'); }, 1500);
+    clearTimeout(L.cardT); L.cardT = setTimeout(() => { if (L.st === 'done') L.q('card').classList.add('on'); }, 350);          // (用户 21:25 UTC: 停下来那一瞬间菜单就弹出来)
   }
   // the boards (小红书 only): the best of everyone and this player's place, filled in when they come back
   function board(score) {
     const set = (a, b) => { const c = L.q('card'), x = c.querySelector('.gtop'), y = c.querySelector('.grank'); if (x) x.textContent = a; if (y) y.textContent = b; };
-    if (typeof Rank === 'undefined' || !Rank.line || !Rank.on || L.diff !== 'b' || L.id !== 'a') { set('—', '—'); return; }
-    Rank.line(score).then(r => { if (L.st !== 'done') return; if (!r) { set('—', '—'); return; } set(r.top != null ? fmt(r.top) : '—', r.rank != null ? (typeof r.rank === 'number' ? '第 ' + r.rank + ' 名' : r.rank) : '—'); });
+    const bd = boardOf(L.id, L.diff);
+    if (typeof Rank === 'undefined' || !Rank.line || !Rank.on || !bd) { set('—', '—'); return; }
+    Rank.line(score, bd).then(r => { if (L.st !== 'done') return; if (!r) { set('—', '—'); return; } set(r.top != null ? fmt(r.top) : '—', r.rank != null ? (typeof r.rank === 'number' ? '第 ' + r.rank + ' 名' : r.rank) : '—'); });
   }
   // (用户 18:54 UTC: 结束后就可以停下来): through the finish the skier stops by himself, the way a skier does: held right over into a turn
   // across the hill until the skis stand still (the game's own turning brake, nothing pulls him), until 继续滑 or 再来一局 gives the skis back
   function brake(on) {
     if (typeof Input === 'undefined') return;
-    if (!on) { if (L.braking) { Input.script = null; Input.faScript = null; L.braking = 0; } return; }
-    const S = Game.s; L.braking = (S.v[0] || 0) >= 0 ? 1 : -1;
+    if (!on) { if (L.braking) { Input.script = null; Input.faScript = null; L.braking = 0; } park(false); return; }
+    const S = Game.s; L.braking = (S.v[0] || 0) >= 0 ? 1 : -1; L.brakeT = 0; L.brakeV0 = null;
+  }
+  function park(on) {
+    if (typeof Game === 'undefined' || !Game.s) return;
+    if (on) {
+      const S = Game.s; S.v[0] = S.v[1] = S.v[2] = 0; S.speed = 0; S.tuck = 0; S.lean = 0; if ('leanV' in S) S.leanV = 0; if ('beta' in S) S.beta = 0; if ('charge' in S) S.charge = 0;
+      Input.script = 0; Input.faScript = 0; Game.mode = 'park'; L.parked = true;
+    } else if (L.parked) { L.parked = false; if (Game.mode === 'park') Game.mode = 'run'; }
   }
   function lineHarder() { const n = DNEXT[L.diff]; if (!n) return; Variants.set('ringdiff', n); lineRestart(); }
   function lineRestart() {
     brake(false); hideAll(); L.st = 'idle';
-    if (typeof UI !== 'undefined' && UI.toTop && UI.toTop()) setTimeout(() => { if (UI.state === 'title') UI.go(); }, 800);
+    if (typeof UI !== 'undefined' && UI.toTop && UI.toTop()) setTimeout(() => { if (UI.state === 'title') { RG.chal = true; UI.go(); } }, 800);
   }
   function lineFree() { brake(false); L.q('card').classList.remove('on'); L.st = 'free'; setTxt('tm', ''); setTxt('sub', ''); }
   function lineFrame(T) {
-    if (L.braking && typeof Input !== 'undefined') { if (L.st === 'done' && Game.mode === 'run') { Input.script = L.braking; Input.faScript = 0.6; } else brake(false); }
+    if (typeof Game !== 'undefined' && Game.mode === 'replay') { L.lastF = T; return; }          // (the replay (93_replay.js) plays the run back: nothing here moves, brakes or times meanwhile)
     const dt = cl(T - (L.lastF || T), 0, 0.1); L.lastF = T;
+    // (用户 20:57 UTC: 过终点后不要还在溜、做奇怪的动作，直接刹住停下来，站起来看着远方，直到玩家按继续滑): held round into a turn across
+    // the hill (no skid asked for) until under 2 m/s or 6 s, then parked: no more physics steps, the skier stands still where he stopped,
+    // tall and quiet, until 继续滑 or 再来一局. Game.mode 'park' is neither a run nor the title: the pose and the camera still update
+    if (L.braking && typeof Input !== 'undefined') {
+      if (L.st === 'done' && Game.mode === 'run') {
+        // (用户 21:12 UTC: 冲过终点直接甩尾刹车停下来; 21:25 UTC: 菜单马上弹出来，人不要马上停住，缓 2-3 秒慢慢停下来，整个动作要自然).
+        // A hockey stop, eased: the steering comes over in a third of a second (not snapped to full lock), the weight goes forward so the
+        // game skids the skis across, and the speed follows a smooth curve from what it was at the line down to nothing over 2-3 s
+        // (faster lines take the longer time): no jolt as the stop begins, none as it ends. The game's own skid only ever slows it more.
+        // Under 0.3 m/s at the end of it: parked, standing.
+        L.brakeT = (L.brakeT || 0) + dt;
+        const S = Game.s, v = Math.hypot(S.v[0], S.v[1], S.v[2]);
+        if (L.brakeV0 == null) { L.brakeV0 = Math.max(v, 0.5); L.brakeDur = cl(L.brakeV0 / 11, 2, 3); }
+        const u = cl(L.brakeT / L.brakeDur, 0, 1), eas = u * u * (3 - 2 * u);
+        Input.script = L.braking * Math.min(1, L.brakeT / 0.35); Input.faScript = Math.min(1, L.brakeT / 0.5);
+        const vt = L.brakeV0 * (1 - eas);
+        if (!S.air && v > vt && v > 1e-3) { const k = vt / v; S.v[0] *= k; S.v[1] *= k; S.v[2] *= k; }
+        if (u >= 1 || (u > 0.5 && Game.s.speed < 0.3)) park(true);
+      } else if (L.st !== 'done') brake(false);
+    }
     ui();
     const G = Game, title = G.mode === 'title';
     if (title && L.st !== 'idle' && L.st !== 'count') { L.st = 'idle'; hideAll(); }
@@ -414,8 +552,8 @@ const Rings = (() => {
       const k = 3 - Math.floor(L.cT / 0.8), cd = L.q('cd');
       if (k !== L.lastK) {
         L.lastK = k;
-        if (k >= 1) { cd.textContent = k; cd.classList.add('on'); beep(660, 0.14, 0.16); }
-        else { cd.textContent = '出发'; cd.classList.add('on'); beep(1320, 0.35, 0.18); clearTimeout(cd._t); cd._t = setTimeout(() => cd.classList.remove('on'), 700); lineGo(); }
+        if (k >= 1) { cd.textContent = k; cd.classList.remove('w'); cd.classList.add('on'); beep(660, 0.14, 0.16); }
+        else { cd.textContent = '出发'; cd.classList.add('on', 'w'); beep(1320, 0.35, 0.18); clearTimeout(cd._t); cd._t = setTimeout(() => cd.classList.remove('on'), 700); lineGo(); }
       }
       return;
     }
@@ -426,7 +564,7 @@ const Rings = (() => {
       while (L.ci < L.cut.length - 1 && s >= L.cut[L.ci]) {
         const t = G.runT, d = t - (L.ci ? L.split[L.ci - 1] : 0), b = L.rec && L.rec.seg && L.rec.seg[L.ci];
         L.split.push(t);
-        flash('spl', (L.names[L.ci] || '') + '　' + fmt(d) + (b != null ? '　<span class="' + (d <= b ? 'g' : 'r') + '">' + sgn(d - b) + '</span>' : ''), 2200);
+        flash('spl', '<span class="k">' + (L.names[L.ci] || '') + '</span>　' + fmt(d) + (b != null ? '　<span class="' + (d <= b ? 'g' : 'r') + '">' + sgn(d - b) + '</span>' : ''), 2200);
         L.ci++;
       }
       setTxt('tm', fmt(G.runT + L.pen));
@@ -434,19 +572,121 @@ const Rings = (() => {
       setTxt('sub', '穿过 ' + RG.passed + (RG.missed ? ' · 漏 ' + RG.missed + ' · 罚时 +' + L.pen + ' 秒' : '') + (cur && cur.fin ? ' · 前方终点' : ''));
     }
   }
+  // ---- 挑战 on the title page (dev). (用户 21:31 UTC: 出发就是普通地滑；出发底下加一个「挑战」，点开以后再选路线这些.) 出发 and Enter are always
+  // free skiing; 挑战 (a button in the left column like 场景 / 视角) opens a panel: the lines with this device's best, the difficulty,
+  // then 开始挑战 (or Enter), which counts down 3, 2, 1. Esc or 取消 closes it.
+  const PICK = [['a', '速降线', '沿主路，从山顶到山脚'], ['x', '越野线', '钻树林、走侧道，从山顶到山脚']];
+  // (用户 2026-11-18 02:38 UTC: 挑战是根据地图挑战，每个地图都有不同的挑战) each map has its own lines; the panel lists the current map's only.
+  // A map = an official mountain (Course.mountains). Today there is one, 寒烟山, with these two lines; a mountain with none says so
+  const MAP_LINES = { hanyan: ['a', 'x'] };
+  const mapNow = () => { try { const m = Course.mountainBySeed(); return m ? m : null; } catch (e) { return null; } };
+  const mapLines = () => { const m = mapNow(); return m && MAP_LINES[m.id] ? MAP_LINES[m.id] : []; };
+  // the ranked line's board (小红书): the 标准 run of a map's ranked line only (用户 02:40 UTC: 每张地图一条长线上榜)
+  const boardOf = (id, df) => { const m = mapNow(); return m && df === 'b' && typeof Rank !== 'undefined' && Rank.chalBoard ? Rank.chalBoard(m.id, id) : 0; };
+  const RING_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5.6"/><path d="M10 1.8v1.6M10 16.6v1.6M1.8 10h1.6M16.6 10h1.6"/></svg>';
+  function syncLine() { const lid = chalOn() && LINES[Variants.val.rline] ? Variants.val.rline : null; if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); } }
+  function chalButton() {
+    if (RG.cb || typeof document === 'undefined') return;
+    const more = document.getElementById('more'); if (!more) return;
+    const b = document.createElement('button'); b.type = 'button'; b.className = devOn() ? 'dev-only' : ''; b.innerHTML = RING_ICON + (typeof I18N !== 'undefined' ? I18N.t('挑战') : '挑战');
+    b.addEventListener('click', e => { e.stopPropagation(); pickOpen(true); });
+    more.insertBefore(b, more.firstChild); RG.cb = b;
+  }
+  function pickUI() {
+    if (RG.pk) return RG.pk;
+    const d = document.createElement('div'); d.id = 'rpick';
+    d.innerHTML = '<style>#rpick{position:absolute;left:calc(var(--col) + clamp(200px,24vw,300px));top:50%;transform:translate(-8px,-50%);opacity:0;width:min(320px,40vw);z-index:5;pointer-events:none;background:rgba(5,8,13,.52);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:18px 18px 16px;color:var(--snow);font-family:var(--f-ui);font-size:12px;transition:opacity .35s ease,transform .45s cubic-bezier(.2,.6,.2,1)}'
+      + '#rpick.on{opacity:1;transform:translate(0,-50%);pointer-events:auto}'
+      + '#rpick h4{margin:0 0 12px;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.4em;color:var(--dim);white-space:nowrap}#rpick .l{display:flex;flex-direction:column;gap:6px}'
+      + '#rpick button{appearance:none;-webkit-appearance:none;margin:0;border:0;font:inherit;color:var(--dim);cursor:pointer;box-sizing:border-box;text-align:left;border-radius:10px;padding:9px 12px;background:rgba(5,8,13,.25);box-shadow:inset 0 0 0 1px var(--hair);transition:color .2s,box-shadow .2s}'
+      + '#rpick button.on{color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun)}@media (hover:hover){#rpick button:not(.on):hover{color:var(--snow);box-shadow:inset 0 0 0 1px rgba(244,247,251,.5)}}'
+      + '#rpick .l button b{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--f-song);font-weight:400;font-size:15px;letter-spacing:.2em;line-height:1.4;color:var(--snow)}#rpick .l button.on b{color:var(--sun)}'
+      + '#rpick .l button i{display:block;margin-top:2px;font-style:normal;font-size:11px;letter-spacing:.1em;color:var(--faint)}#rpick .l button em{font-family:var(--f-lat);font-style:normal;font-weight:300;font-size:13px;letter-spacing:.02em;font-variant-numeric:tabular-nums;color:var(--dim)}'
+      + '#rpick .r{display:flex;gap:6px;margin-top:10px}#rpick .r button{flex:1;text-align:center;padding:0;height:32px;border-radius:10px;letter-spacing:.2em}'
+      + '#rpick .t{margin-top:12px;font-size:11px;line-height:1.7;letter-spacing:.1em;color:var(--dim)}'
+      + '#rpick .bt{display:flex;gap:8px;margin-top:14px}#rpick .bt button{flex:1;text-align:center;height:40px;padding:0;border-radius:12px;letter-spacing:.2em}'
+      + '#rpick .bt .go{flex:1.6;color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun);font-family:var(--f-song);font-size:15px;letter-spacing:.5em;text-indent:.5em}'
+      + '#rpick .l button i .rk{display:block;margin-top:3px;color:var(--dim);letter-spacing:.06em}#rpick .no{padding:14px 4px;font-size:13px;line-height:1.8;letter-spacing:.12em;color:var(--dim)}#rpick.none .r,#rpick.none .t,#rpick.none .go{display:none}'
+      + '#rpick kbd{margin-left:.4em;font-family:var(--f-lat);font-size:.75em;letter-spacing:.04em;opacity:.6;text-indent:0}</style>'
+      + '<h4>挑战 · CHALLENGE</h4><div class="l"></div><div class="r d"></div><div class="t"></div><div class="bt"><button class="go" data-go="1">开始挑战</button><button data-x="1">取消<kbd>Esc</kbd></button></div>';
+    (document.getElementById('app') || document.body).appendChild(d); RG.pk = d;
+    d.addEventListener('click', e => {
+      e.stopPropagation();          // (a click anywhere on the title page is 出发: never from inside this panel)
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.l) { RG.pkSel = b.dataset.l; pickDraw(); }
+      else if (b.dataset.d) { Variants.set('ringdiff', b.dataset.d); pickDraw(); }
+      else if (b.dataset.go) chalGo();
+      else if (b.dataset.x) pickOpen(false);
+    });
+    return d;
+  }
+  function bestOf(id, df) { try { const k = 'coldsmoke.line.' + id + '.' + df, S = ST(); const r = S ? S.getJSON(k) : JSON.parse(localStorage.getItem(k) || 'null'); return r && r.best ? r.best.score : null; } catch (e) { return null; } }
+  function pickDraw() {
+    const d = pickUI(), df = diffKey(), ids = mapLines(), m = mapNow();
+    if (!ids.includes(RG.pkSel)) RG.pkSel = ids.includes(Variants.val.rline) ? Variants.val.rline : ids[0];
+    const cur = RG.pkSel;
+    d.querySelector('h4').textContent = '挑战 · ' + (m ? m.zh : '这张地图');
+    d.classList.toggle('none', !ids.length);
+    d.querySelector('.l').innerHTML = !ids.length ? '<div class="no">这张地图还没有挑战。<br>回到寒烟山就有。</div>' : PICK.filter(p => ids.includes(p[0])).map(([id, n, t]) => {
+      const b = bestOf(id, df), bd = boardOf(id, df);
+      return '<button data-l="' + id + '" class="' + (cur === id ? 'on' : '') + '"><b>' + n + (b != null ? '<em>最好 ' + fmt(b) + '</em>' : '') + '</b><i>' + t + (bd ? '<span class="rk" data-rk="' + id + '">排行榜 · 读取中…</span>' : df !== 'b' && boardOf(id, 'b') ? '<span class="rk">只有「标准」上排行榜</span>' : '') + '</i></button>';
+    }).join('');
+    // the place and the best of everyone, for the ranked line (小红书 only; elsewhere the line just says 排行榜 in the 小红书 version)
+    const sig = RG.pkSig = (RG.pkSig || 0) + 1;
+    for (const sp of d.querySelectorAll('[data-rk]')) {
+      const id = sp.dataset.rk, bd = boardOf(id, df);
+      if (typeof Rank === 'undefined' || !Rank.on || !Rank.line) { sp.textContent = '排行榜在小红书里'; continue; }
+      Rank.line(null, bd).then(r => { if (RG.pkSig !== sig || !sp.isConnected) return; sp.textContent = !r ? '排行榜暂时读不到' : (r.top != null ? '第一 ' + fmt(r.top) : '还没有人上榜') + (r.rank != null ? ' · 我 ' + (typeof r.rank === 'number' ? '第 ' + r.rank + ' 名' : r.rank) : ''); });
+    }
+    d.querySelector('.d').innerHTML = ['a', 'b', 'c'].map(k => '<button data-d="' + k + '" class="' + (df === k ? 'on' : '') + '">' + DNAME[k] + '</button>').join('');
+    d.querySelector('.t').textContent = '漏一个圈罚 ' + PEN[df] + ' 秒 · 开始后倒数 3、2、1 · 途中 Backspace 重来';
+  }
+  function pickOpen(on) {
+    if (on && !(typeof UI !== 'undefined' && UI.state === 'title' && !UI.open)) return;
+    RG.pkOpen = !!on; const d = pickUI(); if (on) pickDraw(); d.classList.toggle('on', !!on);
+  }
+  function chalGo() {
+    const ids = mapLines(); if (!ids.length) return;
+    const id = ids.includes(RG.pkSel) ? RG.pkSel : ids[0];
+    Variants.set('rline', id); syncLine(); pickOpen(false);
+    RG.chal = true; if (typeof UI !== 'undefined') UI.go();
+  }
+  // 出发 (the button, Enter, a click on the picture) is free skiing: the line is put away first, unless the run being started is a challenge
+  if (typeof UI !== 'undefined' && UI.go) {
+    const GO0 = UI.go;
+    UI.go = function () {
+      if (chalOn() && typeof Variants !== 'undefined') { if (!RG.chal && Variants.val.rline !== 'off') Variants.set('rline', 'off'); RG.chal = false; syncLine(); }
+      pickOpen(false);
+      return GO0.apply(this, arguments);
+    };
+  }
+  if (typeof addEventListener !== 'undefined') addEventListener('keydown', e => {
+    if (!RG.pkOpen || e.repeat) return;
+    if (e.code === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); pickOpen(false); }
+    else if (e.code === 'Enter') { e.preventDefault(); e.stopImmediatePropagation(); chalGo(); }
+  }, true);
+  function pickFrame() {
+    if (typeof document === 'undefined') return;
+    if (chalOn()) chalButton();
+    if (RG.pkOpen && !(typeof UI !== 'undefined' && UI.state === 'title' && !UI.open)) pickOpen(false);
+  }
+  RG.share = shareOn();          // (19b_rank.js: the challenge boards show on the share link too)
+  RG.lipOf = lipOf; RG.kickerIn = kickerIn;          // (for test scripts)
   RG.line = L; if (typeof window !== 'undefined') window.__rings = RG;          // (for test scripts)
   const GS0 = typeof Game !== 'undefined' ? Game.start : null;
   if (GS0) Game.start = function () { if (L.id && Game.s) { if (L.st !== 'count') lineArm(); return; } return GS0.apply(this, arguments); };
   if (typeof addEventListener !== 'undefined') addEventListener('keydown', e => {
     if (!L.id || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (typeof Game !== 'undefined' && Game.mode === 'replay') return;          // (the replay has the keys while it plays)
     const card = L.el && L.q('card').classList.contains('on');
     if (card && (e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); e.stopImmediatePropagation(); if (e.code === 'Enter') lineRestart(); else lineFree(); return; }
     if (e.code === 'Backspace' && typeof UI !== 'undefined' && UI.state === 'run' && !UI.open) { e.preventDefault(); e.stopImmediatePropagation(); lineRestart(); }
   }, true);
   RG.frame = function () {
-    const lid = typeof Variants !== 'undefined' && devOn() && LINES[Variants.val.rline] ? Variants.val.rline : null;
+    if (typeof document !== 'undefined') try { pickFrame(); } catch (e) { if (!RG.perr) { RG.perr = 1; console.warn('pick:', e); } }
+    const lid = typeof Variants !== 'undefined' && chalOn() && LINES[Variants.val.rline] ? Variants.val.rline : null;
     if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); }
-    const want = typeof Variants !== 'undefined' && (Variants.val.rings === 'on' || !!L.id) && devOn();
+    const want = typeof Variants !== 'undefined' && chalOn() && ((Variants.val.rings === 'on' && devOn()) || !!L.id);
     if (want !== RG.on) { RG.on = want; reset(); hud(); }
     const T = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
     if (L.id && typeof document !== 'undefined') try { lineFrame(T); } catch (e) { if (!RG.lerr) { RG.lerr = 1; console.warn('line:', e); } }
@@ -454,20 +694,34 @@ const Rings = (() => {
     // The count-down at the gate holds the skier the same way, but the rings ahead are already there and alive, so the line can be read
     const counting = L.st === 'count';
     if (RG.on && typeof Game !== 'undefined' && Game.mode === 'hold' && !counting) return;
-    if (!RG.on || typeof Game === 'undefined' || !Game.s || (Game.mode !== 'run' && !counting)) { drawList = []; if (RG.hud) RG.hud.style.display = 'none'; return; }
-    lastT = T;
+    // (the replay, 93_replay.js: Game.mode 'replay'; RG.replay(T) sets RG.rings to how they stood at that moment of the run, then they are drawn)
+    if (RG.on && typeof Game !== 'undefined' && Game.mode === 'replay') { if (RG.replay) try { RG.replay(T); prep(T); } catch (e) { drawList = []; } else drawList = []; return; }
+    if (!RG.on || typeof Game === 'undefined' || !Game.s || (Game.mode !== 'run' && Game.mode !== 'park' && !counting)) { drawList = []; if (RG.hud) RG.hud.style.display = 'none'; return; }
+    lastT = T;          // (park: stopped past the finish, the rings stay where they are and keep moving)
     RG.n++; try { update(T); prep(T); hud(); trail(); } catch (e) { drawList = []; if (!RG.err) { RG.err = 1; console.warn('rings:', e); } }
   };
   // hang on the game's own draw: the rings are worked out just before each frame, drawn inside it by the render passes
   if (typeof Render !== 'undefined') {
-    const R0 = Render.render; Render.render = function () { RG.frame(); return R0.apply(this, arguments); };
+    const R0 = Render.render; Render.render = function () { RG.frame(); order(); return R0.apply(this, arguments); };
     const I0 = Render.init; Render.init = function (g) { const out = I0.apply(this, arguments); try { RG.init(g); } catch (e) { console.warn('rings init:', e); } return out; };
     // (a pipeline that failed to build must never take the game's frame down with it: the rings are then simply not drawn)
     const safe = f => R => { try { f(R); } catch (e) { if (!RG.gerr) { RG.gerr = 1; console.warn('rings draw:', e && e.message ? e.message : e); } } };
-    Render.passes.shadow.push(safe(R => RG.drawShadow(R)));
-    Render.passes.transparent.push(safe(R => RG.drawScene(R)));
-    Render.passes.transparent.push(safe(R => RG.drawGhosts(R)));
-    Render.passes.fx.push(safe(R => RG.drawLight(R)));
+    // (用户 2026-11-18 07:46 UTC: 云把近处的光圈挡住了) The rings write no depth, so whatever transparent thing is drawn after them covers them,
+    // however far it is. This file loads before the game's own passes are put in (99_main.js boot), so the rings used to come first: the sky's
+    // clouds, the cloud sea, the far city's lights, the tree ghosts and the gate flags then all drew over a ring 20 m away. Every frame the
+    // rings are put back where they belong: last of the transparent pass (they are always nearer than the clouds and the vista), and in the
+    // fx pass straight after the far snowfall's veil (Dust.veil, the first there), under the near spray and snow
+    const pS = safe(R => RG.drawShadow(R)), pT = safe(R => RG.drawScene(R)), pG = safe(R => RG.drawGhosts(R)), pL = safe(R => RG.drawLight(R));
+    const order = () => {
+      const P = Render.passes, t = P.transparent, f = P.fx, n = t.length;
+      if (t[n - 2] !== pT || t[n - 1] !== pG) { for (const q of [pT, pG]) { const i = t.indexOf(q); if (i >= 0) t.splice(i, 1); } t.push(pT, pG); }
+      const want = f.length > 1 ? 1 : 0;
+      if (f[want] !== pL) { const i = f.indexOf(pL); if (i >= 0) f.splice(i, 1); f.splice(Math.min(f.length, f.length > 0 && f[0] !== pL ? 1 : 0), 0, pL); }
+    };
+    RG.order = order;
+    Render.passes.shadow.push(pS);
+    Render.passes.transparent.push(pT, pG);
+    Render.passes.fx.push(pL);
   }
   return RG;
 })();
@@ -505,7 +759,8 @@ fn ringQuad(corner: vec2f, p0: vec3f, p1: vec3f, rw: f32, minPx: f32) -> RQ {
 // Each is a pure function of (index, time): a life of a few seconds, then it is born again somewhere else on the ring
 // one grain of a ring, a pure function of (index, time): where it is, how bright, how big
 const DUST_SSL = `
-struct DG { p: vec3f, b: f32, wsz: f32, minPx: f32, up: f32, col: vec3f }
+struct DG { p: vec3f, b: f32, wsz: f32, minPx: f32, up: f32, col: vec3f, st: vec3f }
+fn bez3(a: vec3f, b: vec3f, c: vec3f, d: vec3f, t: f32) -> vec3f { let u: f32 = 1.0 - t; return a * (u * u * u) + b * (3.0 * u * u * t) + c * (3.0 * u * t * t) + d * (t * t * t); }
 fn dustGrain(i: u32) -> DG {
   var g: DG;
   let C: vec3f = M.a.xyz; let R0: f32 = M.a.w; let open: f32 = M.b.x; let dis: f32 = M.b.y;
@@ -524,16 +779,16 @@ fn dustGrain(i: u32) -> DG {
     // (用户 05:22 UTC: 整个圈要明显是点组成的，中间很密，点都在动、动得快，轻、飘): no solid tube any more. The grains crowd toward the
     // ring's middle line (rad ~ h.y squared), each running along the ring at its own pace one way or the other and jittering fast on its spot
     let rad: f32 = 0.36 * sz * h.y * h.y; let th: f32 = h.z * 6.2831853;
-    let jf: f32 = 3.0 + 4.0 * h2.x;
-    rr = R0 + rad * cos(th) + 0.035 * sz * sin(T * jf + h.x * 40.0);
-    dz = rad * sin(th) + 0.035 * sz * cos(T * jf * 0.83 + h.y * 40.0);
-    let flow: f32 = (0.5 + 1.4 * h2.y) * select(-1.0, 1.0, h2.z > 0.5) / max(R0, 1.0);
+    let fin: f32 = M.d.y; let jf: f32 = (3.0 + 4.0 * h2.x) * (1.0 + 0.6 * fin);          // (the finish ring (用户 21:33 UTC): the same green, but bigger, denser, brighter and livelier)
+    rr = R0 + rad * cos(th) + 0.035 * (1.0 + 1.8 * fin) * sz * sin(T * jf + h.x * 40.0);
+    dz = rad * sin(th) + 0.035 * (1.0 + 1.8 * fin) * sz * cos(T * jf * 0.83 + h.y * 40.0);
+    let flow: f32 = (0.5 + 1.4 * h2.y) * (1.0 + 1.2 * fin) * select(-1.0, 1.0, h2.z > 0.5) / max(R0, 1.0);
     ang = ang + flow * u * L + 0.02 * sin(T * jf * 1.3 + h.z * 40.0);
     let fade: f32 = min(1.0, min(u / 0.12, (1.0 - u) / 0.2));
     let blink: f32 = 0.45 + 0.55 * pow(0.5 + 0.5 * sin(T * (4.0 + 6.0 * h2.x) + h.y * 30.0), 3.0);
     let qn: f32 = saturate((grown - (0.3 + 0.45 * h2.y)) / 0.25);
     b = fade * blink * qn * (1.0 - 0.5 * h.y);
-    wsz = 0.032 * sz * (0.6 + 0.9 * h2.z); minPx = 1.4;
+    wsz = 0.032 * sz * (0.6 + 0.9 * h2.z); minPx = 1.8;
     col = mix(ringHue(ang, 0.0, n), vec3f(0.9, 1.0, 0.97), 0.4 * h2.x * h2.x);
   } else if (kind == 1u) {
     let ou: f32 = 0.15 + 0.85 * h2.x;
@@ -554,7 +809,156 @@ fn dustGrain(i: u32) -> DG {
     wsz = 0.02 * sz; minPx = 1.1; up = (0.25 + 0.35 * w) * sz;
     col = ringHue(ang, 0.25, n);
   }
-  if (dis > 0.0) {
+  // ---- 下一个圈提示 (Variants rflow; 用户 2026-11-18 08:04 UTC: 下一个圈常被地形挡住，穿圈时不知道下一个在哪；靠近这个圈时就要有一个
+  // 直观、subtle 的提示，大概知道下一个在哪). M.d.w the kind (1-5, 0 none), M.f the next ring (centre, radius), M.e.w how near this ring is.
+  //   1 一群光游过去 ~0.6 s before the ring (15:54 UTC) 4.5% of the grains gather into a loose swarm that swims on one meandering curve to the next ring (08:06 UTC)
+  //   2 一缕光线    at the splash a single thin thread of grains leaves the side facing the next ring and draws one line to it
+  //   3 细流引路    from ~40 m out a few grains keep peeling off and drifting to the next ring, a faint living trickle that points the way
+  //   4 亮边指方向  the side of this ring facing the next one glows brighter and leans out, a compass on the ring itself
+  //   5 远处光柱    a faint column of grains rises 20 m over the next ring, seen above a crest that hides the ring itself
+  //   6 溪流 / 7 细高光柱 / 8 螺旋光柱: 16:23 UTC variants of 3 and 5 (see each below)
+  var flowP: vec3f = vec3f(0.0); var flowSt: vec3f = vec3f(0.0); var useFlow: f32 = 0.0;
+  let hsel: vec3f = hashu3(i * 37u + rid * 613u + 21u);
+  let md: f32 = M.d.w; let apr: f32 = M.e.w;
+  let N: vec3f = M.f.xyz; let RN: f32 = M.f.w;
+  let dxy: vec2f = vec2f(N.x - C.x, (N.y - C.y) * 0.35); let angD: f32 = atan2(dxy.y, dxy.x); let dk: f32 = saturate(length(dxy) / 3.0);
+  if (md > 3.5 && md < 4.5 && kind == 0u) {
+    let w: f32 = pow(max(0.0, cos(ang - angD)), 10.0) * dk * apr * (1.0 - saturate(dis * 3.0));
+    b = b * (1.0 + 2.2 * w); rr = rr + w * 0.22 * sz;
+  }
+  if (md > 0.5 && md < 1.5 && M.g.x >= 0.0 && kind == 0u && hsel.x < 0.07) {
+    // a swarm (用户 08:06 UTC: 不要每颗直线飞过去，突兀；要像一群 swarm，沿一条不规则的曲线一起游到下一个圈). The grains gather off the ring's
+    // side that faces the next one into a loose cloud, the cloud swims on one shared, meandering curve (a cubic plus two slow wiggles that
+    // die at both ends), each grain circling inside it on its own orbit and lagging a little, the cloud swelling mid-way and drawing in
+    // again; at the next ring it spreads back onto the ring, each grain to its own place. No streaks: points only, a third as bright
+    let hd: vec3f = hashu3(i * 23u + rid * 101u + 9u);
+    let hf: vec3f = hashu3(i * 29u + rid * 211u + 17u);
+    let hr: vec3f = hashu3(rid * 131u + 7u);
+    let ro0: f32 = rr * open;
+    let Pown: vec3f = C + vec3f(cos(ang) * ro0, sin(ang) * ro0 + dy, dz);
+    let a1: f32 = angD + 3.1415927 + (hd.x - 0.5) * 2.4;
+    let Pland: vec3f = N + vec3f(cos(a1) * RN, sin(a1) * RN, (hf.y - 0.5) * 0.3);
+    let P0: vec3f = C + vec3f(cos(angD), sin(angD), 0.0) * R0 * open;
+    let P1: vec3f = N + vec3f(cos(angD + 3.1415927), sin(angD + 3.1415927), 0.0) * RN * 0.6;
+    let D: vec3f = P1 - P0; let dl: f32 = length(D);
+    let sd: vec3f = normalize(vec3f(-D.z, 0.0, D.x) + vec3f(0.0001, 0.0, 0.0));
+    let c1: vec3f = P0 + vec3f(cos(angD), sin(angD), 0.0) * 2.0 * sz + vec3f(0.0, 1.2 + 2.0 * hr.x, 0.0) + D * 0.25 + sd * (hr.y - 0.5) * 0.3 * dl;
+    let c2: vec3f = P1 - D * 0.3 + sd * (hr.z - 0.5) * 0.35 * dl + vec3f(0.0, (0.05 + 0.1 * hr.x) * dl, 0.0);
+    let ts: f32 = M.g.x;
+    let delay: f32 = 0.15 * hd.y;
+    let dur: f32 = clamp(1.0 + dl * 0.005, 1.0, 1.5);
+    let t: f32 = saturate((ts - delay) / dur);
+    let e: f32 = mix(t * t * (3.0 - 2.0 * t), 1.0 - (1.0 - t) * (1.0 - t), 0.5);
+    let bell: f32 = sin(3.1415927 * e);
+    let mw: vec3f = (sd * sin(e * 9.4 + hr.x * 6.0) * 0.07 + vec3f(0.0, sin(e * 7.1 + hr.y * 6.0), 0.0) * 0.04) * dl * bell;
+    let core: vec3f = bez3(P0, c1, c2, P1, e) + mw;
+    let th: f32 = hf.x * 6.2831853 + T * (1.5 + 2.5 * hf.z) * select(-1.0, 1.0, hd.z > 0.5);
+    let rs: f32 = (0.5 + 1.6 * hf.y) * (0.5 + 0.9 * bell);
+    let orb: vec3f = sd * (cos(th) * rs) + vec3f(0.0, sin(th) * rs * 0.7, 0.0) + vec3f(0.0, 0.0, (hd.x - 0.5) * 0.8 * sz * bell);
+    let swarm: vec3f = core + orb;
+    let gather: f32 = smoothstep(0.0, 0.22, e); let spread: f32 = smoothstep(0.78, 1.0, e);
+    flowP = mix(mix(Pown, swarm, gather), Pland, spread);
+    flowSt = vec3f(0.0);
+    let after: f32 = ts - delay - dur;
+    let land: f32 = select(1.0, 1.0 - saturate(after / 0.35), after > 0.0);
+    b = b * mix(1.0, 1.1, saturate(t * 5.0)) * land;
+    wsz = wsz * mix(1.0, 2.2, gather * (1.0 - spread)); minPx = mix(minPx, 2.6, gather * (1.0 - spread));          // (bigger grains in flight: at 20-50 m the swarm's 1.8 px dots were lost)
+    useFlow = 1.0;
+  } else if (md > 1.5 && md < 2.5 && dis > 0.0 && kind == 0u && hsel.x < 0.012) {
+    // one thread: every grain on the same curve (handles from the ring's own hash), strung out along it by when it leaves
+    let q: f32 = hsel.x / 0.012; let hr: vec3f = hashu3(rid * 131u + 7u); let hj: vec3f = hashu3(i * 43u + rid * 17u + 3u) - vec3f(0.5);
+    let P0: vec3f = C + vec3f(cos(angD), sin(angD), 0.0) * R0 * open;
+    let P1: vec3f = N + vec3f(cos(angD + 3.1415927), sin(angD + 3.1415927), 0.0) * RN * 0.8;
+    let D: vec3f = P1 - P0; let dl: f32 = length(D);
+    let sd: vec3f = normalize(vec3f(-D.z, 0.0, D.x) + vec3f(0.0001, 0.0, 0.0));
+    let c1: vec3f = P0 + vec3f(cos(angD), sin(angD), 0.0) * 2.5 * sz + vec3f(0.0, 1.0 + 1.5 * hr.x, 0.0) + D * 0.25;
+    let c2: vec3f = P1 - D * 0.3 + sd * (hr.y - 0.5) * 0.25 * dl + vec3f(0.0, 0.08 * dl, 0.0);
+    let ts: f32 = dis * 2.2; let dur: f32 = clamp(0.4 + dl * 0.006, 0.45, 1.0);
+    let t: f32 = saturate((ts - q * 0.35) / dur); let tp: f32 = saturate((ts - q * 0.35 - 0.04) / dur);
+    let e: f32 = 1.0 - pow(1.0 - t, 2.0); let ep: f32 = 1.0 - pow(1.0 - tp, 2.0);
+    let jit: vec3f = hj * 0.18 * sz * sin(3.1415927 * e);
+    flowP = bez3(P0, c1, c2, P1, e) + jit;
+    flowSt = (bez3(P0, c1, c2, P1, ep) + jit - flowP) * select(0.0, 0.3, t > 0.0 && t < 1.0);          // (a short blur only: long straight streaks looked out of place, 08:06 UTC)
+    let after: f32 = ts - q * 0.35 - dur;
+    b = 0.55 * select(1.0, 1.0 - saturate(after / 0.3), after > 0.0) * select(0.0, 1.0, t > 0.0);
+    useFlow = 1.0;
+  } else if (md > 2.5 && md < 3.5 && apr > 0.0 && kind == 0u && hsel.x < 0.006) {
+    // a trickle: each of these grains leaves its place on the ring every 1.6 s or so and drifts to the next ring, on a new curve each time
+    let Pd: f32 = 1.4 + 0.5 * hsel.z; let ph: f32 = T / Pd + hsel.y * 7.0; let cyc: u32 = u32(floor(ph)); let t: f32 = fract(ph);
+    let hd: vec3f = hashu3(i * 53u + cyc * 7919u + rid * 3u + 1u);
+    let a0: f32 = hd.x * 6.2831853; let ro0: f32 = R0 * open;
+    let P0: vec3f = C + vec3f(cos(a0) * ro0, sin(a0) * ro0, 0.0);
+    let P1: vec3f = N + vec3f(cos(a0 + (hd.y - 0.5)) * RN, sin(a0 + (hd.y - 0.5)) * RN, 0.0);
+    let D: vec3f = P1 - P0; let dl: f32 = length(D);
+    let sd: vec3f = normalize(vec3f(-D.z, 0.0, D.x) + vec3f(0.0001, 0.0, 0.0));
+    let c1: vec3f = P0 + vec3f(cos(a0), sin(a0), 0.0) * (0.5 + 1.5 * hd.z) * sz + vec3f(0.0, 0.5 + hd.x, 0.0) + D * 0.2;
+    let c2: vec3f = P1 - D * 0.25 + sd * (hd.z - 0.5) * 0.2 * dl;
+    let e: f32 = t * t * (3.0 - 2.0 * t); let tp: f32 = max(0.0, t - 0.03); let ep: f32 = tp * tp * (3.0 - 2.0 * tp);
+    flowP = bez3(P0, c1, c2, P1, e);
+    flowSt = (bez3(P0, c1, c2, P1, ep) - flowP) * 0.3;
+    b = 0.45 * apr * sin(3.1415927 * t) * (1.0 - saturate(dis * 3.0));
+    useFlow = 1.0;
+  } else if (md > 4.5 && md < 5.5 && kind == 0u && hsel.x < 0.03 && apr > 0.0) {
+    // a beacon: grains rise slowly in a loose column over the next ring and fade at the top
+    let ph: f32 = fract(T / 3.2 + hsel.y * 11.0); let a0: f32 = hsel.z * 6.2831853 + T * 0.4; let rj: f32 = RN * 0.45 * sqrt(fract(hsel.y * 37.0));
+    flowP = N + vec3f(cos(a0) * rj, RN * 0.6 + ph * 20.0, sin(a0) * rj);
+    flowSt = vec3f(0.0, -0.35, 0.0);
+    b = 0.4 * apr * sin(3.1415927 * ph) * (1.0 - 0.6 * ph) * (1.0 - saturate(dis * 2.0));
+    useFlow = 1.0;
+  } else if (md > 5.5 && md < 6.5 && kind == 0u && hsel.x < 0.05 && apr > 0.0) {
+    // 6 溪流 (用户 16:23 UTC: 细流和光柱都不错，再研究): the trickle made one stream. All its grains run on one shared curve from the side of this
+    // ring facing the next to the next one, meandering like a brook (two slow bends that drift with time), each grain a little to one
+    // side of the line and on its own phase, so the stream is a dotted, living line that keeps flowing for as long as the ring is ahead
+    let hr: vec3f = hashu3(rid * 131u + 7u);
+    let P0: vec3f = C + vec3f(cos(angD), sin(angD), 0.0) * R0 * open;
+    let P1: vec3f = N + vec3f(cos(angD + 3.1415927), sin(angD + 3.1415927), 0.0) * RN * 0.85;
+    let D: vec3f = P1 - P0; let dl: f32 = length(D);
+    let sd: vec3f = normalize(vec3f(-D.z, 0.0, D.x) + vec3f(0.0001, 0.0, 0.0));
+    let c1: vec3f = P0 + vec3f(cos(angD), sin(angD), 0.0) * 1.5 * sz + vec3f(0.0, 0.8 + hr.x, 0.0) + D * 0.3 + sd * (hr.y - 0.5) * 0.2 * dl;
+    let c2: vec3f = P1 - D * 0.3 + sd * (hr.z - 0.5) * 0.2 * dl + vec3f(0.0, 0.06 * dl, 0.0);
+    let Pd: f32 = clamp(1.2 + dl * 0.02, 1.4, 2.6); let ph: f32 = fract(T / Pd + hsel.y * 13.0); let e: f32 = ph;
+    let bell: f32 = sin(3.1415927 * e);
+    let mw: vec3f = (sd * sin(e * 9.0 + T * 0.7 + hr.x * 6.0) * 0.05 + vec3f(0.0, sin(e * 6.0 + T * 0.5 + hr.y * 6.0), 0.0) * 0.02) * dl * bell;
+    let hj: vec3f = hashu3(i * 47u + rid * 19u + 5u) - vec3f(0.5);
+    flowP = bez3(P0, c1, c2, P1, e) + mw + (sd * hj.x + vec3f(0.0, hj.y * 0.6, 0.0)) * 0.35 * sz * (0.4 + bell) + vec3f(0.0, 0.04 * sin(T * 5.0 + hsel.z * 30.0), 0.0);
+    let tg: vec3f = bez3(P0, c1, c2, P1, min(1.0, e + 0.01)) - bez3(P0, c1, c2, P1, e);
+    flowSt = -normalize(tg + vec3f(0.0, 0.0001, 0.0)) * 0.35;          // (a short tail along the stream: Mac check 16:4x UTC, bare dots at 2.2% were not seen)
+    b = 0.85 * apr * min(1.0, e * 8.0) * min(1.0, (1.0 - e) * 6.0) * (1.0 - saturate(dis * 3.0));
+    wsz = wsz * 1.8; minPx = 2.4;
+    useFlow = 1.0;
+  } else if (md > 6.5 && md < 7.5 && kind == 0u && (hsel.x < 0.035 || M.g.z > 0.5) && apr > 0.0) {
+    // 7 细高光柱: a thin tall column over the next ring, 35 m, densest at the bottom, swaying a little at the top, grains streaming upward
+    let ph: f32 = fract(T / 4.5 + hsel.y * 11.0); let hh: f32 = pow(ph, 0.8) * 35.0; let a0: f32 = hsel.z * 6.2831853 + T * 0.6;
+    let rj: f32 = RN * 0.18 * sqrt(fract(hsel.y * 37.0)) * (1.0 - 0.5 * ph);
+    let sw: f32 = sin(T * 0.45 + f32(rid) * 0.37) * 0.04 * hh;
+    let colP: vec3f = N + vec3f(cos(a0) * rj + sw, RN * 0.4 + hh, sin(a0) * rj);
+    // (用户 16:45 UTC: 光柱逐渐被火团吸进去一样，然后变成光圈) M.g.y: 0 while the flame burns, then 0..1 over ~0.7 s as it opens. The column
+    // is drawn down into the flame (16:49 UTC: from the top down, the top first), each grain falling faster as it nears (ease-in), brightening as it
+    // feeds the flame, and gone into it as the ring opens
+    // (16:49 UTC) top first, the bottom last; about two grains in five are drawn into the flame, the rest fade where they are
+    // (16:51 UTC: 不用把点挪回来，从上到下慢慢 fade out，不要太规律：上面的先消失的概率高，下面的低) no grain moves now: each goes out where
+    // it is at its own moment, the top ones likely early, the bottom ones likely late, with a good deal of chance in it
+    let ab: f32 = M.g.y; let st0: f32 = min(0.72, 0.5 * (1.0 - ph) + 0.4 * fract(hsel.y * 71.0 + hsel.z * 13.0)); let kk: f32 = saturate((ab - st0) / 0.28); let suck: f32 = 0.0;
+    let ea: f32 = kk * kk * suck;
+    // (16:51 UTC: 吸进来的目的地不是火团中心，而是新光圈上的位置，分散地落到圈上) each to its own place round the opening ring
+    let ht: vec3f = hashu3(i * 59u + rid * 7u + 2u); let at: f32 = ht.x * 6.2831853; let rt: f32 = RN * max(open, 0.3) * (1.0 + 0.06 * (ht.y - 0.5));
+    let tgt: vec3f = N + vec3f(cos(at) * rt, sin(at) * rt, (ht.z - 0.5) * 0.25);
+    flowP = mix(colP, tgt, ea);
+    flowSt = vec3f(0.0, -0.5, 0.0);
+    b = 0.45 * apr * min(1.0, ph * 10.0) * pow(1.0 - ph, 1.3) * (1.0 - saturate(dis * 2.0));
+    let fadeK: f32 = select(1.0 - kk, (1.0 + 1.2 * ea) * (1.0 - saturate((kk - 0.85) / 0.15)), suck > 0.5);
+    b = select(b, 0.45 * apr * min(1.0, ph * 10.0) * pow(1.0 - ph, mix(1.3, 0.0, suck * kk)) * fadeK, ab > 0.0);
+    useFlow = 1.0;
+  } else if (md > 7.5 && md < 8.5 && kind == 0u && hsel.x < 0.05 && apr > 0.0) {
+    // 8 螺旋光柱: two strands of grains winding up round the next ring's axis, narrowing as they rise, fading at 24 m
+    let ph: f32 = fract(T / 4.0 + hsel.y * 11.0); let st2: f32 = select(0.0, 3.1415927, hsel.z > 0.5);
+    let a0: f32 = ph * 12.566 + T * 1.1 + st2; let rj: f32 = RN * 0.55 * (1.0 - 0.45 * ph) + (fract(hsel.y * 53.0) - 0.5) * 0.25;
+    flowP = N + vec3f(cos(a0) * rj, RN * 0.5 + ph * 24.0, sin(a0) * rj);
+    flowSt = -normalize(vec3f(-sin(a0) * rj * 12.566, 24.0, cos(a0) * rj * 12.566)) * 0.45;          // (a short tail along the strand; bare dots were not seen)
+    b = 0.75 * apr * sin(3.1415927 * ph) * (1.0 - saturate(dis * 2.0));
+    wsz = wsz * 1.6; minPx = 2.2;
+    useFlow = 1.0;
+  } else if (dis > 0.0) {
     let hd: vec3f = hashu3(i * 23u + rid * 101u + 9u);
     // a splash: a quick burst out of the tube (half its way in the first half second), then a slow drift and a slow fade. The grains are
     // thrown every way off the tube, outward and up a little, and carried on along the line the skier rides (toward -z)
@@ -568,7 +972,8 @@ fn dustGrain(i: u32) -> DG {
   }
   let ro: f32 = rr * open;
   g.p = C + vec3f(cos(ang) * ro, sin(ang) * ro + dy, dz);
-  g.b = b * A; g.wsz = wsz; g.minPx = minPx; g.up = up; g.col = mix(col, vec3f(1.0, 0.97, 0.9), M.d.y);
+  if (useFlow > 0.5) { g.p = flowP; }
+  g.b = b * select(A, 1.0, useFlow > 0.5 && md > 6.5 && md < 7.5); g.wsz = wsz; g.minPx = minPx; g.up = up; g.col = col; g.st = flowSt;
   return g;
 }
 `;
@@ -578,11 +983,11 @@ fn vert(a: VIn) -> VOut { var v: VOut;
   v.clip = vec4f(0.0, 0.0, -2.0, 1.0); v.uv = vec2f(0.0); v.col = vec4f(0.0); v.sh = vec4f(0.0);
   let g: DG = dustGrain(a.iid);
   if (g.b < 0.003) { return v; }
-  let q: RQ = ringQuad(corner, g.p, g.p + vec3f(0.0, g.up, 0.0), g.wsz, g.minPx);
+  let q: RQ = ringQuad(corner, g.p, g.p + vec3f(0.0, g.up, 0.0) + g.st, g.wsz, g.minPx);
   let fog: f32 = 1.0 - fogAmount(g.p);
-  let bright: f32 = g.b * M.b.w * mix(1.0, 1.2, M.d.x) * fog;
+  let bright: f32 = g.b * M.b.w * mix(1.0, 1.2, M.d.x) * (1.0 + 0.7 * M.d.y) * fog;
   v.clip = q.clip; v.uv = q.uv; v.sh = vec4f(q.hl, 0.0, 0.0, 0.0);
-  v.col = vec4f(g.col * (bright * sqrt(q.k) * 6.0 * ringE()), mix(0.18, 0.0, M.d.x) * saturate(bright) * sqrt(q.k));
+  v.col = vec4f(g.col * (bright * sqrt(q.k) * 11.0 * ringE()), mix(0.18, 0.0, M.d.x) * saturate(bright) * sqrt(q.k));
   return v; }
 `;
 // the grains' own shadow (用户 05:23 UTC: 影子也要由点投下、跟着点一起动): each grain that is lit enough is a small disc in the sun's shadow
