@@ -184,10 +184,14 @@ const Rings = (() => {
       const c = [r.x - o[0], r.y - o[1], -r.s - o[2]];
       // (下一个圈提示, Variants rflow): the next ring along, for the ring being ridden at (and the one just splashing): where the cue points.
       // ap: how near this ring is, 0 far .. 1 close (the cues that show before the ring is reached grow with it; the 光柱 starts further out)
-      let nx = null, ap = 0;
-      if (fmode && !r.fin && (r.splash >= 0 || ord === 0)) {
+      let nx = null, ap = 0, bk = 0;
+      if (fmode === 7) {
+        // (用户 16:44 UTC: 喜欢细高光柱；一开始有一个光柱，等火团变成光球以后，光柱比较快地消失) the column stands over each of the next two
+        // rings for as long as it is a flame, and goes in about 0.3 s once the flame opens into a ring
+        if (!r.fin && r.pass < 0 && ord <= 1) { bk = 1 - cl(grown / 0.33, 0, 1); if (bk > 0) { nx = [c[0], c[1], c[2], r.r]; ap = bk; } }
+      } else if (fmode && !r.fin && (r.splash >= 0 || ord === 0)) {
         const dC = r.s - s; ap = r.splash >= 0 ? 1 : fmode === 5 || fmode === 7 || fmode === 8 ? cl(1 - (dC - 10) / 70, 0, 1) : cl(1 - (dC - 6) / 34, 0, 1); const i = RG.rings.indexOf(r); for (let k = i + 1; k < RG.rings.length; k++) { const q = RG.rings[k]; if (q.skip) continue; nx = [q.x - o[0], q.y - o[1], -q.s - o[2], q.r]; break; } }
-      drawList.push({ r, nx, ap, fmode, fl: r.flowT >= 0 ? T - r.flowT : -1, dist, c, sz, near, grown, dis, open, A, flameA, night, ord, flameSc: (1 + 1.6 * ease(grown / 0.35)) * (ord <= 1 ? 1 : ord === 2 ? 0.85 : 0.72), tint: ord <= 1 ? 0 : ord === 2 ? 1 : 2, hitK: r.hit || r.splash < 0 ? 1 : 0.5 });
+      drawList.push({ r, nx, ap, bk, fmode, fl: r.flowT >= 0 ? T - r.flowT : -1, dist, c, sz, near, grown, dis, open, A, flameA, night, ord, flameSc: (1 + 1.6 * ease(grown / 0.35)) * (ord <= 1 ? 1 : ord === 2 ? 0.85 : 0.72), tint: ord <= 1 ? 0 : ord === 2 ? 1 : 2, hitK: r.hit || r.splash < 0 ? 1 : 0.5 });
     }
     drawList.sort((a, b) => b.dist - a.dist);          // far first: the near ring's tube writes depth over what lies behind it
   }
@@ -233,7 +237,7 @@ const Rings = (() => {
     const T = lastT % 4096, tex = { tSky: Sky.lut };
     for (const d of drawList) {
       if (d.flameA > 0.01) gfx.draw(pFlame, { u: { a: [d.c[0], d.c[1], d.c[2], d.flameSc], b: [d.flameA, d.sz, d.tint, 0], c: [T, d.r.id % 4096, d.night, 0] }, tex, count: 4, instances: 2 + TONGUES });
-      if (ringLive(d)) {
+      if (ringLive(d) || d.bk > 0) {
         const u = ringU(d, T);
         gfx.draw(pDust, { u, tex, count: 4, instances: u.e[0] + u.e[1] + u.e[2] });
       }
@@ -253,7 +257,7 @@ const Rings = (() => {
   // ---- 穿圈拖影 (用户 18:51 UTC: 钻进光圈的时候来一个延迟摄影、拖影子的效果，试一下，只是一个分支; 18:53 UTC: 每隔比如 0.5 米留一个残影).
   // Like a sequence photo of a skier: from a few metres before a ring until just after it, every 0.5 m the skier leaves a see-through copy of
   // himself (his pose at that moment), which fades in about half a second. Only the body, never the camera or the time: the game runs on as is.
-  if (typeof Variants !== 'undefined') Variants.def('rflow', '下一个圈提示', [['off', '关'], ['a', '一群光游过去'], ['b', '一缕光线'], ['c', '细流引路'], ['d', '亮边指方向'], ['e', '远处光柱'], ['f', '溪流（连成一条）'], ['g', '细高光柱'], ['h', '螺旋光柱']], 'f');
+  if (typeof Variants !== 'undefined') Variants.def('rflow', '下一个圈提示', [['off', '关'], ['a', '一群光游过去'], ['b', '一缕光线'], ['c', '细流引路'], ['d', '亮边指方向'], ['e', '远处光柱'], ['f', '溪流（连成一条）'], ['g', '细高光柱'], ['h', '螺旋光柱']], 'g');
   if (typeof Variants !== 'undefined') Variants.def('rtrail', '穿圈拖影', [['off', '关'], ['a', '残影·白'], ['b', '残影·光圈色']], 'off');
   const TR = { list: [], last: null, now: 0, done: 0, passT: null, STEP: 0.5, LIFE: 0.8, REACH: 3.2, BEFORE: 7, AFTER: 0.4 };
   function trail() {
@@ -942,7 +946,7 @@ fn dustGrain(i: u32) -> DG {
   let ro: f32 = rr * open;
   g.p = C + vec3f(cos(ang) * ro, sin(ang) * ro + dy, dz);
   if (useFlow > 0.5) { g.p = flowP; }
-  g.b = b * A; g.wsz = wsz; g.minPx = minPx; g.up = up; g.col = col; g.st = flowSt;
+  g.b = b * select(A, 1.0, useFlow > 0.5 && md > 6.5 && md < 7.5); g.wsz = wsz; g.minPx = minPx; g.up = up; g.col = col; g.st = flowSt;
   return g;
 }
 `;
