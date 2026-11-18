@@ -36,7 +36,7 @@ const CASES = [{ tdiff: 'c', pick: [0, 1, 3] }, { tdiff: 'b', pick: [0, 2] }];
         const ex = R.x + side * cam.side, ez = R.z + cam.back, top = ski.height(R.x, R.z);
         const eye = [ex, ski.height(ex, ez) + cam.up, ez], tgt = [R.x, top + 0.2, R.z];
         // the skier stands a couple of metres from the stone, for scale
-        const sx = R.x + side * (R.f.rad + 1.6), sz = R.z + 2.5; ski.skier(sx, sz, 0.2 * side);
+        const sx = R.x + side * (R.f.rad + 1.4), sz = R.z - 1.5; ski.skier(sx, sz, 0.2 * side);
         for (let i = 0; i < 4; i++) ski.view(eye, tgt, 0.95);
         await new Promise(r => setTimeout(r, 50));
         return { cs: +R.f.cs.toFixed(1), u: +R.f.u.toFixed(1), rad: +R.f.rad.toFixed(2), h: +R.f.h.toFixed(2), edge: R.f.snow, n: M.Boulders ? M.Boulders.stats.n : null, png: nodraw ? null : await ski.shot() };

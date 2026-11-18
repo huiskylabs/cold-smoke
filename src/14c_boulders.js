@@ -16,16 +16,17 @@ const Boulders = (() => {
   // planes (the faces it split along), its surface pitted at two sizes
   function shape(k) {
     const r = RNG(9133 + k * 7919), cuts = [];
-    for (let i = 0; i < 5; i++) {
-      const th = r() * TAU, el = (r() - 0.25) * 1.1, n = [Math.cos(th) * Math.cos(el), Math.sin(el), Math.sin(th) * Math.cos(el)];
-      cuts.push([n[0], n[1], n[2], 0.62 + r() * 0.25]);
+    // (round 2: more and deeper cuts, so it reads as a block split along its joints, not a loaf: refs show flat faces meeting at edges)
+    for (let i = 0; i < 8; i++) {
+      const th = r() * TAU, el = (r() - 0.3) * 1.2, n = [Math.cos(th) * Math.cos(el), Math.sin(el), Math.sin(th) * Math.cos(el)];
+      cuts.push([n[0], n[1], n[2], 0.5 + r() * 0.28]);
     }
     const hx = 0.78 + 0.2 * r(), hy = 0.62 + 0.15 * r(), hz = 0.7 + 0.2 * r(), lean = (r() - 0.5) * 0.3;
     const f = (x, y, z) => {
       const yy = y - 0.25, xx = x - lean * yy;
-      let d = sd.smin(sd.rbox(xx, yy, z, 0, 0, 0, hx, hy, hz, 0.34), sd.ellipsoid(xx, yy, z, 0, 0.05, 0, hx * 1.05, hy * 1.05, hz * 1.05), 0.2);
-      for (const c of cuts) d = sd.smax(d, xx * c[0] + yy * c[1] + z * c[2] - c[3], 0.12);
-      d += 0.0225 * vnoise3(x * 2.3, y * 2.3, z * 2.3, 11 + k) + 0.009 * vnoise3(x * 7.1, y * 7.1, z * 7.1, 31 + k);
+      let d = sd.smin(sd.rbox(xx, yy, z, 0, 0, 0, hx, hy, hz, 0.22), sd.ellipsoid(xx, yy, z, 0, 0.05, 0, hx * 1.05, hy * 1.05, hz * 1.05), 0.2);
+      for (const c of cuts) d = sd.smax(d, xx * c[0] + yy * c[1] + z * c[2] - c[3], 0.07);
+      d += 0.04 * vnoise3(x * 1.9, y * 1.9, z * 1.9, 11 + k) + 0.014 * vnoise3(x * 6.1, y * 6.1, z * 6.1, 31 + k) + 0.005 * vnoise3(x * 17, y * 17, z * 17, 41 + k);
       return d;
     };
     // attributes: how open to the sky the surface is (cracks and the hollows under an overhang are dark), and a slow tone for the stone
@@ -71,11 +72,11 @@ const Boulders = (() => {
         f.bk = h % NS; f.byaw = (h >>> 4 & 1023) / 1024 * TAU; f.bst = (h >>> 14 & 255) / 255; f.bsn = (h >>> 22 & 255) / 255;
       }
       const drift = Course.boulderDrift(f), g = Course.height(x, z, 0.5) - drift;    // (the ground under the drift)
-      const sxz = f.rad * 0.78 / 1.0, sy = (f.h + 0.12) / 1.2 * 1.25;
-      const cap = 0.10 + 0.16 * f.bsn;                                          // thickness of the cap of old snow (m)
+      const sxz = f.rad * 0.62, sy = (f.h + 0.25) * 1.12;      // (round 2: taller for its width; the broad flat ones were all cap)
+      const cap = 0.10 + 0.12 * f.bsn;                                          // thickness of the cap of old snow (m)
       const k = smooth(B.far, B.far - B.band, d);
       if (k <= 0) return;
-      lists[f.bk].push([x - ox, g - 0.05 - oy, z - oz, f.byaw, sxz * (0.92 + 0.16 * f.bst), sy * k, sxz * (1.08 - 0.16 * f.bst), f.bst, cap, 0.35 + 0.55 * f.bsn, f.bst, k]);
+      lists[f.bk].push([x - ox, g - 0.15 - oy, z - oz, f.byaw, sxz * (0.92 + 0.16 * f.bst), sy * k, sxz * (1.08 - 0.16 * f.bst), f.bst, cap, 0.1 + 0.5 * f.bsn, f.bst, k]);
     });
     for (let s = 0; s < NS; s++) {
       const L = lists[s]; let n = Math.min(L.length, MAXI); if (!n) continue;
@@ -99,7 +100,7 @@ const BOULDER_SSL = `
 struct BV { wp: vec3f, n: vec3f, snow: f32, }
 // where snow lies on the stone: on what faces the sky, the more so where the stone kept more of it, broken up by the stone's own pitting
 fn boulderSnow(ny: f32, pm: vec4f, amt: f32) -> f32 {
-  let lo: f32 = mix(0.78, 0.38, amt);
+  let lo: f32 = mix(0.84, 0.5, amt);
   return smoothstep(lo, lo + 0.16, ny + (pm.y - 0.5) * 0.45 + (pm.z - 0.5) * 0.3);
 }
 fn boulderVertex(pos: vec3f, nrm: vec3f, pm: vec4f, j0: vec4f, j1: vec4f, j2: vec4f) -> BV {
@@ -133,7 +134,10 @@ fn frag(v: VOut) -> FOut {
   // --- the stone: dark weathered granite (photographs of granite boulders in snow: about 0.10-0.20 against snow's 0.9), a little warmer
   // or colder from one stone to the next, darker in its cracks, a faint green-grey of lichen on its shoulders
   let tone: f32 = v.ex.y;
-  var alb: vec3f = mix(vec3f(0.115, 0.112, 0.118), vec3f(0.20, 0.185, 0.17), saturate(v.pm.z * 0.8 + (d2.z - 0.5) * 0.9 + tone * 0.3));
+  var alb: vec3f = mix(vec3f(0.12, 0.118, 0.125), vec3f(0.27, 0.25, 0.225), saturate(v.pm.z * 0.9 + (d2.z - 0.5) * 1.1 + tone * 0.35 - 0.15));
+  // (dark streaks down the faces where meltwater runs off the cap)
+  let stk: f32 = tex(tDetail, vec2f((wxz.x + wxz.y) * 0.9, v.wp.y * 0.08)).z;
+  alb *= 1.0 - 0.35 * smoothstep(0.55, 0.75, stk) * (1.0 - saturate(N.y * 1.5));
   alb *= 0.75 + 0.5 * d1.x;
   alb = mix(alb, vec3f(0.17, 0.18, 0.15), smoothstep(0.62, 0.8, d2.x) * smoothstep(0.2, 0.6, N.y) * 0.6);
   alb *= 0.55 + 0.45 * ao;

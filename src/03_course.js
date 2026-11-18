@@ -420,7 +420,7 @@ const Course = ((vn1, vn2, h2U) => {
   // (for the game) a boulder is something to go round, not a ramp: the skier's body is told only of a low swell where one stands (C.rockCap,
   // set while the physics asks), and where the drawn rock stands more than ROCK_WALL above the snow it is a wall, as a trunk is. rockHit
   // fills o with the point on that wall's foot nearest the skier and its outward normal, and returns the rock (null where there is none)
-  const ROCK_WALL = 0.45, BOULDER_FOOT = 0.74;
+  const ROCK_WALL = 0.45, BOULDER_FOOT = 0.6;
   function rockQ0(f) {        // the q at which the drawn rock stands ROCK_WALL high (its profile falls from the middle out)
     if (f.q0 === undefined) { let a = 0, b = 1; for (let i = 0; i < 18; i++) { const q = (a + b) * 0.5, hr = f.h * (0.45 * Math.sqrt(1 - q * q) + 0.55 * smooth(1, 0.5, q)); if (hr > ROCK_WALL) a = q; else b = q; } f.q0 = f.h > ROCK_WALL ? a : 0; }
     return f.q0;
@@ -442,7 +442,7 @@ const Course = ((vn1, vn2, h2U) => {
     }
     return null;
   };
-  C.boulderDrift = f => f.h * 0.3;
+  C.boulderDrift = f => f.h * 0.34;
   // (for 14c_boulders.js) every boulder laid out between s0 and s1, once each
   C.boulders = function (s0, s1, fn) {
     const seen = new Set();
@@ -678,7 +678,7 @@ const Course = ((vn1, vn2, h2U) => {
         if (C.boulder) {
           // (b: the stone is drawn on its own; the ground carries only the snow drifted round it, a third of its height, long up the hill)
           const q = Math.hypot((s - f.cs) * (s < f.cs ? 0.38 : 0.85), u - f.u) / (f.rad * 1.3);
-          if (q < 1) { const hr = C.boulderDrift(f) * smooth(1, 0, q); h += C.rockCap > 0 ? C.rockCap * (1 - Math.exp(-hr / C.rockCap)) : hr; }
+          if (q < 1) { const hr = C.boulderDrift(f) * smooth(1, 0.42, q); h += C.rockCap > 0 ? C.rockCap * (1 - Math.exp(-hr / C.rockCap)) : hr; }
           continue;
         }
         const q = Math.hypot((s - f.cs) * (s < f.cs ? 0.45 : 1), u - f.u) / f.rad;
