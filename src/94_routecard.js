@@ -421,10 +421,10 @@ const RouteCard = self.RouteCard = (() => {
       piste: 'rgba(253,253,251,.62)', pisteEdge: 'rgba(70,90,112,.45)', frame: 'rgba(29,42,52,.55)', lineHalo: 'rgba(255,255,255,.85)', air: '#1d2a34', bead: '#fff', miss: 'rgba(29,42,52,.55)',
       disc: '#1d2a34', discRing: '#fff', discText: '#fff', bestDisc: '#df4a2f', bestText: '#fff', halo: 'rgba(241,237,228,.92)', speedFill: 'rgba(223,74,47,.85)',
       ground: (g, W, H) => { g.fillStyle = '#f1ede4'; g.fillRect(0, 0, W, H); } },
-    game: { ink: '#f4f7fb', grey: 'rgba(244,247,251,.62)', line: '#ffd08a', label: '#f4f7fb', kmText: 'rgba(244,247,251,.75)', forest: [52, 70, 86], forestD: [38, 52, 68], snow: [222, 230, 241], low: [150, 166, 190],
-      shade: [0.86, 0.88, 0.97], shade2: [0.72, 0.76, 0.92], sun: [1.03, 1.0, 0.96], off: [24, 32, 46], cLit: 'rgba(255,255,255,.42)', cDark: 'rgba(16,24,40,.30)', cDarkMajor: 'rgba(16,24,40,.5)',
-      piste: 'rgba(240,245,251,.42)', pisteEdge: 'rgba(16,24,40,.38)', frame: 'rgba(244,247,251,.22)', lineHalo: 'rgba(8,12,20,.42)', air: '#f4f7fb', bead: '#fff8ea', miss: '#ff9d8c',
-      disc: 'rgba(5,8,13,.85)', discRing: 'rgba(244,247,251,.75)', discText: '#f4f7fb', bestDisc: '#ffd08a', bestText: '#1b1408', halo: 'rgba(5,8,13,.55)', speedFill: 'rgba(255,208,138,.78)',
+    game: { ink: '#f4f7fb', grey: 'rgba(244,247,251,.62)', line: '#ffd08a', label: '#f4f7fb', kmText: 'rgba(244,247,251,.75)', forest: [34, 47, 62], forestD: [24, 34, 47], snow: [168, 183, 206], low: [104, 120, 148],
+      shade: [0.86, 0.88, 0.97], shade2: [0.72, 0.76, 0.92], sun: [1.03, 1.0, 0.96], off: [24, 32, 46], cLit: 'rgba(235,242,252,.38)', cDark: 'rgba(12,18,32,.32)', cDarkMajor: 'rgba(12,18,32,.5)',
+      piste: 'rgba(214,224,238,.30)', pisteEdge: 'rgba(16,24,40,.38)', frame: 'rgba(244,247,251,.22)', lineHalo: 'rgba(8,12,20,.42)', air: '#f4f7fb', bead: '#fff8ea', miss: '#ff9d8c',
+      disc: 'rgba(5,8,13,.85)', discRing: 'rgba(244,247,251,.75)', discText: '#f4f7fb', bestDisc: '#ffd08a', bestText: '#1b1408', halo: 'rgba(5,8,13,.42)', speedFill: 'rgba(255,208,138,.78)',
       // the dusk the menus sit on: a deep blue, warmer low on the left where the sun has gone down, a faint snow grain
       ground: (g, W, H, u) => { const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#141c2b'); gr.addColorStop(0.6, '#1f2a3d'); gr.addColorStop(1, '#2c3850'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
         const sun = g.createRadialGradient(W * 0.12, H * 0.08, 0, W * 0.12, H * 0.08, W * 0.5); sun.addColorStop(0, 'rgba(255,214,160,.16)'); sun.addColorStop(1, 'rgba(255,214,160,0)'); g.fillStyle = sun; g.fillRect(0, 0, W, H);
