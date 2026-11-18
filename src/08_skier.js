@@ -1235,7 +1235,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     // in through the seat), r: how far it swings to a side; v: the figure's velocity in the world, smoothed (its change, read in the figure's frame, is what the hem lags behind)
     { const H = st.hm, g = clo.h, u = !cut && dt > 0 ? v3.mul(v3.sub(root.pos, st.pos), 1 / dt) : [0, 0, 0];
       if (cut || !H.v) { H.v = u; H.p[0] = H.p[1] = H.r[0] = H.r[1] = 0; }
-      else if (dt > 0) { const n = v3.add(H.v, v3.mul(v3.sub(u, H.v), 1 - Math.exp(-dt * 18))), a = v3.mul(v3.sub(n, H.v), 1 / dt), ax = clamp(v3.dot(a, X), -14, 14), af = clamp(-v3.dot(a, Z), -14, 14), w = sat((-v3.dot(n, Z) - 4) / 22);
+      else if (dt > 0) { const n = v3.add(H.v, v3.mul(v3.sub(u, H.v), 1 - Math.exp(-dt * 18))), a = v3.mul(v3.sub(n, H.v), 1 / dt), ax = clamp(v3.dot(a, X), -14, 14), af = clamp(-v3.dot(a, Z), -14, 14), w = sat((-v3.dot(n, Z) - 4) / 22); sec.latA = ax;
         H.v = n; spr(H.p, g * (0.11 * w * w * (3 - 2 * w) + clamp(af * 0.008, -0.02, 0.06)), 14, 0.32, dt); spr(H.r, g * clamp(-ax * 0.007, -0.09, 0.09), 12, 0.3, dt); }
       const w = sat((-v3.dot(H.v, Z) - 6) / 20), fl = g * w * (0.022 * Math.sin(now * 47) + 0.014 * Math.sin(now * 29 + 1.3) + 0.01 * Math.sin(now * 71 + 0.4));
       H.o[0] = clamp(H.p[0] + fl, -0.02, 0.2); H.o[1] = clamp(H.r[0] + 0.6 * fl * Math.sin(now * 13), -0.12, 0.12); }
@@ -1259,7 +1259,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     for (let k = 0; k < 2; k++) { const P = st.pp[k]; sec.pl[k] = P; if (!P) continue;
       if (P.d) { P.w = smooth(0, 0.3, now - P.rel); P.g = smooth(0.3, 0.6, now - P.rel); } else { const w = P.W, d = [w[0] - root.pos[0], w[1] - root.pos[1], w[2] - root.pos[2]]; P.T = [v3.dot(d, X), v3.dot(d, Z)]; } }
     // (the lab's turns: which posture, how much of it; null = the game's own figure)
-    sec.lab = typeof LabMo !== 'undefined' && !K.boardOn() ? LabMo.step(cur, sec, cut ? 0 : dt, st.hm.v ? v3.len(st.hm.v) : 0) : null;
+    sec.lab = typeof LabMo !== 'undefined' && !K.boardOn() ? LabMo.step(cur, sec, cut ? 0 : dt, st.hm.v ? v3.len(st.hm.v) : 0, cut ? 0 : sec.latA || 0) : null;
     sec.labB = typeof LabMo !== 'undefined' && K.boardOn() ? LabMo.stepB(cur, sec, cut ? 0 : dt) : null;
     // (实验室人物, developer mode: the lab's skeleton and motion set every bone, 08i_labride.js; until its frames are solved the game's own stand in)
     sec.gnd = K.ground ? K.ground(cur, root, Y, toW, sec, cut ? 0 : dt) : null;
