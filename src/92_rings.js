@@ -189,12 +189,17 @@ const Rings = (() => {
     for (let tries = 0; live < AHEAD && tries < 20; tries++) { spawn(); const r = RG.rings[RG.rings.length - 1]; if (r.skip) RG.rings.pop(); else live++; }
     const ahead = RG.rings.filter(r => r.pass < 0);
     const cur = ahead[0]; if (!cur) return;
-    if (cur.grow < 0 && L.st !== 'count') cur.grow = T;          // the first ring of a run opens at once; on a challenge line (用户 22:34 UTC) it waits as a flame through 3-2-1 and opens on 出发
     const v = Math.max(6, S.speed || 0), dCur = cur.s - s;
+    // (用户 2026-11-18 20:36 UTC: 下一个火焰必须在我到一定距离之内才变成光圈；两个圈离得远时，刚穿过第一个，还没看到第二个火和上面的光柱它就
+    // 已经变成光圈了，又找不见了) a flame opens into its ring only once the skier is within about 3 s of it (at least 45 m): until then it
+    // stays a flame with its column over it, however far off, so the way on can always be found. On a challenge line the first one also
+    // waits through 3-2-1 (用户 22:34 UTC) and opens on 出发
+    const OPEN = Math.max(45, v * 3);
+    if (cur.grow < 0 && L.st !== 'count' && (dCur < OPEN || RG.passed + RG.missed === 0)) cur.grow = T;
     // (用户 15:54 UTC: 一群光游过去 没有效果) it set off at the splash, 1.6 m before the ring, lost in the splash's own burst and then riding
     // along with the camera. Now it leaves while the ring is still ahead, ~0.6 s out (at least 12 m), so it is seen swimming off toward the next
     if (cur.flowT === undefined && !cur.fin && dCur < Math.max(18, v * 1.0)) cur.flowT = T;          // (Mac check 16:1x UTC: at 0.6 s / 4.5% it was barely seen: now ~1 s out)
-    if (dCur < Math.max(14, v * 0.8) && ahead[1] && ahead[1].grow < 0) ahead[1].grow = T;          // nearly there: the next flame swells and opens
+
     // (用户 05:16 UTC: 离圈一两米、头碰到圈面之前就要 splash 散开，半米一米时能不能过已经定了): the splash starts 1.6 m before the ring's plane
     if (dCur < 1.6 && cur.splash < 0) {
       const dy = (S.p[1] + 0.9) - cur.y, dx = S.p[0] - cur.x;
@@ -206,7 +211,7 @@ const Rings = (() => {
       if (cur.splash < 0) cur.splash = T;
       if (cur.fin) { cur.hit = true; cur.pass = T; lineFinish(); return; }
       cur.pass = T; if (cur.hit) RG.passed++; else RG.missed++;
-      if (ahead[1] && ahead[1].grow < 0) ahead[1].grow = T;
+      if (ahead[1] && ahead[1].grow < 0 && ahead[1].s - s < OPEN) ahead[1].grow = T;
     }
   }
   // what each ring is this frame: how far open, how far scattered, how bright (far ones barely there), and its flame
