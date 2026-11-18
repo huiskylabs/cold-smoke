@@ -822,6 +822,19 @@ const Rings = (() => {
     b.addEventListener('click', e => { e.stopPropagation(); pickOpen(true); });
     more.insertBefore(b, more.firstChild); RG.cb = b;
   }
+  // (用户 2026-11-18 22:52 UTC: 滑到中间的时候，这个菜单我不能重新直接点挑战) the pause menu has 挑战 too, under 拍照: it goes back to the top
+  // (as 回到山顶 does) and opens the same panel there, so a line can be started again or another one picked
+  function chalMenuButton() {
+    if (RG.cmb || typeof document === 'undefined') return;
+    const ph = document.getElementById('m-photo'); if (!ph || !ph.parentNode) return;
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'm-chal'; b.textContent = typeof I18N !== 'undefined' ? I18N.t('挑战') : '挑战'; b.hidden = true;
+    b.addEventListener('click', e => {
+      e.stopPropagation(); if (typeof UI === 'undefined' || !UI.toTop || UI.toTop() === false) return;
+      const t0 = Date.now(), wait = () => { if (UI.state === 'title' && !UI.open) pickOpen(true); else if (Date.now() - t0 < 20000) setTimeout(wait, 100); };
+      setTimeout(wait, 100);
+    });
+    ph.parentNode.insertBefore(b, ph.nextSibling); RG.cmb = b;
+  }
   function pickUI() {
     if (RG.pk) return RG.pk;
     const d = document.createElement('div'); d.id = 'rpick';
@@ -897,7 +910,8 @@ const Rings = (() => {
   }, true);
   function pickFrame() {
     if (typeof document === 'undefined') return;
-    if (chalOn()) chalButton();
+    if (chalOn()) { chalButton(); chalMenuButton(); }
+    if (RG.cmb) { const sh = chalOn() && typeof UI !== 'undefined' && UI.state === 'run' && mapLines().length > 0; if (RG.cmb.hidden === sh) RG.cmb.hidden = !sh; }
     if (RG.pkOpen && !(typeof UI !== 'undefined' && UI.state === 'title' && !UI.open)) pickOpen(false);
   }
   RG.share = shareOn();          // (19b_rank.js: the challenge boards show on the share link too)
