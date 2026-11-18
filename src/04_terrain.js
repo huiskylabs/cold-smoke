@@ -681,14 +681,16 @@ fn frag(v: VOut) -> FOut {
       // texture (d2, a few metres) and so came out as speckle and brush streaks. Real snow on a Rockies face (Rundle, Cascade) lies where
       // the face eases and runs down the gullies; its edge is ragged at the size of a boulder or a slab, never finer. So: no d2 here, the
       // strata bands of the old map gone, and the edge drawn from the 80 m and 73 m relief only, a little soft)
+      // (tNoise is 256^2 WHITE noise with no mips: sampled at world scale it is grain, the salt-and-pepper the owner saw on every rock and snow
+      // edge of this world. Every world-d pattern now reads the mipmapped fbm tDetail instead, at the size it was meant to have)
       // (round 2, the owner 2026-11-18 07:00 "一点儿也不真实，没有细节"; the photos: Okuhida's ridge, Rundle, Whistler's Harmony peak. A
       // face above the trees is ribs of rock running down the fall line with snow filling the chutes between them, the snow's edge clean
       // at any distance. The crag relief (Nc) flips from pixel to pixel near the bar and came out as grain, so the bar is read off the
       // smooth face (Nm) plus noise drawn out down the fall line (ribs ~35 m across, a couple of hundred long), and the hollows keep snow)
       let fdA: vec2f = normalize(sm.xy + vec2f(1e-5, 0.0));
       let ribUV: vec2f = vec2f(dot(wxz, vec2f(-fdA.y, fdA.x)) / 38.0, dot(wxz, fdA) / 230.0);
-      let rib: f32 = tex(tNoise, ribUV + vec2f(0.13, 0.57)).z * 0.7 + tex(tNoise, ribUV * vec2f(2.7, 1.6) + vec2f(0.61, 0.29)).z * 0.3;
-      let oc: f32 = tex(tNoise, wxz / 80.0 + vec2f(0.37, 0.19)).z;
+      let rib: f32 = saturate(0.5 + (tex(tDetail, (ribUV + vec2f(0.13, 0.57)) / 6.0).z - 0.5) * 1.9) * 0.7 + saturate(0.5 + (tex(tDetail, (ribUV * vec2f(2.7, 1.6) + vec2f(0.61, 0.29)) / 6.0).z - 0.5) * 1.9) * 0.3;
+      let oc: f32 = saturate(0.5 + (tex(tDetail, (wxz / 80.0 + vec2f(0.37, 0.19)) / 6.0).z - 0.5) * 1.9);
       let ew2: f32 = 0.018 + dist * 0.00003;
       let bar: f32 = Nm.y + 0.42 * (0.5 - rib) + 0.12 * (0.5 - oc) + conc * 0.35 + shut;
       rock = smoothstep(0.60 + ew2, 0.60 - ew2, bar) * step(0.001, rgate);
@@ -974,8 +976,8 @@ fn frag(v: VOut) -> FOut {
       // shaded as it turns to the sun, and the narrow gullies between them full of snow, white lines running down through the rock)
       let fdB: vec2f = normalize(sm.xy + vec2f(1e-5, 0.0));
       let acr: f32 = dot(wxz, vec2f(-fdB.y, fdB.x)); let alg: f32 = dot(wxz, fdB);
-      let st: f32 = tex(tNoise, vec2f(acr / 9.0, alg / 95.0) + vec2f(0.71, 0.13)).z;
-      let st2: f32 = tex(tNoise, vec2f(acr / 26.0, alg / 170.0) + vec2f(0.29, 0.83)).z;
+      let st: f32 = saturate(0.5 + (tex(tDetail, (vec2f(acr / 9.0, alg / 95.0) + vec2f(0.71, 0.13)) / 6.0).z - 0.5) * 1.9);
+      let st2: f32 = saturate(0.5 + (tex(tDetail, (vec2f(acr / 26.0, alg / 170.0) + vec2f(0.29, 0.83)) / 6.0).z - 0.5) * 1.9);
       let blk: f32 = tex(tDetail, wxz / 23.0 + vec2f(0.21, 0.63)).z;
       ra = vec3f(0.29, 0.265, 0.245) * (0.50 + 0.85 * st2) * (0.80 + 0.40 * st) * (0.85 + 0.30 * blk) * (1.0 - 0.40 * smoothstep(0.36, 0.26, ck) * near);
       ra *= 1.0 - 0.35 * (1.0 - smoothstep(0.55, 0.95, rock));
@@ -992,24 +994,24 @@ fn frag(v: VOut) -> FOut {
   // (金色雪旗: past the reach of the near trees the valley walls are wooded wherever they are not too steep to hold trees, up to a ragged
   // line high on them, with open avalanche tracks and rock bands between; a Rockies valley is never a bare snow wall)
   if (U.world.x > 2.5) {
-    let pz: f32 = tex(tNoise, wxz / 410.0 + vec2f(0.21, 0.63)).z;
-    let av: f32 = smoothstep(0.62, 0.70, tex(tNoise, vec2f(wxz.x / 140.0, wxz.y / 900.0) + vec2f(0.4, 0.1)).z);
+    let pz: f32 = saturate(0.5 + (tex(tDetail, (wxz / 410.0 + vec2f(0.21, 0.63)) / 6.0).z - 0.5) * 1.9);
+    let av: f32 = smoothstep(0.62, 0.70, saturate(0.5 + (tex(tDetail, (vec2f(wxz.x / 140.0, wxz.y / 900.0) + vec2f(0.4, 0.1)) / 6.0).z - 0.5) * 1.9));
     let wallF: f32 = smoothstep(0.26, 0.42, N.y + 0.08 * (pz - 0.5)) * smoothstep(0.02, 0.10, mnt) * (1.0 - 0.85 * av);
     fw = max(fw, 0.85 * wallF * (1.0 - step(0.1, fract(U.world.x))) * ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? '0.0' : '1.0'});      // (above the tree line: none)      // (from the volcano's top: the course's own tree line rules)
   }
   let carpet: f32 = fw * smoothstep(390.0, 470.0, dist);
   if (carpet > 0.001) {
-    let sp2: f32 = tex(tNoise, wxz / 61.0).z * 0.5 + d1.z * 0.5;
+    let sp2: f32 = saturate(0.5 + (tex(tDetail, (wxz / 61.0) / 6.0).z - 0.5) * 1.9) * 0.5 + d1.z * 0.5;
     var k: f32 = smoothstep(0.30, 0.62, sp2 * (0.55 + fw));
     // (金色雪旗: a Rockies spruce forest seen from across the valley is dark, nearly black-green, close set crown by crown, with snow
     // showing only in the gaps and on the crowns' sunny sides; it never reads as shaded snow)
     if (U.world.x > 2.5) {
-      let cr: f32 = tex(tNoise, wxz / 9.0).z * 0.6 + tex(tNoise, wxz / 23.0 + vec2f(0.3, 0.7)).z * 0.4;
+      let cr: f32 = saturate(0.5 + (tex(tDetail, (wxz / 9.0) / 6.0).z - 0.5) * 1.9) * 0.6 + saturate(0.5 + (tex(tDetail, (wxz / 23.0 + vec2f(0.3, 0.7)) / 6.0).z - 0.5) * 1.9) * 0.4;
       // (seen across a valley the crowns close over the snow between them: the forest floor shows only in small gaps)
       k = saturate(smoothstep(0.05, 0.30, fw) * (0.90 + 0.2 * sp2)) * (0.86 + 0.14 * smoothstep(0.35, 0.60, cr));
       let ndl: f32 = saturate(dot(N, U.sunDir.xyz));
       // (stands and gaps a few tens of metres across, so the wood keeps its texture two kilometres off where single crowns are below a pixel)
-      let st1: f32 = tex(tNoise, wxz / 70.0 + vec2f(0.61, 0.12)).z * 0.6 + tex(tNoise, wxz / 190.0 + vec2f(0.33, 0.84)).z * 0.4;
+      let st1: f32 = saturate(0.5 + (tex(tDetail, (wxz / 70.0 + vec2f(0.61, 0.12)) / 6.0).z - 0.5) * 1.9) * 0.6 + saturate(0.5 + (tex(tDetail, (wxz / 190.0 + vec2f(0.33, 0.84)) / 6.0).z - 0.5) * 1.9) * 0.4;
       k = k * (0.80 + 0.20 * smoothstep(0.30, 0.55, st1));
       let fcD: vec3f = vec3f(0.026, 0.050, 0.036) * (0.8 + 0.5 * cr) * (0.75 + 0.55 * st1);
       let fcS: vec3f = mix(fcD, vec3f(0.70, 0.74, 0.80), 0.34 * smoothstep(0.50, 0.85, cr));
@@ -1053,7 +1055,7 @@ fn frag(v: VOut) -> FOut {
     let mv: vec3f = wp - U.camPos.xyz; let md: f32 = length(mv);
     let hc: f32 = 40.0 + 0.16 * md; let hw: f32 = 14.0 + 0.012 * md;
     let mdr: vec2f = vec2f(U.camPos.w * 0.9, U.camPos.w * 0.35);
-    let mn: f32 = tex(tNoise, (wxz + mdr) / 520.0 + vec2f(0.13, 0.41)).z * 0.6 + tex(tNoise, (wxz - mdr) / 170.0 + vec2f(0.57, 0.22)).z * 0.4;
+    let mn: f32 = saturate(0.5 + (tex(tDetail, ((wxz + mdr) / 520.0 + vec2f(0.13, 0.41)) / 6.0).z - 0.5) * 1.9) * 0.6 + saturate(0.5 + (tex(tDetail, ((wxz - mdr) / 170.0 + vec2f(0.57, 0.22)) / 6.0).z - 0.5) * 1.9) * 0.4;
     let vb: f32 = (mv.y - hc - 60.0 * (mn - 0.5)) / hw;
     let mk: f32 = exp(-vb * vb * 1.4) * smoothstep(${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? '0.38' : '0.56'}, 0.76, mn) * smoothstep(${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? '120.0' : '320.0'}, ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? '420.0' : '600.0'}, md) * smoothstep(0.02, 0.12, mnt);
     let mc: vec3f = vec3f(0.92, 0.94, 0.98) * (U.sunCol.rgb * 0.50 + amb * 1.1);
