@@ -166,6 +166,13 @@ const Game = (() => {
   // speed above which poling gives nothing and the skier tucks instead, and the speed at which the strokes that leave the start stop
   const DP_T = 0.95, DP_PLANT = 0.22, DP_END = 0.62, DP_DV = 1.6, V_POLE = 9.5, V_GLIDE = 6.5;
   const V_AUTO = 3.3, V_AUTO1 = 4.6;        // the skier poles by itself under 12 km/h, and keeps on to 16.5 km/h
+  // what a stroke is worth at speed v, 0..1 of the stroke from rest. A planted pole drives only while the arms and trunk can push back faster
+  // than the body passes the basket, so the gain falls with speed (double-poling studies: the thrust gets shorter as the skier goes faster,
+  // the impulse per stroke smaller), but it never stops at once: under 8 m/s as before, then a small tail that fades out by 16 m/s (58 km/h)
+  const poleGain = v => Math.max(0, 1 - Math.pow(v / V_POLE, 1.5), 0.15 * (1 - smooth(8, 16, v)));
+  // and held down, the key keeps poling while a stroke still gives more than a tuck would save in air (TUCK_DK, see kd below), then it tucks
+  const TUCK_DK = 0.0036 - 0.0021, TAP_T = 0.25;
+  const poleOverTuck = v => DP_DV * poleGain(v) / DP_T > TUCK_DK * v * v;
   const S = G.s = {
     p: [0, 0, 0], v: [0, 0, 0], n: [0, 1, 0], t: [0, 0, -1], r: [1, 0, 0], h: 0, e: 0, air: false, airT: 0, speed: 0, lean: 0, leanV: 0, beta: 0, load: GRAV,
     aReac: 0, aSkid: 0, aCarve: 0, tuck: 0, tuckT: 0, powder: 0.25, landV: 0, crash: 0, brush: 0, u: 0, contact: true, hdot: 0,
@@ -174,7 +181,7 @@ const Game = (() => {
     charge: 0, tuckIn: 0, airK: 0, dp: 0, leg: 0,
   };
   // (the physics' own book-keeping for the moves; set whenever the skier is put somewhere)
-  const still = () => { S.charge = S.tuckIn = S.airK = S.dp = S.leg = 0; S.betaV = 0; S.bite = GRAV; S.jOn = false; S.jT = 0; S.jLock = true; S.edge = 0; S.popT = -1; S.popV = 0; S.lift = false; S.dpGo = 0; S.owe = 0; S.load = GRAV; S.airT = 0; S.landV = 0; S.off = 0; S.hdOff = 0; S.pdep = 0; S.aDrag = 0; S.wash = 0; S.mogR = 0; S.mogT = 9; S.mogF = 9; S.mogG = 0; S.mogA = 0; S.mogS = 0; S.aMog = 0; };
+  const still = () => { S.charge = S.tuckIn = S.airK = S.dp = S.leg = 0; S.betaV = 0; S.bite = GRAV; S.jOn = false; S.jT = 0; S.jLock = true; S.edge = 0; S.popT = -1; S.popV = 0; S.lift = false; S.dpGo = 0; S.tkT = 0; S.owe = 0; S.load = GRAV; S.airT = 0; S.landV = 0; S.off = 0; S.hdOff = 0; S.pdep = 0; S.aDrag = 0; S.wash = 0; S.mogR = 0; S.mogT = 9; S.mogF = 9; S.mogG = 0; S.mogA = 0; S.mogS = 0; S.aMog = 0; };
   still();
   // the chase camera when the picture is wide (the way the game is meant to be held): how low the skier sits in the frame, lens, distance, height
   // (wd, wh, wf: among trees it comes that much nearer (m), lower (m) and wider (rad): see cam.wood)
@@ -299,7 +306,7 @@ const Game = (() => {
     let nPop = 0;
     if (S.popT >= 0) { const q = S.popT / POP_T, sq = Math.sin(PI * q); if (q >= 1 || !contact) { S.popT = -1; S.lift = contact; } else { nPop = S.popV * 2 / POP_T * sq * sq; S.popT += dt; } }
     // accelerate: one control. Slow, the skier double-poles, stroke after stroke (S.dp is the phase of the stroke: reach, plant at 0.22, drive
-    // to 0.62, release, recover); poles do nothing for a skier already moving faster than arms can push, so above V_POLE the same control is a
+    // to 0.62, release, recover); poles give less and less as the skier goes faster (poleGain), so where a tuck pays more the same control held is a
     // tuck (S.tuckIn). The stroke in hand is always finished first. Leaving the start is the same stroke, up to three, until the slope takes over
     if (S.dpGo > 0 && sp >= V_GLIDE) S.dpGo = 0;
     // (and by itself, as any skier does: slow on the snow and not turning hard, the skier poles, stroke after stroke, without being asked:
@@ -309,7 +316,10 @@ const Game = (() => {
     // (turning brake b: and not while the player is steering. A skier holding a turn round to a stop does not pole out of it; poling there
     // kept a held turn going at 12-16 km/h for ever)
     S.autoP = sound && !(TB && Math.abs(u) > 0.3) && Math.abs(S.lean) < 0.16 && Math.abs(S.beta) < 0.25 && !S.jOn && sp < (S.autoP ? V_AUTO1 : V_AUTO);
-    const more = sound && (calm && (S.dpGo > 0 || Input.tuck && sp < V_POLE - 1) || S.autoP);
+    // (at speeds where the tuck pays more, holding the key tucks as always, and a short tap of it is one stroke: a skier can always pole,
+    // fast it is only worth little)
+    const tap = !Input.tuck && S.tkT > 0 && S.tkT < TAP_T; S.tkT = Input.tuck ? (S.tkT || 0) + dt : 0;
+    const more = sound && (calm && (S.dpGo > 0 || Input.tuck && poleOverTuck(sp) || tap && S.dp === 0) || S.autoP);
     S.dpMore = more;
     if (S.dp > 0) {
       const q0 = S.dp;
@@ -317,7 +327,7 @@ const Game = (() => {
       else { S.dp = q0 + dt / DP_T; if (q0 < DP_PLANT && S.dp >= DP_PLANT) G.events.push({ type: 'pole' }); if (S.dp >= 1) { S.dp = more ? S.dp - 1 + 1e-4 : 0; if (more && S.dpGo > 0) S.dpGo--; } }
     } else if (more) { S.dp = 1e-4; if (S.dpGo > 0) S.dpGo--; }
     let aPole = 0;
-    if (S.dp > DP_PLANT && S.dp < DP_END && contact) { const sq = Math.sin(PI * (S.dp - DP_PLANT) / (DP_END - DP_PLANT)); aPole = DP_DV * Math.max(0, 1 - Math.pow(sp / V_POLE, 1.5)) * 2 * sq * sq / ((DP_END - DP_PLANT) * DP_T); }
+    if (S.dp > DP_PLANT && S.dp < DP_END && contact) { const sq = Math.sin(PI * (S.dp - DP_PLANT) / (DP_END - DP_PLANT)); aPole = DP_DV * poleGain(sp) * 2 * sq * sq / ((DP_END - DP_PLANT) * DP_T); }
     S.tuckIn = damp(S.tuckIn, Input.tuck && S.dp === 0 && S.crash <= 0 ? 1 : 0, 5, dt);
 
     // ---- legs: a damped spring along the snow's normal that can only push. It is soft about the stance (one more g sits the body a hand
