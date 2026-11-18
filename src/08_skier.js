@@ -136,8 +136,13 @@ const Skier = (() => {
     const id = sec.idle || null, ish = id ? id.sh : 0, ibr = id ? id.br : 0;
     // feet (ski frames): rolled onto their edges; the inside ski leads
     const fb = basis(0, 0, edge), lift = 0.05 * Math.abs(Math.sin(edge));
-    const fbL = p.pitchL || p.rollL ? basis(0, -(p.pitchL || 0), edge + (p.rollL || 0)) : fb, fbR = p.pitchR || p.rollR ? basis(0, -(p.pitchR || 0), edge + (p.rollR || 0)) : fb;      // (rollL/R: one ski rolled on its own, as legs spread apart in the air)
-    J.footL = [-stance / 2, lift + liftL, lead]; J.footR = [stance / 2, lift + liftR, -lead];
+    // (sec.gnd, 08j_solver.js, 新求解器: where the real snow is under each ski, given in the figure's own frame: [height, pitch] for the left and the right
+    // ski. The skis are laid on it; the body's height stays the physics' own, so the legs take up the difference)
+    const gd = sec.gnd || null, gyL = gd ? gd[0] : 0, gpL = gd ? gd[1] : 0, gyR = gd ? gd[2] : 0, gpR = gd ? gd[3] : 0;
+    const fbL = p.pitchL || p.rollL || gpL ? basis(0, -(p.pitchL || 0) - gpL, edge + (p.rollL || 0)) : fb, fbR = p.pitchR || p.rollR || gpR ? basis(0, -(p.pitchR || 0) - gpR, edge + (p.rollR || 0)) : fb;      // (rollL/R: one ski rolled on its own, as legs spread apart in the air)
+    // (snow that stands higher under a ski folds that leg; snow that lies lower is reached for only as far as the leg is long, below: the body is not
+    // pulled down after a ski)
+    J.footL = [-stance / 2, lift + liftL + Math.max(gyL, 0), lead]; J.footR = [stance / 2, lift + liftR + Math.max(gyR, 0), -lead];
     J.ankleL = v3.mad(J.footL, fbL.Y, LEN.ankle); J.ankleR = v3.mad(J.footR, fbR.Y, LEN.ankle);
     // how far the legs are folded: the suspension travel of the physics, 0.38 m from long to deep (the body's height over the snow is the physics' own),
     // plus what the stroke and a grab ask for
@@ -187,6 +192,8 @@ const Skier = (() => {
       }
     }
     J.pelvis = pel; J.hipL = hipL; J.hipR = hipR;
+    if (gyL < 0 || gyR < 0) { const Lm = (LEN.thigh + LEN.shin) * 0.975, reach = (hip, an, g) => { if (!(g < 0)) return 0; const dx = hip[0] - an[0], dz = hip[2] - an[2], h2 = Lm * Lm - dx * dx - dz * dz; return h2 > 0 ? Math.min(0, Math.max(g, hip[1] - Math.sqrt(h2) - an[1])) : 0; };
+      const dl = reach(hipL, J.ankleL, gyL), dr = reach(hipR, J.ankleR, gyR); J.footL[1] += dl; J.ankleL[1] += dl; J.footR[1] += dr; J.ankleR[1] += dr; }
     // legs from the boot up: the boot holds the shin square to the ski sideways, so the knee folds forward over the toe and goes into the turn with the
     // edge; of all the places the knee could be it takes the one that keeps the shin in the boot
     const knee = (hip, ank, b, side) => {
@@ -228,7 +235,9 @@ const Skier = (() => {
     // (tipL/R: the ski pitched up at the boot over and above all that, so that its shovel rides up out of the snow: powder, a hollow, a
     // mogul's face. Not the boot's to undo: in real snow the ski bends there, and the shin a few degrees more against the tongue reads the same)
     const tipUp = (b, a) => { if (!a) return b; const ce = Math.cos(-a), se = Math.sin(-a); return { X: b.X, Y: v3.sub(v3.mul(b.Y, ce), v3.mul(b.Z, se)), Z: v3.add(v3.mul(b.Z, ce), v3.mul(b.Y, se)) }; };
-    fbl = tipUp(fbl, p.tipL || 0); fbr = tipUp(fbr, p.tipR || 0);
+    // (新求解器: the ski already lies on the snow it has under it, so the shovel is not tipped up as well: tipped by this rule after a landing, 26 degrees
+    // about the boot, the tail went 43 cm under the snow, measured 2026-11-18)
+    if (!gd) { fbl = tipUp(fbl, p.tipL || 0); fbr = tipUp(fbr, p.tipR || 0); }
     J.footL = v3.mad(J.ankleL, fbl.Y, -LEN.ankle); J.footR = v3.mad(J.ankleR, fbr.Y, -LEN.ankle);
     // torso: hinged forward at the hips, more upright sideways than the legs, rotated toward the fall line (separation)
     // (a turn begins with the whole body tipping in; only as it tightens do the hips drop inside while the shoulders stay nearer level)
@@ -1129,6 +1138,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     sec.lab = typeof LabMo !== 'undefined' && !K.boardOn() ? LabMo.step(cur, sec, cut ? 0 : dt, st.hm.v ? v3.len(st.hm.v) : 0) : null;
     sec.labB = typeof LabMo !== 'undefined' && K.boardOn() ? LabMo.stepB(cur, sec, cut ? 0 : dt) : null;
     // (实验室人物, developer mode: the lab's skeleton and motion set every bone, 08i_labride.js; until its frames are solved the game's own stand in)
+    sec.gnd = K.ground ? K.ground(cur, root, Y, toW, sec, cut ? 0 : dt) : null;
     const s = (K.labSolve && K.labSolve(cur, sec, cut ? 0 : dt)) || (K.boardOn() ? K.solveBoard(cur, sec) : solve(cur, sec));
     for (let k = 0; k < 2; k++) { const P = st.pp[k], sd = k ? 'R' : 'L', tp = s.J['tip' + sd], gp = s.J['grip' + sd];
       if (!P) { if (!cut && dt > 0 && !(f > 0) && pq[k] > st.pq[k] && pq[k] > 0.5 && tp[1] <= 0) st.pp[k] = { W: toW(tp), T: [tp[0], tp[2]], d: null, h: null, w: 0, g: 0, rel: 0 }; }

@@ -852,7 +852,7 @@ const Game = (() => {
     // the trunk came up 50 degrees in a seventh of a second, a jolt in arms and head at every take-off. One the player holds is kept, as before)
     fl.pop = S.popT >= 0 || fl.pop && S.air ? 1 : 0; const rdy = MO4 ? Math.max(fl.pop, fl.prep || 0) : 0;
     pose.tuck = sat(spring(fl, 'tk', Math.max(Math.max(S.tuck, pose.tuckHi) * (1 - w) * (1 - rdy), (S.tuckIn || 0) * (1 - q.own)) * (1 - dpK) + q.tuck + 0.45 * fl.soak, 11, kd));
-    pose.air = 0.42 * w * (1 - q.own) + q.air;
+    pose.air = 0.42 * w * (1 - q.own) + q.air; pose.onSnow = S.contact ? 1 : 0;      // (新求解器, 08j_solver.js: whether the skis have snow under them, the physics' own word, not eased)
     // the body stands where the forces put it. Its inclination follows what the snow is pushing back with (sideways push over load: the
     // angle at which a skier is in balance), not the steering that causes it: so it is into the turn the moment the edges bite, and back
     // over the skis the moment the load comes off. (Over a crest, with no load to speak of, it holds what it had. In the air it stands over
@@ -1111,6 +1111,7 @@ const Game = (() => {
       const c = Math.cos(q.flip), s = Math.sin(q.flip), Hc = 0.98 - 0.38 * pose.crouch, ax = fx * c + nx * s, ay = fyv * c + ny * s, az = fz * c + nz * s, ux = nx * c - fx * s, uy = ny * c - fyv * s, uz = nz * c - fz * s;
       ox = (nx - ux) * Hc; oy = (ny - uy) * Hc; oz = (nz - uz) * Hc; fx = ax; fyv = ay; fz = az; nx = ux; ny = uy; nz = uz;
     }
+    pose.sink = S.contact ? fl.L - S.e : 0;      // (新求解器: how far under the physics' own snow the figure's skis are put: soft snow, a landing)
     root.pos[0] = P[0] + ox; root.pos[1] = fy + oy; root.pos[2] = P[2] + oz; root.fwd[0] = fx; root.fwd[1] = fyv; root.fwd[2] = fz; root.nrm[0] = nx; root.nrm[1] = ny; root.nrm[2] = nz;
     // (what the lens frames by: the feet on the snow; in the air the level the feet would hang at, which does not bob as the knees come up)
     fl.fr = lerp(fy, P[1] + 0.03 - 0.38 * Xs, fl.kc);
