@@ -148,8 +148,8 @@ function metrics(d, S, tr, cards, co, sm) {
     put(c, 'F', 'F3h', pct(f.map(i => hv[i]), 0.99));
     put(c, 'F', 'F4', Math.max(...f.map(i => Math.max(D2[0][i], D2[1][i], D2[2][i], D2[3][i]))));
   }
-  // F6 一个钟 / F7 响应（连续转弯时）：躯干侧倾不比身体倾角早；输入到身体倾角的延迟
-  if (co.lags['躯干侧倾']) put('turn', 'F', 'F6', co.lags['躯干侧倾'].lag);
+  // F6 肩先进弯 / F7 响应（连续转弯时）：躯干侧倾比身体倾角早多少秒（正 = 上身先，用户定的标准；负 = 上身晚了，算错。2026-11-18 改：原来要求上身晚 0–0.2 秒“腿先动”，和用户的标准相反）；输入到身体倾角的延迟
+  if (co.lags['躯干侧倾']) put('turn', 'F', 'F6', -co.lags['躯干侧倾'].lag);
   if (co.lags['输入（玩家的转向）']) put('turn', 'F', 'F7', -co.lags['输入（玩家的转向）'].lag);
   // R 转弯：每个弯取弯中（0.4–0.6）的值，和专业滑手同样的量
   for (const t of tr.list) { const c = cards[Math.floor((t.i0 + t.i1) / 2)].has('carve') ? 'carve' : 'turn', mid = q => { const a = t.c[q].slice(13, 20); return a.reduce((s, x) => s + x, 0) / a.length; };
