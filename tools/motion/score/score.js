@@ -65,7 +65,9 @@ function hard(d, S, cards) {
       // H4 雪杖：握拳以下、离雪 60 cm 以内的杖身，在板长范围内要在自己那块板外侧 ≥ 7 cm
       for (const [sd, F, o] of [['L', ff[0], -1], ['R', ff[1], 1]]) { const g = J('grip' + sd), tp = J('tip' + sd), [X, , Z, P] = F;
         for (let u = 0.1; u <= 1.0001; u += 0.1) { const q = v.add(g, v.mul(v.sub(tp, g), u)); if (q[1] > 0.6) continue; const dd = v.sub(q, P), z = v.dot(dd, Z); if (z < -0.96 || z > 0.8) continue;
-          const outD = o * v.dot(dd, X) * 100; note('H4', i, outD, 7, outD < 7, (sd === 'L' ? '左' : '右') + '杖身离自己的板外侧只有 ' + outD.toFixed(1) + ' cm'); } }
+          if (v.dot(dd, F[1]) > 0.15) continue;      // （只看贴近板面的那一段杖：身体倒进弯里时，外侧手本来就在外板的上方，杖身从板上方斜过去是对的；错的是杖在板面高度上压到板上，2026-11-18）
+          const Xh = v.norm([X[0], 0, X[2]]), outD = o * v.dot(dd, Xh) * 100;      // （横向按雪面上的横向量：板立刃时它自己的 X 轴是斜的，离板半米高的杖身会被误算成“在板内侧”，2026-11-18）
+          note('H4', i, outD, 7, outD < 7, (sd === 'L' ? '左' : '右') + '杖身离自己的板外侧只有 ' + outD.toFixed(1) + ' cm'); } }
     }
     // H5 手：握杖的拳，掌心朝里（朝身体中线）。手骨 Y 轴 = 前臂 × 杖，指向一定；左右装反或掌心翻过来，这个方向就反了
     if (hf && !board && !airF && !(d.fl && d.fl[i][11] > 0.05)) for (const [sd, k, o] of [['L', 0, -1], ['R', 1, 1]]) { const Y = hf[k][1], lat = d.bas[i][3];       // 胸的 X 轴 = 身体的右
