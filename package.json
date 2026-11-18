@@ -9,6 +9,7 @@
   "scripts": {
     "build": "node build.js",
     "check": "node tools/check-native.js",
+    "motion": "node tools/motion/run.js",
     "start": "node build.js && node tools/serve.js",
     "build:xhs": "node tools/build-xhs.js"
   },

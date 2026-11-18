@@ -694,6 +694,25 @@ const Course = ((vn1, vn2, h2U) => {
   // where the bumps of a mogul field stand (0..1): across the run short of its edges, except along one smooth line that winds down
   // through them. That line is the fast way; the bumps either side of it are slow going and throw the skier about
   function mogField(u, s, hw) { return smooth(hw * 1.1, hw * 0.8, Math.abs(u)) * smooth(2.4, 6.5, Math.abs(u - 0.5 * hw * vnoise1(s / 105 + 7.3, C.seed + 31))); }
+  // the snow under a lens: the highest of the fine surface there and 0.6 m either way. What a lens has to keep clear of is not only the
+  // point under it: the corners of the picture's near plane reach a few tenths of a metre out from it, and on a gully wall or a mogul the
+  // snow beside it stands higher than the snow under it (every camera keeps above this: 07_game.js, 07b_views.js, 19d_photo.js, 20_director.js)
+  C.snowTop = function (x, z) { return Math.max(C.height(x, z, 0.5), C.height(x + 0.6, z, 0.5), C.height(x - 0.6, z, 0.5), C.height(x, z + 0.6, 0.5), C.height(x, z - 0.6, 0.5)); };
+  // ...and the last word for every lens: how far it has to rise for the near plane of its picture (the rectangle `near` metres in front of
+  // it, `fovY` high, `aspect` wide) to stand at least `m` clear of the fine snow at its four corners and its middle, looking the way `f`
+  // (a unit vector) does. 0 when it is clear. Rising straight up moves none of those points across the map, so one lift settles it
+  const _nl = [0, 0, 0];
+  C.nearLift = function (p, f, fovY, aspect, near, m = 0.05, roll = 0) {
+    const th = Math.tan(fovY / 2), hh = near * th, hw = hh * aspect, rl = Math.hypot(f[0], f[2]) || 1e-6, rx = -f[2] / rl, rz = f[0] / rl;
+    const ux = -rz * f[1], uy = rz * f[0] - rx * f[2], uz = rx * f[1];      // (up = right x forward, with right level)
+    const cr = Math.cos(roll), sr = Math.sin(roll); let lift = C.height(p[0], p[2], 0.5) + m - p[1];
+    for (let a = -1; a <= 1; a += 2) for (let b = -1; b <= 1; b += 2) {
+      const ka = hw * a * cr - hh * b * sr, kb = hw * a * sr + hh * b * cr;      // (the corner, turned with the horizon's tilt)
+      _nl[0] = p[0] + f[0] * near + rx * ka + ux * kb; _nl[1] = p[1] + f[1] * near + uy * kb; _nl[2] = p[2] + f[2] * near + rz * ka + uz * kb;
+      lift = Math.max(lift, C.height(_nl[0], _nl[2], 0.5) + m - _nl[1]);
+    }
+    return lift > 0 ? lift : 0;
+  };
   C.bumps = function (x, z) { const c = at(-z, _py); return c.mog > 0.01 ? c.mog * mogField(x - c.cx, -z, c.hw) : 0; };
   // the lie of the rock: which bed of the mountain a point belongs to. Beds average 64 m but are not stacked plates: one is three or four
   // times the next, and how thick a bed is changes along the wall (the phase ph slides), so beds swell, pinch and nearly end. The warp

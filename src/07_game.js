@@ -46,6 +46,12 @@ const Input = (() => {
   // that, slow and short, is pivoted, the tails scraping sideways, and the snow across the ski is the brake. (3) The skid a held key asks for
   // swings the skis on round to straight across the fall line (a hockey stop), not just a third of the way. Read in step()
   Variants.def('tb', '转弯刹车', [['a', '原来'], ['b', '物理']], 'b');
+  // edge bite by the snow (owner 2026-11-18, the research on 'animation commitment': the body goes over first, the skis take hold a moment
+  // later, and how soon depends on the snow). a: as it was, the line turns with the body's lean. b, c: the edges (S.edge) follow the lean the way
+  // a ski's edge takes hold, the new edge running behind the body by EB_T s from the first number on hard, icy snow to the second in deep
+  // powder; the old edge lets go twice as fast. (b is the one the owner played and chose, default since 2026-11-18; c twice its delay, tried and not chosen) The carve, its limit, the wash and the scrape heard read the edges; the body's
+  // lean, which the pose reads, still leads. Read in step()
+  Variants.def('ebite', '换刃咬雪', [['a', '原来'], ['b', '随雪况'], ['c', '两倍延迟']], 'b');
   const I = { u: 0, fa: 0, faV: 0, faT: 0, faScript: null, btn: { jump: false, tuck: false }, jump: false, tuck: false, mode: 'touch', xr: null, tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
   I.init = function (el) {
     addEventListener('keydown', e => { if (e.code !== I.mute) I.keys[e.code] = true; }); addEventListener('keyup', e => { I.keys[e.code] = false; if (e.code === I.mute) I.mute = null; });
@@ -149,6 +155,11 @@ const Game = (() => {
   const MOG_TAU = 0.1, MOG_WMAX = 3.4, MOG_MU0 = 0.25, MOG_I = 10, MOG_RK = 0.95, MOG_RD = 0.08, MOG_WIN = 0.18, MOG_P = 0.6, MOG_KR = 0.2;
   // the jump: time to wind up, how far the legs fold for it, the speed a tap and a full wind-up give, how long the drive lasts; how far a tuck sits down
   const CHG_T = 0.65, CHG_E = 0.27, POP_V0 = 1.5, POP_V1 = 3.3, POP_T = 0.14, TUCK_E = 0.07;
+  // (Variants 'ebite' b, c, see its note above: how far the new edge runs behind the body (s, its time constant) on hard snow and in deep
+  // powder, and how much quicker the old edge lets go)
+  // (measured, mountain 261111, keys flipped every 1.4 s at 75-100 km/h, the full bite (9/10) behind the body's: b 0.11 s on the steeps,
+  // 0.13 s in the open bowl, 0.33 s in powder; c 0.23 / 0.27 / 0.49 s: in powder the next turn comes before its edge has fully bitten)
+  const EB_T = { b: [0.10, 0.30], c: [0.20, 0.60] }, EB_REL = 0.5;
   // the wind-up: the body starts down at once and slows into the bottom of the crouch, where it stays while the key is held (owner 2026-11-12)
   const chgK = t => { const x = sat(t / CHG_T); return 1 - (1 - x) * (1 - x); };
   // the double-pole stroke: its length (s), the phase of the plant and of the end of the drive, what one stroke is worth from rest (m/s), the
@@ -163,7 +174,7 @@ const Game = (() => {
     charge: 0, tuckIn: 0, airK: 0, dp: 0, leg: 0,
   };
   // (the physics' own book-keeping for the moves; set whenever the skier is put somewhere)
-  const still = () => { S.charge = S.tuckIn = S.airK = S.dp = S.leg = 0; S.betaV = 0; S.bite = GRAV; S.jOn = false; S.jT = 0; S.jLock = true; S.popT = -1; S.popV = 0; S.lift = false; S.dpGo = 0; S.owe = 0; S.load = GRAV; S.airT = 0; S.landV = 0; S.off = 0; S.hdOff = 0; S.pdep = 0; S.aDrag = 0; S.wash = 0; S.mogR = 0; S.mogT = 9; S.mogF = 9; S.mogG = 0; S.mogA = 0; S.mogS = 0; S.aMog = 0; };
+  const still = () => { S.charge = S.tuckIn = S.airK = S.dp = S.leg = 0; S.betaV = 0; S.bite = GRAV; S.jOn = false; S.jT = 0; S.jLock = true; S.edge = 0; S.popT = -1; S.popV = 0; S.lift = false; S.dpGo = 0; S.owe = 0; S.load = GRAV; S.airT = 0; S.landV = 0; S.off = 0; S.hdOff = 0; S.pdep = 0; S.aDrag = 0; S.wash = 0; S.mogR = 0; S.mogT = 9; S.mogF = 9; S.mogG = 0; S.mogA = 0; S.mogS = 0; S.aMog = 0; };
   still();
   // the chase camera when the picture is wide (the way the game is meant to be held): how low the skier sits in the frame, lens, distance, height
   // (wd, wh, wf: among trees it comes that much nearer (m), lower (m) and wider (rad): see cam.wood)
@@ -177,6 +188,27 @@ const Game = (() => {
   // b: shoulders and head stay on the fall line while the legs turn under them, a flex-and-rise through each edge change, a landing that is
   // soaked up and comes back past level once, a little chatter from the snow at speed
   if (typeof Variants !== 'undefined') Variants.def('motion', '人物动作', [['a', '原来'], ['b', '新的']], 'b');
+  // the 2026-11-16 motion review: five corrections to the figure, each behind its own row so they can be compared one at a time (measured
+  // with tools/motion, which is also the gate a change to the figure has to pass). None of them touches the physics: the skier goes down the
+  // same line to the frame. Developer mode only for now, like the board (08a_board.js): without ?dev every row is a, whatever an address or an
+  // earlier pick in this browser asks for.
+  //   mo1   b: the ski tip's look-ahead goes the way the ski goes, not the way the body does (tipClear below). (It also read the lab posture
+  //            ahead of the lean; taken out 2026-11-17 on the owner's word: where the lean comes to rest, letting a turn go, the guess ran past
+  //            it and the upper body twisted twice more after every turn);
+  //   medge b: the edges roll over with the body, to the same instant (updatePose; a is feel b's "the body goes first");
+  //   mo2   b: the lab's hand stays outside its own leg and the pole is aimed again from where the hand ended up (08_skier.js, solve);
+  //   mo3   b: the head keeps the game's own rule (level eyes) and a mogul field its quiet trunk (08_skier.js, solve);
+  //   mo4   b: the legs use their travel through a jump (updatePose; measured with tools/motion/rom.js against people). The hips' height was the
+  //            physics' body less a pile of let-downs that each kept its own clock: stacked, they left the legs bent 62 degrees at touchdown
+  //            and 80 at lift-off; let go on their own clock, one of them cancelled half of a landing's sinking. b: the legs go long for a
+  //            landing and the hips then fold into it, a jump is driven to straight legs, and a tuck is let go as the jump is wound up;
+  //   kring b: at a keyboard the ring that fills as a jump is wound up (the jump button's, on a phone) is shown too (19_ui.js, #chg)
+  if (typeof Variants !== 'undefined') {
+    Variants.def('mo1', '动作·时序', [['a', '现在的'], ['b', '修正']], 'a'); Variants.def('medge', '板刃时序', [['a', '身体先走'], ['b', '和身体同步']], 'a');
+    Variants.def('mo2', '动作·雪杖', [['a', '现在的'], ['b', '修正']], 'a'); Variants.def('mo3', '动作·头和上身', [['a', '现在的'], ['b', '修正']], 'a'); Variants.def('mo4', '动作·起跳和落地', [['a', '现在的'], ['b', '修正']], 'a'); Variants.def('kring', '电脑上的蓄力圈', [['a', '不显示'], ['b', '显示']], 'b');
+    let dev = false; try { dev = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (/[?&]dev(=|&|$)/.test(location.search) || /\/dev\/?$/.test(location.pathname) || !!(self.COLD_SMOKE && self.COLD_SMOKE.dev)); } catch (e) { }
+    if (!dev) for (const n of ['mo1', 'medge', 'mo2', 'mo3', 'mo4']) Variants.val[n] = 'a';      // (kring: shown to everyone, owner 2026-11-18)
+  }
   // (the lens among trees is the owner's to choose. a: as it was. b: it closes up, and a tree in its way fades before it is reached.
   // c: it stays where it was, and only the fading is early. 14_trees.js reads the same choice for the fading)
   if (typeof Variants !== 'undefined') Variants.def('wood', '林间镜头', [['a', '现在的'], ['b', '贴近'], ['c', '原位淡树']], 'b');
@@ -278,6 +310,7 @@ const Game = (() => {
     // kept a held turn going at 12-16 km/h for ever)
     S.autoP = sound && !(TB && Math.abs(u) > 0.3) && Math.abs(S.lean) < 0.16 && Math.abs(S.beta) < 0.25 && !S.jOn && sp < (S.autoP ? V_AUTO1 : V_AUTO);
     const more = sound && (calm && (S.dpGo > 0 || Input.tuck && sp < V_POLE - 1) || S.autoP);
+    S.dpMore = more;
     if (S.dp > 0) {
       const q0 = S.dp;
       if (q0 < DP_PLANT && !(sound && (calm || S.autoP))) S.dp = Math.max(0, q0 - 2 * dt / DP_T);       // not planted and no longer possible (off the snow, hard over, hit): the hands come back
@@ -330,12 +363,20 @@ const Game = (() => {
     // skier sideways down the hill (gHold, its pull across the line of travel, toward the outside of the turn asked for), and a skier set on
     // the uphill edges leans into the hill that much more, at any speed: so a slow skier can still hold a line across the slope, turn on up
     // it and stand there, where before, slow, the lean was too small to hold against the hill and the line sagged back down at ~11 km/h)
-    const cu = clamp(uE / 0.72, -1, 1), gHold = FB && TB && contact ? Math.max(0, sign(cu) * GRAV * ry) : 0;
+    // ---- deep carve (owner 2026-11-17 21:29: "按住下再拐…更大的幅度，也拐得更急"). Down / S held WHILE steering is the skier driving the edges
+    // over: more edge angle, and a ski tipped further bends into a tighter arc (its sidecut radius times the cosine of the edge angle), so the
+    // same key turns harder and the body goes over further. Down held running straight is still the tails (fore/aft b below)
+    // (the steering it waits for is remembered for half a second, and the depth eased: changing edges from one deep turn to the next the keys
+    // pass through no steering for a frame or two, and the depth fell to nothing and came back, the body popping up 10 cm in two frames)
+    S.deepU = Math.max(Math.abs(u), (S.deepU || 0) * Math.exp(-dt / 0.5));
+    const deepT = FB && Variants.val.fa === 'b' && !S.air ? clamp(-(Input.faT || 0), 0, 1) * smooth(0.15, 0.45, S.deepU) * smooth(3, 7, sp) : 0;
+    const deep = S.deep = damp(S.deep || 0, deepT, deepT > (S.deep || 0) ? 8 : 5, dt);
+    const cu = clamp(uE / 0.72 * (1 + 0.15 * deep), -1, 1), gHold = FB && TB && contact ? Math.max(0, sign(cu) * GRAV * ry) : 0;
     // (turning brake b: slow, the steering held right over asks for a turn far tighter than a ski bends to, from a 10.5 m arc at 40 km/h
     // down to 4 m at a crawl, the way a slow skier pivots round a tree. The sidecut below cannot carve that, so the skis are swung and
     // scraped round: a short skidded turn that also scrubs speed)
     const rMin = TB ? lerp(4, 10.5, Math.max(smooth(4, 11, sp), 1 - smooth(0.45, 0.65, Math.abs(u)))) : 10.5;      // (a steering key, which asks for 0.66 (keys d), counts as held right over)
-    const phiMax = Math.min(0.96, Math.atan(Math.max(sp, 2.5) ** 2 / (rMin * gn) + gHold / gn)) * (1 - 0.3 * S.tuckIn);
+    const phiMax = Math.min(0.96 + 0.16 * deep, Math.atan(Math.max(sp, 2.5) ** 2 / (rMin * (1 - 0.4 * deep) * gn) + gHold / gn)) * (1 - 0.3 * S.tuckIn);
     // how much skid the player asks for, 0..1: by steering past 0.72 (a, b, c), or (keys d) by the weight forward while steering at all
     const skQ = Variants.val.keys === 'd' && Input.mode !== 'tilt' ? smooth(0.15, 0.8, Math.max(0, Input.faT || 0)) * smooth(0.2, 0.5, Math.abs(u)) : smooth(0.72, 1.0, Math.abs(u));
     const phiT = sign(cu) * Math.pow(Math.abs(cu), 1.2) * phiMax * (S.air && S.airT > 0.14 ? 0.3 : 1) * (1 - 0.28 * skQ * (TB ? smooth(2.5, 6, sp) : 1));      // (b: the lean given up to a skid only where there is one: under 9 km/h a full key skids nothing, see su)
@@ -355,13 +396,18 @@ const Game = (() => {
       ph = clamp(-sign(S.lean) * hd / 0.55, -1, 1) * smooth(0.06, 0.22, Math.abs(S.lean));
       const top = Math.max(ph, 0), bot = Math.max(-ph, 0);
       if (fa > 0) gripFA = 1 + fa * (0.25 * top - 0.55 * bot);
-      else { const k = -fa; gripFA = 1 + k * (0.15 * bot - 0.35 * top); turnFA = 1 - 0.4 * k; dragFA = 1 - 0.6 * k * bot; }
+      else { const k = Math.max(0, -fa - deep); gripFA = 1 + k * (0.15 * bot - 0.35 * top); turnFA = 1 - 0.4 * k; dragFA = 1 - 0.6 * k * bot; }
       // (shovels pressed through the bottom of a turn swing the tails out by themselves, a skid that is seen and heard even in a gentle turn)
       S.faKick = fa > 0 ? fa * bot * smooth(0.1, 0.3, Math.abs(S.lean)) * smooth(6, 12, sp) : 0;
       S.faPh = ph; S.faGrip = gripFA;
     } else { S.fa = 0; S.faPh = 0; S.faGrip = 1; S.faKick = 0; }
     const wn = (S.air ? 5 : FB ? lerp(9.5, 7.5, smooth(14, 30, sp)) : 9.5) * (1 + 0.5 * fa), zeta = 0.92;
     S.leanV += (wn * wn * (phiT - S.lean) - 2 * zeta * wn * S.leanV) * dt; S.lean += S.leanV * dt;
+    // (edge bite b: the edges after the body; off the snow they are the lean itself, and so they are where the body is at touchdown)
+    const ebT = FB && contact && EB_T[Variants.val.ebite];
+    if (ebT) { const x = S.edge, eng = S.lean * x >= 0 && Math.abs(S.lean) > Math.abs(x), tau = lerp(ebT[0], ebT[1], smooth(0.1, 1, S.powder)) * (eng ? 1 : EB_REL); S.edge = S.lean + (x - S.lean) * Math.exp(-dt / tau); }
+    else S.edge = S.lean;
+    const eL = S.edge;
     // past the carve range the skis are pivoted across the direction of travel: a skid that brakes and throws snow. Only when asked for:
     // rolling from one edge to the other does not swing the skis. They are swung, and let come back, as a leg moves them, not at a blow
     // (their rate of turn never jumps); and never on round past straight across the hill: there the skid is a brake and nothing else
@@ -372,14 +418,14 @@ const Game = (() => {
     // powder). Asked for more, the skis wash out: the line turns only as fast as the grip allows and what is left over swings the tails out
     // into a skid, 0.6 rad of skid for each whole grip asked for beyond it, which brakes and throws snow. So the same full turn is a tight
     // carve at 30 km/h and, at 80, a wide arc that scrubs speed: nothing is on rails)
-    const gripB = (FB ? lerp(GRIP_B[0], GRIP_B[1], S.powder) * (GRIP_K[Variants.val.grip] || 1) : 1) * gripFA;
+    const gripB = (FB ? lerp(GRIP_B[0], GRIP_B[1], S.powder) * (GRIP_K[Variants.val.grip] || 1) : 1) * gripFA * (1 + 0.35 * deep);   // (deep: the edges driven in hold more)
     // (turning brake b: and no tighter than the ski's own arc. Edged over at the lean, a ski bent into the snow carves a circle of its sidecut
     // radius times the cosine of the edge angle; to turn tighter than that, slow and short, it has to be pivoted and scraped round. So what
     // the edges can hold across the line is the smaller of the grip and v^2 / that radius, and a turn asked beyond it is a skid)
     // (the part of the edges' work that only holds the skier against the slope bends no arc, so the sidecut does not limit it)
-    const carveB = FB && TB ? Math.min(gripB, (sp * sp / (TB_RSC * Math.max(0.3, Math.cos(S.lean))) + gHold) / Math.max(S.bite, 0.5 * GRAV)) : gripB;
-    const exB = FB && contact && sp > (TB ? 1 : 3) ? Math.max(0, Math.abs(Math.tan(S.lean)) * lerp(1.0, 0.8, S.powder) / Math.max(carveB, 0.05) - 1) * (TB ? smooth(1, 3, sp) : smooth(3, 8, sp)) : 0; S.wash = exB;
-    { const w = contact ? BETA_W : 9, bMax = su * hd > 0 ? Math.max(0, PI / 2 - Math.abs(hd)) : 9, bT = contact ? clamp(su * (TB ? TB_SK : 0.62) + sign(S.lean) * Math.min(0.75, 0.6 * exB) * (1 - Math.abs(su)) + sign(S.lean) * 0.35 * (S.faKick || 0) * (1 - Math.abs(su)), -bMax, bMax) : 0; S.betaV += (w * w * (bT - S.beta) - 2 * w * S.betaV) * dt; S.beta += S.betaV * dt; }
+    const carveB = FB && TB ? Math.min(gripB, (sp * sp / (TB_RSC * Math.max(0.3, Math.cos(eL))) + gHold) / Math.max(S.bite, 0.5 * GRAV)) : gripB;
+    const exB = FB && contact && sp > (TB ? 1 : 3) ? Math.max(0, Math.abs(Math.tan(eL)) * lerp(1.0, 0.8, S.powder) / Math.max(carveB, 0.05) - 1) * (TB ? smooth(1, 3, sp) : smooth(3, 8, sp)) : 0; S.wash = exB;
+    { const w = contact ? BETA_W : 9, bMax = su * hd > 0 ? Math.max(0, PI / 2 - Math.abs(hd)) : 9, bT = contact ? clamp(su * (TB ? TB_SK : 0.62) + sign(eL) * Math.min(0.75, 0.6 * exB) * (1 - Math.abs(su)) + sign(eL) * 0.35 * (S.faKick || 0) * (1 - Math.abs(su)), -bMax, bMax) : 0; S.betaV += (w * w * (bT - S.beta) - 2 * w * S.betaV) * dt; S.beta += S.betaV * dt; }
     // ---- moguls (Variants 'mog' b). gF: the rise, along the line of travel just ahead of the boots, of the part of each bump the legs take
     // (the drawn snow less what the body rides): 0 on the smooth line and on a face that falls away. What the legs do costs speed, twice:
     // they fold that far against the load (load x rise), and the face turns the skis up into it, a blow as big as the speed squared times
@@ -422,7 +468,7 @@ const Game = (() => {
     let aLat = 0, aTan = aPole; S.aReac = 0; S.aSkid = 0; S.aCarve = 0;
     if (contact) {
       const grip = lerp(1.0, 0.8, S.powder), sb = Math.sin(S.beta), cb = Math.cos(S.beta);
-      const aC = S.bite * Math.tan(S.lean) * grip * turnFA;
+      const aC = S.bite * Math.tan(eL) * grip * turnFA;
       const aSk = (0.95 + 0.25 * S.powder) * S.bite * sat(Math.abs(sb) / 0.34) * smooth(0.5, 3, sp);
       // (the part of a skid that turns the skier fades as the carve's does: nothing swings the line on round up the hill)
       // (feel b: the carve's own push is held to the grip; a skid pushes too, as the tails scrape round, but all of it together no more than
@@ -519,6 +565,9 @@ const Game = (() => {
   // how far the physics has the legs folded (below 0) or reached out (above), in metres: its skis are at p.y - leg. (S.leg where it keeps
   // one; the delivered physics has the legs follow the snow to their full reach and stay there in the air)
   const legP = () => S.leg !== undefined ? S.leg : S.contact ? Math.min(S.e, E_MAX) : E_MAX;
+  // (mo4 b) how long the legs are reached out for a landing and after a jump, from the hips (m; 0.08 is as straight as the figure's legs go), and
+  // how much further than the physics' own sinking the hips fold into a landing (of the legs' 0.38 m of travel)
+  const L_R = 0.045, ABS = 0.22;
   const fl = G.flight = { P: [0, 0, 0], a: [0, -GRAV, 0], q: {}, lip: [0, 0], last: '', last2: '' };
   // a critically damped spring stepped exactly (stable whatever the frame time): o[k] follows `to`, o[k + 'V'] is its rate
   function spring(o, k, to, w, dt) { const kv = k + 'V', x = (o[k] || 0) - to, v = o[kv] || 0, e = Math.exp(-w * dt), b = (v + w * x) * dt; o[k] = to + (x + b) * e; o[kv] = (v - w * b) * e; return o[k]; }
@@ -587,10 +636,13 @@ const Game = (() => {
   }
   // a spin of n half turns about the body's own axis (base: half turns already made, i.e. starting from switch)
   function spinShape(q, u, d, n, base, c) {
-    const a = (base + n * turn(u)) * PI, b = bell(0.02, 0.2, 0.7, 0.95, u);
-    q.yaw = d * a; q.c = c; q.own = b; q.tuck = 0.12 * b; q.sep = d * 0.38 * bell(0, 0.18, 0.28, 0.55, u);
+    // (新求解器, fl.pre: the turn was thrown on the snow, shoulders first (THROW, below). The skis leave already turning at the rate they keep, and the
+    // shoulders, ahead by the throw, are caught up by the hips through the first half)
+    const th = !!fl.pre && !base, a = (base + n * (th ? turn(u, 0.12) : turn(u))) * PI, b = bell(0.02, 0.2, 0.7, 0.95, u);
+    q.yaw = d * a; q.c = c; q.own = b; q.tuck = 0.12 * b; q.sep = d * 0.38 * (th ? 1 - smooth(0.28, 0.55, u) : bell(0, 0.18, 0.28, 0.55, u));
     // (the head leads the turn and finds the landing before the body comes round to it; landed switch, it looks back down the hill)
-    q.head = d * Math.min(Math.ceil((base + n) / 2) * TAU - a, 1.15) * (base ? 1 : smooth(0, 0.12, u));
+    q.head = d * Math.min(Math.ceil((base + n) / 2) * TAU - a, SOLV() ? 0.7 : 1.15) *      // (新求解器: 0.7, 40 deg. On top of the chest's own lead the head stood 75 deg round from the hips, Mac round 22: the face to the camera on a body still side on)
+      (base ? 1 : th ? Math.max(smooth(0, 0.12, u), 0.43) : smooth(0, 0.12, u));      // (thrown: the head is already looking round, 0.5 rad, as the skis leave)
   }
   const SHAPES = {
     // skis and hips twisted off to one side under shoulders that keep facing down the hill, and back
@@ -655,6 +707,7 @@ const Game = (() => {
   const bigAir = pred => offKicker() ? 2 : pred >= 0.8 ? 1 : 0, ODD = id => /^(180|540)/.test(id);
   function pickTrick(U, big) {
     if (U < 0.34) return null;
+    if (typeof LabRide !== 'undefined' && LabRide && LabRide.on()) return null;      // (实验室人物: its own moves, 08i_labride.js)
     if (big < 2 && !G.forceTrick && fl.hopT != null && G.t >= fl.hopT && G.t - fl.hopT < HOP_GAP) return null;
     // (a spin goes the way the skier was last leaning, if any: carved into; n = its half turns)
     const mk = id => { const n = parseInt(id) / 180 || 0; return { id, n, spin: n > 0, base: 0, dir: n && Math.abs(S.lean) > 0.12 ? sign(S.lean) : rnd() < 0.5 ? -1 : 1, amp: 0.72 + 0.33 * rnd(), min: TRICKS[id] ? TRICKS[id][0] : 0 }; };
@@ -665,7 +718,7 @@ const Game = (() => {
     }
     let tot = 0; const c = [];
     for (const id in TRICKS) {
-      const m = TRICKS[id][0]; if (m > U || (!big && !HOP[id]) || (big < 2 && ODD(id)) || !fpOK(id)) continue;
+      const m = TRICKS[id][0]; if (m > U || (!big && !HOP[id]) || (big < 2 && ODD(id)) || !fpOK(id) || (id === 'eagle' && SOLV())) continue;      // (新求解器 does not make the eagle yet: forced on a flat kicker, cloud 2026-11-18, the knee folds backwards for 11 frames and the ankles turn right over. Left out until its legs are made for this figure)
       // (wanted most when the air is a little more than it needs: not rushed, and fading out as the air outgrows it)
       const wt = TRICKS[id][1] * sat((U - m) / 0.15 + 0.35) * Math.exp(-Math.max(0, U - m - 0.15) / TRICKS[id][2]) * (id === fl.last ? 0.04 : id === fl.last2 ? 0.4 : 1);
       c.push(id, wt); tot += wt;
@@ -676,6 +729,7 @@ const Game = (() => {
   // (what was planned on the way in stands while it suits the air there is: with too little for it, or a good deal more than it was
   // chosen to fill, something else is picked; a turn keeps the side it has been wound up to)
   const planFor = (U, old, pred) => { const big = bigAir(pred); if (old && old.min <= U && U - old.U < 0.25 && (big === 2 || (big && !ODD(old.id)) || HOP[old.id] || G.forceTrick) && (fpOK(old.id) || G.forceTrick) && (!G.forceTrick || old.id === String(G.forceTrick))) return old; const t = pickTrick(U, big); if (t) { t.U = U; t.big = big; t.k = /\d|flip|grab/.test(t.id) ? 1 : clamp((t.seq ? U / 2 : U) / 0.62, 0.5, 1); if (old && old.spin && t.spin) t.dir = old.dir; } return t; };
+  const SOLV = () => Variants.val.solver === 'b', PRE_T = 0.13, PRE_U = 0.10, SPIN_LEAN = 0.22;     // (SPIN_LEAN: a spin is thrown from a flat, square stance. Leaving the lip banked over 35 deg in a turn, a 360 swapped the bent leg for the straight one a quarter turn in; from there another trick is taken)
   function startTrick(tr) { fl.tr = tr; fl.ph = 0; fl.swT = 0; if (tr.id !== 'pivot' && !tr.base) { fl.last2 = fl.last; fl.last = tr.id; G.events.push({ type: 'trick', id: tr.id, dir: tr.dir }); } }
   function flightReset() {
     Object.assign(fl, { air: false, on: false, t: 0, rem: 0, pred: 0, big: 0, w: 0, wV: 0, wu: 0, wuV: 0, plL: 0, plLV: 0, plR: 0, plRV: 0, kc: 0, kcV: 0, lipT: 9, lipAir: 0, lipAge: 9, prepL: 0, prepLV: 0, prep: 0, aK: 0, mL: 0, reach: 0, reachV: 0, soak: 0, soakV: 0, hit: 0, ph: 1, tr: null, plan: null, took: false,
@@ -692,7 +746,7 @@ const Game = (() => {
       const c = lerp(0.0036, 0.0025, S.tuck) * sp; fl.a[0] = -c * v[0]; fl.a[1] = -GRAV - c * v[1]; fl.a[2] = -c * v[2];
       fl.on = true; fl.took = false; fl.vp = null; fl.fresh = 0.45 + 0.55 * smooth(1, 5, fl.since);
     } else if (!S.air && fl.air) {     // ...and have met it again
-      fl.on = false; fl.rem = 0; fl.plan = null; fl.mL = 1; if (fl.dep > 0.15) fl.since = 0;
+      fl.on = false; fl.pre = 0; fl.rem = 0; fl.plan = null; fl.mL = 1; if (fl.dep > 0.15) fl.since = 0;
       // (how heavy the landing is, 0..1: the legs soak it up, the lens dips, shakes a touch and opens for a moment)
       const h = sat((S.landV - 1.5) / 9) * (0.3 + 0.7 * fl.big); fl.hit = Math.max(fl.hit, h); G.shake = Math.max(G.shake, 0.03 * h); G.fovKick = Math.max(G.fovKick, 0.08 * h);
     }
@@ -706,8 +760,11 @@ const Game = (() => {
       if (!fl.took && fl.t < 0.25) {
         fl.tOut = clamp(0.2 * fl.pred, 0.2, 0.36); const U = fl.pred - 0.05 - fl.tOut, cur = fl.tr;
         if (cur && cur.id === 'pivot') fl.took = true;                                                                    // (already coming round)
-        else if (cur) { if (U >= 0.3 && cur.spin && ((cur.base + cur.n) & 1)) startTrick({ id: '180', dir: cur.dir, spin: true, n: 1, base: 1, amp: 1, min: 0, big: 2 }); fl.took = true; }     // riding switch: a half turn back to forward (a shape still being let go of off the last hop is simply finished)
-        else { const tr = planFor(U, fl.plan, fl.pred); if (tr) { startTrick(tr); fl.took = true; if (tr.big < 2) fl.hopT = G.t; } }
+        else if (cur) { if (!fl.pre && U >= 0.3 && cur.spin && ((cur.base + cur.n) & 1)) startTrick({ id: '180', dir: cur.dir, spin: true, n: 1, base: 1, amp: 1, min: 0, big: 2 }); fl.took = true; }     // riding switch: a half turn back to forward (a shape still being let go of off the last hop is simply finished)
+        // (新求解器, owner 2026-11-18: "跳起来突然就转圈…转圈肯定是起的那一下要带一下的". A body in the air cannot start to turn: the turn is thrown
+        // on the snow. A spin is only done when it was begun before the skis left (fl.pre, below); found in the air with nothing thrown, the
+        // trick is one of the shapes that need no turn)
+        else { let tr = planFor(U, fl.plan, fl.pred); if (SOLV() && tr && tr.spin) { tr = null; for (let i = 0; i < 8 && !tr; i++) { const t2 = pickTrick(U, bigAir(fl.pred)); if (t2 && !t2.spin) { t2.U = U; tr = t2; } } } if (tr) { startTrick(tr); fl.took = true; if (tr.big < 2) fl.hopT = G.t; } }
       }
     }
     // the lip ahead, while on the snow and moving
@@ -715,19 +772,27 @@ const Game = (() => {
     const lip = !S.air && fl.lipT < 0.45 && fl.lipAir >= 0.42;
     if (lip && !fl.tr) fl.plan = planFor(fl.lipAir - 0.05 - clamp(0.2 * fl.lipAir, 0.2, 0.36), fl.plan, fl.lipAir);
     if (!lip && !S.air && fl.lipAge > 0.6) fl.plan = null;
+    // (新求解器: a planned spin begins on the snow, in the last tenth of a second before the lip or through the push of a jump: the shoulders go
+    // first (the shape's own sep), the skis come round a few degrees, and the body leaves the snow already turning at its full rate)
+    if (SOLV() && !S.air && !fl.tr && fl.plan && fl.plan.spin && Math.abs(fl.lb) < SPIN_LEAN && Math.abs(fl.lb + 0.3 * (fl.lbV || 0)) < SPIN_LEAN && S.contact && S.crash <= 0 && ((lip && fl.lipT < PRE_T) || (S.popT >= 0 && fl.lipAir >= 0.42 && fl.lipAge < 0.6))) { startTrick(fl.plan); fl.pre = 1; fl.preT = 0; fl.thr = 0; fl.back = 0; }
     // the trick runs on the time there is: its phase moves so as to be done `tOut` before the skis touch, however the forecast shifts
     const tr = fl.tr;
     if (tr) {
       if (tr.id === 'pivot') fl.ph = Math.min(1, fl.ph + dt / 0.5);
-      else if (fl.on) { if (fl.t > 0.05) fl.ph = Math.min(1, fl.ph + dt * Math.min((1 - fl.ph) / Math.max(fl.rem - fl.tOut, 0.02), 6)); }
+      else if (fl.pre && !fl.on) { fl.preT += dt; const k = sat(Math.max(fl.lipT < 9 ? 1 - fl.lipT / PRE_T : 0, S.popT >= 0 ? S.popT / POP_T : 0)); fl.thr = Math.max(fl.thr || 0, k * k * (3 - 2 * k)); fl.ph = 0;
+        // (Mac round 20: begun as the spin itself, the skis came round 15-23 deg while the track stayed straight, a sideslip with snow thrown off the
+        // tails; then they waited seven frames for the lip, and jumped to full rate. On the snow only the shoulders go, the skis hold their line)
+        if (fl.preT > 0.45 || Math.abs(fl.lb) > SPIN_LEAN * 1.3) { fl.tr = null; fl.pre = 0; fl.back = tr.dir * fl.thr; fl.thr = 0; clearQ(q); } }      // (thrown, and the snow did not let go, or the skier banked into a turn: the shoulders are let back, below)
+      else if (fl.on) { if (fl.t > 0.05 || fl.pre) fl.ph = Math.min(1, fl.ph + dt * Math.min((1 - fl.ph) / Math.max(fl.rem - fl.tOut, 0.02), 6)); }
       else fl.ph = Math.min(1, fl.ph + dt * 6);                      // (met the snow early: what is left of it is finished there, quickly)
-      trickShape(tr, fl.ph, q);
+      if (fl.tr && fl.pre && !fl.on) { clearQ(q); q.sep = tr.dir * 0.38 * (fl.thr || 0); q.head = tr.dir * 0.5 * (fl.thr || 0); } else if (fl.tr) trickShape(tr, fl.ph, q);
       if (fl.ph >= 1 && !fl.on) {
         if (!(tr.spin && ((tr.base + tr.n) & 1))) { fl.tr = null; clearQ(q); }
         // landed switch: ride it out for a moment, then pivot round on the snow
         else { fl.swT += dt; if (fl.swT > 0.6 && S.contact && S.crash <= 0) startTrick({ id: 'pivot', dir: tr.dir, spin: true, n: 1, base: 1, amp: 1, min: 0 }); }
       }
     }
+    if (!fl.tr && fl.back) { const b0 = fl.back; fl.back = Math.abs(b0) < 0.02 ? 0 : b0 * Math.exp(-7 * dt); q.sep = 0.38 * fl.back; q.head = 0.5 * fl.back; }      // (a throw taken back: the shoulders come round square again in a quarter second)
     fl.trick = fl.tr ? fl.tr.id : ''; fl.sw = fl.tr && fl.tr.spin && fl.ph >= 1 && ((fl.tr.base + fl.tr.n) & 1) ? fl.tr.dir : 0;
     // how far the body has gone over to its flight shape: in over the first fifth of a second, out again before the skis touch
     // (through a spring: a forecast that changes its mind for a step, grazing a mogul, must not twitch the whole figure)
@@ -738,7 +803,8 @@ const Game = (() => {
     // flight the lip promises is long: a small lip, or one misjudged, gets a nod and not a wind-up); prep adds the wind-up
     // the player holds (S.charge: there the physics itself sits the body down, so the legs need no more from here: only arms and shoulders)
     { const to = lip && fl.lipT > 0.085 ? 0.8 * smooth(0.42, 0.75, fl.lipAir) : 0; spring(fl, 'prepL', to, to > fl.prepL ? 10 : 24, dt); fl.prep = 1 - (1 - sat(fl.prepL)) * (1 - (S.charge || 0)); }
-    spring(fl, 'reach', fl.on ? fl.big * smooth(0.40, 0.12, fl.rem) : 0, fl.on ? 14 : 22, dt);
+    // (mo4 b: on the snow it is let go over half a second or so, as the skier stands up out of the landing, not in a seventh: see Xr in updatePose)
+    spring(fl, 'reach', fl.on ? fl.big * smooth(0.40, 0.12, fl.rem) : 0, fl.on ? 14 : typeof Variants !== 'undefined' && Variants.val.mo4 === 'b' ? 5 : 22, dt);
     // the landing: a blow that the body and the lens take up and let go of
     fl.hit = damp(fl.hit, 0, 5, dt); spring(fl, 'soak', fl.hit, 15, dt);
     // the lens leaves the snow's lead a moment before the skis do (it crosses the lip a fifth of a second behind them) and comes back to it after
@@ -770,13 +836,20 @@ const Game = (() => {
     fl.tcL = fl.tcL || 0; fl.tcR = fl.tcR || 0;
     const W = typeof Skier !== 'undefined' && Skier.world, o = Render.origin;
     if (!W || !W.seg || !o || dt <= 0) return;
-    const ce = Math.max(Math.cos(pose.edge || 0), 0.35);
+    const ce = Math.max(Math.cos(pose.edge || 0), 0.35), MO1 = typeof Variants !== 'undefined' && Variants.val.mo1 === 'b';
     for (let k = 0; k < 2; k++) {
       const tip = W.seg[k][1], sf = (x, z) => Course.height(x, z, 0.5) + (typeof Tracks !== 'undefined' && Tracks.lift ? Tracks.lift(x, z) : 0);
       // (and where the tip will be in the next few hundredths of a second, carried on at the speed it goes: at 80 km/h a mogul's face comes at it
       // faster than it could be seen and answered after the fact)
+      // (mo1 b: carried on the way the ski goes, not the body. The body's own fall says nothing about the ski: on the snow the boot rides the snow
+      // while the legs take the body's sinking up, and coming down to a landing the body is still falling into its legs after the ski has
+      // stopped on the snow. Carried on at the body's speed the tip was seen a hand deep in snow it never reached, kicked up 23 degrees just
+      // before every landing, and the tail dug in a third of a metre. So: ahead on the snow, the boot's height changes as the snow under the
+      // boot does; in the air, at the body's speed less the legs' own (fl.LV), and never below the snow)
       let pen = -1;
-      for (const a of [0, 0.04, 0.08]) { const x = tip[0] + o[0] + S.v[0] * a, z = tip[2] + o[2] + S.v[2] * a; pen = Math.max(pen, sf(x, z) - (tip[1] + o[1] + S.v[1] * a)); }
+      if (MO1) { const tl = W.seg[k][0], bq = 0.4535, bx0 = tl[0] + (tip[0] - tl[0]) * bq + o[0], by0 = tl[1] + (tip[1] - tl[1]) * bq + o[1], bz0 = tl[2] + (tip[2] - tl[2]) * bq + o[2], g0 = sf(bx0, bz0), vyS = S.v[1] - (fl.LV || 0);      // (the boot: 45% of the way from the tail to the tip)
+        for (const a of [0, 0.04, 0.08]) { const x = tip[0] + o[0] + S.v[0] * a, z = tip[2] + o[2] + S.v[2] * a, gb = sf(bx0 + S.v[0] * a, bz0 + S.v[2] * a), dy = !a ? 0 : S.air ? Math.max(by0 + vyS * a, gb) - by0 : gb - g0; pen = Math.max(pen, sf(x, z) - (tip[1] + o[1] + dy)); } }
+      else for (const a of [0, 0.04, 0.08]) { const x = tip[0] + o[0] + S.v[0] * a, z = tip[2] + o[2] + S.v[2] * a; pen = Math.max(pen, sf(x, z) - (tip[1] + o[1] + S.v[1] * a)); }
       // (in deep powder the shovel planes well up out of it: a hand's breadth of tip shows; owner 2026-11-12)
       pen += 0.02 + 0.06 * (typeof Tracks !== 'undefined' ? Tracks.deep || 0 : 0); const key = k ? 'tcR' : 'tcL', cur = fl[key];
       const want = clamp(cur + pen / (0.94 * ce), 0, 0.5);
@@ -785,7 +858,7 @@ const Game = (() => {
   }
   function updatePose(dt) {
     const first = !pose.init, k = first ? 1e6 : 1, kd = dt * k; pose.init = true;
-    const FB = typeof Variants !== 'undefined' && Variants.val.feel === 'b';
+    const FB = typeof Variants !== 'undefined' && Variants.val.feel === 'b', MO4 = typeof Variants !== 'undefined' && Variants.val.mo4 === 'b';
     // (speeds are the body's own: S.speed, the speed along the snow under the skis, collapses for a few steps over a lip)
     const P = fl.P, v = S.v, vh = Math.hypot(v[0], v[2]), sp = Math.hypot(vh, v[1]), q = fl.q, w = fl.w, cy = Math.cos(q.yaw);
     // the snow under the body at this instant: the snow that is drawn (hv) and, over bumps, the smoother one the body is told about (hb)
@@ -795,7 +868,7 @@ const Game = (() => {
     // skier in a step: it sinks away to the landing below over a few tenths of a second, and the skier is seen to rise from it
     if (first || dt <= 0) { fl.sg = hb; fl.sgV = 0; fl.sgP = hb; } else weighted(fl, 'sg', hb, fl.sgV, 4.5, dt);
     // a double-pole stroke is drawn by the skier from pose.dp: while one runs, the turn pole plant, the tuck and the balance arms stand back
-    const dpK = fl.dpK = damp(fl.dpK, S.dp > 0 ? 1 : 0, 14, kd); pose.dp = S.dp || 0;
+    const dpK = fl.dpK = damp(fl.dpK, S.dp > 0 ? 1 : 0, 14, kd); pose.dp = S.dp || 0; pose.dpn = S.dpMore ? 1 : 0; pose.chg = S.charge || 0;
     fl.crashK = damp(fl.crashK, S.crash, S.crash > fl.crashK ? 25 : 60, kd); const crash = fl.crashK;
     // tuck when running straight and fast
     // (above a hundred an hour a racer holds the tuck through long turns too, and only stands out of it to turn hard)
@@ -804,8 +877,14 @@ const Game = (() => {
     // (...and at that pace nobody stands tall even to turn: between tucks it is a high tuck, hands forward and together, lower the gentler the turn)
     pose.tuckHi = damp(pose.tuckHi || 0, 0.62 * fast * (1 - 0.5 * sat((Math.abs(S.lean) - 0.4) / 0.45)) * (1 - w) * (1 - sat(S.crash * 5)), 3, dt);
     // (in the air the tuck is let go as the flight shape comes on, unless the player is holding one; a hard landing folds the chest down over the knees)
-    pose.tuck = sat(spring(fl, 'tk', Math.max(Math.max(S.tuck, pose.tuckHi) * (1 - w), (S.tuckIn || 0) * (1 - q.own)) * (1 - dpK) + q.tuck + 0.45 * fl.soak, 11, kd));
-    pose.air = 0.42 * w * (1 - q.own) + q.air;
+    // (mo4 b: nobody jumps out of a tuck. The tuck the skier falls into by itself at speed was kept through the wind-up and the legs' drive and let
+    // go only as the flight's shape came on, a fifth of a second into the air: off a kicker the skis left the snow under knees bent 93 degrees.
+    // It is let go as the jump is wound up (fl.prep: the player's wind-up, or the body's own for a lip it sees coming), at the tuck's own pace,
+    // and stays off from the drive's first step until the skis are down again (fl.pop). Let go only with the drive it had to go twice as fast:
+    // the trunk came up 50 degrees in a seventh of a second, a jolt in arms and head at every take-off. One the player holds is kept, as before)
+    fl.pop = S.popT >= 0 || fl.pop && S.air ? 1 : 0; const rdy = MO4 ? Math.max(fl.pop, fl.prep || 0) : 0;
+    pose.tuck = sat(spring(fl, 'tk', Math.max(Math.max(S.tuck, pose.tuckHi) * (1 - w) * (1 - rdy), (S.tuckIn || 0) * (1 - q.own)) * (1 - dpK) + q.tuck + 0.45 * fl.soak, 11, kd));
+    pose.air = 0.42 * w * (1 - q.own) + q.air; pose.onSnow = S.contact ? 1 : 0;      // (新求解器, 08j_solver.js: whether the skis have snow under them, the physics' own word, not eased)
     // the body stands where the forces put it. Its inclination follows what the snow is pushing back with (sideways push over load: the
     // angle at which a skier is in balance), not the steering that causes it: so it is into the turn the moment the edges bite, and back
     // over the skis the moment the load comes off. (Over a crest, with no load to speak of, it holds what it had. In the air it stands over
@@ -833,10 +912,13 @@ const Game = (() => {
     // quick: a hundredth of a second or two through an edge change, a fifth of a second while it is only trembling about a held angle)
     { const r = fl.lbR = first || dt <= 0 ? Math.abs(fl.lbV) : damp(fl.lbR || 0, Math.abs(fl.lbV), 8, dt), fc = (FB ? 2.5 : 0.8 + 3.5 * r) + 30 * Math.max(w, sat(crash * 5), q.own);
       fl.lbF = first || dt <= 0 || fl.lbF == null ? fl.lb : fl.lbF + (fl.lb - fl.lbF) * (1 - Math.exp(-TAU * fc * dt)); fl.lb = fl.lbF; }
-    const Lv = fl.lb * cy * (1 - 0.7 * q.own * w), sL = Math.sin(Lv); pose.lean = Lv;
+    const Lv = fl.lb * cy * (1 - (fl.pre && fl.on && q.yaw ? 1 : 0.7 * w) * q.own), sL = Math.sin(Lv); pose.lean = Lv;
     // (feel b: the body goes first. The hips cross over into the new turn and the edges follow them a tenth of a second or so later, through a
     // critically damped spring, instead of rolling with the body to the same instant)
-    { const eT = clamp(Lv * 1.12 + S.beta * 0.25 * cy, -1.3, 1.3); if (FB && !first) { fl.edB = spring(fl, 'edB', eT, lerp(30, 16, (1 - w) * (1 - sat(crash * 5))), kd); pose.edge = clamp(fl.edB, -1.3, 1.3); } else { fl.edB = eT; fl.edBV = 0; pose.edge = eT; } }
+    // (medge b: to the same instant after all. A ski boot holds the shin square to the ski sideways, so an edge a tenth of a second behind the
+    // body was a shin leaning 18 degrees inside its boot at every edge change, knees pointing 46 degrees apart, and half of the poles through
+    // the thighs. Only the drawing: the physics never read this edge)
+    { const eT = clamp(Lv * 1.12 + S.beta * 0.25 * cy, -1.3, 1.3); if (FB && !first && !(typeof Variants !== 'undefined' && Variants.val.medge === 'b')) { fl.edB = spring(fl, 'edB', eT, lerp(30, 16, (1 - w) * (1 - sat(crash * 5))), kd); pose.edge = clamp(fl.edB, -1.3, 1.3); } else { fl.edB = eT; fl.edBV = 0; pose.edge = eT; } }
     // legs. The hips ride where the physics has the body, set lower by how the skier is standing (Xs); the legs are whatever it takes to
     // get from there to the skis. fl.l is how far they are folded (below 0) or reached out (above), in metres, measured from the hips;
     // fl.L the same counted as the physics counts its own (S.leg): the skis are at P.y - L, always. The figure draws the knee bend it
@@ -864,13 +946,42 @@ const Game = (() => {
     // (the hips sink onto a loaded ski at the pace of the turn, not of the snow: the load's quick rise and fall is the knees' to take, so the sink the
     // hips are given comes through a critically damped spring of about 1.6 Hz)
     const pumpH = spring(fl, 'pmH', fl.pump, 10, kd);
-    let Xs = clamp(Math.abs(Lv) * 0.10 + pose.tuck * 0.22 + 0.16 * smooth(17, 30, sp) + 0.25 * smooth(0, 0.25, crash) + 0.3 * fl.prepL + (0.12 + 2.7 * (L_AIR - 0.08)) * fl.reach + q.dip + 0.09 * pumpH + 0.22 * pumpL * (1 - w), -0.1, 0.8);
+    // (mo4 b: a tuck let go for a wind-up gives up its shape, not its height: the wind-up sinks from there)
+    const Xo = Math.abs(Lv) * 0.10 + (MO4 && rdy > 0 && !S.air ? Math.max(pose.tuck, Math.max(S.tuck, pose.tuckHi) * (1 - w) * rdy) : pose.tuck) * 0.22 + 0.16 * smooth(17, 30, sp) + 0.25 * smooth(0, 0.25, crash) + 0.3 * fl.prepL + q.dip + 0.09 * pumpH + 0.22 * pumpL * (1 - w);
+    // (mo4 b, the let-down for a landing. As it was, a fixed hand and a half came on top of whatever else already had the hips down (at speed, the
+    // stance alone is 6 cm), so the skis met the snow under legs already bent 62 degrees, where a skier's are 35 to 45; and it was given back within
+    // a seventh of a second of touchdown, just while the body sank into its legs, so half of that sinking was never seen: off a kicker the hips came
+    // down 6 cm and the knees went to 68 degrees, where a person stepping off a 30 cm box goes from 23 to 91. Now: (1) coming down, the hips are let
+    // down by what leaves the legs long (L_R), counting what the other let-downs have done already (and as long for a hop of a third of a second
+    // as for a jump: fl.reach is smaller the shorter the flight, so it is taken here for its timing only); (2) what is held at touchdown stays through
+    // the landing and goes out with fl.reach, which on the snow is now slow (updateFlight): as the skier stands up, not while the legs fold.
+    // Held from one frame to the next it can only go out, so a hop straight out of a landing starts from what was left; (3) and the skier folds
+    // into the landing, as people do: the physics' legs are a spring, and off 30 cm a spring's body stops 8 cm under its stance while a person's
+    // hips go on down to knees at 91 degrees, twice as far, so as to stop gently. That fold (ABS, by how hard the snow was met) is quick down and
+    // slow up, as a landing is (the owner, playing: "the instant the skis touch you go down fast, then come up slowly"): in over 0.035 s,
+    // deepest 0.08 s after touchdown, out over 0.3 s. It rode on fl.reach first, deepest at a fifth of a
+    // second and as slow out as in, and read as a slow sink after the snow had already been met.
+    // A hard landing needs none of it: there the physics' own legs go to the end of their travel)
+    let Xr = (0.12 + 2.7 * (L_AIR - 0.08)) * fl.reach;
+    fl.tl = S.air ? 0 : (fl.tl || 0) + dt;      // (how long the skis have been back on the snow)
+    if (MO4) {
+      if (S.air) { const held = fl.rrP > 0.01 ? (fl.rxP || 0) * Math.min(fl.reach / fl.rrP, 1) : 0; Xr = Math.max(sat(fl.reach / Math.max(fl.big, 0.2)) * Math.max(((fl.L || 0) - L_R) / 0.38 - Xo, 0), held); fl.rx0 = Xr; fl.rr0 = fl.reach; }
+      else { const r = fl.rr0 > 0.01 ? Math.min(fl.reach / fl.rr0, 1) : 0, tl = fl.tl || 0; Xr = (fl.rx0 || 0) * r + ABS * smooth(0.5, 2.5, S.landV || 0) * smooth(8, 4, S.landV || 0) * fl.big * (1 - Math.exp(-tl / 0.035)) * Math.exp(-tl / 0.3) / 0.688; }
+      fl.rxP = Xr; fl.rrP = fl.reach;
+    }
+    let Xs = clamp(Xo + Xr, -0.1, 0.8);
     const eH = cmax(eV - 0.38 * Xs, -0.32, 0.25); Xs = fl.Xs = (eV - eH) / 0.38;        // (eH: the hips' line over the snow that is drawn; Xs as it comes out with that floor)
     if (first) { fl.l = eH; fl.lV = 0; fl.L = eV; fl.LV = 0; }
     else if (dt > 0) {
       const l0 = fl.l, V0 = fl.lV, L0 = fl.L;
       // (where the legs would go by themselves: in the air to the shape of the flight, on the snow out after the snow...)
-      let lw = S.air ? spring(fl, 'L', lerp(legP(), Math.max(0.08 - 0.38 * (lerp(0.38, q.c, q.own) - Xs), E_MIN), w), 24, dt) - 0.38 * Xs
+      // (mo4 b: a jump is finished before the flight's shape is taken. The physics lets the skis go at the end of its drive with the legs as they
+      // are, still bent 81 degrees on average, and the figure flew off like that: nobody leaves the ground with the knees bent. While there is air
+      // ahead the legs first go long, as far as the snow under them lets them (so the skis are seen to leave it as the legs straighten), then to
+      // the flight's shape a tenth of a second later; and they are back where the physics holds its own before the skis touch. A jump the
+      // skier drives has its straight legs already from the drive: there the knees come up at once, as in a hop, which is the spring of it)
+      const lg0 = legP(), lgA = MO4 && fl.on && !fl.pop ? lerp(lg0, Math.max(lg0, L_R + 0.38 * Xs), smooth(0.12, 0.30, fl.rem)) : lg0, wl = MO4 && !fl.pop ? w * smooth(0.06, 0.20, fl.t) : w;
+      let lw = S.air ? spring(fl, 'L', lerp(lgA, Math.max(0.08 - 0.38 * (lerp(0.38, q.c, q.own) - Xs), E_MIN), wl), 24, dt) - 0.38 * Xs
         : Math.min(l0 + (V0 < 0 ? Math.min(V0 + 120 * dt, 60 * dt) : Math.min(V0 + 60 * dt, V_LEG)) * dt, E_MAX + 0.03 - 0.38 * Xs);
       // (...which is in the way: the skis are on it, less what it still holds of them)
       if (lw >= eH) lw = eH + Math.max(l0 - fl.eH0, 0) * Math.exp(-20 * dt);
@@ -880,7 +991,20 @@ const Game = (() => {
     fl.eH0 = eH; fl.sink = Math.max(fl.l - eH, 0);
     // (the knee bend is that length and nothing else: hips, shoulders and head keep the smooth line of the body the physics computes.
     // Toward either end of their travel the legs give less and less, never against a stop)
-    pose.crouch = clamp(smin(smax((0.08 - fl.l) / 0.38, 0.03, 0.1), 1, 0.15), 0, 1);
+    // (mo4 b: through a jump's drive the legs are asked for straight, over the drive itself. The figure eases into whatever it is asked over
+    // 0.08 s (its flow: nothing may snap), so legs that only followed the hips up were drawn 0.08 s behind the skis: these left the snow under
+    // knees still bent 56 degrees. Asked for straight from the drive's first step they were (the owner: "a straight-legged jump, it used to
+    // spring"): the push has to be seen. So the ask rises with the drive (pose.drive, below) over its first half, and the figure, 0.08 s behind as ever, stands up over the
+    // whole of it: the thighs straighten while the skis are still on the snow (the owner: "first the thighs stand up, then you leave"). Asked faster
+    // than that the legs reached straight and stopped dead, a jolt at every jump. If the drive ends a frame before the skis leave, the ask stays;
+    // once they have been in the air it is the landing's again)
+    // (mo4 b: through a jump's drive the hips are the game's own. The lab's turns (08f_labmo.js) hold a real skier's turning posture, knees 60
+    // degrees and more at low speed, and handed the figure over to the air only over a quarter second; so a hop out of a turn left the snow with
+    // the legs still bent as they were (the owner: "the thighs haven't stood up and you're already in the air"). pose.drive takes the hips' height
+    // from the lab back to the game's legs as the drive builds, holds it through the air, and gives it back over 0.3 s once on the snow)
+    { const on = S.popT >= 0 || S.air && fl.pop; fl.dAir0 = fl.dOn; fl.dOn = on; if (on) { fl.dv = S.air ? 1 : smooth(0, 0.5, S.popT / POP_T); fl.dOff = 0; fl.dAir = S.air ? 1 : S.popT >= 0 && !fl.dAir0 ? 0 : fl.dAir; } else fl.dOff = (fl.dOff || 0) + dt;
+      pose.drive = MO4 ? (on ? fl.dv : (fl.dv || 0) * (1 - smooth(0, 0.3, fl.dOff))) : 0; }
+    pose.crouch = clamp(smin(smax((0.08 - (MO4 && pose.drive > 0 && !S.air && !fl.dAir ? lerp(fl.l, Math.max(fl.l, 0.08), pose.drive) : fl.l)) / 0.38, 0.03, 0.1), 1, 0.15), 0, 1);
     fl.sepB = damp(fl.sepB, -S.beta * 0.8 - fl.lean * 0.22, 8, kd); fl.hy = damp(fl.hy, fl.lean * 0.3 + S.beta * 0.3, 6, kd);
     // (a turn in the air is wound up on the way in: shoulders drawn back against it as the body sinks, thrown into it as it stands up)
     // (the head is turned as a head is, through a spring: the look into a spin begins and ends without a jerk)
@@ -908,10 +1032,16 @@ const Game = (() => {
     const kS = lerp(lerp(0.3, 0.8, smooth(-0.04, 0.04, skR * fl.lean * cy)), 1, fl.mogU), skL = spring(fl, 'skL', skR, 6, kd);
     const sepM = clamp((1 - kS) * skL - skR, -0.85, 0.85) * (fl.gS = damp(fl.gS == null ? gnd : fl.gS, gnd, 12, kd)), hdM = spring(fl, 'hdM', clamp((0.35 * trR - 0.34 * skR) * gnd - 0.15 * skR * gnd, -0.7, 0.7) * (1 - fl.mogU), 9, kd);
     pose.quiet = fl.mogU;
-    pose.sep = lerp(lerp(fl.sepB * cy, sepM, mo), lerp(fl.sepB * cy, MC.sep, gnd), mcK) + q.sep - spring(fl, 'wu', fl.plan && fl.plan.spin ? fl.plan.dir * 0.3 * fl.prep : 0, 20, kd); pose.headYaw = clamp(spring(fl, 'hd', lerp(lerp(fl.hy * cy, hdM, mo), fl.hy * cy * (1 - gnd), mcK) + q.head, 16, kd), -1.3, 1.3);
+    { const wu = spring(fl, 'wu', fl.plan && fl.plan.spin && !fl.pre ? fl.plan.dir * 0.3 * fl.prep : 0, 20, kd); pose.sep = lerp(lerp(fl.sepB * cy, sepM, mo), lerp(fl.sepB * cy, MC.sep, gnd), mcK) + q.sep - wu; pose.sepQ = q.sep - wu; pose.hdQ = spring(fl, 'hq', q.head, 16, kd); } pose.headYaw = clamp(spring(fl, 'hd', lerp(lerp(fl.hy * cy, hdM, mo), fl.hy * cy * (1 - gnd), mcK) + q.head, 16, kd), -1.3, 1.3);
     // (the inside ski draws ahead as the edges come up: hardly at all in a shallow turn)
     pose.lead = 0.19 * sL * Math.abs(sL) + q.lead; pose.stance = 0.31 + 0.16 * Math.abs(sL) + 0.04 * w + q.st;
     fl.foreS = damp(fl.foreS || 0, clamp(-0.25 * w * (1 - q.own) + q.fore - 0.5 * fl.soak, -1, 1), 8, kd); pose.fore = fl.foreS;
+    // (mo4 b: reaching for a landing the chest stays forward over the feet, and through the landing while the legs fold: see solve)
+    pose.reach = MO4 ? fl.reach : 0;
+    // (mo4 b: for the first quarter second of a landing the figure takes the knee bend it is given more quickly (08_skier.js, flow). That bend is
+    // already paced as legs move (V_LEG, above); eased a second time at the usual rate it reached its depth 0.08 s after the legs did, and a
+    // hard landing read as a slow sink after the snow had been met)
+    pose.cfast = !MO4 || S.air ? 0 : 1 - smooth(0.2, 0.4, fl.tl);
     // (fore/aft, Variants 'fa': the stance itself moved, not a spring on it. Forward: hips over the toes, shins pressed into the tongues, chest a
     // little lower; back: hips behind the heels, sitting into the boots. 08_skier.js draws it from pose.fa; nothing of it in the air or a trick)
     pose.fa = damp(pose.fa || 0, (S.fa || 0) * (1 - w) * (1 - q.own) * (1 - sat(S.crash * 5)) * (1 - smooth(0.3, 0.9, pose.tuck)), 9, kd);
@@ -945,7 +1075,11 @@ const Game = (() => {
     // hands, beyond what the stance gives them: low and back as the body sinks before a jump, forward and apart to meet the landing,
     // forward and down as a hard one is taken up, and wherever the trick wants them
     // (a landing: the hands go forward and up for balance as the legs take it, not down to the knees)
-    const hk = 1 - dpK, hy = (-0.05 * fl.prep + 0.05 * fl.reach + 0.04 * fl.soak) * hk, hz = (0.08 * fl.prep - 0.12 * fl.reach - 0.16 * fl.soak) * hk, hx = (0.05 * fl.reach + 0.04 * fl.soak) * hk;
+    // (新求解器, the deep squat of a full charge (08_skier.js CHG_H): with the hips under the knees the fists of the tuck lay on the thighs and the
+    // forearms went through the knees (Mac round 18; 92 of 213 charged frames within the thigh). The hands are carried forward, up and a little
+    // apart as the squat deepens: elbows ahead of the knees, fists before the chin)
+    const SQX = 0.03, SQY = 0.08, SQZ = -0.12; const hk = 1 - dpK, hy0 = (-0.05 * fl.prep + 0.05 * fl.reach + 0.04 * fl.soak) * hk, hz0 = (0.08 * fl.prep - 0.12 * fl.reach - 0.16 * fl.soak) * hk, sq = Variants.val.solver === 'b' ? (S.charge || 0) * hk : 0, hx = (0.05 * fl.reach + 0.04 * fl.soak) * hk + SQX * sq;
+    const hy = hy0 + SQY * sq, hz = hz0 + SQZ * sq;
     const grabs = typeof Skier !== 'undefined' && Skier.P0 && 'grabL' in Skier.P0;     // (does the figure know how to take hold of a ski? if not, the hand is at least sent there)
     for (const side of [-1, 1]) {
       // (wanted from the last third of the old turn until the new edges have just begun to bite: a touch, not a prop to lean on)
@@ -1013,6 +1147,8 @@ const Game = (() => {
       const c = Math.cos(q.flip), s = Math.sin(q.flip), Hc = 0.98 - 0.38 * pose.crouch, ax = fx * c + nx * s, ay = fyv * c + ny * s, az = fz * c + nz * s, ux = nx * c - fx * s, uy = ny * c - fyv * s, uz = nz * c - fz * s;
       ox = (nx - ux) * Hc; oy = (ny - uy) * Hc; oz = (nz - uz) * Hc; fx = ax; fyv = ay; fz = az; nx = ux; ny = uy; nz = uz;
     }
+    pose.mogK = S.mogKe == null ? 1 : S.mogKe;      // (新求解器: how much of a mogul's height the physics rides, the rest the legs are to take)
+    pose.sink = S.contact ? fl.L - S.e : 0;      // (新求解器: how far under the physics' own snow the figure's skis are put: soft snow, a landing)
     root.pos[0] = P[0] + ox; root.pos[1] = fy + oy; root.pos[2] = P[2] + oz; root.fwd[0] = fx; root.fwd[1] = fyv; root.fwd[2] = fz; root.nrm[0] = nx; root.nrm[1] = ny; root.nrm[2] = nz;
     // (what the lens frames by: the feet on the snow; in the air the level the feet would hang at, which does not bob as the knees come up)
     fl.fr = lerp(fy, P[1] + 0.03 - 0.38 * Xs, fl.kc);
@@ -1222,6 +1358,9 @@ const Game = (() => {
     // (a tree gone by close, untouched: the lens ducks a finger's breadth and tips away from it, as 07c_feel.js has worked out; both
     // come and go without a corner, and the other viewpoints are handed the same lens)
     const fe = typeof Feel !== 'undefined' ? Feel : null, pos = [cam.pos[0] + rx * ox, cam.pos[1] + oy - (fe && fe.dip || 0), cam.pos[2] + rz * ox];
+    // (the last word, the same for every lens (Course.nearLift): whatever moved it - a jolt, the flinch past a tree, the floor above taken
+    // without the bumps of a mogul field - the corners of the picture stay out of the snow. It only ever lifts, never turns the lens)
+    pos[1] += Course.nearLift(pos, f, cam.fov, aspect, Render.cam.near || CAM_NEAR, 0.05, cam.roll);
     // other viewpoints (07b_views.js) take the lens over here; the chase camera above keeps running underneath, so switching back is seamless
     const viewOver = G.viewCam && G.viewCam(dt, cam, pos, f);
     /*native{*/G.hasViewOverride = viewOver;/*}native*/

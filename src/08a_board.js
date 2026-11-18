@@ -18,7 +18,7 @@ const Board = (() => {
   if (VS) VS.def('ride', '滑具', [['a', '双板'], ['b', '单板']], 'a');
   // (the owner, 2026-11-16: the board is for developer mode only for now. Without ?dev (or a path ending in /dev; never in the 小红书 build) it is
   // skis, whatever an address or an earlier pick in this browser asks for)
-  { let dev = false; try { dev = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (/[?&]dev(=|&|$)/.test(location.search) || /\/dev\/?$/.test(location.pathname)); } catch (e) { }
+  { let dev = false; try { dev = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (/[?&]dev(=|&|$)/.test(location.search) || /\/dev\/?$/.test(location.pathname) || !!(self.COLD_SMOKE && self.COLD_SMOKE.dev)); } catch (e) { }
     if (VS && !dev /*native{*/ && !self.COLD_SMOKE?.advancedMenuKey /*}native*/) VS.val.ride = 'a'; }
   const BD = { len: 1.56, hw: 0.13, waist: 0.128, half: 0.25, kickN: 0.085, kickT: 0.065, run: 0.58, th: 0.013, yawF: -0.26, yawB: 0.15 };   // board (m), half the stance, binding angles (rad, + toward the tail)
   const K = Skier, L = K.LEN, basis = K.basis, ik2 = K.ik2, frameXY = K.frameXY, fr = K.fr, B = K.B;
@@ -67,7 +67,7 @@ const Board = (() => {
       if (over <= -0.02) break; H -= (over >= 0.02 ? over : (over + 0.02) * (over + 0.02) / 0.08) * 1.1;
     }
     if (LB && LB.w > 0) {
-      const lp = v3.add(aM, v3.mul(LB.pel, LabMo.LEG)); lp[1] += -0.30 * (c - LB.cref); lp[0] += -0.07 * fa;
+      const lp = v3.add(aM, v3.mul(LB.pel, LabMo.LEG)); lp[1] += -0.30 * (c - LB.cref); lp[0] += -0.07 * fa; lp[1] += (pel[1] - lp[1]) * Math.min(1, Math.max(0, p.drive || 0));
       pel = v3.lerp(pel, lp, LB.w);
       for (let it = 0; it < 3; it++) {
         hipL = v3.add(v3.mad(pel, pb.X, -L.hipW), v3.mul(pb.Y, -L.hipD)); hipR = v3.add(v3.mad(pel, pb.X, L.hipW), v3.mul(pb.Y, -L.hipD));
