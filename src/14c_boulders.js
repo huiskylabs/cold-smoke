@@ -1,159 +1,162 @@
 // ---------------------------------------------------------------- boulders: stones on the run (Variants 'boulder' b)
-// The richer mountain lays boulders out on the run and along its edges (03_course.js). In 'a' they are a swell of the ground itself, which
-// can bare rock only where the mesh is steep, and from a few metres off they read as mounds of snow. In 'b' each is a stone: a mesh made once
-// at load (a weathered block of granite, its faces cut flat here and there, rounded at the edges), standing in a low drift the ground carries,
-// dark wherever it is too steep to hold snow, with a pillow of old snow on its top and on its gentler shoulders. As the photographs show it
-// (refs: a boulder after a snowfall in the Wasatch, granite erratics in a field after snow): the stone is near black against the snow, the cap is
-// thick and rounded and hangs a little over the edge, and snow banks up round the foot.
-// Drawn with the trees (same sun, same shadow map), and cast into the shadow map: a stone with no shadow floats.
+// The richer mountain lays boulders out on the run and along its edges (03_course.js) as a swell of the ground itself. In 'a' the terrain
+// shader bares rock only where its mesh is steep, and from a few metres off they read as mounds of snow. The owner wants the same shape
+// (2026-11-18: "跟现在这个石头雪包的形状一样"), read at a glance as a stone with old snow on it. So in 'b' each swell is skinned: a shell laid
+// over the very surface Course.height draws (sampled point by point, so it is the mound's own shape), roughened into weathered rock wherever
+// the swell is too steep to hold snow, and thickened into a pillow of snow where it is not: on its top and up its long uphill side.
+// As the photographs show (refs: a boulder after a snowfall in the Wasatch, granite erratics after snow): the stone is near black against the
+// snow, the cap is thick and rounded and ends in a clean edge, and snow banks up round the foot.
+// The shells are built on the CPU when a boulder comes near (a few a frame) into a pool of slots; drawn with the trees, cast into the shadow map.
 const Boulders = (() => {
-  const B = { far: 320, band: 60, stats: { n: 0, tris: 0 } };
-  const NS = 3, MAXI = 256;        // shapes; instances at once
-  let gfx, shapes = [], inst, cpu, pipe, pipeSh, counts = new Array(NS).fill(0), live = false;
+  const B = { far: 300, stats: { n: 0, built: 0 } };
+  const NR = 34, NA = 72, NV = (NR + 1) * NA, SLOTS = 28, PER = 3;     // rings, around, vertices; shells kept at once; built per frame
+  let gfx, ib, nIdx = 0, slots = [], pipe, pipeSh, live = [];
   const on = () => typeof Course !== 'undefined' && Course.boulder && Course.rich;
-
-  // one stone, about 2 m across and a metre and a half from its buried foot to its top (the instance scales it): a rounded block, cut by a few
-  // planes (the faces it split along), its surface pitted at two sizes
-  function shape(k) {
-    const r = RNG(9133 + k * 7919), cuts = [];
-    // (round 2: more and deeper cuts, so it reads as a block split along its joints, not a loaf: refs show flat faces meeting at edges)
-    for (let i = 0; i < 8; i++) {
-      const th = r() * TAU, el = (r() - 0.3) * 1.2, n = [Math.cos(th) * Math.cos(el), Math.sin(el), Math.sin(th) * Math.cos(el)];
-      cuts.push([n[0], n[1], n[2], 0.5 + r() * 0.28]);
-    }
-    const hx = 0.78 + 0.2 * r(), hy = 0.62 + 0.15 * r(), hz = 0.7 + 0.2 * r(), lean = (r() - 0.5) * 0.3;
-    const f = (x, y, z) => {
-      const yy = y - 0.25, xx = x - lean * yy;
-      let d = sd.smin(sd.rbox(xx, yy, z, 0, 0, 0, hx, hy, hz, 0.22), sd.ellipsoid(xx, yy, z, 0, 0.05, 0, hx * 1.05, hy * 1.05, hz * 1.05), 0.2);
-      for (const c of cuts) d = sd.smax(d, xx * c[0] + yy * c[1] + z * c[2] - c[3], 0.07);
-      d += 0.04 * vnoise3(x * 1.9, y * 1.9, z * 1.9, 11 + k) + 0.014 * vnoise3(x * 6.1, y * 6.1, z * 6.1, 31 + k) + 0.005 * vnoise3(x * 17, y * 17, z * 17, 41 + k);
-      return d;
-    };
-    // attributes: how open to the sky the surface is (cracks and the hollows under an overhang are dark), and a slow tone for the stone
-    const attr = (x, y, z, nx, ny, nz, out) => {
-      const a1 = 0.06, a2 = 0.2;
-      out[0] = sat(0.25 + 0.75 * (0.5 * sat(f(x + nx * a1, y + ny * a1, z + nz * a1) / a1) + 0.5 * sat(f(x + nx * a2, y + ny * a2, z + nz * a2) / a2)));
-      out[1] = 0.5 + 0.5 * vnoise3(x * 3.7 + 5, y * 3.7, z * 3.7, 7 + k); out[2] = 0.5 + 0.5 * vnoise3(x * 1.3, y * 1.3, z * 1.3 + 9, 3 + k); out[3] = 0;
-    };
-    return meshSDF(f, [-1.25, -0.75, -1.2], [1.25, 1.2, 1.2], 0.04, { stride: 4, attr });
-  }
+  // the rings: q from the middle out to a little past the rim (where the shell tucks under the snow), closer together toward the rim
+  const QS = []; for (let i = 0; i <= NR; i++) { const t = i / NR; QS.push(1.06 * Math.sqrt(t) * (0.55 + 0.45 * t)); }
 
   B.init = function (g) {
     gfx = g;
-    for (let k = 0; k < NS; k++) { const m = shape(k); shapes.push({ vb: gfx.buffer(m.verts.subarray(0, m.nv * 10), 'vertex'), ib: gfx.buffer(m.idx, 'index'), n: m.idx.length }); B.stats.tris += m.idx.length / 3; }
-    cpu = new Float32Array(MAXI * 12); inst = [];
-    for (let k = 0; k < NS; k++) inst.push(gfx.buffer(new Float32Array(MAXI * 12), 'vertex', true));
-    const bufs = [{ attrs: [['pos', 'vec3f'], ['nrm', 'vec3f'], ['pm', 'vec4f']] }, { instanced: true, attrs: [['j0', 'vec4f'], ['j1', 'vec4f'], ['j2', 'vec4f']] }];
+    const I = [];
+    for (let i = 0; i < NR; i++) for (let j = 0; j < NA; j++) { const a = i * NA + j, b = i * NA + (j + 1) % NA; I.push(a, a + NA, b, b, a + NA, b + NA); }
+    ib = gfx.buffer(new Uint32Array(I), 'index'); nIdx = I.length;
+    for (let k = 0; k < SLOTS; k++) slots.push({ vb: gfx.buffer(new Float32Array(NV * 10), 'vertex', true), f: null, at: [0, 0, 0], seen: 0 });
+    const bufs = [{ attrs: [['pos', 'vec3f'], ['nrm', 'vec3f'], ['pm', 'vec4f']] }];
     pipe = gfx.pipeline({
-      name: 'boulder', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SL.tonemap, BOULDER_SSL], buffers: bufs, cull: 'none',
-      varyings: { wp: 'vec3f', nrm: 'vec3f', pm: 'vec4f', ex: 'vec4f' }, uniforms: { p: 'vec4f' }, textures: { tDetail: '2d', tShadow: 'shadow', tSky: '2d' },
-      vs: `fn vert(a: VIn) -> VOut { var v: VOut; let b: BV = boulderVertex(a.pos, a.nrm, a.pm, a.j0, a.j1, a.j2);
-        v.wp = b.wp; v.nrm = b.n; v.pm = a.pm; v.ex = vec4f(b.snow, a.j2.z, a.j2.w, a.j1.w); v.clip = U.viewProj * vec4f(b.wp, 1.0); return v; }`,
+      name: 'boulder', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SL.tonemap], buffers: bufs, cull: 'none',
+      varyings: { wp: 'vec3f', nrm: 'vec3f', pm: 'vec4f' }, uniforms: { off: 'vec4f' }, textures: { tDetail: '2d', tShadow: 'shadow', tSky: '2d' },
+      vs: `fn vert(a: VIn) -> VOut { var v: VOut; let wp: vec3f = a.pos + M.off.xyz; v.wp = wp; v.nrm = a.nrm; v.pm = a.pm; v.clip = U.viewProj * vec4f(wp, 1.0); return v; }`,
       fs: BOULDER_FS,
     });
     pipeSh = gfx.pipeline({
-      name: 'boulderShadow', lib: [SL.common, BOULDER_SSL], buffers: bufs, varyings: {}, uniforms: { p: 'vec4f' }, textures: {}, colorFormat: null, cull: 'none', depthBias: 2, depthBiasSlope: 2.5,
-      vs: `fn vert(a: VIn) -> VOut { var v: VOut; let b: BV = boulderVertex(a.pos, a.nrm, a.pm, a.j0, a.j1, a.j2); v.clip = U.shadowVP * vec4f(b.wp, 1.0); return v; }`, fs: null,
+      name: 'boulderShadow', lib: [SL.common], buffers: bufs, varyings: {}, uniforms: { off: 'vec4f' }, textures: {}, colorFormat: null, cull: 'none', depthBias: 2, depthBiasSlope: 2.5,
+      vs: `fn vert(a: VIn) -> VOut { var v: VOut; v.clip = U.shadowVP * vec4f(a.pos + M.off.xyz, 1.0); return v; }`, fs: null,
     });
     B.pipes = [pipe, pipeSh];
+    if (typeof App !== 'undefined' && App.onMountain) App.onMountain.push(() => { for (const s of slots) s.f = null; });
   };
 
-  // every frame: the stones near the lens, by shape (render space = world - origin)
-  B.update = function (cam, origin) {
-    counts.fill(0); live = false; B.stats.n = 0;
-    if (!gfx || !on()) return;
-    const px = cam.pos[0], pz = cam.pos[2], cs = -pz, ox = origin[0], oy = origin[1], oz = origin[2];
-    const lists = [[], [], []];
-    Course.boulders(cs - 120, cs + B.far, (f, x, z) => {
-      const d = Math.hypot(x - px, z - pz); if (d > B.far) return;
-      if (f.bk === undefined) {
-        // (made once per stone: its shape, which way it lies, its proportions, how much snow it kept)
-        const h = hashU(Math.round(f.cs * 10) * 7 + Math.round(f.u * 10) * 131 + 17);
-        f.bk = h % NS; f.byaw = (h >>> 4 & 1023) / 1024 * TAU; f.bst = (h >>> 14 & 255) / 255; f.bsn = (h >>> 22 & 255) / 255;
-      }
-      const drift = Course.boulderDrift(f), g = Course.height(x, z, 0.5) - drift;    // (the ground under the drift)
-      const sxz = f.rad * 0.62, sy = (f.h + 0.25) * 1.12;      // (round 2: taller for its width; the broad flat ones were all cap)
-      const cap = 0.10 + 0.12 * f.bsn;                                          // thickness of the cap of old snow (m)
-      const k = smooth(B.far, B.far - B.band, d);
-      if (k <= 0) return;
-      lists[f.bk].push([x - ox, g - 0.15 - oy, z - oz, f.byaw, sxz * (0.92 + 0.16 * f.bst), sy * k, sxz * (1.08 - 0.16 * f.bst), f.bst, cap, 0.1 + 0.5 * f.bsn, f.bst, k]);
-    });
-    for (let s = 0; s < NS; s++) {
-      const L = lists[s]; let n = Math.min(L.length, MAXI); if (!n) continue;
-      for (let i = 0; i < n; i++) cpu.set(L[i], i * 12);
-      gfx.updateBuffer(inst[s], 0, cpu.subarray(0, n * 12)); counts[s] = n; live = true; B.stats.n += n;
+  // the shell of one boulder: positions relative to its middle (world xz, y from its middle's height), normals, and per vertex: snow (0..1),
+  // how open to the sky, a tone for the stone, q
+  const P = new Float32Array(NV * 3), Hn = new Float32Array(NV * 3), SN = new Float32Array(NV), AO = new Float32Array(NV), TN = new Float32Array(NV), V = new Float32Array(NV * 10);
+  function build(f, slot) {
+    const C = Course, cs = f.cs, cx = C.at(cs).cx + f.u, cz = -cs, y0 = C.height(cx, cz, 0.5);
+    const sd = hashU(Math.round(cs * 10) * 7 + Math.round(f.u * 10) * 131 + 17), amt = 0.25 + 0.5 * ((sd >>> 8 & 255) / 255), cap = 0.07 + 0.08 * ((sd >>> 16 & 255) / 255);
+    const ns = (sd & 1023) * 0.37;
+    // 1. the mound's own surface, exactly where the ground is drawn
+    for (let i = 0; i <= NR; i++) for (let j = 0; j < NA; j++) {
+      const k = i * NA + j, th = j / NA * TAU, du = Math.cos(th), ds = Math.sin(th), q = QS[i];
+      const s = cs + ds * q * f.rad / (ds < 0 ? 0.45 : 1), u = f.u + du * q * f.rad, x = C.at(s).cx + u, z = -s;
+      P[k * 3] = x - cx; P[k * 3 + 1] = C.height(x, z, 0.5) - y0; P[k * 3 + 2] = z - cz;
     }
+    normals(P, Hn);
+    // 2. where the snow lies (faces turned to the sky, broken up), and the stone's roughness where it does not
+    for (let i = 0; i <= NR; i++) for (let j = 0; j < NA; j++) {
+      const k = i * NA + j, q = QS[i], x = P[k * 3] + ns, y = P[k * 3 + 1], z = P[k * 3 + 2], ny = Hn[k * 3 + 1];
+      const n1 = vnoise3(x * 1.3, y * 1.3, z * 1.3, 5), n2 = vnoise3(x * 3.1, y * 3.1, z * 3.1, 6), n3 = vnoise3(x * 8, y * 8, z * 8, 7);
+      const lo = 0.93 - 0.2 * amt;                                                   // (how steep a face still holds snow)
+      let sn = smooth(lo - 0.035, lo + 0.035, ny + 0.06 * n1 + 0.03 * n2);
+      sn *= smooth(1.02, 0.9, q);                                                     // (past the rim it is the ground's own snow)
+      const rim = smooth(0.88, 1.03, q);                                              // (the shell tucks under the snow at its foot)
+      // the stone: blocky at the size of its joints (a quantised noise reads as faces), pitted finer; cracks are thin dark grooves
+      const blk = Math.round(n1 * 3) / 3 * 0.6 + n1 * 0.4;
+      const crack = smooth(0.9, 0.98, 1 - Math.abs(vnoise3(x * 2.2, y * 2.2, z * 2.2, 9)));
+      const rd = (0.07 * blk + 0.035 * n2 + 0.012 * n3 - 0.035 * crack) * Math.min(1, f.h) * (1 - sn) * (1 - rim);
+      // the cap: a pillow, thickest where the face is level, rounded off at its edge
+      const cd = cap * sn * (0.6 + 0.4 * smooth(0.9, 1, ny)) * (0.8 + 0.3 * n2) * (1 - rim);
+      const lift = 0.025 + cd - 0.09 * rim;
+      const push = rd + 0.02 * (1 - rim);
+      P[k * 3] += Hn[k * 3] * push; P[k * 3 + 1] += Hn[k * 3 + 1] * push + lift; P[k * 3 + 2] += Hn[k * 3 + 2] * push;
+      SN[k] = sn; AO[k] = 1 - 0.65 * crack * (1 - sn) - 0.25 * smooth(0.0, -0.6, n1) * (1 - sn); TN[k] = 0.5 + 0.5 * vnoise3(x * 0.7, y * 0.7, z * 0.7, 3);
+    }
+    normals(P, Hn);
+    for (let k = 0; k < NV; k++) {
+      const o = k * 10; V[o] = P[k * 3]; V[o + 1] = P[k * 3 + 1]; V[o + 2] = P[k * 3 + 2];
+      V[o + 3] = Hn[k * 3]; V[o + 4] = Hn[k * 3 + 1]; V[o + 5] = Hn[k * 3 + 2]; V[o + 6] = SN[k]; V[o + 7] = AO[k]; V[o + 8] = TN[k]; V[o + 9] = QS[Math.floor(k / NA)];
+    }
+    gfx.updateBuffer(slot.vb, 0, V);
+    slot.f = f; slot.at[0] = cx; slot.at[1] = y0; slot.at[2] = cz; B.stats.built++;
+  }
+  // normals of the ring grid (the middle ring is a single point repeated: it takes the mean of the ring round it)
+  function normals(P, N) {
+    for (let i = 0; i <= NR; i++) for (let j = 0; j < NA; j++) {
+      const k = i * NA + j, jp = i * NA + (j + 1) % NA, jm = i * NA + (j + NA - 1) % NA, ip = Math.min(i + 1, NR) * NA + j, im = Math.max(i - 1, 0) * NA + j;
+      const ax = P[ip * 3] - P[im * 3], ay = P[ip * 3 + 1] - P[im * 3 + 1], az = P[ip * 3 + 2] - P[im * 3 + 2];
+      const bx = P[jp * 3] - P[jm * 3], by = P[jp * 3 + 1] - P[jm * 3 + 1], bz = P[jp * 3 + 2] - P[jm * 3 + 2];
+      let nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
+      if (nx * nx + ny * ny + nz * nz < 1e-14) { nx = 0; ny = 1; nz = 0; }
+      if (ny < 0) { nx = -nx; ny = -ny; nz = -nz; }
+      const l = Math.sqrt(nx * nx + ny * ny + nz * nz); N[k * 3] = nx / l; N[k * 3 + 1] = ny / l; N[k * 3 + 2] = nz / l;
+    }
+    let sx = 0, sy = 0, sz = 0; for (let j = 0; j < NA; j++) { sx += N[(NA + j) * 3]; sy += N[(NA + j) * 3 + 1]; sz += N[(NA + j) * 3 + 2]; }
+    const l = Math.hypot(sx, sy, sz) || 1; for (let j = 0; j < NA; j++) { N[j * 3] = sx / l; N[j * 3 + 1] = sy / l; N[j * 3 + 2] = sz / l; }
+  }
+
+  let frame = 0;
+  B.update = function (cam, origin) {
+    live.length = 0; B.stats.n = 0;
+    if (!gfx || !on()) return;
+    frame++;
+    const px = cam.pos[0], pz = cam.pos[2], cs = -pz, want = [];
+    Course.boulders(cs - 80, cs + B.far, (f, x, z) => { const d = Math.hypot(x - px, z - pz); if (d < B.far) want.push([d, f]); });
+    want.sort((a, b) => a[0] - b[0]);
+    let builds = PER;
+    for (const w of want.slice(0, SLOTS)) {
+      const f = w[1]; let s = slots.find(t => t.f === f);
+      if (!s) {
+        if (builds <= 0) continue;
+        s = slots.find(t => !t.f) || slots.reduce((a, b) => (a.seen < b.seen ? a : b));
+        build(f, s); builds--;
+      }
+      s.seen = frame; live.push(s);
+    }
+    B.stats.n = live.length;
   };
+  const off = (s, o) => [s.at[0] - o[0], s.at[1] - o[1], s.at[2] - o[2], 0];
   B.draw = function (R) {
-    if (!live) return;
-    for (let s = 0; s < NS; s++) if (counts[s]) gfx.draw(pipe, { u: { p: [0, 0, 0, 0] }, tex: { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, vb: [shapes[s].vb, inst[s]], ib: shapes[s].ib, count: shapes[s].n, instances: counts[s] });
+    for (const s of live) gfx.draw(pipe, { u: { off: off(s, R.origin) }, tex: { tDetail: Tex.detail, tShadow: R.shadowTex, tSky: Sky.lut }, vb: [s.vb], ib, count: nIdx });
   };
   B.drawShadow = function () {
-    if (!live) return;
-    for (let s = 0; s < NS; s++) if (counts[s]) gfx.draw(pipeSh, { u: { p: [0, 0, 0, 0] }, vb: [shapes[s].vb, inst[s]], ib: shapes[s].ib, count: shapes[s].n, instances: counts[s] });
+    const o = typeof Render !== 'undefined' ? Render.origin : [0, 0, 0];
+    for (const s of live) gfx.draw(pipeSh, { u: { off: off(s, o) }, vb: [s.vb], ib, count: nIdx });
   };
   return B;
 })();
-
-// j0: foot (render space), yaw; j1: scale x, y, z, tone; j2: cap thickness (m), how far down the snow reaches (0..1), tone, fade
-const BOULDER_SSL = `
-struct BV { wp: vec3f, n: vec3f, snow: f32, }
-// where snow lies on the stone: on what faces the sky, the more so where the stone kept more of it, broken up by the stone's own pitting
-fn boulderSnow(ny: f32, pm: vec4f, amt: f32) -> f32 {
-  let lo: f32 = mix(0.84, 0.5, amt);
-  return smoothstep(lo, lo + 0.16, ny + (pm.y - 0.5) * 0.45 + (pm.z - 0.5) * 0.3);
-}
-fn boulderVertex(pos: vec3f, nrm: vec3f, pm: vec4f, j0: vec4f, j1: vec4f, j2: vec4f) -> BV {
-  var o: BV;
-  let c: f32 = cos(j0.w); let s: f32 = sin(j0.w);
-  let p: vec3f = vec3f(pos.x * c - pos.z * s, pos.y, pos.x * s + pos.z * c) * j1.xyz;
-  let n: vec3f = normalize(vec3f(nrm.x * c - nrm.z * s, nrm.y, nrm.x * s + nrm.z * c) / j1.xyz);
-  let sn: f32 = boulderSnow(n.y, pm, j2.y);
-  // (the cap is a pillow: thickest in its middle, where the face is level, thinning to nothing at its rim; it is pushed out along the
-  // face and up, so it overhangs the edge a little)
-  let t: f32 = j2.x * sn * (0.55 + 0.45 * smoothstep(0.7, 1.0, n.y)) * (0.75 + 0.5 * pm.y);
-  o.wp = j0.xyz + p + (n * 0.35 + vec3f(0.0, 0.65, 0.0)) * t;
-  o.n = n; o.snow = sn;
-  return o;
-}
-`;
 
 const BOULDER_FS = `
 fn frag(v: VOut) -> FOut {
   var o: FOut;
   let toC: vec3f = U.camPos.xyz - v.wp; let dist: f32 = length(toC); let V: vec3f = toC / dist;
   let L: vec3f = U.sunDir.xyz;
-  var N: vec3f = normalize(v.nrm);
+  let N: vec3f = normalize(v.nrm);
   let wxz: vec2f = v.wp.xz + U.origin.xz;
   let sh: f32 = shadowAt(v.wp + N * 0.04, 0.0016);
-  let ao: f32 = v.pm.x;
-  // fine detail of the stone: grains of feldspar and dark mica a few millimetres across, read as a speckle, and a mottle a hand across
+  let ao: f32 = v.pm.y;
   let d1: vec4f = tex(tDetail, wxz * 1.9 + v.wp.yy * 1.7);
   let d2: vec4f = tex(tDetail, wxz * 0.37 + v.wp.yy * 0.41 + vec2f(0.31, 0.77));
-  let sn: f32 = saturate(smoothstep(0.25, 0.75, v.ex.x + (d1.z - 0.5) * 0.35));
-  // --- the stone: dark weathered granite (photographs of granite boulders in snow: about 0.10-0.20 against snow's 0.9), a little warmer
+  // (the snow's edge is clean, as on a real cap; only a little broken)
+  let sn: f32 = smoothstep(0.42, 0.58, v.pm.x + (d1.z - 0.5) * 0.12);
+  // --- the stone: dark weathered granite (photographs of boulders in snow: about 0.10-0.25 against snow's 0.9), mottled, a little warmer
   // or colder from one stone to the next, darker in its cracks, a faint green-grey of lichen on its shoulders
-  let tone: f32 = v.ex.y;
-  var alb: vec3f = mix(vec3f(0.12, 0.118, 0.125), vec3f(0.27, 0.25, 0.225), saturate(v.pm.z * 0.9 + (d2.z - 0.5) * 1.1 + tone * 0.35 - 0.15));
-  // (dark streaks down the faces where meltwater runs off the cap)
+  var alb: vec3f = mix(vec3f(0.11, 0.108, 0.115), vec3f(0.26, 0.24, 0.215), saturate(v.pm.z * 1.1 + (d2.z - 0.5) * 1.0 - 0.2));
+  alb *= 0.78 + 0.44 * d1.x;
+  alb = mix(alb, vec3f(0.19, 0.20, 0.165), smoothstep(0.62, 0.8, d2.x) * smoothstep(0.3, 0.7, N.y) * 0.6);
+  // (dark streaks down the faces where meltwater runs off the cap, and the stone just under the cap wet and dark)
   let stk: f32 = tex(tDetail, vec2f((wxz.x + wxz.y) * 0.9, v.wp.y * 0.08)).z;
-  alb *= 1.0 - 0.35 * smoothstep(0.55, 0.75, stk) * (1.0 - saturate(N.y * 1.5));
-  alb *= 0.75 + 0.5 * d1.x;
-  alb = mix(alb, vec3f(0.17, 0.18, 0.15), smoothstep(0.62, 0.8, d2.x) * smoothstep(0.2, 0.6, N.y) * 0.6);
-  alb *= 0.55 + 0.45 * ao;
-  // (just below the snow the stone is wet from the cap melting in the sun: darker still)
-  alb *= 1.0 - 0.35 * smoothstep(0.0, 0.25, v.ex.x) * (1.0 - sn);
-  let Nr: vec3f = normalize(N + (vec3f(d1.x, d1.y, d1.w) - vec3f(0.5)) * 0.35);
+  alb *= 1.0 - 0.35 * smoothstep(0.55, 0.75, stk) * (1.0 - saturate(N.y * 1.3));
+  alb *= 1.0 - 0.3 * smoothstep(0.05, 0.4, v.pm.x) * (1.0 - sn);
+  alb *= 0.45 + 0.55 * ao;
+  let Nr: vec3f = normalize(N + (vec3f(d1.x, d1.y, d1.w) - vec3f(0.5)) * 0.3);
   let ndl: f32 = dot(Nr, L);
   let amb: vec3f = U.ambSky.rgb * (0.55 + 0.45 * Nr.y) + U.ambGnd.rgb * (0.5 - 0.5 * Nr.y) * 1.6 + twiLight(Nr);
   let Hh: vec3f = normalize(V + L);
-  var rock: vec3f = alb * (U.sunCol.rgb * (saturate(ndl) * sh) + amb * (0.4 + 0.6 * ao));
+  var rock: vec3f = alb * (U.sunCol.rgb * (saturate(ndl) * sh) + amb * (0.35 + 0.65 * ao));
   rock += U.sunCol.rgb * (sh * 0.04 * pow(max(dot(Nr, Hh), 0.0), 24.0) * saturate(ndl * 4.0));
-  // --- the cap: snow lit as the terrain lights its own (gateSnow's terms), its surface rounded up toward the sky
-  let Ns: vec3f = normalize(N + vec3f(0.0, 0.9, 0.0) + (vec3f(d2.x, 0.5, d2.y) - vec3f(0.5)) * 0.3);
+  // --- the snow on it: lit as the terrain lights its own (gateSnow's terms)
+  let Ns: vec3f = normalize(N + (vec3f(d2.x, 0.5, d2.y) - vec3f(0.5)) * 0.15);
   let ndls: f32 = dot(Ns, L);
   let ambs: vec3f = U.ambSky.rgb * (1.3 + 0.8 * Ns.y) + U.ambGnd.rgb * (0.50 - 0.45 * Ns.y) + twiLight(Ns);
-  let snow: vec3f = vec3f(0.93, 0.955, 0.985) * (U.sunCol.rgb * (saturate((ndls + 0.12) / 1.12) * sh) + ambs * (0.7 + 0.3 * ao));
+  let snow: vec3f = vec3f(0.93, 0.955, 0.985) * (U.sunCol.rgb * (saturate((ndls + 0.12) / 1.12) * sh) + ambs);
   var col: vec3f = mix(rock, snow, sn);
   col = applyFog(col, v.wp);
   o.color = vec4f(col, 1.0);
