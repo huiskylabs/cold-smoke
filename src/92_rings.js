@@ -218,7 +218,7 @@ const Rings = (() => {
     RG.pipes = [pDust, pDustSh, pFlame, pLight];
     if (gfx.finishPipelineAsync) for (const P of RG.pipes) gfx.finishPipelineAsync(P).catch(e => console.warn('rings pipeline', P.name, e && e.message ? e.message : e));
   };
-  const active = () => RG.on && gfx && typeof Game !== 'undefined' && Game.s && (Game.mode === 'run' || Game.mode === 'hold' || Game.mode === 'park') && drawList.length;
+  const active = () => RG.on && gfx && typeof Game !== 'undefined' && Game.s && (Game.mode === 'run' || Game.mode === 'hold' || Game.mode === 'park' || Game.mode === 'replay') && drawList.length;
   RG.drawShadow = function () {
     if (!active()) return;
     for (const d of drawList) if (ringLive(d)) { const u = ringU(d, lastT % 4096); gfx.draw(pDustSh, { u, count: 4, instances: u.e[0] + u.e[1] }); }
@@ -498,6 +498,7 @@ const Rings = (() => {
   }
   function lineFree() { brake(false); L.q('card').classList.remove('on'); L.st = 'free'; setTxt('tm', ''); setTxt('sub', ''); }
   function lineFrame(T) {
+    if (typeof Game !== 'undefined' && Game.mode === 'replay') { L.lastF = T; return; }          // (the replay (93_replay.js) plays the run back: nothing here moves, brakes or times meanwhile)
     const dt = cl(T - (L.lastF || T), 0, 0.1); L.lastF = T;
     // (用户 20:57 UTC: 过终点后不要还在溜、做奇怪的动作，直接刹住停下来，站起来看着远方，直到玩家按继续滑): held round into a turn across
     // the hill (no skid asked for) until under 2 m/s or 6 s, then parked: no more physics steps, the skier stands still where he stopped,
@@ -654,6 +655,7 @@ const Rings = (() => {
   if (GS0) Game.start = function () { if (L.id && Game.s) { if (L.st !== 'count') lineArm(); return; } return GS0.apply(this, arguments); };
   if (typeof addEventListener !== 'undefined') addEventListener('keydown', e => {
     if (!L.id || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (typeof Game !== 'undefined' && Game.mode === 'replay') return;          // (the replay has the keys while it plays)
     const card = L.el && L.q('card').classList.contains('on');
     if (card && (e.code === 'Enter' || e.code === 'Escape')) { e.preventDefault(); e.stopImmediatePropagation(); if (e.code === 'Enter') lineRestart(); else lineFree(); return; }
     if (e.code === 'Backspace' && typeof UI !== 'undefined' && UI.state === 'run' && !UI.open) { e.preventDefault(); e.stopImmediatePropagation(); lineRestart(); }
