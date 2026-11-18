@@ -240,9 +240,14 @@ const Rings = (() => {
     const T = lastT % 4096, tex = { tSky: Sky.lut };
     for (const d of drawList) {
       if (d.flameA > 0.01) gfx.draw(pFlame, { u: { a: [d.c[0], d.c[1], d.c[2], d.flameSc], b: [d.flameA, d.sz, d.tint, 0], c: [T, d.r.id % 4096, d.night, 0] }, tex, count: 4, instances: 2 + TONGUES });
-      if (ringLive(d) || d.bk > 0) {
+      if (ringLive(d)) {
         const u = ringU(d, T);
         gfx.draw(pDust, { u, tex, count: 4, instances: u.e[0] + u.e[1] + u.e[2] });
+      } else if (d.bk > 0) {
+        // (性能: a flame's column alone) only the column's own grains are drawn, not the whole ring's thousands: g.z tells the shader
+        // that every instance here is a column grain
+        const u = ringU(d, T); u.g[2] = 1;
+        gfx.draw(pDust, { u, tex, count: 4, instances: Math.round(u.e[0] * 0.035) });
       }
     }
   };
@@ -916,7 +921,7 @@ fn dustGrain(i: u32) -> DG {
     b = 0.85 * apr * min(1.0, e * 8.0) * min(1.0, (1.0 - e) * 6.0) * (1.0 - saturate(dis * 3.0));
     wsz = wsz * 1.8; minPx = 2.4;
     useFlow = 1.0;
-  } else if (md > 6.5 && md < 7.5 && kind == 0u && hsel.x < 0.035 && apr > 0.0) {
+  } else if (md > 6.5 && md < 7.5 && kind == 0u && (hsel.x < 0.035 || M.g.z > 0.5) && apr > 0.0) {
     // 7 细高光柱: a thin tall column over the next ring, 35 m, densest at the bottom, swaying a little at the top, grains streaming upward
     let ph: f32 = fract(T / 4.5 + hsel.y * 11.0); let hh: f32 = pow(ph, 0.8) * 35.0; let a0: f32 = hsel.z * 6.2831853 + T * 0.6;
     let rj: f32 = RN * 0.18 * sqrt(fract(hsel.y * 37.0)) * (1.0 - 0.5 * ph);
