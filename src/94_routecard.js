@@ -321,7 +321,9 @@ const RouteCard = self.RouteCard = (() => {
         }
         for (const [L2, col] of [[dark, major ? TH.cMajor : TH.cLine]]) {
           if (!L2.length) continue; g.beginPath(); for (let q = 0; q < L2.length; q += 2) { g.moveTo(L2[q][0], L2[q][1]); g.lineTo(L2[q + 1][0], L2[q + 1][1]); }
-          g.strokeStyle = col; g.lineWidth = (major ? 1.4 : 0.8) * u; g.stroke(); }
+          // (owner 23:58 UTC: 高一点粗一点、重一点，低一点轻一点) the line's weight follows its height over the whole run
+          const hz = cl((lv - hmin) / (hmax - hmin), 0, 1);
+          g.globalAlpha = 0.35 + 0.65 * hz; g.strokeStyle = col; g.lineWidth = (major ? 1.0 + 1.3 * hz : 0.45 + 0.8 * hz) * u; g.stroke(); g.globalAlpha = 1; }
       }
       // the groomed run: a white band with fine dashed edges
       if (d.cx) { const pts = d.cx.filter(q => q[0] >= C.s0 - 10 && q[0] <= C.s1 + 10);
@@ -336,19 +338,28 @@ const RouteCard = self.RouteCard = (() => {
     // the line itself, strip by strip: a white halo, then the red band as wide as the speed; in the air a fine dark dashed line
     const wv = v => (1.6 + 8.4 * Math.pow(cl(v / Math.max(20, st.vmax), 0, 1), 1.3)) * u;
     const P = i => { const C = colOf(T[i][1]); return [C.X(T[i][0], T[i][1]), C.Y(T[i][1]), C.c]; };
-    g.save(); g.lineCap = 'round'; g.lineJoin = 'round';
-    for (const pass of [0, 1]) for (let i = 0; i < n - 1; i++) {
-      const p = P(i), q = P(i + 1); if (p[2] !== q[2]) continue;
-      const air = T[i][4] && T[i + 1][4], w = wv(T[i][3]);
-      if (pass === 0) { if (air) continue; g.strokeStyle = TH.lineHalo; g.lineWidth = w + 3.2 * u; }
-      else if (air) { g.strokeStyle = TH.air; g.lineWidth = 1.2 * u; g.setLineDash([2 * u, 2.6 * u]); }
-      else { g.strokeStyle = RED; g.lineWidth = w; g.setLineDash([]); }
-      g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke();
+    // (owner 23:58 UTC: 轨迹描边感觉不太好) no outline and no beads on it: the line is one clean flat band, Minard's way, its two edges
+    // drawn as one shape (offset either side of the path by half the speed's width, both smoothed), so it swells and thins without lumps.
+    // In the air a fine dashed line. Rings missed: a small hollow coral ring where the ring stood, off to the side of the band
+    const PS = []; for (let i = 0; i < n; i++) PS.push(P(i));
+    const sm = (f, i, r) => { let a = 0, q = 0; for (let k = Math.max(0, i - r); k <= Math.min(n - 1, i + r); k++) { if (PS[k][2] !== PS[i][2]) continue; a += f(k); q++; } return a / q; };
+    const runs = []; { let cur = null; for (let i = 0; i < n; i++) { const air = !!T[i][4], key = PS[i][2] + (air ? 'a' : 'g'); if (!cur || cur.key !== key) { cur = { key, air, c: PS[i][2], idx: [] }; runs.push(cur); } cur.idx.push(i); } }
+    g.save();
+    for (const rn of runs) {
+      const I = rn.idx; if (I.length < 2) continue;
+      if (rn.air) { g.strokeStyle = TH.air; g.lineWidth = 1.2 * u; g.setLineDash([2 * u, 2.6 * u]); g.beginPath(); I.forEach((i, k) => k ? g.lineTo(PS[i][0], PS[i][1]) : g.moveTo(PS[i][0], PS[i][1])); g.stroke(); g.setLineDash([]); continue; }
+      const L2 = [], R2 = [];
+      for (const i of I) {
+        const x = sm(k => PS[k][0], i, 2), y = sm(k => PS[k][1], i, 2), j0 = Math.max(I[0], i - 2), j1 = Math.min(I[I.length - 1], i + 2);
+        let tx = PS[j1][0] - PS[j0][0], ty = PS[j1][1] - PS[j0][1]; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+        const hw = sm(k => wv(T[k][3]), i, 6) / 2; L2.push([x - ty * hw, y + tx * hw]); R2.push([x + ty * hw, y - tx * hw]);
+      }
+      g.fillStyle = RED; g.beginPath(); L2.forEach((p2, k) => k ? g.lineTo(p2[0], p2[1]) : g.moveTo(p2[0], p2[1])); for (let k = R2.length - 1; k >= 0; k--) g.lineTo(R2[k][0], R2[k][1]); g.closePath(); g.fill();
+      // round ends where a run starts and stops (after a jump, at the strip's edge)
+      for (const i of [I[0], I[I.length - 1]]) { g.beginPath(); g.arc(PS[i][0], PS[i][1], wv(T[i][3]) / 2, 0, 6.2832); g.fill(); }
     }
-    g.setLineDash([]); g.restore();
-    // rings: passed, a small white bead on the band; missed, a hollow grey ring where it stood
-    for (const r of d.rings) { const C = colOf(r.s), x = C.X(r.x, r.s), y = C.Y(r.s); g.beginPath(); g.arc(x, y, (r.pass ? 1.9 : 2.6) * u, 0, 6.2832);
-      if (r.pass) { g.fillStyle = TH.bead; g.fill(); } else { g.strokeStyle = TH.miss; g.lineWidth = 1.1 * u; g.stroke(); } }
+    g.restore();
+    for (const r of d.rings) { if (r.pass) continue; const C = colOf(r.s), x = C.X(r.x, r.s), y = C.Y(r.s); g.beginPath(); g.arc(x, y, 2.4 * u, 0, 6.2832); g.strokeStyle = TH.miss; g.lineWidth = 1 * u; g.stroke(); }
     // every kilometre: a fine tick across the line and the number
     g.save(); g.font = '500 ' + 10 * u + 'px ' + LAT; g.fillStyle = TH.kmText; g.strokeStyle = TH.label; g.lineWidth = 1 * u;
     { let acc = 0, km = 1; for (let i = 1; i < n; i++) { acc += Math.hypot(T[i][0] - T[i - 1][0], T[i][1] - T[i - 1][1]); if (acc >= km * 1000) { const p = P(i); g.beginPath(); g.moveTo(p[0] - 9 * u, p[1]); g.lineTo(p[0] - 4 * u, p[1]); g.stroke(); g.textAlign = 'right'; g.fillText(km + 'K', p[0] - 11 * u, p[1] + 3.5 * u); km++; } } }
@@ -416,12 +427,12 @@ const RouteCard = self.RouteCard = (() => {
   // glass, snow-white words, the sun's gold for what matters, coral for what was lost; Song serif names, light Jost figures)
   const THEMES = {
     paper: { ink: '#1d2a34', grey: '#7c8791', line: '#df4a2f', label: '#1d2a34', kmText: '#7c8791', forest: [104, 138, 124], forestD: [78, 110, 100], snow: [252, 252, 250], low: [221, 230, 236],
-      shade: [0.90, 0.91, 0.975], shade2: [0.80, 0.82, 0.93], sun: [1.0, 0.988, 0.955], off: [241, 237, 228], cLine: 'rgba(60,80,108,.32)', cMajor: 'rgba(52,70,98,.55)',
+      shade: [0.90, 0.91, 0.975], shade2: [0.80, 0.82, 0.93], sun: [1.0, 0.988, 0.955], off: [241, 237, 228], cLine: 'rgba(60,80,108,.45)', cMajor: 'rgba(52,70,98,.7)',
       piste: 'rgba(253,253,251,.62)', pisteEdge: 'rgba(70,90,112,.45)', frame: 'rgba(29,42,52,.55)', lineHalo: 'rgba(255,255,255,.85)', air: '#1d2a34', bead: '#fff', miss: 'rgba(29,42,52,.55)',
       disc: '#1d2a34', discRing: '#fff', discText: '#fff', bestDisc: '#df4a2f', bestText: '#fff', halo: 'rgba(241,237,228,.92)', speedFill: 'rgba(223,74,47,.85)',
       ground: (g, W, H) => { g.fillStyle = '#f1ede4'; g.fillRect(0, 0, W, H); } },
     game: { ink: '#f4f7fb', grey: 'rgba(244,247,251,.62)', line: '#ffd08a', label: '#f4f7fb', kmText: 'rgba(244,247,251,.75)', forest: [30, 42, 58], forestD: [30, 42, 58], snow: [150, 166, 192], low: [96, 112, 142],
-      shade: [0.86, 0.88, 0.97], shade2: [0.72, 0.76, 0.92], sun: [1.03, 1.0, 0.96], off: [24, 32, 46], cLine: 'rgba(232,240,250,.28)', cMajor: 'rgba(232,240,250,.5)',
+      shade: [0.86, 0.88, 0.97], shade2: [0.72, 0.76, 0.92], sun: [1.03, 1.0, 0.96], off: [24, 32, 46], cLine: 'rgba(232,240,250,.42)', cMajor: 'rgba(232,240,250,.7)',
       piste: 'rgba(206,218,234,.32)', pisteEdge: 'rgba(16,24,40,.38)', frame: 'rgba(244,247,251,.22)', lineHalo: 'rgba(8,12,20,.42)', air: '#f4f7fb', bead: '#fff8ea', miss: '#ff9d8c',
       disc: 'rgba(5,8,13,.85)', discRing: 'rgba(244,247,251,.75)', discText: '#f4f7fb', bestDisc: '#ffd08a', bestText: '#1b1408', halo: 'rgba(5,8,13,.42)', speedFill: 'rgba(255,208,138,.78)',
       // the dusk the menus sit on: a deep blue, warmer low on the left where the sun has gone down, a faint snow grain
