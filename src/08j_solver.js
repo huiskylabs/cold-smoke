@@ -73,7 +73,7 @@ const Solver = (() => {
   // and in that time the figure's frame has already turned to lie along the flight and the snow read in it is far off (measured: the skis were thrown
   // 0.7 m at a lip). Off the snow the correction dies away; back on it, it comes in over a tenth of a second (until the one transition of the design
   // note is built, step 8).
-  const OUT = 12, APART = 0.08, NEAR = 0.05, SOFT = 0.12, RISE = 24, AHEADL = 0.3;
+  const STEP = 1 / 60, NMAX = 6, OUT = 12, APART = 0.08, NEAR = 0.05, SOFT = 0.12, RISE = 24, AHEADL = 0.3;
   K.ground = (cur, root, Y, toW, sec, dt) => {
     if (Variants.val.solver !== 'b' || typeof Course === 'undefined' || (K.boardOn && K.boardOn())) { sec.gs = null; return null; }
     const q = sec.gs || (sec.gs = new Array(32).fill(null)), on = cur.onSnow == null ? (cur.air || 0) < 0.5 : cur.onSnow > 0, out = [0, 0, 0, 0, 0];
@@ -98,16 +98,36 @@ const Solver = (() => {
     // (how soon the snow arrives, in the air: from how far under the skis it is and how fast that closes. q[12]: how far it was a frame ago)
     let near = 0; if (!on) { let top = -9; for (let i = 0; i < ZS.length; i++) top = Math.max(top, EC[i]); if (dt > 0 && q[12] != null && top > q[12] && top < 0) { const ttc = -top / ((top - q[12]) / dt); near = sat(1 - ttc / AHEADL); near *= near * (3 - 2 * near); } else if (top >= 0) near = 1; q[12] = top; } else q[12] = null;
     const hold = on ? sat((q[9] || 0) / 0.02) : 0;
-    lay(q, 0, EL, dt, on, near, hold); lay(q, 4, ER, dt, on, near, hold); lay(q, 18, EC, dt, on, near, hold);
+    // The bars are stepped on a clock of their own, STEP seconds a step, not once a frame (owner 2026-11-18, screen recording of the title page:
+    // "为什么开始的时候板在抖动"). Each step lets a bar fall and the snow push it back, and where it comes to rest depends on the length of the
+    // step (measured standing still: tip pitch 0.013 rad at 60 frames a second, 0.005 at 120, the height 2 to 6 mm apart). A browser's frames are
+    // never all the same length, so the skis of a figure standing still nodded from frame to frame, and on the move they shook by as much
+    // (pitch acceleration p50 46 rad/s² on uneven frames, 1.3 on even ones). STEP is the 1/60 s all of this was tuned and measured at, so a
+    // steady 60 is exactly as before; a step is taken when the frames have added up to within half a step of it (so a 60 Hz screen that runs
+    // a little early or late still takes one a frame, never none and then two), and q[28] keeps the time ahead or behind. (1/240 was tried:
+    // in the moguls the skis held the snow more tightly than the legs were tuned for, jolts 28 -> 53 a minute.)
     // The two skis hang from one pelvis, a hand's width apart, and a skier holds them together: they do not each go their own way over the snow.
     // (seen on the first contact sheets, 2026-11-18, in the mogul field: solved each alone, one ski stood 30 degrees tip up on the face of a bump
     // while the other lay flat in the trough beside it, the skis crossed in an X and one knee came up to the chest.) So a third bar lies on the
     // higher of the two skis' snow, as one wide ski would, and each ski of its own may hang below that one by at most APART at either end:
     // the ski over the lower snow is carried, light or just off the snow, as the inside ski is over a trough in a real mogul line.
     // (measured against the higher of that bar and the other ski: a ski the snow is already throwing up can be ahead of the bar for some frames)
-    for (let e = 0; e < 4; e += 2) { const top = Math.max(q[18 + e], q[e], q[4 + e]), vt = top === q[18 + e] ? q[19 + e] : top === q[e] ? q[1 + e] : q[5 + e];
-      for (let k = e; k < 8; k += 4) if (q[k] < top - APART) { q[k] = top - APART; q[k + 1] = Math.max(q[k + 1], vt); } }
-    for (let k = 0; k < 2; k++) { const f = q[k * 4], r = q[k * 4 + 2];
+    // (the snow is read once a frame: where a frame takes more than one step, each lays the bars on the snow as far between this reading and the
+    // last as the step is in time, not all of them on the newest)
+    const P = sec.gsE || (sec.gsE = [EL.slice(), ER.slice(), EC.slice()]), SL = sec.gsS || (sec.gsS = [EL.slice(), ER.slice(), EC.slice()]), CUR = [EL, ER, EC];
+    const at = w => { for (let b = 0; b < 3; b++) for (let i = 0; i < ZS.length; i++) SL[b][i] = P[b][i] + (CUR[b][i] - P[b][i]) * w; };
+    const step = h => { lay(q, 0, SL[0], h, on, near, hold); lay(q, 4, SL[1], h, on, near, hold); lay(q, 18, SL[2], h, on, near, hold);
+      for (let e = 0; e < 4; e += 2) { const top = Math.max(q[18 + e], q[e], q[4 + e]), vt = top === q[18 + e] ? q[19 + e] : top === q[e] ? q[1 + e] : q[5 + e];
+        for (let k = e; k < 8; k += 4) if (q[k] < top - APART) { q[k] = top - APART; q[k + 1] = Math.max(q[k + 1], vt); } } };
+    if (!(dt > 0) || q[0] == null || q[4] == null || q[18] == null) { q[28] = 0; sec.gsQ = null; at(1); step(0); }
+    else { const a0 = q[28] || 0; let n = Math.floor((q[28] = a0 + dt) / STEP + 0.5); if (n > NMAX) { n = NMAX; q[28] = n * STEP; } q[28] -= n * STEP;
+      for (let i = 0; i < n; i++) { const Q = sec.gsQ || (sec.gsQ = [0, 0, 0, 0]); Q[0] = q[0]; Q[1] = q[2]; Q[2] = q[4]; Q[3] = q[6]; at(sat(((i + 1) * STEP - a0) / dt)); step(STEP); } }
+    for (let b = 0; b < 3; b++) for (let i = 0; i < ZS.length; i++) P[b][i] = CUR[b][i];
+    // (and shown where they are at the frame's own time, q[28] after the last step (before it, when the steps have run ahead): along the line
+    // from the step before to the last one. On a 120 Hz screen, which steps every other frame, they were otherwise held still for one frame and
+    // moved two frames' worth in the next; at a steady 60 this is the step itself)
+    const Q0 = sec.gsQ, al = dt > 0 && Q0 ? Math.max(-1, Math.min(1, (q[28] || 0) / STEP)) : 0;
+    for (let k = 0; k < 2; k++) { const f = al ? q[k * 4] + (q[k * 4] - Q0[k * 2]) * al : q[k * 4], r = al ? q[k * 4 + 2] + (q[k * 4 + 2] - Q0[k * 2 + 1]) * al : q[k * 4 + 2];
       // (the body the physics carries rides its own spring a few millimetres up and down against the snow, every few frames; a boot's sole, a
       // binding and the snow under a ski give by as much. Within GIVE the foot stays where it is in the figure: with the legs nearly straight
       // before a take-off, 5 mm of foot was more than a degree of knee, frame to frame)
