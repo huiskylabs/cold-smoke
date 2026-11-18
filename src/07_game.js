@@ -168,11 +168,10 @@ const Game = (() => {
   const V_AUTO = 3.3, V_AUTO1 = 4.6;        // the skier poles by itself under 12 km/h, and keeps on to 16.5 km/h
   // what a stroke is worth at speed v, 0..1 of the stroke from rest. A planted pole drives only while the arms and trunk can push back faster
   // than the body passes the basket, so the gain falls with speed (double-poling studies: the thrust gets shorter as the skier goes faster,
-  // the impulse per stroke smaller), but it never stops at once: under 8 m/s as before, then a small tail (held strokes end near 10.5 m/s)
-  const poleGain = v => Math.max(0, 1 - Math.pow(v / V_POLE, 1.5), 0.15 * (1 - smooth(8, 16, v)));
-  // and held down, the key keeps poling while a stroke still gives more than a tuck would save in air (TUCK_DK, see kd below), then it tucks
-  const TUCK_DK = 0.0036 - 0.0021;
-  const poleOverTuck = v => DP_DV * poleGain(v) / DP_T > TUCK_DK * v * v;
+  // the impulse per stroke smaller), but it never stops at once: under 8 m/s as before, then a small tail that fades out by 18 m/s
+  const poleGain = v => Math.max(0, 1 - Math.pow(v / V_POLE, 1.5), 0.15 * (1 - smooth(8, 18, v)));
+  // and held down, the key keeps poling up to V_HOLD (50 km/h, owner 2026-11-18: 38 was too low), then it is a tuck and nothing else
+  const V_HOLD = 50 / 3.6;
   const S = G.s = {
     p: [0, 0, 0], v: [0, 0, 0], n: [0, 1, 0], t: [0, 0, -1], r: [1, 0, 0], h: 0, e: 0, air: false, airT: 0, speed: 0, lean: 0, leanV: 0, beta: 0, load: GRAV,
     aReac: 0, aSkid: 0, aCarve: 0, tuck: 0, tuckT: 0, powder: 0.25, landV: 0, crash: 0, brush: 0, u: 0, contact: true, hdot: 0,
@@ -316,8 +315,7 @@ const Game = (() => {
     // (turning brake b: and not while the player is steering. A skier holding a turn round to a stop does not pole out of it; poling there
     // kept a held turn going at 12-16 km/h for ever)
     S.autoP = sound && !(TB && Math.abs(u) > 0.3) && Math.abs(S.lean) < 0.16 && Math.abs(S.beta) < 0.25 && !S.jOn && sp < (S.autoP ? V_AUTO1 : V_AUTO);
-    // (where the tuck pays more, about 38 km/h, the key is a tuck and nothing else: owner 2026-11-18, no strokes above that, not even a tap)
-    const more = sound && (calm && (S.dpGo > 0 || Input.tuck && poleOverTuck(sp)) || S.autoP);
+    const more = sound && (calm && (S.dpGo > 0 || Input.tuck && sp < V_HOLD) || S.autoP);
     S.dpMore = more;
     if (S.dp > 0) {
       const q0 = S.dp;
