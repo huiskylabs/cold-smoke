@@ -471,7 +471,9 @@ const Skier = (() => {
       // (in a double-pole stroke the hand goes back past the hip and comes forward again under the shoulder. "Down" is square to an arm that points
       // back, so the elbow swung round under it within three frames, and round again on the way forward: there the elbow stays above and behind the arm,
       // where the drive left it. kb: how far the hand of a stroke is behind its shoulder)
-      const kb = dpw > 0 ? dpw * smooth(0, 0.45, v3.dot(ax, hl.Z)) : 0;
+      // (新求解器: ...and it goes there over more of the way: begun a little before the hand is under the shoulder and done further behind it. Over
+      // the 0.45 alone, a hand going back fast took the elbow round in two frames, 4 cm a frame)
+      const kb = dpw > 0 ? dpw * (sec.gnd ? smooth(-0.3, 0.8, v3.dot(ax, hl.Z)) : smooth(0, 0.45, v3.dot(ax, hl.Z))) : 0;
       const ep = v3.add(v3.add(sq(kb > 0 ? fr(hl, side * lerp(0.25, 0.08, kb), lerp(-1, 1, kb), 0.25) : fr(hl, side * 0.25, -1, 0.25), 1), sq(fr(hl, 0, 0, 1), 0.35)), sq(fr(hl, side, 0, 0.2), lerp(0.15, 0.10, tuck)));
       let e = ik2(sh, t, LEN.uarm, LEN.farm + LEN.grip, ep);
       if (sec.gnd) {
