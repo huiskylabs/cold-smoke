@@ -305,13 +305,13 @@ const Skier = (() => {
     // (when the stroke lets go of the snow: at its time, or, with a tip that either hand can no longer reach, at the step before this one)
     let dpRel = dpd ? dpd.rel : DP.REL, dpOut = false;
     if (dpw > 0 && dpd && dpd.T && dpd.g && f >= DP.PLANT && f < dpRel) for (let k = 0; k < 2; k++) if (dpSolveU([dpd.T[k * 2], DP.TIPY, dpd.T[k * 2 + 1]], k ? 1 : -1, lean, dpy, PL) > 1) { dpRel = dpd.gf; dpOut = true; }
-    // (新求解器: ...and before the arm is at its full length, if the hand is still going away from the shoulder: four and a half frames of that speed short of it,
-    // which is the room it takes to lose that speed over nine frames and not in one. Measured 2026-11-18, second stroke of a start at 5 m/s: the hand
+    // (新求解器: ...and before the arm is at its full length, if the hand is still going away from the shoulder: two frames of that speed short of it,
+    // which is the room it takes to lose that speed over four frames and not in one. Measured 2026-11-18, second stroke of a start at 5 m/s: the hand
     // met the end of its arm going out at 7 cm a frame)
     if (sec.gnd && dpw > 0 && dpd && dpd.T && dpd.g && dpd.v && f >= DP.PLANT && f < dpRel && sec.pfDt > 0) for (let k = 0; k < 2; k++) { const sd = k ? 1 : -1, shk = k ? J.shR : J.shL;
       const gu = dpLocus(Math.min(dpSolveU([dpd.T[k * 2], DP.TIPY, dpd.T[k * 2 + 1]], sd, lean, dpy, PL), 1), sd, lean, dpy), r = v3.sub(gu, shk), l = v3.len(r) || 1;
       const vr = (dpd.v[k * 3] * r[0] + dpd.v[k * 3 + 1] * r[1] + dpd.v[k * 3 + 2] * r[2]) / l * sec.pfDt / DP.T;
-      if (l + 4.5 * Math.max(vr, 0) > (LEN.uarm + LEN.farm + LEN.grip) * 0.975) { dpRel = dpd.gf; dpOut = true; } }
+      if (l + 2 * Math.max(vr, 0) > (LEN.uarm + LEN.farm + LEN.grip) * 0.975) { dpRel = dpd.gf; dpOut = true; } }
     // how far the shaft of a pole held at g and pointing along d is from the body (negative: it cuts through)
     const shaftGap = (g, d) => { let m = 1e9; const p0 = v3.mad(g, d, 0.15), p1 = v3.mad(g, d, PL);
       for (let i = 0; i < caps.length; i++) { const cp = caps[i], r = segSeg(p0, p1, cp[0], cp[1]); m = Math.min(m, v3.len(v3.sub(r[0], r[1])) - lerp(cp[2], cp[3], r[3]) - 0.028); } return m; };
@@ -426,13 +426,20 @@ const Skier = (() => {
             // own plane fore and aft, and the trunk coming up carries it. Reckoned from where the shoulder is now, the swing was a different one each frame)
             if (sec.gnd) { const s0 = dpd && dpd.s ? [dpd.s[k * 3], dpd.s[k * 3 + 1], dpd.s[k * 3 + 2]] : sh, vS = dpd && dpd.vs ? [dpd.vs[k * 3], dpd.vs[k * 3 + 1], dpd.vs[k * 3 + 2]] : [0, 0, 0];
               const G0 = v3.add(g0, v3.sub(sh, s0)), vR = v3.sub(vel, vS), dx = g0[0] - s0[0], rS = [0, g0[1] - s0[1], g0[2] - s0[2]], rl = v3.len(rS) || 1, rn = v3.mul(rS, 1 / rl), vr = v3.dot(vR, rn);
-              const vt = [0, vR[1] - vr * rn[1], vR[2] - vr * rn[2]], sp = v3.len(vt), th = Math.min(sp * 0.14 / 1.5 / rl, 0.8), qc = clamp(sp > 1e-6 ? th * rl * 1.5 / sp / (1 - rel) : 0.24, 0.15, 0.5);      // (as far round as it takes to lose its speed with the slowing coming on from nothing: two thirds of the way it would have gone at full speed, in about a seventh of a stroke; never past 45 degrees, sooner there if it is going faster)
-              const rF = Math.min(Math.max(Math.sqrt(Math.max(reach * reach - dx * dx, 0.01)) - 0.005, rl), rl + Math.max(vr, 0) * (1 - rel) * qc / 3);      // (and out as far as the speed it still has away from the shoulder takes it, within the arm's length)
-              const fc = sp > 1e-6 ? v3.add([G0[0], sh[1], sh[2]], v3.add(v3.mul(rn, rF * Math.cos(th)), v3.mul(vt, rF / sp * Math.sin(th)))) : G0, m = sec.dpmv || 0, wp = dpWrap(nT, side, lean, dpy);
+              const vt = [0, vR[1] - vr * rn[1], vR[2] - vr * rn[2]], sp = v3.len(vt), th = Math.min(sp * 0.14 / 1.5 / rl, 0.8), qc0 = clamp(sp > 1e-6 ? th * rl * 1.5 / sp / (1 - rel) : 0.24, 0.15, 0.5);      // (as far round as it takes to lose its speed with the slowing coming on from nothing: two thirds of the way it would have gone at full speed, in about a seventh of a stroke; never past 45 degrees, sooner there if it is going faster)
+              const rF = Math.min(Math.max(Math.sqrt(Math.max(reach * reach - dx * dx, 0.01)) - 0.005, rl), rl + Math.max(vr, 0) * (1 - rel) * qc0 / 3);      // (and out as far as the speed it still has away from the shoulder takes it, within the arm's length)
+              let fc = sp > 1e-6 ? v3.add([G0[0], sh[1], sh[2]], v3.add(v3.mul(rn, rF * Math.cos(th)), v3.mul(vt, rF / sp * Math.sin(th)))) : G0, m = sec.dpmv || 0, wp = dpWrap(nT, side, lean, dpy);
+              // (...and a stroke that got most of its way is finished: the hand ends behind the hip, 5 cm past the joint, as high as a straight arm from a
+              // shoulder that far ahead of it leaves it. Mac round 11, 2026-11-18: let go where the arm began to run out and swung only as far as its
+              // speed took it, the hands turned 10 cm ahead of the hips; in the game before, they reached them)
+              let qc = qc0;
+              { const zt = hipS[2] + 0.05, kz = smooth(0.3, 0.6, u); if (kz > 0 && fc[2] < zt) { const rM = Math.sqrt(Math.max(reach * reach - dx * dx, 0.01)) - 0.005, z1 = lerp(fc[2], zt, kz), dz = Math.min(z1 - sh[2], rM - 0.02);
+                const f1 = [fc[0], Math.max(fc[1], sh[1] - Math.sqrt(Math.max(rM * rM - dz * dz, 0))), sh[2] + dz];
+                qc = Math.min(qc0 * v3.len(v3.sub(f1, G0)) / Math.max(v3.len(v3.sub(fc, G0)), 0.05), 0.5); fc = f1; } }      // (and as much longer about it as it is further)
               // (forward again as it went back, on a long arm: it passes under its shoulder four fifths of an arm below it, and only then comes up. Brought
               // straight up to the next reach from behind, or past a place by the hip that the shoulder of a folded trunk was 25 cm ahead of, the hand came
-              // close under its shoulder while still behind it, and the elbow stood up above the shoulder. A little under half way through what is left)
-              const md = v3.lerp(v3.lerp(fc, nT, 0.45), [sh[0] + side * 0.11, sh[1] - 0.82 * reach, sh[2] + 0.03], (0.4 + 0.6 * u) * w), qm = qc + (1 - qc) * 0.45;
+              // close under its shoulder while still behind it, and the elbow stood up above the shoulder. A little over half way through what is left)
+              const md = v3.lerp(v3.lerp(fc, nT, 0.45), [sh[0] + side * 0.11, sh[1] - 0.82 * reach, sh[2] + 0.03], (0.4 + 0.6 * u) * w), qm = qc + (1 - qc) * 0.52;
               g2 = spl([[-0.3, v3.mad(fc, vR, -(1 - rel) * (qc + 0.3))], [0, G0], [qc, fc], [qm, md], [1, v3.lerp(nT, wp.W, m)]], q);
               if (dpd && dpd.h) relH = v3.mul([dpd.h[k * 3], dpd.h[k * 3 + 1], dpd.h[k * 3 + 2]], (1 - smooth(0, 0.4, q)) * dpw);
               if (q > qm) { const r = (q - qm) / (1 - qm); g2 = v3.mad(g2, wp.V, m * (1 - rel) * (1 - qm) * r * r * (r - 1)); } }
