@@ -106,7 +106,7 @@ const Sky = (() => {
         if (U.world.x < 0.5) { col = farRanges(d, col); }
         if (U.world.x > 1.5) { col = peakPlain(d, mu, col); }                         // (云下之城, 金色雪旗: 16c_peak.js)
         if (U.world.x > 0.5 && U.world.x < 1.5) { col += metroDome(d); col = metroPlain(d, mu, col); }   // (不夜城: 16b_metro.js)
-        if (U.world.x < 0.5) { col = mix(col, cloudSea(d, mu, col), smoothstep(0.0, -0.006, d.y)); }
+        if (U.world.x < 0.5 && d.y < 0.0) { col = mix(col, cloudSea(d, mu, col), smoothstep(0.0, -0.006, d.y)); }
         if (U.world.x < 0.5) { let cb: vec3f = col; col = mix(cityLayer(d, col), cb, M.wf.w); }      // (behind heavy snow only a shape of it: 05b_weather.js)
         // ...and nearer than all of it, a bolt of lightning
         col += bolt(d);
