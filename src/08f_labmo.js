@@ -120,7 +120,7 @@ const LabMo = (() => {
     // (the arms do not tip over with the trunk: hung from a trunk that leans in, the inside hand and forearm came down onto the inside thigh
     // (Mac round 16: hand x thigh 0 -> 136 frames). They keep the lab's own line, hands level, as a skier carries them)
     const ARM_IN = 0.0;
-    const TRUNK_LEAD_T = 0.03, TRUNK_UNLAG = 0.5, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.35, LOOK_H = 0.5, LOOK_C = 0.35, LOOK_END = 0.6, HEAD_AHEAD = 0.06, CHEST_AHEAD = 0.04, PEL_SQ = 0.3, HEAD_ROLL_KEEP = 0.45;
+    const TRUNK_LEAD_T = 0.03, TRUNK_UNLAG = 0, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.35, LOOK_H = 0.5, LOOK_C = 0.35, LOOK_END = 0.6, HEAD_AHEAD = 0.06, CHEST_AHEAD = 0.04, PEL_SQ = 0.3, HEAD_ROLL_KEEP = 0.45;
     const TRUNK_IN = 0.6, lab = Math.atan2(r[0], r[1]);
     if (!quietU()) return fill(out, st, r, ph.lean * 1.07 - lab, 'z');
     // (新求解器, owner 2026-11-18: "想左转，一定是身体跟肩膀先倾过来…头稍微往正回一点点". Measured (turnM): the shoulders tipped 6 frames AFTER the hips
@@ -138,7 +138,7 @@ const LabMo = (() => {
     const lr = LEAD_RATE_MAX * Math.tanh(ph.lev / LEAD_RATE_MAX), lt = ph.le + (2 / ph.wn + TRUNK_LEAD_T) * lr, kin = TRUNK_IN + (TRUNK_IN_DEEP - TRUNK_IN) * sm(0.45, 0.85, Math.abs(lt));
     // (the trunk's own roll rides on the lean without the easing's lag (l0), not on the eased lean: on the eased one its lead was eaten, and against
     // the leg line (feet to pelvis) the shoulders went over 0.01 s BEFORE to 0.01 s AFTER the legs: together, not first (scorer Rshlead / Rshlead0, 2026-11-18))
-    const l0 = ph.le + TRUNK_UNLAG * (2 / ph.wn) * lr;      // (TRUNK_UNLAG 1, lead 0.115 s: at a linked edge change the trunk stood 16 deg off the leg line, Rshline0; 0.5 is tried for about 0.06 s)
+    const l0 = ph.le + TRUNK_UNLAG * (2 / ph.wn) * lr;      // (TRUNK_UNLAG 1, lead 0.115 s: at a linked edge change the trunk stood 16 deg off the leg line, Rshline0; 0.5 gave 0.09 s. Now 0: research 2026-11-18 (LeMaster / Ski Racing, Brown & Reid) says the body tips in as a unit and the shoulders then stay more level than the legs; shoulders tipping first is banking, a fault)
     fill(out, st, r, ph.lean * 1.07 - lab, 'z', l0 * 1.07 - lab + kin * lt, lt * 1.07 - lab + ARM_IN * ph.le);
     // (heading order, owner 2026-11-18 (the research on sports games, adopted): the head looks where the skier will be going in LOOK_H s, the chest
     // LOOK_C, the skis last. The way the line is about to turn is read from the lean the trunk already leads with (lt): a
