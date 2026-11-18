@@ -149,6 +149,9 @@ const Rings = (() => {
     const cur = ahead[0]; if (!cur) return;
     if (cur.grow < 0 && L.st !== 'count') cur.grow = T;          // the first ring of a run opens at once; on a challenge line (用户 22:34 UTC) it waits as a flame through 3-2-1 and opens on 出发
     const v = Math.max(6, S.speed || 0), dCur = cur.s - s;
+    // (用户 15:54 UTC: 一群光游过去 没有效果) it set off at the splash, 1.6 m before the ring, lost in the splash's own burst and then riding
+    // along with the camera. Now it leaves while the ring is still ahead, ~0.6 s out (at least 12 m), so it is seen swimming off toward the next
+    if (cur.flowT === undefined && !cur.fin && dCur < Math.max(12, v * 0.6)) cur.flowT = T;
     if (dCur < Math.max(14, v * 0.8) && ahead[1] && ahead[1].grow < 0) ahead[1].grow = T;          // nearly there: the next flame swells and opens
     // (用户 05:16 UTC: 离圈一两米、头碰到圈面之前就要 splash 散开，半米一米时能不能过已经定了): the splash starts 1.6 m before the ring's plane
     if (dCur < 1.6 && cur.splash < 0) {
@@ -184,7 +187,7 @@ const Rings = (() => {
       let nx = null, ap = 0;
       if (fmode && !r.fin && (r.splash >= 0 || ord === 0)) {
         const dC = r.s - s; ap = r.splash >= 0 ? 1 : fmode === 5 ? cl(1 - (dC - 10) / 70, 0, 1) : cl(1 - (dC - 6) / 34, 0, 1); const i = RG.rings.indexOf(r); for (let k = i + 1; k < RG.rings.length; k++) { const q = RG.rings[k]; if (q.skip) continue; nx = [q.x - o[0], q.y - o[1], -q.s - o[2], q.r]; break; } }
-      drawList.push({ r, nx, ap, fmode, dist, c, sz, near, grown, dis, open, A, flameA, night, ord, flameSc: (1 + 1.6 * ease(grown / 0.35)) * (ord <= 1 ? 1 : ord === 2 ? 0.85 : 0.72), tint: ord <= 1 ? 0 : ord === 2 ? 1 : 2, hitK: r.hit || r.splash < 0 ? 1 : 0.5 });
+      drawList.push({ r, nx, ap, fmode, fl: r.flowT >= 0 ? T - r.flowT : -1, dist, c, sz, near, grown, dis, open, A, flameA, night, ord, flameSc: (1 + 1.6 * ease(grown / 0.35)) * (ord <= 1 ? 1 : ord === 2 ? 0.85 : 0.72), tint: ord <= 1 ? 0 : ord === 2 ? 1 : 2, hitK: r.hit || r.splash < 0 ? 1 : 0.5 });
     }
     drawList.sort((a, b) => b.dist - a.dist);          // far first: the near ring's tube writes depth over what lies behind it
   }
@@ -195,12 +198,12 @@ const Rings = (() => {
   }
 
   // ---- the GPU side
-  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, d.nx ? d.fmode : 0], e: [Math.round(9600 * d.sz * (d.r.fin ? 2 : 1)), Math.round(800 * d.sz * (d.r.fin ? 2 : 1)), 0, d.ap || 0], f: d.nx || [0, 0, 0, 0] });
+  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, d.nx ? d.fmode : 0], e: [Math.round(9600 * d.sz * (d.r.fin ? 2 : 1)), Math.round(800 * d.sz * (d.r.fin ? 2 : 1)), 0, d.ap || 0], f: d.nx || [0, 0, 0, 0], g: [d.fl, 0, 0, 0] });
   const ringLive = d => d.grown > 0.3 && d.dis < 1 && d.open > 0.01;
   RG.init = function (g) {
     gfx = g;
     const lib = [SL.common, SL.hash, SL.fog, RING_SSL];
-    const UR = { a: 'vec4f', b: 'vec4f', c: 'vec4f', d: 'vec4f', e: 'vec4f', f: 'vec4f' };
+    const UR = { a: 'vec4f', b: 'vec4f', c: 'vec4f', d: 'vec4f', e: 'vec4f', f: 'vec4f', g: 'vec4f' };
     pDust = gfx.pipeline({
       name: 'ringDust', lib: lib.concat([DUST_SSL]), buffers: [], topology: 'strip', cull: 'none', blend: 'premul', depthWrite: false, depthFunc: 'lequal',
       varyings: { uv: 'vec2f', col: 'vec4f', sh: 'vec4f' }, uniforms: UR, textures: { tSky: '2d' }, vs: DUST_VS, fs: SPARK_FS,
@@ -791,7 +794,7 @@ fn dustGrain(i: u32) -> DG {
   }
   // ---- 下一个圈提示 (Variants rflow; 用户 2026-11-18 08:04 UTC: 下一个圈常被地形挡住，穿圈时不知道下一个在哪；靠近这个圈时就要有一个
   // 直观、subtle 的提示，大概知道下一个在哪). M.d.w the kind (1-5, 0 none), M.f the next ring (centre, radius), M.e.w how near this ring is.
-  //   1 一群光游过去 at the splash 3% of the grains gather into a loose swarm that swims on one meandering curve to the next ring (08:06 UTC)
+  //   1 一群光游过去 ~0.6 s before the ring (15:54 UTC) 4.5% of the grains gather into a loose swarm that swims on one meandering curve to the next ring (08:06 UTC)
   //   2 一缕光线    at the splash a single thin thread of grains leaves the side facing the next ring and draws one line to it
   //   3 细流引路    from ~40 m out a few grains keep peeling off and drifting to the next ring, a faint living trickle that points the way
   //   4 亮边指方向  the side of this ring facing the next one glows brighter and leans out, a compass on the ring itself
@@ -805,7 +808,7 @@ fn dustGrain(i: u32) -> DG {
     let w: f32 = pow(max(0.0, cos(ang - angD)), 10.0) * dk * apr * (1.0 - saturate(dis * 3.0));
     b = b * (1.0 + 2.2 * w); rr = rr + w * 0.22 * sz;
   }
-  if (md > 0.5 && md < 1.5 && dis > 0.0 && kind == 0u && hsel.x < 0.03) {
+  if (md > 0.5 && md < 1.5 && M.g.x >= 0.0 && kind == 0u && hsel.x < 0.045) {
     // a swarm (用户 08:06 UTC: 不要每颗直线飞过去，突兀；要像一群 swarm，沿一条不规则的曲线一起游到下一个圈). The grains gather off the ring's
     // side that faces the next one into a loose cloud, the cloud swims on one shared, meandering curve (a cubic plus two slow wiggles that
     // die at both ends), each grain circling inside it on its own orbit and lagging a little, the cloud swelling mid-way and drawing in
@@ -823,9 +826,9 @@ fn dustGrain(i: u32) -> DG {
     let sd: vec3f = normalize(vec3f(-D.z, 0.0, D.x) + vec3f(0.0001, 0.0, 0.0));
     let c1: vec3f = P0 + vec3f(cos(angD), sin(angD), 0.0) * 2.0 * sz + vec3f(0.0, 1.2 + 2.0 * hr.x, 0.0) + D * 0.25 + sd * (hr.y - 0.5) * 0.3 * dl;
     let c2: vec3f = P1 - D * 0.3 + sd * (hr.z - 0.5) * 0.35 * dl + vec3f(0.0, (0.05 + 0.1 * hr.x) * dl, 0.0);
-    let ts: f32 = dis * 2.2;
-    let delay: f32 = 0.25 * hd.y;
-    let dur: f32 = clamp(1.0 + dl * 0.005, 1.0, 1.6);
+    let ts: f32 = M.g.x;
+    let delay: f32 = 0.15 * hd.y;
+    let dur: f32 = clamp(0.7 + dl * 0.004, 0.7, 1.2);
     let t: f32 = saturate((ts - delay) / dur);
     let e: f32 = mix(t * t * (3.0 - 2.0 * t), 1.0 - (1.0 - t) * (1.0 - t), 0.5);
     let bell: f32 = sin(3.1415927 * e);
@@ -840,7 +843,7 @@ fn dustGrain(i: u32) -> DG {
     flowSt = vec3f(0.0);
     let after: f32 = ts - delay - dur;
     let land: f32 = select(1.0, 1.0 - saturate(after / 0.35), after > 0.0);
-    b = b * mix(1.0, 0.4, saturate(t * 5.0)) * land * mix(1.0, hitK, 0.4);
+    b = b * mix(1.0, 0.75, saturate(t * 5.0)) * land;
     useFlow = 1.0;
   } else if (md > 1.5 && md < 2.5 && dis > 0.0 && kind == 0u && hsel.x < 0.012) {
     // one thread: every grain on the same curve (handles from the ring's own hash), strung out along it by when it leaves
