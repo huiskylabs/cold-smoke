@@ -68,7 +68,7 @@ if (typeof Variants !== 'undefined') {
   // right the land falls away (a balcony above the lake)
   Variants.def('shape', '山体', [['a', '现在的'], ['b', '峡谷'], ['c', '开阔'], ['d', '山腰临空']], 'a');
   // (a change lays the same mountain out again)
-  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'route' || n === 'rclear' || n === 'shape') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
+  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'route' || n === 'rclear' || n === 'shape' || n === 'start') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
 }
 // slope scale and how much further a run of ~30 s then reaches (pace: the test pilot's distance over 30 s against a, 2026-11-14)
 const SLOPE_K = { a: { k: 1, pace: 1 }, b: { k: 0.75, pace: 0.89 }, c: { k: 0.6, pace: 0.69 } };
@@ -831,6 +831,8 @@ const Course = ((vn1, vn2, h2U) => {
     if (LV && d > 0 && e < 14) d *= clearAt(s, u);
     if (d > 0 && (C.rclear || c.gU > 0.01) && au < c.hw + 6) d *= keepClear(s, u, c);
     if (s < 60) d *= smooth(8, 60, s + au);       // keep the start gate clear
+    // (金色雪旗 from the volcano's top: the first stretch is above the trees, open snow and rock of the cone; the forest begins below)
+    if (d > 0 && Variants.val.start === 'b' && typeof Metro !== 'undefined' && Metro.kind() === 'd') d *= smooth(650, 1500, s + 220 * vnoise2(x / 240, z / 240, 27));
     return d;
   };
   // (Variants 'rclear' b) the lines the run is built round stay clear of trees: the floor and walls of a gully, the mogul field's smooth channel

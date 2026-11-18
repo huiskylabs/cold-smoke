@@ -518,7 +518,7 @@ const Trees = (() => {
   // Where a tree stands, how tall it is and which way it is turned are the course's; what kind it is and how it grew follow from those.
   const CH = 8, CS = CH * TREE_CELL, NF = 12, chunks = new Map(), _at = {};
   // the stunted spruce up on a ridge: a as they were (young trees in even tiers), b flagged by the wind. (A change re-places the trees.)
-  Variants.def('rtree', '山脊树', [['a', '现在的'], ['b', '风旗云杉']], 'b'); Variants.on(n => { if (n === 'rtree' || n === 'tvar' || n === 'world') chunks.clear(); });
+  Variants.def('rtree', '山脊树', [['a', '现在的'], ['b', '风旗云杉']], 'b'); Variants.on(n => { if (n === 'rtree' || n === 'tvar' || n === 'world' || n === 'start') chunks.clear(); });
   function describe(out, o, x, z, h, rot, hint, seed, kind) {
     const q = hash2U(Math.floor(x * 8), Math.floor(z * 8)) & 0xffff, r1 = hash2(q, 71), r2 = hash2(q, 72), r3 = hash2(q, 73), r4 = hash2(q, 74), mode = Variants.val.world === 'd' && Variants.val.tvar === 'c' ? 'd' : Variants.val.tvar;   // (the lake world's own wood: the spire firs, the owner's pick 2026-11-17)
     const ca = Course.at(-z, _at), ridge = ca.ridge || 0, off = Math.abs(x - ca.cx) - ca.hw;

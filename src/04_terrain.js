@@ -956,7 +956,7 @@ fn frag(v: VOut) -> FOut {
     let pz: f32 = tex(tNoise, wxz / 410.0 + vec2f(0.21, 0.63)).z;
     let av: f32 = smoothstep(0.62, 0.70, tex(tNoise, vec2f(wxz.x / 140.0, wxz.y / 900.0) + vec2f(0.4, 0.1)).z);
     let wallF: f32 = smoothstep(0.26, 0.42, N.y + 0.08 * (pz - 0.5)) * smoothstep(0.02, 0.10, mnt) * (1.0 - 0.85 * av);
-    fw = max(fw, 0.85 * wallF);
+    fw = max(fw, 0.85 * wallF * (1.0 - step(0.1, fract(U.world.x))));      // (from the volcano's top: the course's own tree line rules)
   }
   let carpet: f32 = fw * smoothstep(390.0, 470.0, dist);
   if (carpet > 0.001) {
