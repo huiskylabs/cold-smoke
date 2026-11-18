@@ -885,7 +885,11 @@ const Course = ((vn1, vn2, h2U) => {
       // "上面就没有树…下面…林线以下稍微有点树，但是也比较稀")
       // (04:27, the owner again: with no trees at all it looks strange: trees along the runs after all, not dense, in stands of several
       // kinds, 14_trees.js dStand; still none on the bare cone at the very top)
-      if (Variants.val.dalp === 'b') d *= 0.62 * smooth(700, 1500, s + 300 * vnoise2(x / 260, z / 260, 34)) * smooth(-0.15, 0.25, vnoise2(x / 90, z / 90, 35));
+      if (Variants.val.dalp === 'b') d *= 0.62 * smooth(700, 1500, s + 300 * vnoise2(x / 260, z / 260, 34)) * smooth(-0.15, 0.25, vnoise2(x / 90, z / 90, 35));      // (round 20, against Okuhida C08: no spruce stands on a face too steep to hold snow; the walls had trees up their cliffs)
+      if (Variants.val.dalp === 'b' && d > 0.001 && e > 60) {
+        const q = 6, gx = (C.height(x + q, z, 8) - C.height(x - q, z, 8)) / (2 * q), gz = (C.height(x, z + q, 8) - C.height(x, z - q, 8)) / (2 * q);
+        d *= 1 - smooth(0.70, 1.05, Math.hypot(gx, gz));
+      }
     }
     return d;
   };

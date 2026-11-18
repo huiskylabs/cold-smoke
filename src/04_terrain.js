@@ -729,10 +729,14 @@ fn frag(v: VOut) -> FOut {
       // at any distance. The crag relief (Nc) flips from pixel to pixel near the bar and came out as grain, so the bar is read off the
       // smooth face (Nm) plus noise drawn out down the fall line (ribs ~35 m across, a couple of hundred long), and the hollows keep snow)
       let fdA: vec2f = normalize(sm.xy + vec2f(1e-5, 0.0));
-      let rib: f32 = fallNoise(wxz, fdA, 38.0, 230.0, vec2f(0.13, 0.57)) * 0.7 + fallNoise(wxz, fdA, 14.0, 140.0, vec2f(0.61, 0.29)) * 0.3;
+      // (round 20, C08 again: from a km off a face is many narrow white chutes down dark rock, not a few big snowfields with rock
+      // patches. A finer rib (6 m across) and twice the rib's say in the bar, so snow runs up into the steep and rock down into the
+      // eased parts in long streaks; overall cover stays about the same, the owner asked for plenty of snow)
+      let rib: f32 = fallNoise(wxz, fdA, 38.0, 230.0, vec2f(0.13, 0.57)) * 0.5 + fallNoise(wxz, fdA, 14.0, 140.0, vec2f(0.61, 0.29)) * 0.3
+                   + 0.2 * mix(0.5, fallNoise(wxz, fdA, 6.0, 75.0, vec2f(0.83, 0.47)), smoothstep(2500.0, 600.0, dist));
       let oc: f32 = saturate(0.5 + (tex(tDetail, (wxz / 80.0 + vec2f(0.37, 0.19)) / 6.0).z - 0.5) * 1.9);
       let ew2: f32 = 0.018 + dist * 0.00003;
-      let bar: f32 = Nm.y + 0.42 * (0.5 - rib) + 0.12 * (0.5 - oc) + conc * 0.35 + shut;
+      let bar: f32 = Nm.y + 0.85 * (0.5 - rib) + 0.12 * (0.5 - oc) + conc * 0.35 + shut;
       rock = smoothstep(0.60 + ew2, 0.60 - ew2, bar) * step(0.001, rgate);
     } else { rock = rock * 0.45; }
   }
