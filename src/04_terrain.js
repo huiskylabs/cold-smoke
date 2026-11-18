@@ -533,6 +533,35 @@ fn fallNoise(p: vec2f, fd: vec2f, a: f32, b: f32, o: vec2f) -> f32 {
   }
   return saturate(0.5 + (acc / ws - 0.5) * 1.9);
 }
+// (金色雪旗, round 11: a rock face is broken into facets, planes split off along joints, each turned a little its own way, so the low sun
+// lights one and leaves its neighbour dark with a hard line between. p: the face's own plane in metres, cell: the size of a facet, n: cells
+// per 1024 m (the pattern has to repeat every 1024 m, as the origin steps). Out: xy how the facet is turned, z how near its edge (0 on the
+// joint itself), w which facet)
+fn rockFacet(p: vec2f, cell: f32, n: f32) -> vec4f {
+  let g: vec2f = p / cell; let gi: vec2f = floor(g);
+  var d1: f32 = 9.0; var d2: f32 = 9.0; var best: vec2f = vec2f(0.0);
+  for (var j: i32 = -1; j <= 1; j++) {
+    for (var i: i32 = -1; i <= 1; i++) {
+      let c: vec2f = gi + vec2f(f32(i), f32(j));
+      let cw: vec2f = c - n * floor(c / n);
+      let h: vec2f = hash22(cw + vec2f(0.5));
+      let dd: vec2f = c + 0.15 + 0.7 * h - g;
+      let q: f32 = dot(dd, dd);
+      if (q < d1) { d2 = d1; d1 = q; best = cw; } else { d2 = min(d2, q); }
+    }
+  }
+  let r: vec2f = hash22(best + vec2f(17.5, 3.5)) * 2.0 - 1.0;
+  return vec4f(r, sqrt(d2) - sqrt(d1), hash21(best + vec2f(41.5, 9.5)));
+}
+// (the facets of a face, at one size, mapped three ways (onto the planes facing x, z and up) and blended by how the face is turned: xyz how
+// the normal is turned, w how near a joint)
+fn facetN(wxz: vec2f, wy: f32, tw: vec3f, cell: f32, n: f32) -> vec4f {
+  var pr: vec3f = vec3f(0.0); var e: f32 = 0.0;
+  if (tw.x > 0.02) { let f: vec4f = rockFacet(vec2f(wxz.y, wy), cell, n); pr += tw.x * vec3f(0.0, f.y, f.x); e += tw.x * f.z; }
+  if (tw.z > 0.02) { let f: vec4f = rockFacet(vec2f(wxz.x + 0.37 * cell, wy), cell, n); pr += tw.z * vec3f(f.x, f.y, 0.0); e += tw.z * f.z; }
+  if (tw.y > 0.02) { let f: vec4f = rockFacet(wxz + vec2f(0.61 * cell, 0.0), cell, n); pr += tw.y * vec3f(f.x, 0.0, f.y); e += tw.y * f.z; }
+  return vec4f(pr, e);
+}
 // the lie of the rock: Course.strata term for term (p = world xz, y = world height, each known modulo 1024 m): uneven beds that swell and pinch
 fn strataAt(p: vec2f, y: f32) -> f32 {
   let k: f32 = 0.0061359232;
@@ -968,7 +997,7 @@ fn frag(v: VOut) -> FOut {
     let saw: f32 = (smoothstep(0.0, 0.85, fs) - smoothstep(0.85, 1.0, fs)) * 2.0 - 1.0;
     let mpx: f32 = select(M.pt.x, 0.0, ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'true' : 'false'} && U.world.x > 2.5);      // (金色雪旗 above the trees: no bands, see below)
     let ov: f32 = smoothstep(rk.x - 0.10 * rk.y - 0.045, rk.x - 0.015, fr) * (1.0 - smoothstep(rk.x - 0.012, rk.x + 0.01, fr)) * mpx * (1.0 - frock);
-    let Nr: vec3f = normalize(N - tdir * mix((sa.y - 0.5) * 1.6 + (sb.y - 0.5) * 1.2, -0.9 * saw + (sa.y - 0.5) * 0.6 - 1.4 * ov, mpx));
+    var Nr: vec3f = normalize(N - tdir * mix((sa.y - 0.5) * 1.6 + (sb.y - 0.5) * 1.2, -0.9 * saw + (sa.y - 0.5) * 0.6 - 1.4 * ov, mpx));
     // a face is not one dark stain: snow lies along the lip of every thin bed (white lines across it, broken where the bed is poor), the
     // rock under each lip is in its shadow, and cracks run down through the beds
     let near: f32 = smoothstep(1100.0, 420.0, dist);
@@ -996,6 +1025,24 @@ fn frag(v: VOut) -> FOut {
       // any distance the rock reads as dark ribs between white threads, not as a bare grey slab)
       let fine: f32 = fallNoise(wxz, fdB, 3.5, 38.0, vec2f(0.47, 0.91));
       lip = max(lip, smoothstep(0.66, 0.76, fine + 0.30 * (st - 0.5) + 0.25 * (st2 - 0.5)) * 0.85 * smoothstep(1800.0, 150.0, dist));      // (fewer, and broken by the larger ribs: all of them read as regular candy stripes)
+      // (round 11, the owner's "big faces like smooth slabs", against Okuhida C08: real rock is never one plane. It is split along joints into
+      // facets at every size, a slab tens of metres across, blocks of ten, plates of a few, each turned its own way, so under a low sun the
+      // face is a mosaic of lit planes and dark ones with hard lines between, the joints themselves dark, and snow lying on every facet that
+      // turns up to the sky. And a rib is round: lit on the side turned to the sun, in shade on the other. The mesh can carry none of it)
+      let wy: f32 = wp.y + U.origin.y;
+      let tw0: vec3f = pow(abs(Nm), vec3f(4.0)); let tw: vec3f = tw0 / (tw0.x + tw0.y + tw0.z);
+      let kA: f32 = smoothstep(32.0 * 160.0, 32.0 * 60.0, dist); let kB: f32 = smoothstep(10.67 * 160.0, 10.67 * 60.0, dist); let kC: f32 = smoothstep(3.56 * 160.0, 3.56 * 60.0, dist);
+      var pert: vec3f = vec3f(0.0); var crack: f32 = 1.0;
+      if (kA > 0.001) { let fa: vec4f = facetN(wxz, wy, tw, 32.0, 32.0); pert += fa.xyz * (0.55 * kA); crack *= mix(1.0, smoothstep(0.0, 0.05, fa.w), 0.55 * kA); }
+      if (kB > 0.001) { let fb2: vec4f = facetN(wxz + vec2f(5.3, 2.9), wy + 3.1, tw, 10.67, 96.0); pert += fb2.xyz * (0.45 * kB); crack *= mix(1.0, smoothstep(0.0, 0.07, fb2.w), 0.50 * kB); }
+      if (kC > 0.001) { let fc: vec4f = facetN(wxz + vec2f(1.7, 7.1), wy + 1.3, tw, 3.56, 288.0); pert += fc.xyz * (0.35 * kC); crack *= mix(1.0, smoothstep(0.0, 0.09, fc.w), 0.40 * kC); }
+      let pp: vec2f = vec2f(-fdB.y, fdB.x);
+      let rg: f32 = (fallNoise(wxz + pp * 7.0, fdB, 26.0, 170.0, vec2f(0.29, 0.83)) - fallNoise(wxz - pp * 7.0, fdB, 26.0, 170.0, vec2f(0.29, 0.83))) * smoothstep(3000.0, 900.0, dist);
+      pert += vec3f(pp.x, 0.0, pp.y) * (-rg * 1.6);
+      Nr = normalize(Nr + pert - Nr * dot(pert, Nr));
+      ra *= crack;
+      // (snow lies on every facet that turns up to the sky, and only there: the white comes in angular flakes with the rock's own lines)
+      lip = max(lip, smoothstep(0.66, 0.78, Nr.y + 0.10 * (blk - 0.5)) * 0.95 * max(kB, 0.6 * kA) * crack);
     }
     var rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
     ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.02, 0.98, 0.95), 0.15); }' : ''}
