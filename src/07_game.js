@@ -641,7 +641,8 @@ const Game = (() => {
     const th = !!fl.pre && !base, a = (base + n * (th ? turn(u, 0.12) : turn(u))) * PI, b = bell(0.02, 0.2, 0.7, 0.95, u);
     q.yaw = d * a; q.c = c; q.own = b; q.tuck = 0.12 * b; q.sep = d * 0.38 * (th ? 1 - smooth(0.28, 0.55, u) : bell(0, 0.18, 0.28, 0.55, u));
     // (the head leads the turn and finds the landing before the body comes round to it; landed switch, it looks back down the hill)
-    q.head = d * Math.min(Math.ceil((base + n) / 2) * TAU - a, 1.15) * (base ? 1 : th ? Math.max(smooth(0, 0.12, u), 0.43) : smooth(0, 0.12, u));      // (thrown: the head is already looking round, 0.5 rad, as the skis leave)
+    q.head = d * Math.min(Math.ceil((base + n) / 2) * TAU - a, SOLV() ? 0.7 : 1.15) *      // (新求解器: 0.7, 40 deg. On top of the chest's own lead the head stood 75 deg round from the hips, Mac round 22: the face to the camera on a body still side on)
+      (base ? 1 : th ? Math.max(smooth(0, 0.12, u), 0.43) : smooth(0, 0.12, u));      // (thrown: the head is already looking round, 0.5 rad, as the skis leave)
   }
   const SHAPES = {
     // skis and hips twisted off to one side under shoulders that keep facing down the hill, and back

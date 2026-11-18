@@ -120,7 +120,7 @@ const LabMo = (() => {
     // (the arms do not tip over with the trunk: hung from a trunk that leans in, the inside hand and forearm came down onto the inside thigh
     // (Mac round 16: hand x thigh 0 -> 136 frames). They keep the lab's own line, hands level, as a skier carries them)
     const ARM_IN = 0.0;
-    const TRUNK_LEAD_T = 0.05, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.35, SH_YAW_IN = 0.15, SH_YAW_LEAD = 0.03, SH_YAW_MAX = 0.09, HEAD_YAW_KEEP = 0.5, HEAD_ROLL_KEEP = 0.45;
+    const TRUNK_LEAD_T = 0.07, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.35, SH_YAW_IN = 0.15, SH_YAW_LEAD = 0.03, SH_YAW_MAX = 0.09, HEAD_YAW_KEEP = 0.5, HEAD_ROLL_KEEP = 0.45;
     const TRUNK_IN = 0.6, lab = Math.atan2(r[0], r[1]);
     if (!quietU()) return fill(out, st, r, ph.lean * 1.07 - lab, 'z');
     // (新求解器, owner 2026-11-18: "想左转，一定是身体跟肩膀先倾过来…头稍微往正回一点点". Measured (turnM): the shoulders tipped 6 frames AFTER the hips
