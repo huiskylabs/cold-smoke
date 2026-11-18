@@ -126,9 +126,14 @@ function metrics(d, S, tr, cards, co, sm) {
   // R 转弯：每个弯取弯中（0.4–0.6）的值，和专业滑手同样的量
   for (const t of tr.list) { const c = cards[Math.floor((t.i0 + t.i1) / 2)].has('carve') ? 'carve' : 'turn', mid = q => { const a = t.c[q].slice(13, 20); return a.reduce((s, x) => s + x, 0) / a.length; };
     const apex = Math.floor((t.i0 + t.i1) / 2), J = k => d.j(k, apex), hip = v.mul(v.add(J('hipL'), J('hipR')), 0.5);
-    // R0 倾角对不对得上物理：整个人的重心（按各段质量）在两踝中点上方往弯里倒了多少度，和物理算出的倾角比（弯中几帧的平均）
-    { let sum = 0, k = 0; for (let i = t.i0 + Math.floor(0.4 * (t.i1 - t.i0)); i <= t.i0 + Math.ceil(0.6 * (t.i1 - t.i0)); i++) { const c_ = com(d, i), base = v.mul(v.add(d.j('ankleL', i), d.j('ankleR', i)), 0.5); sum += Math.abs(Math.abs(Math.atan2(c_[0] - base[0], c_[1] - base[1])) - Math.abs(d.s('lean', i))) * R2D; k++; }
-      put(c, 'R', 'R0', sum / k); }
+    // R0 站不站得住（2026-11-18 改）：从全身重心（按各段质量）沿物理的倾角画一条线到雪面，这条线要落在两只脚之间（外脚再外 3 cm 以内也算），
+    // 落在脚外面就是“物理上会倒”。量的是落点出了两脚范围多少厘米（弯中几帧的平均）。原来按“两踝中点”比角度，等于假设两脚各承一半重，
+    // 把正常的“外脚承重多”算成了 7 度的误差。同时记外脚承了多少（0 = 全在内脚，1 = 全在外脚）给报告看。
+    { let sum = 0, fr = 0, k = 0; for (let i = t.i0 + Math.floor(0.4 * (t.i1 - t.i0)); i <= t.i0 + Math.ceil(0.6 * (t.i1 - t.i0)); i++) { const ln = d.s('lean', i); if (Math.abs(ln) < 0.1) continue;
+        const c_ = com(d, i), aL = d.j('ankleL', i), aR = d.j('ankleR', i), sg = Math.sign(ln), inn = sg > 0 ? aR : aL, out = sg > 0 ? aL : aR;
+        const gy = (aL[1] + aR[1]) / 2, gx = c_[0] - (c_[1] - gy) * Math.tan(ln), sp = (gx - inn[0]) / ((out[0] - inn[0]) || 1e-6), w = Math.abs(out[0] - inn[0]) * 100;
+        sum += Math.max(0, -sp * w, (sp - 1) * w - 3); fr += sp; k++; }
+      if (k) { put(c, 'R', 'R0', sum / k); put(c, 'R', 'R0s', fr / k); } }
     put(c, 'R', 'Rincl', Math.abs(mid('incl'))); put(c, 'R', 'RkLong', mid('kneeO')); put(c, 'R', 'RkShort', mid('kneeI')); put(c, 'R', 'RhipH', mid('hipH'));
     put(c, 'R', 'RhandH', ((J('gripL')[1] + J('gripR')[1]) / 2 - hip[1]) / leg); put(c, 'R', 'Rspr', v.len(v.sub(J('gripL'), J('gripR'))) / leg);
     put(c, 'R', 'Rtwist', Math.abs(mid('twist'))); put(c, 'R', 'Rperiod', 2 * t.T);
