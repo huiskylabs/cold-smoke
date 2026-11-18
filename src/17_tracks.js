@@ -329,7 +329,7 @@ const Tracks = (() => {
     if (i0 < trail.length) { const dx = cx - trail[i0], dz = cz - trail[i0 + 1], l = Math.hypot(dx, dz); if (l > 1) { ax = dx / l; az = dz / l; } }
     for (let i = i0; i < trail.length; i += 2) { const dx = trail[i] - cx, dz = trail[i + 1] - cz, a = dx * ax + dz * az, b = dz * ax - dx * az; if (a < a0) a0 = a; if (a > a1) a1 = a; if (b < b0) b0 = b; if (b > b1) b1 = b; }
     U.tk[0] = ax; U.tk[1] = az; U.tk[2] = a0 - m; U.tk[3] = a1 + m; U.tb[0] = b0 - m; U.tb[1] = b1 + m;
-    U.tb[2] = lerp(lerp(T.ski.tip + 0.03, 0.31, smooth(0.055, 0.09, T.D) * (1 - skidK)), -0.12, T.deep);      // how far ahead of the boot the snow is open over a ski (as 'tip' in the stamp)
+    U.tb[2] = lerp(T.ski.tip + 0.03, -0.12, smooth(0.4, 0.8, T.deep));      // how far ahead of the boot the snow is open over a ski (as 'tip' in the stamp)
     U.tb[3] = T.deep;
     // skis and legs as they are drawn this frame (the skier's own joints and frame; without them, no contact shadows)
     const Sk = typeof Skier !== 'undefined' ? Skier : null, W = Sk && Sk.world, R = W && W.root, J = W && W.J, P = (Sk && Sk.pose) || {};
@@ -358,7 +358,10 @@ const TRACK_SSL = `
 const SKI_HW: f32 = 0.057; const SKI_TAIL: f32 = 0.80; const SKI_TIP: f32 = 0.92;
 // a ski riding deep runs under the snow ahead of the boot (which is what opens the trench); one riding shallow presses it in from the shovel on
 // (dk: and one riding IN the snow (Tracks.deep) has it closed over the boots: the furrow opens behind the heels)
-fn skiFront(D: f32, dk: f32) -> f32 { return mix(mix(SKI_TIP, 0.30, smoothstep(0.055, 0.09, D)), -0.12, dk); }
+// (owner 2026-11-18: in snow a few centimetres soft the shovels were under untouched snow from 30 cm ahead of the boots while boots, bindings
+// and tails lay bare: a ski cut in two. The snow closes over a ski only where it closes over the boots as well (Tracks.deep, the same
+// 0.4..0.8 by which the terrain stops pressing it open); short of that the ski lies in its own groove from tail to tip)
+fn skiFront(D: f32, dk: f32) -> f32 { return mix(SKI_TIP, -0.12, smoothstep(0.4, 0.8, dk)); }
 struct TrkV { clip: vec4f, q: vec4f, w: vec4f, }
 fn trackQuad(a0: vec4f, a1: vec4f, vid: u32, mU: f32, mV: f32, sunReach: f32) -> TrkV {
   var t: TrkV;
