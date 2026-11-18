@@ -66,6 +66,10 @@ if (typeof Variants !== 'undefined') {
   // 山体 (experiments for the worlds below: the same run in a different valley). a: as it is, a broad valley. b: a canyon, the walls close in
   // and stand steeper. c: open country, the walls drawn far back and low under a big sky. d: a mountainside, a wall on the left and on the
   // right the land falls away (a balcony above the lake)
+  // (defined here, not with the light in 05_sky.js: the terrain's shader, 04_terrain.js, reads it as it loads)
+  // 金色雪旗 above the tree line (owner 2026-11-18 03:56, with a photo of the Rockies above the trees: "两面是山…山上的云雾缭绕…没有树…很多石头
+  // …有些石头裸露出来…大面积的白雪"): no trees, rock breaking through the walls, wide white snow, cloud wrapped round the mountains
+  Variants.def('dalp', '高山 (金色雪旗)', [['a', '林海'], ['b', '林线以上：无树、多石、云雾']], 'b');
   Variants.def('shape', '山体', [['a', '现在的'], ['b', '峡谷'], ['c', '开阔'], ['d', '山腰临空']], 'a');
   // (a change lays the same mountain out again)
   Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'route' || n === 'rclear' || n === 'shape' || n === 'start' || n === 'world') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
@@ -121,7 +125,7 @@ const Course = ((vn1, vn2, h2U) => {
     C.lv = TERR_LV[tv.tdiff] ? tv.tdiff : 'b'; LV = tv.terr === 'b' ? TERR_LV[C.lv] : null; C.rich = !!LV; C.isl = LV ? LV.isl : 1;
     trng = RNG((KEY ^ 0x7e4a11) + 131 * C.lv.charCodeAt(0));
     // (金色雪旗 takes its own run, the U trough, where the route is left at the default)
-    const rv = tv.route === 'b' && tv.world === 'd' ? 'e' : tv.route;      // (Variants, not Metro: Metro is declared later and setSeed runs before it is)
+    const rv = tv.route === 'b' && tv.world === 'd' && tv.dalp === 'a' ? 'e' : tv.route;      // (Variants, not Metro: Metro is declared later and setSeed runs before it is)
     C.route = rv === 'b' || rv === 'c' || rv === 'd' || rv === 'e'; ROUTE = ROUTES[rv] || ROUTES.b; C.ROUTE = ROUTE; C.rclear = tv.rclear === 'b';
     SH = SHAPES[tv.shape] || SHAPES.a;
     planTo(4000);
@@ -856,6 +860,7 @@ const Course = ((vn1, vn2, h2U) => {
       if (Variants.val.start === 'b') d *= smooth(650, 1500, s + 220 * vnoise2(x / 240, z / 240, 27));
       // (the owner 2026-11-18: fewer trees: stands with open snow between them, not one unbroken wood)
       if (au > c.hw + 4) d *= 0.35 + 0.65 * smooth(-0.05, 0.30, vnoise2(x / 150, z / 150, 33));
+      if (Variants.val.dalp === 'b') d = 0;                                  // (above the tree line: no trees at all)
     }
     return d;
   };
