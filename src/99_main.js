@@ -29,10 +29,10 @@ async function boot(stage) {
   if (Variants.val.bootq !== 'a') gfx.hold = n => BOOT_LATER.test(n);
   Course.forceType = QS.get('seg') || null; Course.classic = QS.has('classic');      // dev: a mountain made of one kind of run; the runs in the order the first mountain had them
   Course.setSeed(DEV ? (seedInHash() || Math.floor(+QS.get('seed')) || (Metro.on() ? Metro.seed : Course.seed)) : (Metro.on() ? Metro.seed : Course.seed));      // outside dev: always the home mountain (寒烟山)
-  if (Metro.on()) Sky.setClock(Metro.kind() === 'c' ? Sky.times.dusk : Sky.times.night);
+  if (Metro.on()) Sky.setClock(Metro.kind() === 'c' ? Sky.times.dusk : Sky.times.night);                    // (不夜城 opens at night, and stays there: see the clock below)
   // 金色雪旗 (Variants 'dlight' b): its own light, not the old map's. Low sun off to the right, out of the picture (raking light, long blue shadows
   // thrown across the run, the volcano and the lake lit gold), no cumulus, and the run opens in the hour of gold (refs: alpenglow photos on Commons)
-  if (Metro.kind() === 'd' && Variants.val.dlight === 'b') { Sky.az = Sky.azD; Sky.setClock(Sky.times.golden); }                    // (不夜城 opens at night, and stays there: see the clock below)
+  if (Metro.kind() === 'd' && Variants.val.dlight === 'b') { Sky.az = Sky.azD; Sky.setClock(Sky.times.golden); }
   if (QS.get('tod')) { const q = QS.get('tod'); Sky.setClock(q in Sky.times ? Sky.times[q] : +q || 0); }
   await step(0.08, '磨雪');
   makeNoiseTextures(gfx); makeSnowTexture(gfx, Sky.az); Terrain.setSun(Sky.az);
