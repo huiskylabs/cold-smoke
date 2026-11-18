@@ -674,7 +674,13 @@ fn frag(v: VOut) -> FOut {
   // (its edge is broken at the size of a stone and of a slab, and only the steep part of it is bare: the snow lies on every ledge)
   if (frock > 0.001) { tau = strataAt(wxz, wp.y + U.origin.y); rock = max(rock, smoothstep(0.42, 0.62, frock * 0.8 + (d2.z - 0.5) * 0.55 + (d1.z - 0.5) * 0.35) * smoothstep(0.76, 0.56, Nc.y + (d2.z - 0.5) * 0.18 + (d1.z - 0.5) * 0.1)); }
   // (金色雪旗, the owner 2026-11-18: more snow on the mountain; only the steepest crags stand bare)
-  if (U.world.x > 2.5) { rock = rock * 0.45; }
+  if (U.world.x > 2.5) {
+    if (${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'true' : 'false'}) {
+      // (above the tree line: the walls break through the snow in outcrops and bands wherever they steepen, broken at the size of a slab)
+      let oc: f32 = tex(tNoise, wxz / 80.0 + vec2f(0.37, 0.19)).z * 0.65 + d2.z * 0.35;
+      rock = max(rock, smoothstep(0.72, 0.62, Nc.y + 0.55 * (0.5 - oc) + hold + shut) * step(0.001, rgate));
+    } else { rock = rock * 0.45; }
+  }
   let sdir0: vec2f = normalize(L.xz + vec2f(1e-4, 0.0)); let tanE0: f32 = L.y / max(length(L.xz), 1e-3);
   let g1: vec2f = snowSlope(d1) * (0.81 * f1); let g2: vec2f = snowSlope(d2) * (0.81 * f2); let g3: vec2f = snowSlope(d3) * (0.5 * f3);
   var slope: vec2f = sm.xy + cs + g1 + g2 + g3;
@@ -958,7 +964,7 @@ fn frag(v: VOut) -> FOut {
     let pz: f32 = tex(tNoise, wxz / 410.0 + vec2f(0.21, 0.63)).z;
     let av: f32 = smoothstep(0.62, 0.70, tex(tNoise, vec2f(wxz.x / 140.0, wxz.y / 900.0) + vec2f(0.4, 0.1)).z);
     let wallF: f32 = smoothstep(0.26, 0.42, N.y + 0.08 * (pz - 0.5)) * smoothstep(0.02, 0.10, mnt) * (1.0 - 0.85 * av);
-    fw = max(fw, 0.85 * wallF * (1.0 - step(0.1, fract(U.world.x))));      // (from the volcano's top: the course's own tree line rules)
+    fw = max(fw, 0.85 * wallF * (1.0 - step(0.1, fract(U.world.x))) * ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? '0.0' : '1.0'});      // (above the tree line: none)      // (from the volcano's top: the course's own tree line rules)
   }
   let carpet: f32 = fw * smoothstep(390.0, 470.0, dist);
   if (carpet > 0.001) {
@@ -1018,9 +1024,9 @@ fn frag(v: VOut) -> FOut {
     let mdr: vec2f = vec2f(U.camPos.w * 0.9, U.camPos.w * 0.35);
     let mn: f32 = tex(tNoise, (wxz + mdr) / 520.0 + vec2f(0.13, 0.41)).z * 0.6 + tex(tNoise, (wxz - mdr) / 170.0 + vec2f(0.57, 0.22)).z * 0.4;
     let vb: f32 = (mv.y - hc - 60.0 * (mn - 0.5)) / hw;
-    let mk: f32 = exp(-vb * vb * 1.4) * smoothstep(0.56, 0.76, mn) * smoothstep(320.0, 600.0, md) * smoothstep(0.02, 0.12, mnt);
+    let mk: f32 = exp(-vb * vb * 1.4) * smoothstep(${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? '0.46' : '0.56'}, 0.76, mn) * smoothstep(${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? '220.0' : '320.0'}, 600.0, md) * smoothstep(0.02, 0.12, mnt);
     let mc: vec3f = vec3f(0.92, 0.94, 0.98) * (U.sunCol.rgb * 0.50 + amb * 1.1);
-    col = mix(col, mc, saturate(mk) * 0.6);
+    col = mix(col, mc, saturate(mk) * ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? '0.85' : '0.6'});
   }
   // (金色雪旗: the air of a Rockies valley in winter is clear: forest across it two or three kilometres off is still dark green, only a little
   // blued, never the pale grey of a hazy summer; so the haze over this world's own land is lighter)
