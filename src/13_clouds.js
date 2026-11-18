@@ -142,7 +142,7 @@ const Clouds = (() => {
   // once a frame, before anything is drawn. Runs on the game's clock: in slow motion the clouds slow with everything else
   C.update = function () {
     const t = Render.time, ed = lastU < 0 ? 1 : 1 - Math.exp(-Math.min(Math.abs(t - lastU), 0.5) / 1.2), vc = VCU.val.cu || 'a'; lastU = t;
-    const noCu = typeof Metro !== 'undefined' && Metro.kind() === 'd' && VCU.val.dlight !== 'a' && VCU.val.dalp !== 'b';      // (金色雪旗: a clear winter sky)
+    const noCu = typeof Metro !== 'undefined' && Metro.kind() === 'd' && VCU.val.dlight !== 'a' && (VCU.val.dalp !== 'b' || VCU.val.dlight === 'c');      // (金色雪旗: a clear winter sky; above the trees on the clear day of the owner's video too, the cloud lying only as a sea below)
     for (const c of C.list) { const s = small(c); c.rag = lerp(c.rag || 0, vc === 'b' ? s : 0, ed); c.keep = lerp(c.keep === undefined ? 1 : c.keep, noCu ? 0 : vc === 'c' ? 1 - s : 1, ed); }
     if (!volDone) { gfx.beginPass(volT, { color: [0, 0, 0, 0] }); gfx.draw(pipeVol, { u: { p: [0, 0, 0, 0] }, tex: {}, count: 3 }); gfx.endPass(); volDone = true; }
     if (!C.baked || t < lastT || t - lastT > C.K * 0.75) {
