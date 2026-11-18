@@ -24,7 +24,7 @@ const LabRide = (() => {
   // (moves in the air only: no butters or presses, no half turns that land backwards)
   const AIR = gr => MV.LIB[gr].filter(m => !m.groundT && !(m.spin && Math.abs(m.spin) % 360 === 180));
   const MSKI = AIR('ski'), MBOARD = AIR('board');
-  Variants.def('rider', '实验室人物', [['a', '关'], ['b', '开']], 'b');
+  Variants.def('rider', '实验室人物', [['a', '关'], ['b', '开']], 'a');      // (default off: the game keeps its own figure, which is the one 新求解器 drives and the owner playtested, 2026-11-18)
   Variants.def('rski', '双板风格', SKI.map((p, i) => [L5[i], label(p)]), 'a');
   Variants.def('rboard', '单板风格', BOARD.map((p, i) => [L5[i], label(p)]), 'a');
   Variants.def('rtski', '双板跳的动作', [['a', '随机'], ...MSKI.map((m, i) => [L5[i + 1], mlabel(m.zh)])], 'a');

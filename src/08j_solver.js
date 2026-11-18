@@ -6,7 +6,7 @@
 //   frames on snow, up to 37 cm). Here the snow is read under each ski along its length and the ski lies on it as a stiff bar (see lay).
 const Solver = (() => {
   const K = Skier, sat = x => Math.max(0, Math.min(1, x));
-  Variants.def('solver', '新求解器', [['a', '关'], ['b', '雪板贴真实雪面']], 'a');
+  Variants.def('solver', '新求解器', [['a', '关'], ['b', '雪板贴真实雪面']], 'b');      // (default on, owner 2026-11-18: "有v8就merge v8")
   const ZS = [-0.75, -0.5625, -0.375, -0.1875, 0, 0.1875, 0.375, 0.5625, 0.75], EL = new Array(ZS.length), ER = new Array(ZS.length), EC = new Array(ZS.length), HALF = 0.6, DROP = 60, PUSH = 120, UPK = 40, PK = 20, GIVE = 0.004;
   // One ski, standing at (x0, z0) in the figure's frame, as what it is: a stiff bar that the snow can push up anywhere along its length but cannot pull
   // down. Each frame its two ends first fall as a thing falls that a leg pushes down (at most DROP), then the bar is lifted where the snow stands

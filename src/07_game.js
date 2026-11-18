@@ -710,6 +710,7 @@ const Game = (() => {
   // (what was planned on the way in stands while it suits the air there is: with too little for it, or a good deal more than it was
   // chosen to fill, something else is picked; a turn keeps the side it has been wound up to)
   const planFor = (U, old, pred) => { const big = bigAir(pred); if (old && old.min <= U && U - old.U < 0.25 && (big === 2 || (big && !ODD(old.id)) || HOP[old.id] || G.forceTrick) && (fpOK(old.id) || G.forceTrick) && (!G.forceTrick || old.id === String(G.forceTrick))) return old; const t = pickTrick(U, big); if (t) { t.U = U; t.big = big; t.k = /\d|flip|grab/.test(t.id) ? 1 : clamp((t.seq ? U / 2 : U) / 0.62, 0.5, 1); if (old && old.spin && t.spin) t.dir = old.dir; } return t; };
+  const SOLV = () => Variants.val.solver === 'b', PRE_T = 0.13, PRE_U = 0.10;
   function startTrick(tr) { fl.tr = tr; fl.ph = 0; fl.swT = 0; if (tr.id !== 'pivot' && !tr.base) { fl.last2 = fl.last; fl.last = tr.id; G.events.push({ type: 'trick', id: tr.id, dir: tr.dir }); } }
   function flightReset() {
     Object.assign(fl, { air: false, on: false, t: 0, rem: 0, pred: 0, big: 0, w: 0, wV: 0, wu: 0, wuV: 0, plL: 0, plLV: 0, plR: 0, plRV: 0, kc: 0, kcV: 0, lipT: 9, lipAir: 0, lipAge: 9, prepL: 0, prepLV: 0, prep: 0, aK: 0, mL: 0, reach: 0, reachV: 0, soak: 0, soakV: 0, hit: 0, ph: 1, tr: null, plan: null, took: false,
@@ -726,7 +727,7 @@ const Game = (() => {
       const c = lerp(0.0036, 0.0025, S.tuck) * sp; fl.a[0] = -c * v[0]; fl.a[1] = -GRAV - c * v[1]; fl.a[2] = -c * v[2];
       fl.on = true; fl.took = false; fl.vp = null; fl.fresh = 0.45 + 0.55 * smooth(1, 5, fl.since);
     } else if (!S.air && fl.air) {     // ...and have met it again
-      fl.on = false; fl.rem = 0; fl.plan = null; fl.mL = 1; if (fl.dep > 0.15) fl.since = 0;
+      fl.on = false; fl.pre = 0; fl.rem = 0; fl.plan = null; fl.mL = 1; if (fl.dep > 0.15) fl.since = 0;
       // (how heavy the landing is, 0..1: the legs soak it up, the lens dips, shakes a touch and opens for a moment)
       const h = sat((S.landV - 1.5) / 9) * (0.3 + 0.7 * fl.big); fl.hit = Math.max(fl.hit, h); G.shake = Math.max(G.shake, 0.03 * h); G.fovKick = Math.max(G.fovKick, 0.08 * h);
     }
@@ -740,8 +741,11 @@ const Game = (() => {
       if (!fl.took && fl.t < 0.25) {
         fl.tOut = clamp(0.2 * fl.pred, 0.2, 0.36); const U = fl.pred - 0.05 - fl.tOut, cur = fl.tr;
         if (cur && cur.id === 'pivot') fl.took = true;                                                                    // (already coming round)
-        else if (cur) { if (U >= 0.3 && cur.spin && ((cur.base + cur.n) & 1)) startTrick({ id: '180', dir: cur.dir, spin: true, n: 1, base: 1, amp: 1, min: 0, big: 2 }); fl.took = true; }     // riding switch: a half turn back to forward (a shape still being let go of off the last hop is simply finished)
-        else { const tr = planFor(U, fl.plan, fl.pred); if (tr) { startTrick(tr); fl.took = true; if (tr.big < 2) fl.hopT = G.t; } }
+        else if (cur) { if (!fl.pre && U >= 0.3 && cur.spin && ((cur.base + cur.n) & 1)) startTrick({ id: '180', dir: cur.dir, spin: true, n: 1, base: 1, amp: 1, min: 0, big: 2 }); fl.took = true; }     // riding switch: a half turn back to forward (a shape still being let go of off the last hop is simply finished)
+        // (新求解器, owner 2026-11-18: "跳起来突然就转圈…转圈肯定是起的那一下要带一下的". A body in the air cannot start to turn: the turn is thrown
+        // on the snow. A spin is only done when it was begun before the skis left (fl.pre, below); found in the air with nothing thrown, the
+        // trick is one of the shapes that need no turn)
+        else { let tr = planFor(U, fl.plan, fl.pred); if (SOLV() && tr && tr.spin) { tr = null; for (let i = 0; i < 8 && !tr; i++) { const t2 = pickTrick(U, bigAir(fl.pred)); if (t2 && !t2.spin) { t2.U = U; tr = t2; } } } if (tr) { startTrick(tr); fl.took = true; if (tr.big < 2) fl.hopT = G.t; } }
       }
     }
     // the lip ahead, while on the snow and moving
@@ -749,13 +753,18 @@ const Game = (() => {
     const lip = !S.air && fl.lipT < 0.45 && fl.lipAir >= 0.42;
     if (lip && !fl.tr) fl.plan = planFor(fl.lipAir - 0.05 - clamp(0.2 * fl.lipAir, 0.2, 0.36), fl.plan, fl.lipAir);
     if (!lip && !S.air && fl.lipAge > 0.6) fl.plan = null;
+    // (新求解器: a planned spin begins on the snow, in the last tenth of a second before the lip or through the push of a jump: the shoulders go
+    // first (the shape's own sep), the skis come round a few degrees, and the body leaves the snow already turning at its full rate)
+    if (SOLV() && !S.air && !fl.tr && fl.plan && fl.plan.spin && S.contact && S.crash <= 0 && ((lip && fl.lipT < PRE_T) || (S.popT >= 0 && fl.lipAir >= 0.42 && fl.lipAge < 0.6))) { startTrick(fl.plan); fl.pre = 1; fl.preT = 0; }
     // the trick runs on the time there is: its phase moves so as to be done `tOut` before the skis touch, however the forecast shifts
     const tr = fl.tr;
     if (tr) {
       if (tr.id === 'pivot') fl.ph = Math.min(1, fl.ph + dt / 0.5);
-      else if (fl.on) { if (fl.t > 0.05) fl.ph = Math.min(1, fl.ph + dt * Math.min((1 - fl.ph) / Math.max(fl.rem - fl.tOut, 0.02), 6)); }
+      else if (fl.pre && !fl.on) { fl.preT += dt; const k = sat(Math.max(fl.lipT < 9 ? 1 - fl.lipT / PRE_T : 0, S.popT >= 0 ? S.popT / POP_T : 0)); fl.ph = Math.max(fl.ph, PRE_U * k * k);      // (held there if the skis stay on the snow longer than the lip promised: tried 2026-11-18, turning on at that rate, it reached 47 deg on the snow)
+        if (fl.preT > 0.45) { fl.tr = null; fl.pre = 0; clearQ(q); } }      // (thrown, and the snow did not let go: taken back)
+      else if (fl.on) { if (fl.t > 0.05 || fl.pre) fl.ph = Math.min(1, fl.ph + dt * Math.min((1 - fl.ph) / Math.max(fl.rem - fl.tOut, 0.02), 6)); }
       else fl.ph = Math.min(1, fl.ph + dt * 6);                      // (met the snow early: what is left of it is finished there, quickly)
-      trickShape(tr, fl.ph, q);
+      if (fl.tr) trickShape(tr, fl.ph, q);
       if (fl.ph >= 1 && !fl.on) {
         if (!(tr.spin && ((tr.base + tr.n) & 1))) { fl.tr = null; clearQ(q); }
         // landed switch: ride it out for a moment, then pivot round on the snow
@@ -1047,7 +1056,7 @@ const Game = (() => {
     // (新求解器, the deep squat of a full charge (08_skier.js CHG_H): with the hips under the knees the fists of the tuck lay on the thighs and the
     // forearms went through the knees (Mac round 18; 92 of 213 charged frames within the thigh). The hands are carried forward, up and a little
     // apart as the squat deepens: elbows ahead of the knees, fists before the chin)
-    const SQX = 0.06, SQY = 0.08, SQZ = -0.12; const hk = 1 - dpK, hy0 = (-0.05 * fl.prep + 0.05 * fl.reach + 0.04 * fl.soak) * hk, hz0 = (0.08 * fl.prep - 0.12 * fl.reach - 0.16 * fl.soak) * hk, sq = Variants.val.solver === 'b' ? (S.charge || 0) * hk : 0, hx = (0.05 * fl.reach + 0.04 * fl.soak) * hk + SQX * sq;
+    const SQX = 0.03, SQY = 0.08, SQZ = -0.12; const hk = 1 - dpK, hy0 = (-0.05 * fl.prep + 0.05 * fl.reach + 0.04 * fl.soak) * hk, hz0 = (0.08 * fl.prep - 0.12 * fl.reach - 0.16 * fl.soak) * hk, sq = Variants.val.solver === 'b' ? (S.charge || 0) * hk : 0, hx = (0.05 * fl.reach + 0.04 * fl.soak) * hk + SQX * sq;
     const hy = hy0 + SQY * sq, hz = hz0 + SQZ * sq;
     const grabs = typeof Skier !== 'undefined' && Skier.P0 && 'grabL' in Skier.P0;     // (does the figure know how to take hold of a ski? if not, the hand is at least sent there)
     for (const side of [-1, 1]) {
