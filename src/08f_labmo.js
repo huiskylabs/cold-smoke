@@ -120,7 +120,7 @@ const LabMo = (() => {
     // (the arms do not tip over with the trunk: hung from a trunk that leans in, the inside hand and forearm came down onto the inside thigh
     // (Mac round 16: hand x thigh 0 -> 136 frames). They keep the lab's own line, hands level, as a skier carries them)
     const ARM_IN = 0.0;
-    const TRUNK_LEAD_T = 0.03, TRUNK_UNLAG = 0, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.35, LOOK_H = 0.5, LOOK_C = 0.35, LOOK_END = 0.6, HEAD_AHEAD = 0.06, CHEST_AHEAD = 0.04, PEL_SQ = 0.3, HEAD_ROLL_KEEP = 0.45;
+    const TRUNK_LEAD_T = 0.07, TRUNK_UNLAG = 0, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.35, LOOK_H = 0.5, LOOK_C = 0.35, LOOK_END = 0.6, HEAD_AHEAD = 0.16, CHEST_AHEAD = 0.03, PEL_SQ = 0.3, HEAD_ROLL_KEEP = 0.45;
     const TRUNK_IN = 0.6, lab = Math.atan2(r[0], r[1]);
     if (!quietU()) return fill(out, st, r, ph.lean * 1.07 - lab, 'z');
     // (新求解器, owner 2026-11-18: "想左转，一定是身体跟肩膀先倾过来…头稍微往正回一点点". Measured (turnM): the shoulders tipped 6 frames AFTER the hips
@@ -152,14 +152,17 @@ const LabMo = (() => {
     const psi = st.eff * 9.81 * Math.tan(Math.max(-1, Math.min(1, lt))) / Math.max(speed, 6), capY = (x, m) => m * Math.tanh(x / m), rotY = (q, a) => { const c = Math.cos(a), n = Math.sin(a); return [q[0] * c + q[2] * n, q[1], -q[0] * n + q[2] * c]; };
     // (and no further ahead than the turn lasts: while the lean is coming off, the look-ahead is held to LOOK_END of the time the lean has left
     // (lean over its rate). In short turns half a second ahead is already the NEXT turn: the head stayed looking into a turn that was ending)
-    const left = lt * lr < 0 ? LOOK_END * Math.abs(lt) / Math.max(Math.abs(lr), 1e-3) : 9, sminT = (x, y) => -Math.log(Math.exp(-x / 0.05) + Math.exp(-y / 0.05)) * 0.05, kH = sminT(LOOK_H, left) / LOOK_H, kC = sminT(LOOK_C, left) / LOOK_C;
+    // (Mac round 24: measured on lt itself, the hold squeezed the look to nothing until lt crossed zero and then let it go at once, so head, chest and
+    // hips all changed sides together and the head jolted. Each part's time left is now measured on the lean IT reads (lt plus its own ahead))
+    const leftOf = x => x * lr < 0 ? LOOK_END * Math.abs(x) / Math.max(Math.abs(lr), 1e-3) : 9, sminT = (x, y) => -Math.log(Math.exp(-x / 0.05) + Math.exp(-y / 0.05)) * 0.05, kH = sminT(LOOK_H, leftOf(lt + HEAD_AHEAD * lr)) / LOOK_H, kC = sminT(LOOK_C, leftOf(lt + CHEST_AHEAD * lr)) / LOOK_C;
     // (the head and the chest read the lean a little further ahead still, HEAD_AHEAD and CHEST_AHEAD s of its rate: read from the lean the trunk
     // has, the head was held looking into the old turn until that lean crossed zero, and came into the new one 3-6 frames LATER than it had
     // (Mac round 23). So the head lets go of the old turn first, then the chest, then the hips, and the skis last)
     // (PEL_SQ: the lab's pelvis stands 13-16 deg into the turn at 25-35 deg of lean, 4-6 deg MORE than the chest, measured in the leaned body (Mac
     // round 23, seen from above too): hips rotated in ahead of the shoulders, a learner's turn. It is squared back by PEL_SQ rad per rad of lean)
     const wOf = l => st.eff * 9.81 * Math.tan(Math.max(-1, Math.min(1, l))) / Math.max(speed, 6);
-    const a = -capY(LOOK_C * kC * wOf(lt + CHEST_AHEAD * lr), 0.30), aH = -capY(LOOK_H * kH * wOf(lt + HEAD_AHEAD * lr), 0.45), aP = capY(PEL_SQ * ph.le, 0.12),
+    const a = -capY(LOOK_C * kC * wOf(lt + CHEST_AHEAD * lr), 0.30), aH = -capY(LOOK_H * kH * wOf(lt + HEAD_AHEAD * lr), 0.45), aP = capY(PEL_SQ * lt, 0.12),      // (squared by the lean the trunk reads, lt: on the eased lean the squaring came late and the hips changed sides before the chest, Mac round 24)
+      
        tb = B => ortho(rotY(B.X, a), rotY(B.Y, a)), t1b = B => ortho(rotY(B.X, (a + aP) / 2), rotY(B.Y, (a + aP) / 2));
     out.pb = ortho(rotY(out.pb.X, aP), rotY(out.pb.Y, aP));
     out.t1 = t1b(out.t1); out.t2 = tb(out.t2);
