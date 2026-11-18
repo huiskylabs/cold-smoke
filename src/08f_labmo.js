@@ -88,12 +88,13 @@ const LabMo = (() => {
   };
   const out = { w: 0, cref: 0.21, pel: [0, 0, 0], pb: null, t1: null, t2: null, hb: null, ua: [null, null], fa: [null, null] };
   // (crT: the roll the trunk, head and arms take, when it is not the hips' own (新求解器, M.step))
-  function fill(o, S, r, cr, axis, crT) {
+  function fill(o, S, r, cr, axis, crT, crA) {
     const V = i => [r[i], r[i + 1], r[i + 2]], rot = c => { const cs = Math.cos(c), sn = Math.sin(c); return axis === 'z' ? q => [q[0] * cs + q[1] * sn, -q[0] * sn + q[1] * cs, q[2]] : q => [q[0], q[1] * cs + q[2] * sn, -q[1] * sn + q[2] * cs]; };
     const R = rot(cr), T = crT == null ? R : rot(crT), H = crT == null ? R : rot((cr + crT) / 2);
+    const Ar = crA == null ? T : rot(crA);      // (the arms: see M.step)
     o.w = S.w; o.cref = S.cref; o.pel = R(V(0));
     o.pb = ortho(H(V(3)), H(V(6))); o.t1 = ortho(T(V(9)), T(V(12))); o.t2 = ortho(T(V(15)), T(V(18))); o.hb = ortho(T(V(21)), T(V(24)));
-    o.ua[0] = nrm(T(V(27))); o.ua[1] = nrm(T(V(30))); o.fa[0] = nrm(T(V(33))); o.fa[1] = nrm(T(V(36)));
+    o.ua[0] = nrm(Ar(V(27))); o.ua[1] = nrm(Ar(V(30))); o.fa[0] = nrm(Ar(V(33))); o.fa[1] = nrm(Ar(V(36)));
     return o;
   }
   M.step = function (p, sec, dt, speed) {
@@ -116,8 +117,11 @@ const LabMo = (() => {
     // (and owner, the same day: "高手…归位的时候，躯干和重心尽量在一条直线上". The lab's posture holds the trunk upright over hips that are far inside
     // (measured here: 5 deg the other way at 30 deg of lean); TRUNK_IN of the lean is given back to the trunk, so it lies most of the way along the
     // line from the skis through the hips, and stands up with it)
+    // (the arms do not tip over with the trunk: hung from a trunk that leans in, the inside hand and forearm came down onto the inside thigh
+    // (Mac round 16: hand x thigh 0 -> 136 frames). They keep the lab's own line, hands level, as a skier carries them)
+    const ARM_IN = 0.0;
     const TRUNK_IN = 0.6, lab = Math.atan2(r[0], r[1]);
-    return fill(out, st, r, ph.lean * 1.07 - lab, 'z', quietU() ? ph.le * 1.07 - lab + TRUNK_IN * ph.le : null);
+    return fill(out, st, r, ph.lean * 1.07 - lab, 'z', quietU() ? ph.le * 1.07 - lab + TRUNK_IN * ph.le : null, quietU() ? ph.le * 1.07 - lab + ARM_IN * ph.le : null);
   };
   // ---- on a snowboard (Variants 'ride' b, 08a_board.js): the lab's board turn. Toe and heel turns are not mirror images, so each has its own
   // table (the end of a toe turn is the start of a heel turn); everything is in the board solver's rider space (x toward the tail, y up, z toward
