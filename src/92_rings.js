@@ -167,7 +167,7 @@ const Rings = (() => {
   // what each ring is this frame: how far open, how far scattered, how bright (far ones barely there), and its flame
   function prep(T) {
     const S = Game.s, s = -S.p[2], cam = Render.cam.pos, o = Render.origin, night = cl(((Sky.night || 0) - 0.2) / 0.6, 0, 1);
-    const ahead = RG.rings.filter(r => r.pass < 0);
+    const ahead = RG.rings.filter(r => r.pass < 0), flowOn = typeof Variants !== 'undefined' && Variants.val.rflow === 'a';
     drawList = [];
     for (const r of RG.rings) {
       const dist = Math.hypot(r.x - cam[0], r.y - cam[1], -r.s - cam[2]), ord = r.pass >= 0 ? 0 : ahead.indexOf(r);
@@ -179,7 +179,10 @@ const Rings = (() => {
       const flameA = r.fin ? 0 : (grown < 1 ? (1 - cl((grown - 0.35) / 0.35, 0, 1)) : 0) * near * ordK * cl((T - r.born) / 0.6, 0, 1);
       const open = grown > 0.3 ? ease((grown - 0.3) / 0.6) : 0, A = cl((grown - 0.3) / 0.3, 0, 1) * Math.max(0.5, near);
       const c = [r.x - o[0], r.y - o[1], -r.s - o[2]];
-      drawList.push({ r, dist, c, sz, near, grown, dis, open, A, flameA, night, ord, flameSc: (1 + 1.6 * ease(grown / 0.35)) * (ord <= 1 ? 1 : ord === 2 ? 0.85 : 0.72), tint: ord <= 1 ? 0 : ord === 2 ? 1 : 2, hitK: r.hit || r.splash < 0 ? 1 : 0.5 });
+      // (光圈飞向下一个, Variants rflow): the next ring along, where this one's grains fly to once it splashes
+      let nx = null;
+      if (flowOn && r.splash >= 0 && !r.fin) { const i = RG.rings.indexOf(r); for (let k = i + 1; k < RG.rings.length; k++) { const q = RG.rings[k]; if (q.skip) continue; nx = [q.x - o[0], q.y - o[1], -q.s - o[2], q.r]; break; } }
+      drawList.push({ r, nx, dist, c, sz, near, grown, dis, open, A, flameA, night, ord, flameSc: (1 + 1.6 * ease(grown / 0.35)) * (ord <= 1 ? 1 : ord === 2 ? 0.85 : 0.72), tint: ord <= 1 ? 0 : ord === 2 ? 1 : 2, hitK: r.hit || r.splash < 0 ? 1 : 0.5 });
     }
     drawList.sort((a, b) => b.dist - a.dist);          // far first: the near ring's tube writes depth over what lies behind it
   }
@@ -190,12 +193,12 @@ const Rings = (() => {
   }
 
   // ---- the GPU side
-  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, 0], e: [Math.round(9600 * d.sz * (d.r.fin ? 2 : 1)), Math.round(800 * d.sz * (d.r.fin ? 2 : 1)), 0, 0] });
+  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, d.nx ? 1 : 0], e: [Math.round(9600 * d.sz * (d.r.fin ? 2 : 1)), Math.round(800 * d.sz * (d.r.fin ? 2 : 1)), 0, 0], f: d.nx || [0, 0, 0, 0] });
   const ringLive = d => d.grown > 0.3 && d.dis < 1 && d.open > 0.01;
   RG.init = function (g) {
     gfx = g;
     const lib = [SL.common, SL.hash, SL.fog, RING_SSL];
-    const UR = { a: 'vec4f', b: 'vec4f', c: 'vec4f', d: 'vec4f', e: 'vec4f' };
+    const UR = { a: 'vec4f', b: 'vec4f', c: 'vec4f', d: 'vec4f', e: 'vec4f', f: 'vec4f' };
     pDust = gfx.pipeline({
       name: 'ringDust', lib: lib.concat([DUST_SSL]), buffers: [], topology: 'strip', cull: 'none', blend: 'premul', depthWrite: false, depthFunc: 'lequal',
       varyings: { uv: 'vec2f', col: 'vec4f', sh: 'vec4f' }, uniforms: UR, textures: { tSky: '2d' }, vs: DUST_VS, fs: SPARK_FS,
@@ -245,6 +248,7 @@ const Rings = (() => {
   // ---- 穿圈拖影 (用户 18:51 UTC: 钻进光圈的时候来一个延迟摄影、拖影子的效果，试一下，只是一个分支; 18:53 UTC: 每隔比如 0.5 米留一个残影).
   // Like a sequence photo of a skier: from a few metres before a ring until just after it, every 0.5 m the skier leaves a see-through copy of
   // himself (his pose at that moment), which fades in about half a second. Only the body, never the camera or the time: the game runs on as is.
+  if (typeof Variants !== 'undefined') Variants.def('rflow', '光圈飞向下一个', [['off', '关（原地散开）'], ['a', '飞向下一个圈']], 'a');
   if (typeof Variants !== 'undefined') Variants.def('rtrail', '穿圈拖影', [['off', '关'], ['a', '残影·白'], ['b', '残影·光圈色']], 'off');
   const TR = { list: [], last: null, now: 0, done: 0, passT: null, STEP: 0.5, LIFE: 0.8, REACH: 3.2, BEFORE: 7, AFTER: 0.4 };
   function trail() {
@@ -731,7 +735,8 @@ fn ringQuad(corner: vec2f, p0: vec3f, p1: vec3f, rw: f32, minPx: f32) -> RQ {
 // Each is a pure function of (index, time): a life of a few seconds, then it is born again somewhere else on the ring
 // one grain of a ring, a pure function of (index, time): where it is, how bright, how big
 const DUST_SSL = `
-struct DG { p: vec3f, b: f32, wsz: f32, minPx: f32, up: f32, col: vec3f }
+struct DG { p: vec3f, b: f32, wsz: f32, minPx: f32, up: f32, col: vec3f, st: vec3f }
+fn bez3(a: vec3f, b: vec3f, c: vec3f, d: vec3f, t: f32) -> vec3f { let u: f32 = 1.0 - t; return a * (u * u * u) + b * (3.0 * u * u * t) + c * (3.0 * u * t * t) + d * (t * t * t); }
 fn dustGrain(i: u32) -> DG {
   var g: DG;
   let C: vec3f = M.a.xyz; let R0: f32 = M.a.w; let open: f32 = M.b.x; let dis: f32 = M.b.y;
@@ -780,7 +785,41 @@ fn dustGrain(i: u32) -> DG {
     wsz = 0.02 * sz; minPx = 1.1; up = (0.25 + 0.35 * w) * sz;
     col = ringHue(ang, 0.25, n);
   }
-  if (dis > 0.0) {
+  var flowP: vec3f = vec3f(0.0); var flowSt: vec3f = vec3f(0.0); var useFlow: f32 = 0.0;
+  if (dis > 0.0 && M.d.w > 0.5) {
+    // (用户 2026-11-18 07:53 UTC: 靠近光圈时，绿光飞走，快速流向下一个光圈、融进去，告诉你下一个圈大概在哪个方向；每颗粒子不统一、
+    // 有点乱，但整体犀利、一下子全部流过去). Variants rflow. Each grain leaves from where it is on this ring, is thrown out a little off the
+    // ring and up, then swoops on its own curve (a cubic through two random handles, a wobble that dies at both ends) to its own place on
+    // the next ring, fast at first and slowing into it; there it flares once and fades into the next ring's own grains
+    let hd: vec3f = hashu3(i * 23u + rid * 101u + 9u);
+    let hf: vec3f = hashu3(i * 29u + rid * 211u + 17u);
+    let ro0: f32 = rr * open;
+    let P0: vec3f = C + vec3f(cos(ang) * ro0, sin(ang) * ro0 + dy, dz);
+    let N: vec3f = M.f.xyz; let RN: f32 = M.f.w;
+    let a1: f32 = ang + (hd.x - 0.5) * 1.2;
+    let rn: f32 = RN * (1.0 + 0.1 * (hf.x - 0.5));
+    let P1: vec3f = N + vec3f(cos(a1) * rn, sin(a1) * rn, (hf.y - 0.5) * 0.4);
+    let D: vec3f = P1 - P0; let dl: f32 = length(D);
+    let ts: f32 = dis * 2.2;
+    let delay: f32 = 0.16 * hd.y * hd.y;
+    let dur: f32 = clamp(0.3 + dl * 0.007, 0.35, 0.95) * mix(0.75, 1.3, hd.z);
+    let sd: vec3f = normalize(vec3f(-D.z, 0.0, D.x) + vec3f(0.0001, 0.0, 0.0));
+    let out0: vec3f = vec3f(cos(ang), sin(ang), 0.0);
+    let c1: vec3f = P0 + out0 * (1.0 + 3.0 * hf.z) * sz + vec3f(0.0, 0.4 + 1.6 * hf.x, 0.0) + D * (0.12 + 0.12 * hd.x) + sd * (hd.z - 0.5) * 0.25 * dl;
+    let c2: vec3f = P1 - D * (0.12 + 0.18 * hf.y) + sd * (hf.z - 0.5) * 0.3 * dl + vec3f(0.0, (hf.x - 0.35) * 0.15 * dl, 0.0);
+    let t: f32 = saturate((ts - delay) / dur); let tp: f32 = saturate((ts - delay - 0.045) / dur);
+    let e: f32 = 1.0 - pow(1.0 - t, 2.4); let ep: f32 = 1.0 - pow(1.0 - tp, 2.4);
+    let wf: f32 = (0.7 + 6.0 * hd.x) ; let wa: f32 = (0.25 + 0.9 * hf.y) * sz;
+    let wob: vec3f = (sd * sin(e * wf * 6.2831853 + hf.x * 40.0) + vec3f(0.0, sin(e * wf * 5.1 + hf.z * 40.0), 0.0)) * wa * sin(3.1415927 * e);
+    let wobp: vec3f = (sd * sin(ep * wf * 6.2831853 + hf.x * 40.0) + vec3f(0.0, sin(ep * wf * 5.1 + hf.z * 40.0), 0.0)) * wa * sin(3.1415927 * ep);
+    flowP = bez3(P0, c1, c2, P1, e) + wob;
+    let prv: vec3f = bez3(P0, c1, c2, P1, ep) + wobp;
+    flowSt = (prv - flowP) * select(0.0, 1.0, t > 0.0 && t < 1.0);
+    let after: f32 = ts - delay - dur;
+    let land: f32 = select(1.0, (1.0 + 2.0 * exp(-after * 14.0)) * (1.0 - saturate(after / 0.3)), after > 0.0);
+    b = b * select(1.0, 1.7, t > 0.0) * land * mix(1.0, hitK, 0.4);
+    useFlow = 1.0;
+  } else if (dis > 0.0) {
     let hd: vec3f = hashu3(i * 23u + rid * 101u + 9u);
     // a splash: a quick burst out of the tube (half its way in the first half second), then a slow drift and a slow fade. The grains are
     // thrown every way off the tube, outward and up a little, and carried on along the line the skier rides (toward -z)
@@ -794,7 +833,8 @@ fn dustGrain(i: u32) -> DG {
   }
   let ro: f32 = rr * open;
   g.p = C + vec3f(cos(ang) * ro, sin(ang) * ro + dy, dz);
-  g.b = b * A; g.wsz = wsz; g.minPx = minPx; g.up = up; g.col = col;
+  if (useFlow > 0.5) { g.p = flowP; }
+  g.b = b * A; g.wsz = wsz; g.minPx = minPx; g.up = up; g.col = col; g.st = flowSt;
   return g;
 }
 `;
@@ -804,7 +844,7 @@ fn vert(a: VIn) -> VOut { var v: VOut;
   v.clip = vec4f(0.0, 0.0, -2.0, 1.0); v.uv = vec2f(0.0); v.col = vec4f(0.0); v.sh = vec4f(0.0);
   let g: DG = dustGrain(a.iid);
   if (g.b < 0.003) { return v; }
-  let q: RQ = ringQuad(corner, g.p, g.p + vec3f(0.0, g.up, 0.0), g.wsz, g.minPx);
+  let q: RQ = ringQuad(corner, g.p, g.p + vec3f(0.0, g.up, 0.0) + g.st, g.wsz, g.minPx);
   let fog: f32 = 1.0 - fogAmount(g.p);
   let bright: f32 = g.b * M.b.w * mix(1.0, 1.2, M.d.x) * (1.0 + 0.7 * M.d.y) * fog;
   v.clip = q.clip; v.uv = q.uv; v.sh = vec4f(q.hl, 0.0, 0.0, 0.0);
