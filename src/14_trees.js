@@ -519,8 +519,15 @@ const Trees = (() => {
   const CH = 8, CS = CH * TREE_CELL, NF = 12, chunks = new Map(), _at = {};
   // the stunted spruce up on a ridge: a as they were (young trees in even tiers), b flagged by the wind. (A change re-places the trees.)
   Variants.def('rtree', '山脊树', [['a', '现在的'], ['b', '风旗云杉']], 'b'); Variants.on(n => { if (n === 'rtree' || n === 'tvar' || n === 'world' || n === 'start') chunks.clear(); });
+  // (金色雪旗 above the tree line, the owner 2026-11-18 04:27: "还是得有一点树…用不同种类型的树…截图里面那种树": the white rime-loaded
+  // trees of the 八海山 video. Each stand is one kind, in turn: snow monsters (pines buried in rime, the video's white trees), slender
+  // spire firs loaded with snow, and a few larch stands, bare and warm. Stands a couple of hundred metres across)
+  function dStand(x, z) {
+    const n = vnoise2(x / 170, z / 170, 81) + 0.35 * vnoise2(x / 60, z / 60, 82);
+    return n > 0.05 ? 'f' : n > -0.32 ? 'd' : 'e';
+  }
   function describe(out, o, x, z, h, rot, hint, seed, kind) {
-    const q = hash2U(Math.floor(x * 8), Math.floor(z * 8)) & 0xffff, r1 = hash2(q, 71), r2 = hash2(q, 72), r3 = hash2(q, 73), r4 = hash2(q, 74), mode = Variants.val.world === 'd' && Variants.val.tvar === 'c' ? 'd' : Variants.val.tvar;   // (the lake world's own wood: the spire firs, the owner's pick 2026-11-17)
+    const q = hash2U(Math.floor(x * 8), Math.floor(z * 8)) & 0xffff, r1 = hash2(q, 71), r2 = hash2(q, 72), r3 = hash2(q, 73), r4 = hash2(q, 74), mode = Variants.val.world === 'd' && Variants.val.tvar === 'c' ? (Variants.val.dalp === 'b' ? dStand(x, z) : 'd') : Variants.val.tvar;   // (the lake world's own wood: the spire firs, the owner's pick 2026-11-17)
     const ca = Course.at(-z, _at), ridge = ca.ridge || 0, off = Math.abs(x - ca.cx) - ca.hw;
     let v = kind;
     if (v < 0) {
