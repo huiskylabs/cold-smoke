@@ -104,13 +104,17 @@ const CardArt = self.CardArt = (() => {
   }
   // the moon's phase on a day (0 new, 0.5 full), from a known new moon
   const phaseAt = t => { const p = ((t - 947182440000) / 86400000 / 29.530589) % 1; return p < 0 ? p + 1 : p; };
-  // flat clouds the way a print has them: a long flat foot and a few round tops, lit on top, a darker line under
+  // clouds the way a print has them: long thin strata laid across the sky, tapered at both ends, a lit upper edge and a deeper lower one,
+  // stacked two or three together like the streaks of an evening sky
   function clouds(ctx, W, PH, T, rnd, u) {
     const n = Math.floor(rnd() * 3.4); for (let q = 0; q < n; q++) {
-      const y = PH * (0.1 + 0.26 * rnd()), w = W * (0.22 + 0.4 * rnd()), x0 = -w * 0.2 + rnd() * (W - w * 0.6), h = (3 + 3 * rnd()) * u, lit = mix(T.low, T.rim, 0.55), a = 0.35 + 0.35 * rnd();
-      ctx.fillStyle = css(lit, a); rr(ctx, x0, y - h, w, h * 2, h); ctx.fill();
-      const bumps = 2 + Math.floor(rnd() * 3); for (let b = 0; b < bumps; b++) { const bx = x0 + w * (0.15 + 0.7 * rnd()), br = (5 + 9 * rnd()) * u; ctx.beginPath(); ctx.arc(bx, y - h + 1, br, Math.PI, 0); ctx.closePath(); ctx.fill(); }
-      ctx.strokeStyle = css(mix(T.top, T.near, 0.5), a * 0.6); ctx.lineWidth = 0.7 * u; ctx.beginPath(); ctx.moveTo(x0 + h, y + h); ctx.lineTo(x0 + w - h, y + h); ctx.stroke();
+      const y0 = PH * (0.1 + 0.26 * rnd()), k = 2 + Math.floor(rnd() * 2), a = 0.45 + 0.35 * rnd();
+      for (let e = 0; e < k; e++) {
+        const w = W * (0.25 + 0.45 * rnd()), x0 = -w * 0.25 + rnd() * (W - w * 0.5), y = y0 + e * (5 + 4 * rnd()) * u, h = (1.6 + 2.4 * rnd()) * u, ph = rnd() * 9, lit = mix(T.low, T.rim, 0.6 - e * 0.15), dk = mix(T.top, T.near, 0.4);
+        const top = [], bot = []; for (let t = 0; t <= 1.0001; t += 0.04) { const x = x0 + w * t, taper = Math.max(0, Math.sin(Math.PI * Math.min(1, t))) ** 0.6, wv = Math.sin(t * 9 + ph) * 0.6 * u; top.push([x, y - h * taper * (1 + 0.5 * Math.sin(t * 17 + ph)) + wv]); bot.push([x + w * 0.04 * t, y + h * 0.8 * taper + wv]); }
+        ctx.fillStyle = css(dk, a * 0.55); ctx.beginPath(); top.forEach((p2, i) => i ? ctx.lineTo(p2[0], p2[1] + h * 0.7) : ctx.moveTo(p2[0], p2[1] + h * 0.7)); for (let i = bot.length - 1; i >= 0; i--) ctx.lineTo(bot[i][0], bot[i][1] + h * 0.5); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = css(lit, a); ctx.beginPath(); top.forEach((p2, i) => i ? ctx.lineTo(p2[0], p2[1]) : ctx.moveTo(p2[0], p2[1])); for (let i = bot.length - 1; i >= 0; i--) ctx.lineTo(bot[i][0], bot[i][1]); ctx.closePath(); ctx.fill();
+      }
     }
   }
   function sky(ctx, W, PH, T, rnd, u, aurora, seed, m) {
@@ -123,7 +127,7 @@ const CardArt = self.CardArt = (() => {
     const ox = m ? 0.12 + 0.76 * rnd() : T.orb[0], oy = m ? 0.12 + 0.2 * rnd() : T.orb[1], or = T.orb[2], oc = T.orb[3], x = ox * W, y = oy * PH;
     const lit = T.moon && m && m.t ? (p0 => p0 < 0.5 ? p0 * 2 : (1 - p0) * 2)(phaseAt(m.t)) : 1;
     if (lit < 0.12) { if (m) clouds(ctx, W, PH, T, rnd, u); return [x, y]; }     // a new moon: nothing to see, only the stars
-    const g3 = ctx.createRadialGradient(x, y, 0, x, y, or * 7 * u * (0.4 + 0.6 * lit)); g3.addColorStop(0, css(oc, 0.55)); g3.addColorStop(1, css(oc, 0)); ctx.fillStyle = g3; ctx.fillRect(0, 0, W, PH);
+    const g3 = ctx.createRadialGradient(x, y, 0, x, y, or * 5 * u * (0.4 + 0.6 * lit)); g3.addColorStop(0, css(oc, 0.45)); g3.addColorStop(1, css(oc, 0)); ctx.fillStyle = g3; ctx.fillRect(0, 0, W, PH);
     ctx.fillStyle = css(oc); ctx.beginPath(); ctx.arc(x, y, or * u, 0, 7); ctx.fill();
     if (T.moon && m && m.t) { const p = phaseAt(m.t), f = p < 0.5 ? p * 2 : (1 - p) * 2, R = or * u, dx = (p < 0.5 ? -1 : 1) * 2 * R * f; if (f < 0.97) { ctx.save(); ctx.beginPath(); ctx.arc(x, y, R + 0.3, 0, 7); ctx.clip(); ctx.fillStyle = css(mix(T.top, T.low, oy * 0.9)); ctx.beginPath(); ctx.arc(x + dx, y, R * 1.02, 0, 7); ctx.fill(); ctx.restore(); } }
     if (m) clouds(ctx, W, PH, T, rnd, u);
@@ -142,7 +146,7 @@ const CardArt = self.CardArt = (() => {
     return [Math.sin(az) * Math.cos(el), Math.cos(az) * Math.cos(el), Math.sin(el)];
   }
   function inks(T, tod) {
-    const shade = tod === 'night' ? mix(T.near, [70, 96, 150], 0.35) : mix(T.near, [70, 110, 190], 0.25);
+    const shade = tod === 'night' ? mix(T.near, [70, 96, 150], 0.35) : mix(T.near, [70, 110, 190], 0.15);
     return [mix(shade, INK, 0.38), shade, mix(mix(T.far, T.rim, 0.55), SNOW, 0.08), mix(T.rim, SNOW, tod === 'day' ? 0.55 : 0.2)];
   }
   // scenery: the place's own snow, from where this player stood (near the card's spot), at the minute they were there. Returns what was drawn
@@ -188,29 +192,41 @@ const CardArt = self.CardArt = (() => {
     all.sort((a, b) => a - b); const q = f => all[Math.floor(f * (all.length - 1))], cut = [q(0.22), q(0.55), q(0.86)], INK4 = inks(T, tod);
     if (v.paper) { INK4[3] = mix(v.paper, T.rim, tod === 'day' ? 0.05 : 0.18); INK4[2] = mix(INK4[2], v.paper, 0.25); }     // on a paper card the brightest snow is the paper itself, as in a print
     const lev = l => l < cut[0] ? 0 : l < cut[1] ? 1 : l < cut[2] ? 2 : 3;
-    const haze = mix(T.low, T.far, 0.5), reg = st >= 6 ? 0.55 * u : 0;
+    const haze = mix(T.low, T.far, 0.5), reg = st >= 6 ? 0.55 * u : 0, rag = (cut[2] - cut[0]) * 0.08, rph = rnd() * 9;
     let spotXY = null; const run = [];
     for (let j = N - 1; j >= 0; j--) {
       const r = G.rows[j], k = 1 - j / (N - 1), f0 = Math.pow(1 - k, 1.7), fog = f0 < 0.1 ? 0 : f0 < 0.35 ? 0.3 : 0.62;     // three steps of distance, as a print has, not a smooth fade
       if (!v.owned) { ctx.beginPath(); ctx.moveTo(-4, PH + 20 * u); for (let i = 0; i < M; i++) { const p = pt(r, i); if (i === 0) ctx.lineTo(-4, p[1]); ctx.lineTo(p[0], p[1]); if (i === M - 1) ctx.lineTo(W + 4, p[1]); } ctx.lineTo(W + 4, PH + 20 * u); ctx.closePath(); ctx.fillStyle = css(mix(INK, [20, 30, 48], 0.6)); ctx.fill(); ctx.strokeStyle = css(SNOW, 0.07 + 0.13 * k); ctx.lineWidth = 0.6 * u; ctx.stroke(); }
       else if (st === 2) { ctx.beginPath(); for (let i = 0; i < M; i++) { const p = pt(r, i); if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); } ctx.strokeStyle = css(SNOW, 0.25 + 0.6 * k); ctx.lineWidth = (0.4 + 0.6 * k) * u; ctx.stroke(); }
       else {
-        // the band under this row in runs of one ink (the nearer rows paint over all but the patch between this row and the next); the
-        // crest is walked in quarter steps so an ink changes where the light crosses, not at the grid's columns
-        const SUB = 6, vx = [], vl = [], lr = lam[j];
-        for (let i = 0; i < M; i++) { const l0 = lr[Math.max(0, i - 1)], l1 = lr[Math.min(M - 2, i)], lp = (l0 + l1) / 2, p = pt(r, i); if (i < M - 1) { const pn = pt(r, i + 1), ln = (lr[Math.min(M - 2, i)] + lr[Math.min(M - 2, i + 1)]) / 2; for (let k2 = 0; k2 < SUB; k2++) { const t = k2 / SUB; vx.push([p[0] + (pn[0] - p[0]) * t, p[1] + (pn[1] - p[1]) * t]); vl.push(lp + (ln - lp) * t); } } else { vx.push(p); vl.push(lp); } }
-        vx[0] = [-4, vx[0][1]]; vx[vx.length - 1] = [W + 4, vx[vx.length - 1][1]];
-        let a0 = 0; const segLev = q => lev((vl[q] + vl[q + 1]) / 2);
-        while (a0 < vx.length - 1) {
-          const lv0 = segLev(a0); let a1 = a0; while (a1 + 1 < vx.length - 1 && segLev(a1 + 1) === lv0) a1++;
-          ctx.beginPath(); ctx.moveTo(vx[a0][0], vx[a0][1]); for (let q2 = a0 + 1; q2 <= a1 + 1; q2++) ctx.lineTo(vx[q2][0], vx[q2][1]);
-          ctx.lineTo(vx[a1 + 1][0], PH + 20 * u); ctx.lineTo(vx[a0][0], PH + 20 * u); ctx.closePath();
-          ctx.fillStyle = css(mix(INK4[lv0], haze, fog)); ctx.fill();
-          a0 = a1 + 1;
+        // the patch between this row's crest and the next nearer one, cut into its inks along where the light crosses a threshold
+        // (interpolated between the two rows, so a boundary runs with the slope instead of stepping down at each row), the edge a
+        // little ragged, as a gouge leaves it. Painted far to near: the base ink to the bottom, then each lighter ink on top
+        const SUB = 3, TS = 2, smp = (rr, lr) => { const P = [], Lv = []; for (let i = 0; i < M; i++) { const lp = (lr[Math.max(0, i - 1)] + lr[Math.min(M - 2, i)]) / 2, p = pt(rr, i); if (i < M - 1) { const pn = pt(rr, i + 1), ln = (lr[Math.min(M - 2, i)] + lr[Math.min(M - 2, i + 1)]) / 2; for (let k2 = 0; k2 < SUB; k2++) { const t = k2 / SUB; P.push([p[0] + (pn[0] - p[0]) * t, p[1] + (pn[1] - p[1]) * t]); Lv.push(lp + (ln - lp) * t); } } else { P.push(p); Lv.push(lp); } } P[0] = [-4, P[0][1]]; P[P.length - 1] = [W + 4, P[P.length - 1][1]]; return { P, Lv }; };
+        const Fa = smp(r, lam[j]), Fb = j > 0 ? smp(G.rows[j - 1], lam[j - 1]) : { P: Fa.P.map(p => [p[0], PH + 20 * u]), Lv: Fa.Lv }, NQ = Fa.P.length;
+        const lat = []; for (let t = 0; t <= TS; t++) { const f = t / TS, row2 = []; for (let q2 = 0; q2 < NQ; q2++) { const a = Fa.P[q2], b = Fb.P[q2], x = a[0] + (b[0] - a[0]) * f, y = a[1] + (b[1] - a[1]) * f + (t === TS ? 0.6 * u : 0); row2.push([x, y, Fa.Lv[q2] + (Fb.Lv[q2] - Fa.Lv[q2]) * f + rag * (0.6 * Math.sin(x * 0.19 / u + y * 0.06 / u + rph) + 0.4 * Math.sin(x * 0.043 / u - y * 0.33 / u + rph * 2.3))]); } lat.push(row2); }
+        const col = n => css(mix(INK4[n], haze, fog)), bnd = [-1e9, cut[0], cut[1], cut[2], 1e9];
+        // under the strip (hidden by the nearer rows, there only so no gap shows): the darkest ink from the nearer crest down
+        ctx.beginPath(); ctx.moveTo(lat[TS][0][0], lat[TS][0][1]); for (let q2 = 1; q2 < NQ; q2++) ctx.lineTo(lat[TS][q2][0], lat[TS][q2][1]); ctx.lineTo(W + 4, PH + 20 * u); ctx.lineTo(-4, PH + 20 * u); ctx.closePath(); ctx.fillStyle = col(0); ctx.fill();
+        // each ink fills only its own share of the strip, so the edges never stack (stacked edges leave a dark hairline along every row)
+        const clip = (poly, c, up) => { const out = []; for (let e = 0; e < poly.length; e++) { const a = poly[e], b = poly[(e + 1) % poly.length], ia = up ? a[2] >= c : a[2] < c, ib = up ? b[2] >= c : b[2] < c; if (ia) out.push(a); if (ia !== ib) { const k3 = (c - a[2]) / (b[2] - a[2]); out.push([a[0] + (b[0] - a[0]) * k3, a[1] + (b[1] - a[1]) * k3, c]); } } return out; };
+        for (let n = 0; n < 4; n++) {
+          const lo = bnd[n], hi = bnd[n + 1], inR = p => p[2] >= lo && p[2] < hi; let any = false; ctx.beginPath();
+          for (let t = 0; t < TS; t++) {
+            const top = lat[t], bot = lat[t + 1]; let q2 = 0;
+            while (q2 < NQ - 1) {
+              const cs = [top[q2], top[q2 + 1], bot[q2 + 1], bot[q2]];
+              if (cs.every(inR)) { let q3 = q2; while (q3 + 1 < NQ - 1 && inR(top[q3 + 2]) && inR(bot[q3 + 2])) q3++; ctx.moveTo(top[q2][0], top[q2][1]); for (let e = q2 + 1; e <= q3 + 1; e++) ctx.lineTo(top[e][0], top[e][1]); for (let e = q3 + 1; e >= q2; e--) ctx.lineTo(bot[e][0], bot[e][1]); ctx.closePath(); any = true; q2 = q3 + 1; continue; }
+              const out = clip(clip(cs, lo, true), hi, false);
+              if (out.length > 2) { ctx.moveTo(out[0][0], out[0][1]); for (let e = 1; e < out.length; e++) ctx.lineTo(out[e][0], out[e][1]); ctx.closePath(); any = true; }
+              q2++;
+            }
+          }
+          if (any) { ctx.fillStyle = col(n); ctx.fill(); }
         }
         // the key line along the row's crest, a little out of register like a hand-printed block
-        if (j % 2 === 0) { ctx.beginPath(); for (let i = 0; i < M; i++) { const p = pt(r, i); if (i) ctx.lineTo(p[0] + reg, p[1] + reg * 0.6); else ctx.moveTo(p[0] + reg, p[1] + reg * 0.6); }
-        ctx.strokeStyle = css(mix(T.rim, SNOW, 0.3), 0.06 + 0.26 * k); ctx.lineWidth = (0.35 + 0.45 * k) * u; ctx.stroke(); }
+        if (j % 4 === 0) { ctx.beginPath(); for (let i = 0; i < M; i++) { const p = pt(r, i); if (i) ctx.lineTo(p[0] + reg, p[1] + reg * 0.6); else ctx.moveTo(p[0] + reg, p[1] + reg * 0.6); }
+        ctx.strokeStyle = css(mix(T.rim, SNOW, 0.3), 0.03 + 0.1 * k);      /* faint: a real print has no ruled lines, only the odd cut showing */ ctx.lineWidth = (0.35 + 0.45 * k) * u; ctx.stroke(); }
       }
       // a wood as one dark mass with a saw-tooth top, the way a print cuts a forest, not tree by tree
       if (v.owned && st >= 5) {
@@ -242,6 +258,10 @@ const CardArt = self.CardArt = (() => {
     const r = RNG(k ^ 0x5bd1e995);
     ctx.lineCap = 'round';
     for (let i = 0; i < 520; i++) { const x = r() * W, y = r() * PH, a = r() * Math.PI, l = (1.5 + r() * 5) * u; ctx.strokeStyle = r() < 0.6 ? css(SNOW, 0.035 + r() * 0.05) : css(INK, 0.03 + r() * 0.04); ctx.lineWidth = (0.25 + r() * 0.35) * u; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + Math.cos(a) * l * 0.5 + (r() - 0.5) * u, y + Math.sin(a) * l * 0.5 + (r() - 0.5) * u, x + Math.cos(a) * l, y + Math.sin(a) * l); ctx.stroke(); }
+    // the grain of the block: long wavy lines the woodcut leaves in a flat ink, with a knot here and there
+    const knots = [[r() * W, r() * PH], [r() * W, r() * PH]];
+    for (let i = 0; i < 70; i++) { const y0 = r() * PH, a = (1.5 + r() * 3) * u, f = 0.008 + r() * 0.01, ph = r() * 9, x0 = r() * W * 0.6 - W * 0.1, x1 = x0 + W * (0.3 + r() * 0.7); ctx.strokeStyle = r() < 0.5 ? css(INK, 0.035 + r() * 0.03) : css(SNOW, 0.03 + r() * 0.03); ctx.lineWidth = (0.3 + r() * 0.5) * u; ctx.beginPath();
+      for (let x = x0; x <= x1; x += 3 * u) { let y = y0 + a * Math.sin(x * f / u * 3 + ph); for (const [kx, ky] of knots) { const dx = x - kx, dy = y - ky, d2 = (dx * dx) / (40 * u) ** 2 + (dy * dy) / (14 * u) ** 2; y += (y > ky ? 1 : -1) * 9 * u * Math.exp(-d2); } if (x === x0) ctx.moveTo(x, y); else ctx.lineTo(x, y); } ctx.stroke(); }
     // the ink not taking evenly: big soft patches, lighter and darker
     for (let i = 0; i < 26; i++) { const x = r() * W, y = r() * PH, R = (20 + r() * 60) * u, g = ctx.createRadialGradient(x, y, 0, x, y, R), c = r() < 0.5 ? SNOW : INK; g.addColorStop(0, css(c, 0.045)); g.addColorStop(1, css(c, 0)); ctx.fillStyle = g; ctx.fillRect(x - R, y - R, 2 * R, 2 * R); }
     for (let i = 0; i < 260; i++) { ctx.fillStyle = r() < 0.5 ? css(SNOW, 0.05 + r() * 0.06) : css(INK, 0.05 + r() * 0.05); ctx.beginPath(); ctx.arc(r() * W, r() * PH, (0.25 + r() * 0.5) * u, 0, 7); ctx.fill(); }
@@ -332,20 +352,20 @@ const CardArt = self.CardArt = (() => {
   function prints(ctx, S, kind, d0, d1, l0, l1, wob) {
     const T = S.T, rnd = S.rnd, u = S.u, Tr = TRAIL[kind] || TRAIL.fox;   // drawn larger than life, so the trail reads
     // a print in the snow: its lit lower lip, then the shadow in the hollow, so it reads on lit snow and on shade alike
-    const lip = css(mix(T.rim, SNOW, 0.6), 0.95), hol = css(mix(T.near, INK, 0.45), 0.9);
+    const lip = css(mix(T.rim, SNOW, 0.85), 1), hol = css(mix(T.near, INK, 0.6), 0.95);     // the lip stays near-white even at night, so a trail reads on blue shade
     const dot = (x, y, rx, ry) => { rx = Math.max(0.35 * u, rx); ry = Math.max(0.25 * u, ry); ctx.fillStyle = lip; ctx.beginPath(); ctx.ellipse(x, y + ry * 0.3, rx * 1.35, ry * 1.3, 0, 0, 7); ctx.fill(); ctx.fillStyle = hol; ctx.beginPath(); ctx.ellipse(x, y - ry * 0.15, rx * 0.7, ry * 0.65, 0, 0, 7); ctx.fill(); };
     for (let f = 0; f < Tr.files; f++) {
       const off = (f - (Tr.files - 1) / 2) * 2.4, ph = rnd() * 6; let d = d0, side = 1;
       while (d < d1) {
         const t = (d - d0) / (d1 - d0), l = l0 + (l1 - l0) * t * t + Math.sin(t * 7 + ph) * wob * (1 - t) + off * (1 - 0.7 * t), p = S.atD(d, l);
         if (p) {
-          const [x, y] = p, mm = p[2] * 2.8, q = 0.45;            // q: the snow seen from above at a slant, prints squashed
+          const [x, y] = p, mm = p[2] * 6, q = 0.45;            // q: the snow seen from above at a slant, prints squashed
           if (kind === 'hare') { dot(x - 0.06 * mm, y, 0.035 * mm, 0.07 * mm * q); dot(x + 0.06 * mm, y, 0.035 * mm, 0.07 * mm * q); dot(x + 0.01 * mm, y + 0.16 * mm * q, 0.025 * mm, 0.03 * mm * q); dot(x - 0.02 * mm, y + 0.26 * mm * q, 0.025 * mm, 0.03 * mm * q); }
           else if (kind === 'deer' || kind === 'ibex') { const sx = x + side * 0.1 * mm; dot(sx - 0.025 * mm, y, 0.022 * mm, 0.05 * mm * q); dot(sx + 0.025 * mm, y, 0.022 * mm, 0.05 * mm * q); }
           else dot(x + side * 0.05 * mm, y, 0.05 * mm, 0.06 * mm * q);
-          if (p[2] < 0.7 * u) break;
+          if (p[2] < 0.45 * u) break;
         }
-        d += Tr.gap * (1 + d / 90); side = -side;
+        d += Tr.gap * 2.2 * (1 + d / 90); side = -side;
       }
     }
   }
