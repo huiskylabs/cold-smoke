@@ -392,6 +392,15 @@ const Rings = (() => {
     if (L.xp && L.xp.sE === sE && L.xp.df === df) return L.xp;
     const t0 = Date.now(), TC = 4.5, NU = 181, U0 = -90, n = Math.floor(sE / 4) + 1, o = {};
     const rows = [], cost = new Float32Array(n * NU), lanes = [], lk = [], dr = [];
+    // (用户 21:32 UTC: 路线还是无聊，应该九曲十八弯，地图左面和右面穿插来，钻密林尽量避免很多圈排成笔直的线) the way is drawn toward a winding
+    // guide: it keeps to one side of the run, then crosses to the other every 280-420 m (never where the run is its gully or mogul field),
+    // and on each side it swings 10 m either way every ~40 m (a direction change every 35-45 m: between a giant slalom's 30-35 m and a
+    // super-G's 50 m turning pole to turning pole, FIS/SSNZ course setting rules). Trees, lanes and the rest still decide where it can go
+    let gr = 7 + 13 * 7919; const grr = () => { gr = (gr * 16807) % 2147483647; return (gr - 1) / 2147483646; };
+    const sw = []; { let ss = 180 + 200 * grr(), sd = -1; sw.push([0, sd]); while (ss < sE - 200) { let t2 = ss; for (let k = 0; k < 40; k++) { const c = Course.at(t2, pc), c2 = Course.at(t2 + 160, pc); if (!(c.gul > 0.3 || c.mog > 0.3 || c2.gul > 0.3 || c2.mog > 0.3)) break; t2 += 20; } sd = -sd; sw.push([t2, sd]); ss = t2 + 280 + 140 * grr(); } }
+    const wph = 6.283 * grr(), wl = 76 + 12 * grr(), GW = RG.GW || 0.8;
+    const guide = (s, hw) => { let a = sw[0][1], i = 0; while (i + 1 < sw.length && sw[i + 1][0] <= s) i++; a = sw[i][1]; let side = a; if (i > 0) { const f = cl((s - sw[i][0]) / 160, 0, 1), e2 = f * f * (3 - 2 * f); side = -a + 2 * a * e2; }
+      return side * (hw + 22) + 10 * Math.sin(wph + s / wl * 6.283) * cl((s - 80) / 120, 0, 1); };
     for (let k = 0; k < n; k++) {
       const s = k * 4, c = Course.at(s, pc), cx = c.cx, hw = c.hw || 14, j0 = Math.floor(-s / TC), tr = [];
       for (let j = j0 - 2; j <= j0 + 2; j++) for (let i = Math.floor((cx + U0 - 8) / TC); i <= Math.floor((cx - U0 + 8) / TC); i++) { Course.treeInCell(i, j, o); if (o.ok) tr.push([o.x, -o.z, o.r]); }
@@ -411,6 +420,7 @@ const Rings = (() => {
          if (e > 40 && !onl) q += (e - 40) * (e - 40) * 0.5 + 20; if (onl && e > 0) q -= 4; if (e > 6 && e < 40) q -= 2.5; if (e >= -2 && e <= 6) q += 1;
         // (用户 18:08/18:11 UTC: 所有线的第一个圈在正前方，慢慢预热；只要第一个就可以) the way leaves the gate straight, through the first ring
         if (s < 100 || s > sE - 120) q += Math.abs(u) * 2;
+        else q += GW * Math.min(20, Math.abs(u - guide(s, hw)));
         // (用户 17:29 UTC: 越野线不跑标准道，去探索平常标准道不会去到的、好玩的地方) the run's own gully and mogul field are the 速降线's: the
         // line keeps out of them and off the gully's rim just above (17:20 UTC: a ring up there is not what a gully is for), and goes
         // out to the ways the run does not: a gully lane in the trees most of all (a small half-pipe of its own), and over a drop's lip
