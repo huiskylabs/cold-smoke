@@ -862,7 +862,9 @@ const Course = ((vn1, vn2, h2U) => {
       if (au > c.hw + 4) d *= 0.35 + 0.65 * smooth(-0.05, 0.30, vnoise2(x / 150, z / 150, 33));
       // (above the tree line: no trees up high; below it, a long way down, a thin scatter of spruce, never a wood. Owner 2026-11-18 03:57:
       // "上面就没有树…下面…林线以下稍微有点树，但是也比较稀")
-      if (Variants.val.dalp === 'b') d *= 0.28 * smooth(2200, 3400, s + 300 * vnoise2(x / 260, z / 260, 34)) * smooth(0.0, 0.35, vnoise2(x / 90, z / 90, 35));
+      // (04:27, the owner again: with no trees at all it looks strange: trees along the runs after all, not dense, in stands of several
+      // kinds, 14_trees.js dStand; still none on the bare cone at the very top)
+      if (Variants.val.dalp === 'b') d *= 0.62 * smooth(700, 1500, s + 300 * vnoise2(x / 260, z / 260, 34)) * smooth(-0.15, 0.25, vnoise2(x / 90, z / 90, 35));
     }
     return d;
   };
