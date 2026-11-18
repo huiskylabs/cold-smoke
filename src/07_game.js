@@ -779,7 +779,7 @@ const Game = (() => {
         // into the air there was, up to six times its pace, or finished on the snow in a few frames. Now the flight the physics really has is
         // checked as the skis leave: a spin it cannot hold at its own pace is let go (the shoulders come back square, below), and the half
         // turn back from switch is done only in air that holds one. Riding switch, a hop too small is ridden out and pivoted on the snow)
-        else if (cur && fl.pre && cur.spin && !cur.base && U < SPIN_U * spinMin(cur)) { fl.back = cur.dir * Math.max(fl.thr || 0, 0.6); fl.tr = null; fl.pre = 0; fl.thr = 0; clearQ(q); fl.took = true; }
+        else if (cur && fl.pre && cur.spin && !cur.base && U < SPIN_U * spinMin(cur)) { fl.back = cur.dir * Math.max(fl.thr || 0, 0.6); fl.tr = null; fl.pre = 0; fl.thr = 0; fl.plan = null; clearQ(q); fl.took = true; }      // (and the plan goes with it: kept, it was thrown again on the snow after the hop, the shoulders held round for half a second)
         else if (cur) { if (!fl.pre && U >= spinMin({ id: '180' }) && cur.spin && ((cur.base + cur.n) & 1)) startTrick({ id: '180', dir: cur.dir, spin: true, n: 1, base: 1, amp: 1, min: 0, big: 2 }); fl.took = true; }     // riding switch: a half turn back to forward (a shape still being let go of off the last hop is simply finished)
         // (新求解器, owner 2026-11-18: "跳起来突然就转圈…转圈肯定是起的那一下要带一下的". A body in the air cannot start to turn: the turn is thrown
         // on the snow. A spin is only done when it was begun before the skis left (fl.pre, below); found in the air with nothing thrown, the
