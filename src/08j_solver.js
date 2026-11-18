@@ -71,7 +71,7 @@ const Solver = (() => {
   // and in that time the figure's frame has already turned to lie along the flight and the snow read in it is far off (measured: the skis were thrown
   // 0.7 m at a lip). Off the snow the correction dies away; back on it, it comes in over a tenth of a second (until the one transition of the design
   // note is built, step 8).
-  const OUT = 12, APART = 0.08, NEAR = 0.1, SOFT = 0.12, RISE = 14, AHEADL = 0.3;
+  const OUT = 12, APART = 0.08, NEAR = 0.1, SOFT = 0.12, RISE = 24, AHEADL = 0.3;
   K.ground = (cur, root, Y, toW, sec, dt) => {
     if (Variants.val.solver !== 'b' || typeof Course === 'undefined' || (K.boardOn && K.boardOn())) { sec.gs = null; return null; }
     const q = sec.gs || (sec.gs = new Array(32).fill(null)), on = cur.onSnow == null ? (cur.air || 0) < 0.5 : cur.onSnow > 0, out = [0, 0, 0, 0, 0];

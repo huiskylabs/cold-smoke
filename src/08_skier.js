@@ -196,7 +196,9 @@ const Skier = (() => {
       }
     }
     J.pelvis = pel; J.hipL = hipL; J.hipR = hipR;
-    if (gyL < 0 || gyR < 0) { const Lm = (LEN.thigh + LEN.shin) * 0.975, reach = (hip, an, g) => { if (!(g < 0)) return 0; const dx = hip[0] - an[0], dz = hip[2] - an[2], h2 = Lm * Lm - dx * dx - dz * dz; return h2 > 0 ? Math.min(0, Math.max(g, hip[1] - Math.sqrt(h2) - an[1])) : 0; };
+    // (and less and less as the leg straightens, nothing from 0.93 of its length on: a leg nearly straight, as in the last of a pop, does not chase a
+    // centimetre of snow; there a centimetre of foot is degrees of knee. Measured 2026-11-18: 17 more jolts at the take-offs of three jump runs)
+    if (gyL < 0 || gyR < 0) { const Lm = (LEN.thigh + LEN.shin) * 0.975, reach = (hip, an, g) => { if (!(g < 0)) return 0; const dx = hip[0] - an[0], dz = hip[2] - an[2], h2 = Lm * Lm - dx * dx - dz * dz, u = sat((v3.len(v3.sub(hip, an)) / (LEN.thigh + LEN.shin) - 0.84) / 0.09), w = 1 - u * u * (3 - 2 * u); return h2 > 0 ? Math.min(0, Math.max(g * w, hip[1] - Math.sqrt(h2) - an[1])) : 0; };
       const dl = reach(hipL, J.ankleL, gyL), dr = reach(hipR, J.ankleR, gyR); J.footL[1] += dl; J.ankleL[1] += dl; J.footR[1] += dr; J.ankleR[1] += dr; }
     // legs from the boot up: the boot holds the shin square to the ski sideways, so the knee folds forward over the toe and goes into the turn with the
     // edge; of all the places the knee could be it takes the one that keeps the shin in the boot
