@@ -15,13 +15,21 @@ const Peak = { K: 2.2, H: 3600, AZ: 1.3, t0: -0.30, ta: 0.60, tb: 0.95, ak: 0.42
 Variants.def('lake', '湖的大小 (金色雪旗)', [['a', '大湖'], ['b', '更大'], ['c', '一望无际']], 'b');
 Variants.def('wcol', '水的颜色 (金色雪旗)', [['a', '镜面'], ['b', '冰川湖碧绿'], ['c', '九寨翠蓝'], ['d', '深湖绿（一点碧色）']], 'd');
 Variants.def('wrip', '水面的风 (金色雪旗)', [['a', '平静'], ['b', '阵风'], ['c', '满湖波纹']], 'b');
+// (the owner 2026-11-18: try starting from the top of the highest peak: the volcano is then the mountain under the skis, its crater rim
+// just behind, its flanks falling away to the lake far below; the cone opposite is gone, since the eye stands on it)
+Variants.def('start', '起点 (金色雪旗)', [['a', '对面看火山'], ['b', '从火山顶滑下']], 'b');
 Variants.def('boats', '湖上的船 (金色雪旗)', [['a', '没有'], ['b', '几只'], ['c', '一队']], 'b');
 Peak.sets = {
   a: { PC: [2000, 38000], HP: 9200, PR: 13500, LC: [-600, 15500], LR: [15000, 9000], haze: 70000 },
   b: { PC: [2500, 48000], HP: 11000, PR: 15500, LC: [-600, 20500], LR: [20000, 14000], haze: 85000 },
   c: { PC: [3000, 58000], HP: 12500, PR: 17000, LC: [-600, 26000], LR: [30000, 19500], haze: 100000, far: 95000 },
 };
-function peakP(kind) { return kind === 'd' ? Object.assign({}, Peak, Peak.sets[Variants.val.lake] || Peak.sets.b) : Peak; }
+function peakP(kind) {
+  if (kind !== 'd') return Peak;
+  const P = Object.assign({}, Peak, Peak.sets[Variants.val.lake] || Peak.sets.b);
+  if (Variants.val.start === 'b') { P.sum = true; P.PC = [0, -3000]; P.H = Math.min(0.925 * P.HP, 8400) + 260; P.LC = [P.LC[0], P.LC[1] + 9500]; }
+  return P;
+}
 function peakBakeFS(kind) {
   const f = metroF, isC = kind === 'c', P = peakP(kind);
   // (the light keeps one bearing all day; the land is drawn as if it came more from the left than it does, so that the faces turned to
@@ -216,7 +224,7 @@ ${isC ? `      // streets: a grid, its avenues brighter, every great block its o
   let tl: f32 = mix(650.0, 1900.0, onPk) + 220.0 * (pN(pq / 1100.0 + vec2f(2.0, 8.0)) - 0.5) + 90.0 * (vnoise2(pq / 260.0 + vec2f(5.0, 1.0)) - 0.5) + 260.0 * onPk * (tong - 0.35);
   // (and on our own mountain, the walls either side of the run: the forest that stands about the run goes on over them, up to a ragged
   // line a little over the run's own height, as the spruce climbs a Rockies valley; never bare walls a few hundred metres off)
-  let ownW: f32 = 1.0 - smoothstep(6500.0, 9000.0, length(pq));
+  let ownW: f32 = ${P.sum ? '0.0' : '1.0 - smoothstep(6500.0, 9000.0, length(pq))'};
   let tlO: f32 = mix(tl, PH0 * 0.92 + 300.0 * (pN(pq / 900.0 + vec2f(5.0, 5.0)) - 0.5), ownW);
   let fzT: f32 = 1.0 - smoothstep(tlO - 260.0, tlO, tH);
   let aval: f32 = smoothstep(0.80, 0.90, vnoise2(vec2f(atan2(lqW.x, lqW.y) * 38.0, tH / 1600.0) + vec2f(3.0, 7.0))) * smoothstep(60.0, 200.0, tH);
@@ -458,7 +466,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   var landM: vec3f = mix(albM * lit * 0.85, ws * 0.6 + albM * lit * 0.35, 0.6 * wind * (0.5 + rp)) + lamps;
   var refl: vec3f = mix(ws, landM, mirrorLand);
   if (U.world.x > 2.5) {
-    let btM: vec2f = peakBelt(a, ${f(bt0)} - (th - ${f(bt1)}), ${f(sa)}, ${f(bt0)}, 0.24);
+    let btM: vec2f = ${P.sum ? 'vec2f(0.0)' : `peakBelt(a, ${f(bt0)} - (th - ${f(bt1)}), ${f(sa)}, ${f(bt0)}, 0.24)`};
     let cl0: vec3f = U.sunCol.rgb * (0.80 * (1.0 - 0.80 * dark)) + (U.ambSky.rgb * 0.95 + U.twi.rgb * 0.45);
     refl = mix(refl, vec3f(0.97, 0.98, 1.0) * cl0 * (0.45 + 0.40 * btM.y), btM.x * 0.85);
     // (a low sheet: the line climbing back from the water meets it this far beyond the point on the water)
@@ -574,7 +582,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     }
   }
   if (U.world.x > 2.5) {
-    let bt: vec2f = peakBelt(a, th, ${f(sa)}, ${f(bt0)}, 0.24);
+    let bt: vec2f = ${P.sum ? 'vec2f(0.0)' : `peakBelt(a, th, ${f(sa)}, ${f(bt0)}, 0.24)`};
     if (bt.x > 0.002) {
       var bc: vec3f = vec3f(0.97, 0.98, 1.0) * cloudLit * (0.50 + 0.50 * bt.y);
       bc = mix(bc, vistaHaze(d), 0.28);

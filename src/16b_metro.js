@@ -45,7 +45,7 @@ const Metro = (() => {
     } while (whole && M.step < 2 * N && M.step % 8 !== 0);      // (the director: eight bands a frame)
     if (M.step >= 2 * N) { gfx.genMips(M.E); gfx.genMips(M.A); M.done = true; }
   };
-  Variants.on((n, v, init) => { if ((n === 'world' || n === 'lake') && !init) { M.done = false; M.step = 0; if (typeof Clouds !== 'undefined') Clouds.baked = false; } });
+  Variants.on((n, v, init) => { if ((n === 'world' || n === 'lake' || n === 'start') && !init) { M.done = false; M.step = 0; if (typeof Clouds !== 'undefined') Clouds.baked = false; } });
   return M;
 })();
 const metroF = x => { const t = String(+(+x).toFixed(7)); return /[.e]/.test(t) ? t : t + '.0'; };
