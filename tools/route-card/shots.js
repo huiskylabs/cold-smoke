@@ -20,7 +20,8 @@ fs.mkdirSync(outDir, { recursive: true });
       const H = (x, s) => { const fi = (x - G.x0) / G.step, fj = (s - G.s0) / G.step; if (fi < 0 || fj < 0 || fi >= nx - 1 || fj >= ny - 1) return null;
         const i = fi | 0, j = fj | 0, u = fi - i, v = fj - j, A = G.H[j], B = G.H[j + 1]; return (A[i] * (1 - u) + A[i + 1] * u) * (1 - v) + (B[i] * (1 - u) + B[i + 1] * u) * v; };
       const cx = r.cx.map((c, k) => [G.s0 + k * G.step, c[0], c[1]]).filter(c => c[0] >= 0 && c[0] <= r.track[r.track.length - 1][1] + 60);
-      const missed = r.rings.filter(q => !q.pass).length;
+      r.rings.forEach(q => { q.pass = !!q.hit; });          // (q.pass in the ride file is "met"; through the ring = hit)
+      const missed = r.rings.filter(q => !q.fin && !q.pass).length;
       const d = { track: r.track, rings: r.rings.filter(q => !q.fin), segs: r.segs, names: r.names, H, cx, trees: r.trees, line, diff: dn, mountain: '寒烟山',
         score: r.tEnd + missed * pen, t: r.tEnd, pen, date: Date.UTC(2026, 10, 18, 22, 47), seed: 20261118 };
       const cv = document.createElement('canvas'); cv.width = 1600 * scale; cv.height = 900 * scale;
