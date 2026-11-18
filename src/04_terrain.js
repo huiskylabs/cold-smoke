@@ -1018,7 +1018,7 @@ fn frag(v: VOut) -> FOut {
       let st: f32 = fallNoise(wxz, fdB, 9.0, 95.0, vec2f(0.71, 0.13));
       let st2: f32 = fallNoise(wxz, fdB, 26.0, 170.0, vec2f(0.29, 0.83));
       let blk: f32 = tex(tDetail, wxz / 23.0 + vec2f(0.21, 0.63)).z;
-      ra = vec3f(0.40, 0.255, 0.175) * (0.62 + 0.60 * st2) * (0.84 + 0.32 * st) * (0.85 + 0.30 * blk) * (1.0 - 0.40 * smoothstep(0.36, 0.26, ck) * near);
+      ra = vec3f(0.38, 0.27, 0.215) * (0.62 + 0.60 * st2) * (0.84 + 0.32 * st) * (0.85 + 0.30 * blk) * (1.0 - 0.40 * smoothstep(0.36, 0.26, ck) * near);
       ra *= 1.0 - 0.35 * (1.0 - smoothstep(0.55, 0.95, rock));
       let wy: f32 = wp.y + U.origin.y;
       let dn: f32 = saturate(0.5 + (tex(tDetail, (wxz / 7.0 + vec2f(0.53, 0.17)) / 6.0).z - 0.5) * 1.9);
@@ -1051,10 +1051,10 @@ fn frag(v: VOut) -> FOut {
       // brown slabs with white stripes)
       let up: f32 = Nr.y - Nm.y;
       lip = max(lip, smoothstep(0.04, 0.16, up + 0.22 * (dn - 0.5) + 0.12 * (dn2 - 0.5)) * 0.95 * max(kB, 0.7 * kA) * crack);
-      lip = max(lip, smoothstep(0.56, 0.70, dn2 * 0.6 + dn * 0.4) * 0.85 * smoothstep(2400.0, 300.0, dist));
+      lip = max(lip, smoothstep(0.60, 0.72, dn2 * 0.6 + dn * 0.4) * 0.85 * smoothstep(2400.0, 300.0, dist));
     }
     var rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
-    ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.10, 0.95, 0.84), 0.20); }' : ''}
+    ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.06, 0.97, 0.92), 0.20); }' : ''}
     col = mix(col, rc, rock * (1.0 - 0.9 * lip));
   }
   // distant forest reads as a dark speckled carpet with long shadows
