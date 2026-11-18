@@ -638,6 +638,8 @@ const Game = (() => {
     q.c = Math.max(q.c, 0.93); q.own = Math.max(q.own, kn); q.tuck += 0.3 * kn; q.st -= 0.05 * kn; hand(q, -d, 0.2, 0.2, 0.06, kn);
   }
   // a spin of n half turns about the body's own axis (base: half turns already made, i.e. starting from switch)
+  // (the least air a spin is done in, as a share of its own least (TRICKS, below): and the slowest it may be hurried to)
+  const SPIN_U = 0.85, spinMin = tr => (TRICKS[String(tr.id).split('+')[0]] || [0.5])[0];
   const PIVOT_T = 1.15;      // seconds the pivot back from switch takes on the snow (was 0.5)
   function spinShape(q, u, d, n, base, c) {
     // (新求解器, fl.pre: the turn was thrown on the snow, shoulders first (THROW, below). The skis leave already turning at the rate they keep, and the
@@ -772,7 +774,13 @@ const Game = (() => {
       if (!fl.took && fl.t < 0.25) {
         fl.tOut = clamp(0.2 * fl.pred, 0.2, 0.36); const U = fl.pred - 0.05 - fl.tOut, cur = fl.tr;
         if (cur && cur.id === 'pivot') fl.took = true;                                                                    // (already coming round)
-        else if (cur) { if (!fl.pre && U >= 0.3 && cur.spin && ((cur.base + cur.n) & 1)) startTrick({ id: '180', dir: cur.dir, spin: true, n: 1, base: 1, amp: 1, min: 0, big: 2 }); fl.took = true; }     // riding switch: a half turn back to forward (a shape still being let go of off the last hop is simply finished)
+        // (owner 2026-11-18: "起跳的高度非常低，但是它就会做一个180度转向，然后非常快，一下就转回来…动作要跟真正腾空的高度搭配". A spin was chosen
+        // from the lip's forecast and begun on the snow; when the skis came off lower than forecast, nothing looked again, and the turn was squeezed
+        // into the air there was, up to six times its pace, or finished on the snow in a few frames. Now the flight the physics really has is
+        // checked as the skis leave: a spin it cannot hold at its own pace is let go (the shoulders come back square, below), and the half
+        // turn back from switch is done only in air that holds one. Riding switch, a hop too small is ridden out and pivoted on the snow)
+        else if (cur && fl.pre && cur.spin && !cur.base && U < SPIN_U * spinMin(cur)) { fl.back = cur.dir * Math.max(fl.thr || 0, 0.6); fl.tr = null; fl.pre = 0; fl.thr = 0; clearQ(q); fl.took = true; }
+        else if (cur) { if (!fl.pre && U >= spinMin({ id: '180' }) && cur.spin && ((cur.base + cur.n) & 1)) startTrick({ id: '180', dir: cur.dir, spin: true, n: 1, base: 1, amp: 1, min: 0, big: 2 }); fl.took = true; }     // riding switch: a half turn back to forward (a shape still being let go of off the last hop is simply finished)
         // (新求解器, owner 2026-11-18: "跳起来突然就转圈…转圈肯定是起的那一下要带一下的". A body in the air cannot start to turn: the turn is thrown
         // on the snow. A spin is only done when it was begun before the skis left (fl.pre, below); found in the air with nothing thrown, the
         // trick is one of the shapes that need no turn)
@@ -795,8 +803,8 @@ const Game = (() => {
         // (Mac round 20: begun as the spin itself, the skis came round 15-23 deg while the track stayed straight, a sideslip with snow thrown off the
         // tails; then they waited seven frames for the lip, and jumped to full rate. On the snow only the shoulders go, the skis hold their line)
         if (fl.preT > 0.45 || Math.abs(fl.lb) > SPIN_LEAN * 1.3) { fl.tr = null; fl.pre = 0; fl.back = tr.dir * fl.thr; fl.thr = 0; clearQ(q); } }      // (thrown, and the snow did not let go, or the skier banked into a turn: the shoulders are let back, below)
-      else if (fl.on) { if (fl.t > 0.05 || fl.pre) fl.ph = Math.min(1, fl.ph + dt * Math.min((1 - fl.ph) / Math.max(fl.rem - fl.tOut, 0.02), 6)); }
-      else fl.ph = Math.min(1, fl.ph + dt * 6);                      // (met the snow early: what is left of it is finished there, quickly)
+      else if (fl.on) { if (fl.t > 0.05 || fl.pre) fl.ph = Math.min(1, fl.ph + dt * Math.min((1 - fl.ph) / Math.max(fl.rem - fl.tOut, 0.02), tr.spin ? 1 / (SPIN_U * spinMin(tr)) : 6)); }      // (a spin turns at the pace it left the snow with: in the air nothing can hurry it)
+      else fl.ph = Math.min(1, fl.ph + dt * (tr.spin ? 2.5 : 6));      // (met the snow early: what is left of it is finished there, quickly; what is left of a turn is skidded round, not snapped)
       if (fl.tr && fl.pre && !fl.on) { clearQ(q); q.sep = tr.dir * 0.38 * (fl.thr || 0); q.head = tr.dir * 0.5 * (fl.thr || 0); } else if (fl.tr) trickShape(tr, fl.ph, q);
       if (fl.ph >= 1 && !fl.on) {
         if (!(tr.spin && ((tr.base + tr.n) & 1))) { fl.tr = null; clearQ(q); }
