@@ -1018,18 +1018,22 @@ fn frag(v: VOut) -> FOut {
       let st: f32 = fallNoise(wxz, fdB, 9.0, 95.0, vec2f(0.71, 0.13));
       let st2: f32 = fallNoise(wxz, fdB, 26.0, 170.0, vec2f(0.29, 0.83));
       let blk: f32 = tex(tDetail, wxz / 23.0 + vec2f(0.21, 0.63)).z;
-      ra = vec3f(0.33, 0.275, 0.235) * (0.62 + 0.60 * st2) * (0.84 + 0.32 * st) * (0.85 + 0.30 * blk) * (1.0 - 0.40 * smoothstep(0.36, 0.26, ck) * near);
+      ra = vec3f(0.40, 0.255, 0.175) * (0.62 + 0.60 * st2) * (0.84 + 0.32 * st) * (0.85 + 0.30 * blk) * (1.0 - 0.40 * smoothstep(0.36, 0.26, ck) * near);
       ra *= 1.0 - 0.35 * (1.0 - smoothstep(0.55, 0.95, rock));
-      lip = smoothstep(0.70, 0.80, st + 0.25 * (st2 - 0.5) + 0.35 * (Nm.y - 0.55)) * smoothstep(1400.0, 200.0, dist);
+      let wy: f32 = wp.y + U.origin.y;
+      let dn: f32 = saturate(0.5 + (tex(tDetail, (wxz / 7.0 + vec2f(0.53, 0.17)) / 6.0).z - 0.5) * 1.9);
+      let dn2: f32 = saturate(0.5 + (tex(tDetail, (vec2f(wxz.x, wy) / 19.0 + vec2f(0.11, 0.77)) / 6.0).z - 0.5) * 1.9);
+      // (round 13: the gully lines were long unbroken white stripes down the face, candy stripes against the photo. Each is now broken by the
+      // frost mottle, so a gully is a chain of snow patches, and half of them are gone)
+      lip = smoothstep(0.70, 0.80, st + 0.25 * (st2 - 0.5) + 0.35 * (Nm.y - 0.55) + 0.45 * (dn2 - 0.5)) * smoothstep(1400.0, 200.0, dist) * smoothstep(0.35, 0.55, dn2);
       // (round 7, Okuhida: the face is laced with snow, thin runnels a few metres across down every groove and on every small ledge, so from
       // any distance the rock reads as dark ribs between white threads, not as a bare grey slab)
       let fine: f32 = fallNoise(wxz, fdB, 3.5, 38.0, vec2f(0.47, 0.91));
-      lip = max(lip, smoothstep(0.66, 0.76, fine + 0.30 * (st - 0.5) + 0.25 * (st2 - 0.5)) * 0.85 * smoothstep(1800.0, 150.0, dist));      // (fewer, and broken by the larger ribs: all of them read as regular candy stripes)
+      lip = max(lip, smoothstep(0.66, 0.76, fine + 0.30 * (st - 0.5) + 0.25 * (st2 - 0.5) + 0.40 * (dn - 0.5)) * 0.85 * smoothstep(1800.0, 150.0, dist) * smoothstep(0.30, 0.55, dn));      // (fewer, and broken by the larger ribs: all of them read as regular candy stripes)
       // (round 11, the owner's "big faces like smooth slabs", against Okuhida C08: real rock is never one plane. It is split along joints into
       // facets at every size, a slab tens of metres across, blocks of ten, plates of a few, each turned its own way, so under a low sun the
       // face is a mosaic of lit planes and dark ones with hard lines between, the joints themselves dark, and snow lying on every facet that
       // turns up to the sky. And a rib is round: lit on the side turned to the sun, in shade on the other. The mesh can carry none of it)
-      let wy: f32 = wp.y + U.origin.y;
       let tw0: vec3f = pow(abs(Nm), vec3f(4.0)); let tw: vec3f = tw0 / (tw0.x + tw0.y + tw0.z);
       let kA: f32 = smoothstep(32.0 * 160.0, 32.0 * 60.0, dist); let kB: f32 = smoothstep(10.67 * 160.0, 10.67 * 60.0, dist); let kC: f32 = smoothstep(3.56 * 160.0, 3.56 * 60.0, dist);
       var pert: vec3f = vec3f(0.0); var crack: f32 = 1.0;
@@ -1045,14 +1049,12 @@ fn frag(v: VOut) -> FOut {
       // (round 12, Okuhida again: the rock is never bare for more than a few metres. Half the facets, the ones turned more to the sky than the
       // face, hold snow, and between them the rock is frosted in patches a few metres across: a mottle of warm rock and white, not big clean
       // brown slabs with white stripes)
-      let dn: f32 = saturate(0.5 + (tex(tDetail, (wxz / 7.0 + vec2f(0.53, 0.17)) / 6.0).z - 0.5) * 1.9);
-      let dn2: f32 = saturate(0.5 + (tex(tDetail, (vec2f(wxz.x, wy) / 19.0 + vec2f(0.11, 0.77)) / 6.0).z - 0.5) * 1.9);
       let up: f32 = Nr.y - Nm.y;
       lip = max(lip, smoothstep(0.04, 0.16, up + 0.22 * (dn - 0.5) + 0.12 * (dn2 - 0.5)) * 0.95 * max(kB, 0.7 * kA) * crack);
-      lip = max(lip, smoothstep(0.64, 0.76, dn2 * 0.6 + dn * 0.4) * 0.8 * smoothstep(2400.0, 300.0, dist));
+      lip = max(lip, smoothstep(0.56, 0.70, dn2 * 0.6 + dn * 0.4) * 0.85 * smoothstep(2400.0, 300.0, dist));
     }
     var rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
-    ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.02, 0.98, 0.95), 0.15); }' : ''}
+    ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.10, 0.95, 0.84), 0.20); }' : ''}
     col = mix(col, rc, rock * (1.0 - 0.9 * lip));
   }
   // distant forest reads as a dark speckled carpet with long shadows
