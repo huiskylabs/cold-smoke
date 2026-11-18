@@ -254,6 +254,17 @@ const Sound = (() => {
       if (hfP.pan) hfP.pan.setTargetAtTime(pn, t, 0.02); R.hoofs = (R.hoofs || 0) + 1;
       hit(hfG, t, 1.5 * amp, 0.004, 0.018, 0.05); hit(hcG, t + 0.004, 0.36 * amp, 0.004, 0.022, 0.06);
     };
+    // (狐狸带路) a fox's bark, the short high yap they make most in winter: a rough tone that jumps up and falls away, in one or two yaps
+    R.yip = (t, amp, pn, n) => { R.yips = (R.yips || 0) + 1;
+      for (let k = 0; k < (n || 1); k++) {
+        const t0 = t + k * (0.26 + 0.06 * hash1(R.yips * 7 + k)), f0 = 820 + 260 * hash1(R.yips * 13 + k * 5), o = ctx.createOscillator(), o2 = ctx.createOscillator(), bp = ctx.createBiquadFilter(), g = gain(0), p = pan();
+        o.type = 'sawtooth'; o2.type = 'square'; bp.type = 'bandpass'; bp.frequency.value = 1500; bp.Q.value = 1.1; if (p.pan) p.pan.value = pn;
+        for (const [q, m] of [[o, 1], [o2, 2.01]]) { q.frequency.setValueAtTime(f0 * 0.72 * m, t0); q.frequency.exponentialRampToValueAtTime(f0 * m, t0 + 0.035); q.frequency.exponentialRampToValueAtTime(f0 * 0.58 * m, t0 + 0.17); }
+        const g2 = gain(0.25); o.connect(bp); o2.connect(g2); g2.connect(bp); chain(bp, g, p, fT);
+        g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(amp, t0 + 0.012); g.gain.exponentialRampToValueAtTime(0.0008, t0 + 0.19);
+        o.start(t0); o2.start(t0); o.stop(t0 + 0.22); o2.stop(t0 + 0.22);
+      }
+    };
     R.pass = (t, side, amp, sp) => { R.passes = (R.passes || 0) + 1;        // a trunk goes by: the air between it and the ear is squeezed for an instant
       const k = side > 0 ? 1 : 0, f = psF[k].frequency, f0 = 700 + 38 * sp;
       f.cancelScheduledValues(t); f.setValueAtTime(f0 * 1.5, t); f.exponentialRampToValueAtTime(f0 * 0.7, t + 0.16);
@@ -393,6 +404,7 @@ const Sound = (() => {
       if (stay) A.rig.rustle(t, side, ev.type === 'rustle' ? 0.22 + 0.25 * sat(1 - (ev.d || 1)) : ev.type === 'crash' ? 0.6 : 0.5, S.speed);
     }
     else if (ev.type === 'hoof') A.rig.hoof(t, ev.k * Math.pow(sat(1 - ev.d / 34), 1.6), ev.side * sat(ev.d / 6) * 0.75);
+    else if (ev.type === 'yip' && A.rig.yip) A.rig.yip(t, 0.32 * Math.pow(sat(1 - ev.d / 160), 1.3), clamp(ev.side * sat(ev.d / 8) * 0.8, -0.8, 0.8), ev.n || 1);
   };
   return A;
 })();

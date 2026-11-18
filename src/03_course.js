@@ -359,6 +359,8 @@ const Course = ((vn1, vn2, h2U) => {
     return e;
   }
   // the ways down at s, as offsets from the run's centre line: the run (0) and each lane that has left it by then (for test pilots)
+  // (狐狸带路) the lanes beside the run at s, and where the middle of one is at s as an offset from the run's centre line
+  C.lanesAt = s => LV ? lanesAt(s) : null; C.laneU = laneU;
   C.ways = function (s) { const out = [0], ln = LV ? lanesAt(s) : null; if (ln) for (const l of ln) if (s > l.s0 + 20 && s < l.s1 - 20) out.push(laneU(l, s)); return out; };
   // (for the game) how far off any way down the skier is: 0 or less on the run or in a lane
   C.offRun = function (x, z) { const s = -z, c = at(s, _py), u = x - c.cx; return edgeE(s, u, Math.abs(u) - c.hw, c.hw); };

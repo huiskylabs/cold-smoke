@@ -817,6 +817,7 @@ const Fauna = (() => {
   let rnd = RNG(4177); const pc = {}, pc2 = {}, tn = {}, EV = {}, P1 = newPose(), P2 = newPose(), P3 = newPose();
   F.seed = n => { rnd = RNG(n); };                // (tests: the same chances again)
   F.gap = [60, 105]; F.first = [26, 38]; F.count = {};
+  F.weight = {};                  // (how many cards each kind has in the deal; 1 if not said. 狐狸带路 gives the fox 2: a third of the meetings)
   const along = (s, f) => f(Course.at(s + 40, pc2)) && f(Course.at(s + 90, pc2)) && f(Course.at(s + 150, pc2));
   const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
   // start over: a new mountain, or a new run down this one (`keep`: animals stood somewhere by a test stay)
@@ -859,12 +860,13 @@ const Fauna = (() => {
     if (!F.ev) {
       if (F.want) { const id = F.want; F.want = null; begin(id); }
       else if (on && Game.mode === 'run' && Game.runT > F.next && S.speed > 6 && (F.tryT -= dt) <= 0) {
-        F.tryT = 0.4; if (!F.deck.length) F.deck = shuffle(Object.keys(EV));
+        F.tryT = 0.4; if (!F.deck.length) F.deck = shuffle(Object.keys(EV).flatMap(k => Array(Math.max(1, F.weight[k] || 1)).fill(k)));
         for (let i = 0; i < F.deck.length; i++) { const id = F.deck[i]; if (EV[id].ok(sS)) { F.deck.splice(i, 1); if (begin(id)) F.next = Game.runT + lerp(F.gap[0], F.gap[1], rnd()); break; } }
         // none of those still to come belongs on this part of the mountain: after a while the others are dealt in behind them
         if (!F.ev && Game.runT > F.next + 25) { const rest = shuffle(Object.keys(EV).filter(k => F.deck.indexOf(k) < 0 && k !== F.last)); if (rest.length) F.deck = F.deck.concat(rest); F.next = Game.runT - 24; }
       }
     }
+    if (F.guideTick) F.guideTick(dt, t);
     if (F.live.length) F.upload();
   };
   EV.deer = { ok: s => Deer.room(s), begin: () => { Deer.spawn(); return Deer.herd.length > 0; } };
@@ -975,6 +977,7 @@ const Fauna = (() => {
     a.legT = 2.4 + 2.2 * rnd();
   }
   function foxStep(a, dt, t, ev) {
+    if (a.guide) return F.guideStep(a, dt, t, ev);          // (狐狸带路, 08d_foxguide.js: it has someone to lead now)
     const S = Game.s, sS = -S.p[2], vs = Math.max(-S.v[2], 0), still = vs < 4, c = Course.at(a.s, pc), ds = a.s - sS, uS = S.p[0] - Course.at(sS, pc2).cx, K = a.K, W = K.walk, T = K.jog;
     const tau = still ? 9 : ds / Math.max(vs - 1, 4), lat = a.off - uS, dist = Math.hypot(ds, lat);       // seconds until the skier is level with it; how far across the hill it is from their line
     a.ts += dt; a.ud = damp(a.ud || 0, dt > 0 && a.uP != null ? (uS - a.uP) / dt : 0, 5, dt); a.uP = uS;
@@ -985,7 +988,10 @@ const Fauna = (() => {
     // it runs when the skier is not a second away (or, from a slow one, a dozen metres), sooner if they are coming nearly straight at it; from a
     // skier who will pass well wide, or one who has stopped, it only trots off
     const coming = !still && tau > -0.3 && ds > -2, close = smooth(3, 6.5, near);
-    if (a.st < 4 && ((coming && near < 16 && (tau < lerp(1.7, 0.9, close) || ds < lerp(22, 12, close))) || (dist < 8.5 && ds > -3))) { a.st = 4; a.ts = 0; a.ph = 0.3; a.trees = 2.0; }
+    const bolt = a.st < 4 && ((coming && near < 16 && (tau < lerp(1.7, 0.9, close) || ds < lerp(22, 12, close))) || (dist < 8.5 && ds > -3));
+    // (狐狸带路: where it would have run for the trees, it looks back at the skier and runs on ahead instead, if there is somewhere to take them)
+    if (bolt && F.guideTry && F.guideTry(a, ev)) return F.guideStep(a, dt, t, ev);
+    if (bolt) { a.st = 4; a.ts = 0; a.ph = 0.3; a.trees = 2.0; }
     else if (a.st < 3 && ((coming && near >= 16 && tau < 1.4) || (ev.leave && a.t > 0.5) || (still && a.t > a.stay))) { a.st = 3; a.ts = 0; }
     else if (a.st < 2 && coming && (tau < a.d1 || dist < 26)) { a.st = 2; a.ts = 0; a.pawS = sign(bearing(a, S)) || 1; }
     else if (a.st === 2 && (still || !coming) && a.ts > 2.2) { a.st = 0; a.ts = 0; foxLeg(a); }                   // (nothing came of it)
@@ -1161,6 +1167,8 @@ const Fauna = (() => {
     const v = o.v == null ? 9 : o.v, T = 1 / (o.freq || 3.4); return leap(HARE.gait, o.ph || 0, v, T, o.run == null ? 1 : o.run, p);
   };
   F.leap = leap; F.newPose = newPose; F.mixPose = mixPose; F.QB = QB;
+  // (for 08d_foxguide.js, which teaches the fox to lead: the same ground, gaits and manners every animal here has)
+  F._in = { FOX, onGround, chase, leap, trot, rider, toWorld, crossed, bearing, zeroPose, P1, P2, P3, rnd: () => rnd() };
   return F;
 })();
 

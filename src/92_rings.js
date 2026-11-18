@@ -208,7 +208,20 @@ const Rings = (() => {
     if (!active()) return;
     for (const d of drawList) if (ringLive(d)) { const u = ringU(d, lastT % 4096); gfx.draw(pDustSh, { u, count: 4, instances: u.e[0] + u.e[1] }); }
   };
+  // (狐狸带路, 08d_foxguide.js) flames that are not rings: the small fire at the place the fox leads to, and the light dust of the spirit
+  // fox, drawn with the rings' own flame, mode or no mode. Each { p: world [x, y, z], A, sc, sz, ti (0 white-green .. 2 violet), id, n
+  // (instances: 2 = glow and heart only, a grain of dust), light (0..1: how much it lights what is round it) }
+  RG.extra = [];
+  const extraT = () => ((typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000) % 4096;
+  function drawExtra(light, R) {
+    if (!gfx || !pFlame || !RG.extra.length || typeof Render === 'undefined') return;
+    const o = Render.origin, T = extraT(), night = cl(((Sky.night || 0) - 0.2) / 0.6, 0, 1), k = night * 0.85 + 0.15;
+    if (!light) { const tex = { tSky: Sky.lut }; for (const e of RG.extra) if (e.A > 0.004) gfx.draw(pFlame, { u: { a: [e.p[0] - o[0], e.p[1] - o[1], e.p[2] - o[2], e.sc], b: [e.A, e.sz, e.ti || 0, 0], c: [T, (e.id || 0) % 4096, night, 0] }, tex, count: 4, instances: e.n || 2 + TONGUES }); return; }
+    const tex = { tDepth: R.depth, tSky: Sky.lut };
+    for (const e of RG.extra) if (e.light > 0.01 && e.A > 0.01) { const I = 0.30 * k * e.A * e.sc * e.light; gfx.draw(pLight, { u: { a: [e.p[0] - o[0], e.p[1] - o[1], e.p[2] - o[2], 0], b: [0.15, 1.0, 0.80, I], c: [5.5 * Math.min(1.6, e.sc), 0, 0, 0] }, tex, count: 4 }); }
+  }
   RG.drawScene = function () {
+    drawExtra(false);
     if (!active()) return;
     const T = lastT % 4096, tex = { tSky: Sky.lut };
     for (const d of drawList) {
@@ -221,6 +234,7 @@ const Rings = (() => {
   };
   // the ring's light on what is round it: the snow under it, the skier riding through, a tree beside it
   RG.drawLight = function (R) {
+    drawExtra(true, R);
     if (!active()) return;
     const tex = { tDepth: R.depth, tSky: Sky.lut };
     for (const d of drawList) {
