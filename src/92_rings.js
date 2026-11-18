@@ -928,7 +928,9 @@ fn dustGrain(i: u32) -> DG {
     // (16:49 UTC) top first, the bottom last; about two grains in five are drawn into the flame, the rest fade where they are
     let ab: f32 = M.g.y; let kk: f32 = saturate((ab - 0.6 * (1.0 - ph)) / 0.4); let suck: f32 = select(0.0, 1.0, fract(hsel.y * 71.0) < 0.4);
     let ea: f32 = kk * kk * suck;
-    let tgt: vec3f = N + (hashu3(i * 59u + rid * 7u + 2u) - vec3f(0.5)) * 0.5;
+    // (16:51 UTC: 吸进来的目的地不是火团中心，而是新光圈上的位置，分散地落到圈上) each to its own place round the opening ring
+    let ht: vec3f = hashu3(i * 59u + rid * 7u + 2u); let at: f32 = ht.x * 6.2831853; let rt: f32 = RN * max(open, 0.3) * (1.0 + 0.06 * (ht.y - 0.5));
+    let tgt: vec3f = N + vec3f(cos(at) * rt, sin(at) * rt, (ht.z - 0.5) * 0.25);
     flowP = mix(colP, tgt, ea);
     flowSt = mix(vec3f(0.0, -0.5, 0.0), normalize(colP - tgt + vec3f(0.0, 0.001, 0.0)) * (0.3 + 1.2 * ea), select(0.0, 1.0, ab > 0.0));
     b = 0.45 * apr * min(1.0, ph * 10.0) * pow(1.0 - ph, 1.3) * (1.0 - saturate(dis * 2.0));
