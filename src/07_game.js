@@ -637,6 +637,7 @@ const Game = (() => {
     q.c = Math.max(q.c, 0.93); q.own = Math.max(q.own, kn); q.tuck += 0.3 * kn; q.st -= 0.05 * kn; hand(q, -d, 0.2, 0.2, 0.06, kn);
   }
   // a spin of n half turns about the body's own axis (base: half turns already made, i.e. starting from switch)
+  const PIVOT_T = 1.15;      // seconds the pivot back from switch takes on the snow (was 0.5)
   function spinShape(q, u, d, n, base, c) {
     // (新求解器, fl.pre: the turn was thrown on the snow, shoulders first (THROW, below). The skis leave already turning at the rate they keep, and the
     // shoulders, ahead by the throw, are caught up by the hips through the first half)
@@ -677,7 +678,15 @@ const Game = (() => {
     flip(q, u) { const b = bell(0.06, 0.28, 0.66, 0.93, u); q.flip = TAU * turn(u, 0.18, 0.2); q.c = 0.92; q.own = bell(0.02, 0.22, 0.7, 0.95, u); q.tuck = 0.3 * b; hands(q, -0.04, -0.14, -0.03, b); },
     flipgrab(q, u, d) { SHAPES.flip(q, u); q.ax = q.ay = q.az = q.bx = q.by = q.bz = 0; grabShape(q, u, d, 0.24, 0.76); },
     // (riding switch after a half turn: a quick pivot on the snow brings the skier round to face the hill again)
-    pivot(q, u, d) { spinShape(q, u, d, 1, 1, 0.3); q.dip = 0.22 * bell(0, 0.3, 0.35, 0.8, u); },
+    // (owner 2026-11-18: "它一下就转过去了，不可能，转正应该有一个过程". It was half a turn at a constant 444 deg/s, begun from nothing. Now PIVOT_T long and in
+    // three parts: a sink with the shoulders and head going round first (the wind-up, skis still on their line), the legs pushed long and the
+    // skis, light, brought round under the body with a rate that eases in and out (360 deg/s at most), then a sink to take the skis' bite, and up)
+    pivot(q, u, d) {
+      const a = (1 + smooth(0.2, 0.84, u)) * PI, b = bell(0.02, 0.2, 0.7, 0.95, u);
+      q.yaw = d * a; q.c = 0.3; q.own = b; q.tuck = 0.12 * b; q.sep = d * 0.38 * bell(0, 0.2, 0.34, 0.62, u);
+      q.head = d * Math.min(TAU - a, SOLV() ? 0.7 : 1.15);
+      q.dip = 0.2 * bell(0, 0.2, 0.24, 0.46, u) - 0.05 * bell(0.26, 0.44, 0.56, 0.74, u) + 0.16 * bell(0.66, 0.84, 0.86, 1, u);
+    },
   };
   // the least usable air each needs (seconds), how often it is chosen, and how much air to spare it bears before it is a small thing
   // lost in a big flight (a tweak fills a hop; the biggest air goes to the turns, the somersaults and the combinations)
@@ -780,7 +789,7 @@ const Game = (() => {
     // the trick runs on the time there is: its phase moves so as to be done `tOut` before the skis touch, however the forecast shifts
     const tr = fl.tr;
     if (tr) {
-      if (tr.id === 'pivot') fl.ph = Math.min(1, fl.ph + dt / 0.5);
+      if (tr.id === 'pivot') fl.ph = Math.min(1, fl.ph + dt / PIVOT_T);
       else if (fl.pre && !fl.on) { fl.preT += dt; const k = sat(Math.max(fl.lipT < 9 ? 1 - fl.lipT / PRE_T : 0, S.popT >= 0 ? S.popT / POP_T : 0)); fl.thr = Math.max(fl.thr || 0, k * k * (3 - 2 * k)); fl.ph = 0;
         // (Mac round 20: begun as the spin itself, the skis came round 15-23 deg while the track stayed straight, a sideslip with snow thrown off the
         // tails; then they waited seven frames for the lip, and jumped to full rate. On the snow only the shoulders go, the skis hold their line)
