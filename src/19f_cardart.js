@@ -120,7 +120,9 @@ const CardArt = self.CardArt = (() => {
   function sky(ctx, W, PH, T, rnd, u, aurora, seed, m) {
     const g = ctx.createLinearGradient(0, 0, 0, PH); g.addColorStop(0, css(T.top)); g.addColorStop(0.62, css(mix(T.top, T.low, 0.75))); g.addColorStop(1, css(T.low)); ctx.fillStyle = g; ctx.fillRect(0, 0, W, PH);
     // ichimonji bokashi: the band of deeper ink wiped across the top of a print's sky
-    const gb = ctx.createLinearGradient(0, 0, 0, PH * 0.24); gb.addColorStop(0, css(mix(T.top, INK, 0.5), 0.95)); gb.addColorStop(0.45, css(mix(T.top, INK, 0.3), 0.55)); gb.addColorStop(1, css(T.top, 0)); ctx.fillStyle = gb; ctx.fillRect(0, 0, W, PH * 0.24);
+    const gb = ctx.createLinearGradient(0, 0, 0, PH * 0.24); gb.addColorStop(0, css(mix(T.top, INK, 0.62), 1)); gb.addColorStop(0.5, css(mix(T.top, INK, 0.4), 0.7)); gb.addColorStop(1, css(T.top, 0)); ctx.fillStyle = gb; ctx.fillRect(0, 0, W, PH * 0.3);
+    // and a second, softer band of the low light's colour laid along the horizon, the way a printer wipes a gradation onto the block
+    { const gh = ctx.createLinearGradient(0, PH * 0.3, 0, PH * 0.62); gh.addColorStop(0, css(T.low, 0)); gh.addColorStop(0.7, css(mix(T.low, T.rim, 0.35), 0.55)); gh.addColorStop(1, css(mix(T.low, T.rim, 0.35), 0.2)); ctx.fillStyle = gh; ctx.fillRect(0, PH * 0.3, W, PH * 0.32); }
     if (T.stars) for (let i = 0; i < 110 * T.stars; i++) { const x = rnd() * W, y = rnd() * PH * 0.55, r = (0.3 + rnd() * 0.8) * u; ctx.fillStyle = css(SNOW, (0.25 + rnd() * 0.7) * Math.min(1, T.stars * 1.4)); ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); }
     if (aurora) for (let k = 0; k < 3; k++) { const y0 = PH * (0.17 + k * 0.06), g2 = ctx.createLinearGradient(0, y0 - 26 * u, 0, y0 + 22 * u); g2.addColorStop(0, 'rgba(90,255,190,0)'); g2.addColorStop(0.55, `rgba(${90 + k * 30},255,${190 - k * 20},${0.26 - k * 0.06})`); g2.addColorStop(1, 'rgba(120,140,255,0)'); ctx.fillStyle = g2; ctx.beginPath(); ctx.moveTo(0, y0 + 22 * u); for (let x = 0; x <= W; x += 6 * u) ctx.lineTo(x, y0 - 22 * u + Math.sin(x / (34 * u) + k * 1.9 + seed) * 10 * u); ctx.lineTo(W, y0 + 22 * u); ctx.closePath(); ctx.fill(); }
     // the sun or the moon: where it stands is the card's own; the moon shows the phase of the day the card was got
@@ -264,6 +266,10 @@ const CardArt = self.CardArt = (() => {
       for (let x = x0; x <= x1; x += 3 * u) { let y = y0 + a * Math.sin(x * f / u * 3 + ph); for (const [kx, ky] of knots) { const dx = x - kx, dy = y - ky, d2 = (dx * dx) / (40 * u) ** 2 + (dy * dy) / (14 * u) ** 2; y += (y > ky ? 1 : -1) * 9 * u * Math.exp(-d2); } if (x === x0) ctx.moveTo(x, y); else ctx.lineTo(x, y); } ctx.stroke(); }
     // the ink not taking evenly: big soft patches, lighter and darker
     for (let i = 0; i < 26; i++) { const x = r() * W, y = r() * PH, R = (20 + r() * 60) * u, g = ctx.createRadialGradient(x, y, 0, x, y, R), c = r() < 0.5 ? SNOW : INK; g.addColorStop(0, css(c, 0.045)); g.addColorStop(1, css(c, 0)); ctx.fillStyle = g; ctx.fillRect(x - R, y - R, 2 * R, 2 * R); }
+    // the baren: the pad rubbed over the back of the sheet leaves faint swirls of more and less ink across the whole picture
+    for (let i = 0; i < 90; i++) { const cx = r() * W, cy = r() * PH, R = (6 + r() * 16) * u, a0 = r() * 7; ctx.strokeStyle = r() < 0.55 ? css(SNOW, 0.012 + r() * 0.014) : css(INK, 0.012 + r() * 0.014); ctx.lineWidth = (1.2 + r() * 2) * u; ctx.beginPath(); ctx.ellipse(cx, cy, R, R * (0.3 + r() * 0.4), r() * 0.6 - 0.3, a0, a0 + 1 + r() * 2); ctx.stroke(); }
+    // the sheet's tooth: fine grain everywhere, so no flat ink is ever perfectly flat
+    for (let i = 0; i < 1600; i++) { ctx.fillStyle = r() < 0.5 ? css(SNOW, 0.04 + r() * 0.05) : css(INK, 0.04 + r() * 0.05); ctx.fillRect(r() * W, r() * PH, (0.3 + r() * 0.5) * u, (0.3 + r() * 0.5) * u); }
     for (let i = 0; i < 260; i++) { ctx.fillStyle = r() < 0.5 ? css(SNOW, 0.05 + r() * 0.06) : css(INK, 0.05 + r() * 0.05); ctx.beginPath(); ctx.arc(r() * W, r() * PH, (0.25 + r() * 0.5) * u, 0, 7); ctx.fill(); }
   }
   // ---- the real map under a card (for the step-by-step sheets only): the mountain from straight above round where the player stood,
