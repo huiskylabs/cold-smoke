@@ -102,7 +102,7 @@ const Skier = (() => {
   // lean/edge: body and ski roll (+ = to the skier's right); crouch 0..1: how far the legs are folded (0.38 m of travel); tuck, air 0..1; sep, headYaw: twist of
   // trunk and head; lead, stance, lift*, pitch*: where the skis are; arm*: offsets of the hands; plant*: the pole touch at a turn; dp: phase of a double-pole
   // stroke (0 = none); grab*: that hand takes hold of the same-side ski beside the binding
-  const CHG_H = 0.22;
+  const CHG_H = 0.20;
   const P0 = { lean: 0, edge: 0, crouch: 0.21, tuck: 0, air: 0, sep: 0, headYaw: 0, lead: 0, stance: 0.31, fore: 0, fa: 0, armL: [0, 0, 0], armR: [0, 0, 0], swing: 0, liftL: 0, liftR: 0, pitchL: 0, pitchR: 0, plantL: 0, plantR: 0, dp: 0, dpn: 0, chg: 0, grabL: 0, grabR: 0 };
   const SEC0 = { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: null, idle: null };
 
@@ -202,7 +202,7 @@ const Skier = (() => {
       // rode up every bump the legs were there to take, half a metre in a mogul field)
       const am = v3.lerp(J.ankleL, J.ankleR, 0.5); if (gd) am[1] -= (Math.max(gyL, 0) + Math.max(gyR, 0)) / 2 - (gd[4] || 0);
       const lp = v3.add(am, v3.mul(L.pel, LabMo.LEG));
-      lp[1] += -0.38 * (c - L.cref) - 0.06 * faF - 0.085 * faA + (liftL + liftR) * 0.5; lp[2] += -(p.fore || 0) * 0.06 - 0.16 * faF + 0.13 * faA;
+      lp[1] += -0.38 * (c - L.cref) - chgH - 0.06 * faF - 0.085 * faA + (liftL + liftR) * 0.5; lp[2] += -(p.fore || 0) * 0.06 - 0.16 * faF + 0.13 * faA;
       lp[1] += (pel[1] - lp[1]) * sat(p.drive || 0);      // (through a jump's drive the hips stand up with the game's legs, see the game's pose.drive)
       pel = v3.lerp(pel, lp, L.w); pb = LabMo.mixB(pb, L.pb, L.w);
       for (let it = 0; it < 3; it++) {
