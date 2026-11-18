@@ -406,7 +406,7 @@ const CardArt = self.CardArt = (() => {
 
   // ---- frames. Three looks to choose between (dev switch 卡框): a thin gold line round a full picture; a cut-corner frame with a medallion
   // on the seam (recommended); a printed card, paper round the picture, red seals for the stamps. Each draws picture, words and stamps.
-  if (typeof Variants !== 'undefined') Variants.def('cardframe', '卡框', [['a', '细金框'], ['b', '切角徽章'], ['c', '版画留白']], 'b');
+  if (typeof Variants !== 'undefined') Variants.def('cardframe', '卡框', [['a', '细金框'], ['b', '切角徽章'], ['c', '版画留白']], 'c');
   const CHIP = { dawn: ['晨', 'D'], day: ['昼', 'N'], dusk: ['昏', 'E'], night: ['夜', 'Z'], clear: ['晴', 'C'], light: ['雪', 'S'], heavy: ['暴', 'H'], ski: ['双', 'S'], board: ['单', 'B'] };
   const cham = (ctx, x, y, w, h, c) => { ctx.beginPath(); ctx.moveTo(x + c, y); ctx.lineTo(x + w - c, y); ctx.lineTo(x + w, y + c); ctx.lineTo(x + w, y + h - c); ctx.lineTo(x + w - c, y + h); ctx.lineTo(x + c, y + h); ctx.lineTo(x, y + h - c); ctx.lineTo(x, y + c); ctx.closePath(); };
   const diamond = (ctx, x, y, r) => { ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath(); };
@@ -561,7 +561,7 @@ const CardArt = self.CardArt = (() => {
   A.draw = function (ctx, W, H, v) {
     const c = v.card, kind = Cards.kinds[c.kind] || null; v.kind = kind;
     const art = Cards.arts[(c.art && c.art.type) || (kind && kind.art) || 'emblem'] || emblem;
-    const f = v.frame || (typeof Variants !== 'undefined' && Variants.val && Variants.val.cardframe) || 'b';
+    const f = v.frame || (typeof Variants !== 'undefined' && Variants.val && Variants.val.cardframe) || 'c';
     ctx.save(); ctx.clearRect(0, 0, W, H);
     (f === 'a' ? frameA : f === 'c' ? frameC : frameB)(ctx, W, H, v, picture(ctx, v, art));
     ctx.restore();
