@@ -98,10 +98,10 @@ const UI = (() => {
     const hh = U.hh, framed = U.framed, fa = faOn(); el.app.classList.toggle('fa', fa);
     /*native{*/if (self.COLD_SMOKE?.spatial) { el.how.textContent = T('选择沉浸模式，或按手柄 Y 进入 · A 出发 / 起跳 · RT 加速') + ' · ' + T('LB / RB 换视角 · X 拍照'); return; }
     /*}native*/if (!hh) {
-      el.how.textContent = T(fa ? '← → 转弯 · ↑ ↓ 压板头 / 板尾 · 空格 跳 · Shift 加速' : '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速');
+      el.how.textContent = T(fa ? '← → 转弯 · 转弯时按 ↓ 压刃拐急 · ↑ 搓雪减速 · 空格 跳 · Shift 加速' : '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速');
       return;
     }
-    const steering = fa ? '按住屏幕，左右拖转弯，上下拖压板头 / 板尾' : framed ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
+    const steering = fa ? '按住屏幕，左右拖转弯，转弯时往下拖压刃拐急，往上拖搓雪减速' : framed ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
     const actions = /*native{*/self.COLD_SMOKE?.nativeWindow ? '下方按钮起跳和加速' : /*}native*/'右下角 跳 / 加速';
     el.how.textContent = T(steering) + ' · ' + T(actions);
   }
@@ -154,7 +154,7 @@ const UI = (() => {
   function showHint(kind) {
     U.hintKind = kind; el.hint.className = kind + ' on';
     el.hintT.textContent = T(kind === 'tilt' ? '像握方向盘一样倾斜手机' : kind === 'drag' ? '按住屏幕，左右拖动' : kind === 'pace' ? '连着转弯，把雪扬起来'
-      : kind === 'moves' ? (U.hh ? '按住「跳」蓄力，松开起跳' : faOn() ? '↑ 压板头入弯 · ↓ 压板尾出弯 · 空格 跳' : '空格 跳（按住蓄力） · ↓ 加速') : '← →  或  A D  转弯');
+      : kind === 'moves' ? (U.hh ? '按住「跳」蓄力，松开起跳' : faOn() ? '转弯时按住 ↓ 压刃拐急 · ↑ 搓雪减速 · 空格 跳' : '空格 跳（按住蓄力） · ↓ 加速') : '← →  或  A D  转弯');
   }
   // per displayed frame
   U.frame = function (dt) {
