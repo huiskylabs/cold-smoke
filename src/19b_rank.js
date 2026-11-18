@@ -25,11 +25,12 @@ const Rank = self.Rank = (() => {
   // 寒烟山 · 整圈 · 标准 on board 4 (the board it already had), boards 1-3 kept for the maps to come. 极速, 最远飞行 and 今日之山 are no longer
   // shown or sent. Their old figures stay on the server for good (km/h, metres; board 4's old minutes): a challenge time goes up as
   // 6000 − seconds, so anything outside 4200..6000 (a time over 30 min) is an old figure and is left out of the lists.
-  const CHAL = [{ map: 'hanyan', line: 'a', board: 4, name: '挑战 · 寒烟山' }];
+  // (用户 2026-11-18 06:51 UTC: 每张地图两条线，速降线和越野线) 寒烟山 · 越野线 · 标准 on board 3 (今日之山's old km/h figures are all under 4200)
+  const CHAL = [{ map: 'hanyan', line: 'a', board: 4, name: '寒烟山 · 速降线' }, { map: 'hanyan', line: 'x', board: 3, name: '寒烟山 · 越野线' }];
   const tfmt = v => { const t = Math.max(0, Math.round((6000 - v) * 100) / 100), m = Math.floor(t / 60), r = t - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(2); };
   const tok = v => v > 4200 && v < 6000;
   const VIEWS = [
-    ...CHAL.map(c => ({ id: 'c-' + c.map, name: c.name, boards: { day: c.board, week: c.board, all: c.board }, fmt: tfmt, ok: tok, chal: true })),
+    ...CHAL.map(c => ({ id: 'c-' + c.map + '-' + c.line, name: c.name, boards: { day: c.board, week: c.board, all: c.board }, fmt: tfmt, ok: tok, chal: true })),
     { id: 'time', name: '滑雪时长', boards: { all: 5 }, fmt: mins },
   ];
   // the challenges are dev-only for now: normal play shows 滑雪时长 alone
@@ -183,7 +184,7 @@ const Rank = self.Rank = (() => {
       if (fatal(code(e))) { off(e); return; }
       me.textContent = T(code(e) === 2002 ? '榜单还在准备，稍后再看' : '暂时读不到榜单，稍后再看');
     }
-    s.appendChild(node('p', 'note', T(bd.chal ? '挑战：这张地图的整圈速降线，标准难度，用时越短越好（含罚时）。今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。' : view === 'd3' ? '今日之山：从山顶一口气滑完前三段的平均速度，北京时间零点换山。每人只留最好的一次。' : view === 'time' ? '滑雪时长只算总榜，一直累计。' : '今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。')));
+    s.appendChild(node('p', 'note', T(bd.chal ? '挑战：这张地图的这条线，标准难度，用时越短越好（含罚时）。今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。' : view === 'd3' ? '今日之山：从山顶一口气滑完前三段的平均速度，北京时间零点换山。每人只留最好的一次。' : view === 'time' ? '滑雪时长只算总榜，一直累计。' : '今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。')));
   }
   // ---- 光圈速降线 (dev, 用户 18:54 UTC 成绩页跟个人最好、全部最好比，还有排名): board 4, all time, the 标准 line only. A shorter time is
   // better but the platform keeps each player's highest, so a time goes up as 6000 − seconds (to a tenth) and comes back the same way.

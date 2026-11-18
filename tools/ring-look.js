@@ -1,12 +1,12 @@
 // Headless shots of the rings ahead at a few distances (playwright's own Chromium, no window): node tools/ring-look.js <outDir> [prefix]
-// Rides the 光圈 line (前三站, 标准) with a pilot aimed at the rings and shoots when the next ring is ~60, ~30 and ~12 m ahead, by day.
+// Rides the 光圈 line (速降线, 标准) with a pilot aimed at the rings and shoots when the next ring is ~60, ~30 and ~12 m ahead, by day.
 const path = require('path'), fs = require('fs'); const { chromium } = require('playwright');
 const out = path.resolve(process.argv[2] || 'ring-look'), pre = process.argv[3] || 'x'; fs.mkdirSync(out, { recursive: true });
 (async () => {
   const b = await chromium.launch({ headless: true, args: ['--enable-unsafe-webgpu', '--enable-gpu', '--ignore-gpu-blocklist'] });
   const pg = await b.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2, locale: 'zh-CN' });
   const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => { if (m.type() === 'error' || /rings|line:/.test(m.text())) errs.push(m.text().slice(0, 200)); });
-  await pg.goto('file://' + path.resolve(__dirname, '../dist/dev.html') + '?dev&v-rline=b&v-ringdiff=b');
+  await pg.goto('file://' + path.resolve(__dirname, '../dist/dev.html') + '?dev&v-rline=a&v-ringdiff=b');
   await pg.waitForFunction(() => window.__ski && window.__rings && __ski.ui().state === 'title', null, { timeout: 180000 });
   await pg.evaluate(() => { __ski.tod('day'); window.__pilot = () => () => {
     const G = __ski.game(), S = G.s, p = S.p, R = __rings, C = __ski.m.Course; const cur = R.rings.find(r => r.pass < 0 && !r.skip); let tx, tz;

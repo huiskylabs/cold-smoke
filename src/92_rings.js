@@ -80,6 +80,12 @@ const Rings = (() => {
     if (L.id) {
       const sE = lineEnd();
       if (L.fin) { RG.rings.push({ id: serial++, s: 1e9, skip: true }); return; }
+      // (越野线: the rings were all laid when the line was set up, along its own way through the trees; the next one past the last)
+      if (L.id === 'x') {
+        const q = xPlan().rings.find(q => q.s > s0 + 0.5);
+        if (q && q.s <= sE - 70) { const c = Course.at(q.s, pc), x = c.cx + q.u, pick = SIZES.find(z => z[0] === q.r) || [q.r, '']; cursor = { s: q.s, u: q.u }; RG.rings.push({ id: serial++, s: q.s, u: q.u, x, y: floatY(x, q.s, q.r, -1e9), r: q.r, tag: pick[1], air: false, off: q.off, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); return; }
+        s = sE;
+      }
       // (用户 21:18 UTC: 最后一个圈要跟倒数第二个离得远一点): a ring that would stand within 70 m of the finish is left out, so the finish
       // ring stands on its own, a long straight run in after the last ring
       if (s > sE - 70) {
@@ -281,8 +287,9 @@ const Rings = (() => {
   // green or red against the best. The last ring is the finish, big and in the middle of the run: through it the clock stops and flares, the
   // time comes up in the middle, and a card slides in from the right while the skier rides on (no rings after it: free skiing again).
   // Backspace starts the line again from the gate; on the card Enter = 再来一局, Esc = 继续滑. Records stay on this device.
-  if (typeof Variants !== 'undefined') Variants.def('rline', '光圈路线', [['off', '关'], ['a', '速降·整圈'], ['b', '速降·前三站']], 'off');
-  const LINES = { a: { n: 12, name: '速降线 · 整圈' }, b: { n: 3, name: '速降线 · 前三站' } };
+  // (用户 2026-11-18 06:51 UTC: 每张地图两条线，速降线沿主路，越野线钻树林、走奇怪的地方，为了 explore；前三站不要了)
+  if (typeof Variants !== 'undefined') Variants.def('rline', '光圈路线', [['off', '关'], ['a', '速降线'], ['x', '越野线']], 'off');
+  const LINES = { a: { n: 12, name: '速降线' }, x: { n: 12, name: '越野线' } };
   const PEN = { a: 2, b: 4, c: 5 }, DNAME = { a: '轻松', b: '标准', c: '难' }, DNEXT = { a: 'b', b: 'c' };
   const L = { id: null, diff: null, st: 'idle', seed: 1, fin: false, sEnd: 0, segs: null, cut: [], names: [], split: [], ci: 0, pen: 0, missSeen: 0, cT: 0, lastF: 0, el: null, rec: null };
   const diffKey = () => (typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b';
@@ -297,6 +304,59 @@ const Rings = (() => {
     L.names = segs.slice(0, n).map((g, i) => (i + 1) + ' ' + ((typeof SEG_NAMES !== 'undefined' && SEG_NAMES[g.type]) || g.type));
     return L.sEnd;
   }
+  // ---- 越野线: one way down through the trees beside the run, the same for every player, found once when the line is set up.
+  // A shortest-path search down the run every 4 m, across it every metre (−90..90 m from the run's centre line): the trees are walls
+  // (within 1.6 m of a crown: never; within 3.5 m: dear), the groomed run is dear (that is the 速降线's), its edge a little dear, in among
+  // the trees beside it cheap, a lane through the forest cheapest; beyond 40 m off the run and not in a lane it climbs the banks, very dear.
+  // It starts and ends on the run (the gate, the finish ring), and goes at most 3 m across for 4 m down. Rings every 34-48 m along it
+  // (further apart on 轻松, closer on 难), sized by 光圈难度 and made smaller where the trees leave no room. tools/ring-plan.js draws it.
+  const XSZ = { a: [[3.0, 2.25], 1.2], b: [[2.25, 1.5], 1.0], c: [[1.5, 1.5], 0.85] };
+  function xPlan() {
+    const sE = lineEnd(), df = L.diff || 'b';
+    if (L.xp && L.xp.sE === sE && L.xp.df === df) return L.xp;
+    const t0 = Date.now(), TC = 4.5, NU = 181, U0 = -90, n = Math.floor(sE / 4) + 1, o = {};
+    const rows = [], cost = new Float32Array(n * NU), lanes = [];
+    for (let k = 0; k < n; k++) {
+      const s = k * 4, c = Course.at(s, pc), cx = c.cx, hw = c.hw || 14, j0 = Math.floor(-s / TC), tr = [];
+      for (let j = j0 - 2; j <= j0 + 2; j++) for (let i = Math.floor((cx + U0 - 8) / TC); i <= Math.floor((cx - U0 + 8) / TC); i++) { Course.treeInCell(i, j, o); if (o.ok) tr.push([o.x, -o.z, o.r]); }
+      rows.push({ s, cx, hw, tr }); const ln = Course.ways(s).slice(1); lanes.push(ln);
+      const dist = new Float32Array(NU).fill(1e9);
+      for (const t of tr) { const ds = t[1] - s; if (Math.abs(ds) > 8) continue; for (let ui = Math.max(0, Math.floor(t[0] - cx - U0 - 8)); ui < NU && ui + U0 + cx < t[0] + 8; ui++) { const d = Math.hypot(ui + U0 + cx - t[0], ds) - t[2]; if (d < dist[ui]) dist[ui] = d; } }
+      for (let ui = 0; ui < NU; ui++) {
+        const u = ui + U0, e = Math.abs(u) - hw, d = dist[ui]; let onl = false; for (const lu of ln) if (Math.abs(u - lu) < 5) onl = true;
+        let q = (d < 1.6 ? 1e6 : 0) + (d < 3.5 ? (3.5 - d) * 6 : 0);
+        if (e < -2) q += 3; if (e > 40 && !onl) q += (e - 40) * (e - 40) * 0.5 + 20; if (onl && e > 0) q -= 4; if (e > 6 && e < 40) q -= 2.5; if (e >= -2 && e <= 6) q += 1;
+        if (s < 60 || s > sE - 120) q += Math.abs(u) * 2;
+        cost[k * NU + ui] = q;
+      }
+    }
+    let acc = cost.slice(0, NU); const back = new Int8Array(n * NU);
+    for (let k = 1; k < n; k++) {
+      const nx = new Float32Array(NU);
+      for (let ui = 0; ui < NU; ui++) { let b = Infinity, bd = 0; for (let du = -3; du <= 3; du++) { const pi = ui - du; if (pi < 0 || pi >= NU) continue; const v = acc[pi] + 0.6 * du * du; if (v < b) { b = v; bd = du; } } nx[ui] = b + cost[k * NU + ui]; back[k * NU + ui] = bd; }
+      acc = nx;
+    }
+    const path = new Int16Array(n); path[n - 1] = -U0;
+    for (let k = n - 1; k > 0; k--) path[k - 1] = path[k] - back[k * NU + path[k]];
+    const pu = []; for (let k = 0; k < n; k++) { let a = 0; for (let m = -2; m <= 2; m++) a += path[Math.min(n - 1, Math.max(0, k + m))] + U0; pu.push(a / 5); }
+    // the rings along it
+    const [sz, gk] = XSZ[df] || XSZ.b; let r0 = 1 + { a: 11, b: 12, c: 13 }[df] * 7919;
+    const rr = () => { r0 = (r0 * 16807) % 2147483647; return (r0 - 1) / 2147483646; };
+    const rings = []; let s = 40;
+    for (;;) {
+      s += (34 + 14 * rr()) * gk; if (s > sE - 70) break;
+      const k = Math.min(n - 1, Math.round(s / 4)), R = rows[k], u = pu[k], x = R.cx + u;
+      let r = rr() < 0.5 ? sz[0] : sz[1], room = 1e9;
+      for (const t of R.tr) room = Math.min(room, Math.hypot(t[0] - x, t[1] - R.s) - t[2]);
+      while (r > 1.5 && room < r + 0.8) r = r > 2.5 ? 2.25 : 1.5;
+      if (room < 2) continue;
+      rings.push({ s: R.s, u, r, off: Math.abs(u) > R.hw });
+    }
+    let off = 0; for (let k = 0; k < n; k++) if (Math.abs(pu[k]) > rows[k].hw) off++;
+    L.xp = { sE, df, rings, path: pu, off: off / n, ms: Date.now() - t0 };
+    return L.xp;
+  }
+  RG.xPlan = () => L.id === 'x' ? xPlan() : null;          // (for test scripts)
   function beep(f, d, g) {
     try { const A = Sound.ctx; if (!A || !Sound.on) return; const o = A.createOscillator(), v = A.createGain(), t = A.currentTime; o.type = 'sine'; o.frequency.value = f; v.gain.setValueAtTime(0, t); v.gain.linearRampToValueAtTime(g, t + 0.012); v.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(v); v.connect(A.destination); o.start(t); o.stop(t + d + 0.05); } catch (e) { }
   }
@@ -482,10 +542,10 @@ const Rings = (() => {
   // ---- 挑战 on the title page (dev). (用户 21:31 UTC: 出发就是普通地滑；出发底下加一个「挑战」，点开以后再选路线这些.) 出发 and Enter are always
   // free skiing; 挑战 (a button in the left column like 场景 / 视角) opens a panel: the lines with this device's best, the difficulty,
   // then 开始挑战 (or Enter), which counts down 3, 2, 1. Esc or 取消 closes it.
-  const PICK = [['a', '速降 · 整圈', '12 站，从山顶到山脚'], ['b', '速降 · 前三站', '3 站，一分钟上下']];
+  const PICK = [['a', '速降线', '沿主路，从山顶到山脚'], ['x', '越野线', '钻树林、走侧道，从山顶到山脚']];
   // (用户 2026-11-18 02:38 UTC: 挑战是根据地图挑战，每个地图都有不同的挑战) each map has its own lines; the panel lists the current map's only.
   // A map = an official mountain (Course.mountains). Today there is one, 寒烟山, with these two lines; a mountain with none says so
-  const MAP_LINES = { hanyan: ['a', 'b'] };
+  const MAP_LINES = { hanyan: ['a', 'x'] };
   const mapNow = () => { try { const m = Course.mountainBySeed(); return m ? m : null; } catch (e) { return null; } };
   const mapLines = () => { const m = mapNow(); return m && MAP_LINES[m.id] ? MAP_LINES[m.id] : []; };
   // the ranked line's board (小红书): the 标准 run of a map's ranked line only (用户 02:40 UTC: 每张地图一条长线上榜)
