@@ -64,7 +64,11 @@ if (typeof Variants !== 'undefined') {
   // channel. b keeps those lines clear. a: as it was
   Variants.def('rclear', '雪道清障', [['a', '原来'], ['b', '雪道上无树']], 'b');
   // (a change lays the same mountain out again)
-  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'route' || n === 'rclear') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
+  // the boulders on the run: a, a swell of the ground itself that bares a little rock where it is steep (from close by it read as a mound
+  // of snow); b, a stone (a mesh, 14c_boulders.js) standing in a low drift, dark where it is too steep to hold snow, a cap of old snow on top.
+  // Everything that looks like a stone stops the skier, the mounds along the edges included
+  Variants.def('boulder', '石头', [['a', '雪包'], ['b', '石头带残雪']], 'a');
+  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'route' || n === 'rclear' || n === 'boulder') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
 }
 // slope scale and how much further a run of ~30 s then reaches (pace: the test pilot's distance over 30 s against a, 2026-11-14)
 const SLOPE_K = { a: { k: 1, pace: 1 }, b: { k: 0.75, pace: 0.89 }, c: { k: 0.6, pace: 0.69 } };
@@ -116,7 +120,7 @@ const Course = ((vn1, vn2, h2U) => {
     const tv = typeof Variants !== 'undefined' ? Variants.val : {};
     C.lv = TERR_LV[tv.tdiff] ? tv.tdiff : 'b'; LV = tv.terr === 'b' ? TERR_LV[C.lv] : null; C.rich = !!LV; C.isl = LV ? LV.isl : 1;
     trng = RNG((KEY ^ 0x7e4a11) + 131 * C.lv.charCodeAt(0));
-    C.route = tv.route === 'b'; C.rclear = tv.rclear === 'b';
+    C.route = tv.route === 'b'; C.rclear = tv.rclear === 'b'; C.boulder = tv.boulder === 'b';
     planTo(4000);
     return C.seed;
   };
@@ -403,7 +407,7 @@ const Course = ((vn1, vn2, h2U) => {
   // where a boulder shows bare rock (0..1; the terrain shader bares only what is steep within it). A drop stays snow: a ledge with a
   // rounded, wind-packed lip (bare rock on its face was tried and read as a dark slab)
   C.rockAt = function (x, z) {
-    if (!LV) return 0;
+    if (!LV || C.boulder) return 0;
     const s = -z, fb = C.feats.get(Math.floor(s / 32)); if (!fb) return 0;
     let u = null, k = 0;
     for (let i = 0; i < fb.length; i++) {
@@ -416,7 +420,7 @@ const Course = ((vn1, vn2, h2U) => {
   // (for the game) a boulder is something to go round, not a ramp: the skier's body is told only of a low swell where one stands (C.rockCap,
   // set while the physics asks), and where the drawn rock stands more than ROCK_WALL above the snow it is a wall, as a trunk is. rockHit
   // fills o with the point on that wall's foot nearest the skier and its outward normal, and returns the rock (null where there is none)
-  const ROCK_WALL = 0.45;
+  const ROCK_WALL = 0.45, BOULDER_FOOT = 0.74;
   function rockQ0(f) {        // the q at which the drawn rock stands ROCK_WALL high (its profile falls from the middle out)
     if (f.q0 === undefined) { let a = 0, b = 1; for (let i = 0; i < 18; i++) { const q = (a + b) * 0.5, hr = f.h * (0.45 * Math.sqrt(1 - q * q) + 0.55 * smooth(1, 0.5, q)); if (hr > ROCK_WALL) a = q; else b = q; } f.q0 = f.h > ROCK_WALL ? a : 0; }
     return f.q0;
@@ -426,9 +430,10 @@ const Course = ((vn1, vn2, h2U) => {
     const s = -z, fb = C.feats.get(Math.floor(s / 32)); if (!fb) return null;
     const c = at(s, _py), u = x - c.cx;
     for (let i = 0; i < fb.length; i++) {
-      const f = fb[i]; if (f.kind !== 'rock' || f.snow) continue;
-      const q0 = rockQ0(f); if (q0 <= 0) continue;
-      const k = s < f.cs ? 0.45 : 1, ds = (s - f.cs) * k, du = u - f.u, q = Math.hypot(ds, du) / f.rad;
+      const f = fb[i]; if (f.kind !== 'rock' || (f.snow && !C.boulder)) continue;
+      // (b: the stone's own foot, round, where it comes out of its drift: BOULDER_FOOT of its radius)
+      const q0 = C.boulder ? BOULDER_FOOT : rockQ0(f); if (q0 <= 0) continue;
+      const k = s < f.cs && !C.boulder ? 0.45 : 1, ds = (s - f.cs) * k, du = u - f.u, q = Math.hypot(ds, du) / f.rad;
       if (q >= q0) continue;
       const g = q > 1e-4 ? q0 / q : 0, gs = q > 1e-4 ? ds : -1, gu = q > 1e-4 ? du : 0;
       o.x = c.cx + f.u + (q > 1e-4 ? du * g : 0); o.z = -(f.cs + (q > 1e-4 ? ds * g : -q0 * f.rad) / k);
@@ -436,6 +441,12 @@ const Course = ((vn1, vn2, h2U) => {
       return f;
     }
     return null;
+  };
+  C.boulderDrift = f => f.h * 0.3;
+  // (for 14c_boulders.js) every boulder laid out between s0 and s1, once each
+  C.boulders = function (s0, s1, fn) {
+    const seen = new Set();
+    for (let b = Math.floor(s0 / 32); b <= Math.floor(s1 / 32); b++) { const fb = C.feats.get(b); if (fb) for (const f of fb) if (f.kind === 'rock' && !seen.has(f)) { seen.add(f); if (f.cs >= s0 && f.cs < s1) fn(f, at(f.cs, _py).cx + f.u, -f.cs); } }
   };
   function addFeat(f) { const b0 = Math.floor((f.s - 4) / 32), b1 = Math.floor((f.s + f.len + 30) / 32); for (let b = b0; b <= b1; b++) { let a = C.feats.get(b); if (!a) C.feats.set(b, a = []); a.push(f); } }
 
@@ -664,6 +675,12 @@ const Course = ((vn1, vn2, h2U) => {
     if (fb) for (let i = 0; i < fb.length; i++) {
       const f = fb[i];
       if (f.kind === 'rock') {
+        if (C.boulder) {
+          // (b: the stone is drawn on its own; the ground carries only the snow drifted round it, a third of its height, long up the hill)
+          const q = Math.hypot((s - f.cs) * (s < f.cs ? 0.38 : 0.85), u - f.u) / (f.rad * 1.3);
+          if (q < 1) { const hr = C.boulderDrift(f) * smooth(1, 0, q); h += C.rockCap > 0 ? C.rockCap * (1 - Math.exp(-hr / C.rockCap)) : hr; }
+          continue;
+        }
         const q = Math.hypot((s - f.cs) * (s < f.cs ? 0.45 : 1), u - f.u) / f.rad;
         if (q < 1) { const hr = f.h * (0.45 * Math.sqrt(1 - q * q) + 0.55 * smooth(1, 0.5, q)); h += C.rockCap > 0 ? C.rockCap * (1 - Math.exp(-hr / C.rockCap)) : hr; }      // (round on top, steep but not sheer at the sides: a sheer one cannot be drawn without teeth)
         continue;

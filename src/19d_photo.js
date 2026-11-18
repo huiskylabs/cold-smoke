@@ -116,6 +116,7 @@ const Photo = self.Photo = (() => {
     Terrain.update(c.pos[0], c.pos[2]);
     Trees.update(c, o, Render.W / Render.H, Game.root.pos, 0);
     if (typeof Gates !== 'undefined') Gates.update(c, o, Game.root.pos, 0, App.t);
+    if (typeof Boulders !== 'undefined') Boulders.update(c, o);
   }
   P.drawFrozen = function () {
     redraw();
