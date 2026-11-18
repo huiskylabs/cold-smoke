@@ -65,9 +65,11 @@ const Skier = (() => {
   // a fist's frame at the grip: y up the pole, z toward the wrist (square to the pole), x = y cross z (out of the back of a right hand; the left
   // hand's glove is mirrored, so for both x is the body's right when the arms hang easy). With the forearm laid along the pole (a tuck: the shafts
   // under the arms) "toward the wrist" is lost: there the body's right (rt) takes over, so the backs of the hands stay turned out and never flip
-  function fistFrame(g, pd, wr, rt) {
-    const y = v3.norm(v3.mul(pd, -1)), w = v3.sub(wr, g), wz = v3.sub(w, v3.mul(y, v3.dot(w, y)));
-    return frameXY(g, y, v3.add(v3.cross(y, wz), v3.mul(rt, 0.025)));
+  // (k, 新求解器: in a tuck the shaft lies nearly along the forearm and the fist is rolled round it as a skier holds it, palms toward each other: the backs
+  // of the hands out, whatever side of the shaft the wrist is on. Measured 2026-11-18: by the wrist alone both palms faced out through every tuck)
+  function fistFrame(g, pd, wr, rt, k) {
+    const y = v3.norm(v3.mul(pd, -1)), w = v3.sub(wr, g), wz = v3.sub(w, v3.mul(y, v3.dot(w, y))), c = v3.cross(y, wz);
+    return frameXY(g, y, k > 0 ? v3.add(v3.mul(c, 1 - k), v3.mul(rt, 0.025 + k * Math.max(v3.len(c), 0.05))) : v3.add(c, v3.mul(rt, 0.025)));
   }
   const fr = (b, x, y, z) => [b.X[0] * x + b.Y[0] * y + b.Z[0] * z, b.X[1] * x + b.Y[1] * y + b.Z[1] * z, b.X[2] * x + b.Y[2] * y + b.Z[2] * z];   // a vector given in a basis
   const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - h * h * k * 0.25; };
@@ -306,7 +308,7 @@ const Skier = (() => {
       t = v3.add(t, [sec.hand[0], sec.hand[1] + side * sec.drop, sec.hand[2]]);
       { const o = off(t); t = v3.mad(t, nl, -smin(-o, -0.20, 0.06) - o); }
       // tuck: fists a little apart just under the line of the chin, forearms up in front of the knees
-      if (tuck > 0) { const tk = v3.add(J.head, fr(hl, side * 0.095, -0.23, -0.17)); t = v3.lerp(t, tk, smooth(0, 1, tuck)); }
+      if (tuck > 0) { const tk = v3.add(J.head, fr(hl, side * 0.095, -0.23, -0.17)); t = v3.lerp(t, tk, sec.gnd ? smooth(0, 0.45, tuck) : smooth(0, 1, tuck)); }
       if (air > 0) { const ta = v3.add(J.chest, fr(t2, side * 0.54, 0.06, -0.22)); t = v3.lerp(t, ta, air * 0.8 * (1 - g)); }
       t = v3.add(t, side < 0 ? armL : armR);
       // pole: trails behind with the basket just off the snow
@@ -316,6 +318,13 @@ const Skier = (() => {
       if (air > 0) d = nlerp(d, v3.norm([side * 0.34, -0.22, 0.92]), air * 0.8);
       // tuck: clamped under the arm, the shaft runs back past the outside of the hip and rises to end behind and above the seat
       // (wide enough of the hip to clear the jacket, whose hem stands out past the hip's own shape: 0.30 put the shaft through it)
+      // (新求解器: the owner, 2026-11-17: "握是收到两个腋窝之间，胳膊夹住杖出去". The shaft runs from the fist back through the armpit (7 cm under the shoulder
+      // joint, 3 cm in from it), held there by the upper arm, and ends behind and above the hips)
+      const pit = v3.add(sh, fr(t2, side * 0.01, -0.07, 0)), tkw0 = smooth(0.15, 0.6, tuck);
+      // (...and only as the fist itself comes in between the shoulders: tkIn, how far in it is. A point just outside the ribs is aimed at, so the shaft lies
+      // against the jacket and not in it)
+      const tkIn = q => 1 - smooth(0.18, 0.40, side * v3.dot(v3.sub(q, J.chest), t2.X)); let tkw = tkw0 * tkIn(t);      // (a designed order: the fists come in first, by 0.45 of the way down; then the shafts swing in under the arms, by 0.6; the body is all the way down last. Aimed at the armpit from a fist still out wide, a shaft pointed through the chest)
+      if (tuck > 0 && sec.gnd) d = nlerp(d, v3.norm(v3.sub(pit, t)), tkw); else
       if (tuck > 0) { const tt = v3.add(pel, fr(pl, side * 0.54, 0.16, 0.36)), tw = smooth(0, 1, tuck); d = nlerp(d, v3.norm(v3.sub(tt, t)), tw); }
       d[1] += 0.10 * Math.sin((p.swing || 0) * side) * (1 - tuck) * (1 - dpw); d = v3.norm(d);
       // the plant: the basket swings forward and goes in beside its own ski, about level with the ski tip. The body may still be laid over the other
@@ -410,8 +419,10 @@ const Skier = (() => {
           const g0 = G(0), M = 0.005, Bd = 0.02, T = g0 >= M + Bd ? g0 : g0 <= M - Bd ? M : g0 + (M + Bd - g0) * (M + Bd - g0) / (4 * Bd);
           // (never turned further than the clearance asked for would take it straight out: where turning hardly clears it, it is left nearly where it
           // hangs. Turned as far as it took, an elbow lying along a thigh went 5 cm out and came back in one frame)
-          if (T > g0 + 1e-5) { let th = 0, g = g0; const dg0 = (G(0.02) - G(-0.02)) / 0.04, sg = Math.sign(dg0), lim = (T - g0) / (rho * 0.8);
-            if (sg) for (let it = 0; it < 3; it++) { const dg = it ? (G(th + 0.02) - G(th - 0.02)) / 0.04 : dg0; th = clamp(th + (T - g) / (sg * Math.max(sg * dg, rho * 0.8)), -lim, lim); g = G(th); if (g >= T - 1e-4) break; }
+          // (and the less, the less turning helps: where turning either way clears it equally the elbow stays where it hangs, so it never has two ways
+          // to go and one frame to choose in. Measured 2026-11-18: choosing by the sign alone, 39 more arm jolts in one run of deep turns)
+          if (T > g0 + 1e-5) { let th = 0, g = g0; const lam = rho * 0.4, d0 = (G(0.02) - G(-0.02)) / 0.04, lim = Math.min(T - g0, 0.03) / (rho * 0.8) * Math.abs(d0) / Math.sqrt(d0 * d0 + lam * lam);
+            for (let it = 0; it < 3; it++) { const dg = (G(th + 0.02) - G(th - 0.02)) / 0.04; th = clamp(th + (T - g) * dg / (dg * dg + lam * lam), -lim, lim); g = G(th); if (g >= T - 1e-4) break; }
             e = at(th); } }
       } else
       { const q = pushOut(e, 0.055, side, 7); if (q !== e) e = ik2(sh, t, LEN.uarm, LEN.farm + LEN.grip, v3.sub(q, v3.lerp(sh, t, 0.5))); }
@@ -427,12 +438,13 @@ const Skier = (() => {
         if (sg < 0) for (const q of [fr(hl, side * 0.40, 0.25, 0.88), fr(hl, side * 0.30, 0.60, 0.74), [0, 0.86, 0.5]]) { const qn = v3.norm(q), qg = shaftGap(t, qn); if (qg > sg) { safe = qn; sg = qg; } if (sg >= 0) break; }
         for (let i = 1; i <= N; i++) if (shaftGap(t, nlerp(d, safe, i / N)) >= 0) { b1 = i / N; b0 = (i - 1) / N; break; }
         for (let i = 0; i < 7 && b1 > b0; i++) { const m = (b0 + b1) / 2; if (shaftGap(t, nlerp(d, safe, m)) >= 0) b1 = m; else b0 = m; }
-        d = nlerp(d, safe, b1 * (1 - planted));
+        d = nlerp(d, safe, b1 * (1 - planted) * (sec.gnd ? 1 - tkw : 1));      // (新求解器: not in a tuck, where the shaft lies against the ribs under the arm by design)
       }
       // (what the pole does is worked out afresh each frame from many rules (the swing to the plant, clear of the legs, clear of the body, trailing),
       // and where one of them takes over from another the shaft could swing round in a single frame: a twitch of the pole the eye catches at once.
       // So, while the snow does not have it, the pole's direction follows what is worked out over a twentieth of a second (sec.pf, kept by update; a
       // second solve of the same frame starts from the same place). Never past it: there is nothing here to swing back)
+      if (tuck > 0 && sec.gnd) { tkw = tkw0 * tkIn(t); d = nlerp(d, v3.norm(v3.sub(pit, t)), tkw * (1 - planted) * (1 - g)); }      // (from where the fist ended up)
       const pf = sec.pf ? sec.pf[side < 0 ? 0 : 1] : null;
       if (pf) { if (pf.n !== sec.pfN) { pf.p = pf.o; pf.n = sec.pfN; } if (pf.p && sec.pfDt > 0 && planted < 1) d = slerp(pf.p, d, lerp(1 - Math.exp(-sec.pfDt / 0.05), 1, planted)); pf.o = d; }
       // (新求解器: and outside its own ski: the basket trails at least 15 cm clear of the ski's edge, measured across the ski as it lies on the snow. With the
@@ -455,7 +467,7 @@ const Skier = (() => {
     // direction: the shaft went through the thigh in four on-snow frames of ten)
     const MO2 = typeof Variants !== 'undefined' && Variants.val.mo2 === 'b';
     if (L && L.w > 0) for (let k = 0; k < 2; k++) { const sd = k ? 'R' : 'L', h = k ? hR : hL, side = k ? 1 : -1;
-      const wa = ez(sec, 'wa' + k, L.w * (1 - Math.max(sat((k ? p.plantR : p.plantL) * 1.5 || 0), sat(h.planted * 2))) * (1 - dpw), 18); if (!(wa > 1e-4)) continue;      // (handed over eased, never in a frame)
+      const wa = ez(sec, 'wa' + k, L.w * (1 - Math.max(sat((k ? p.plantR : p.plantL) * 1.5 || 0), sat(h.planted * 2))) * (1 - dpw) * (sec.gnd ? 1 - smooth(0, 0.3, tuck) : 1), 18); if (!(wa > 1e-4)) continue;      // (新求解器: nor in a tuck: there the fists and the shafts have their one place, hand()'s, and a second pair of arms mixed in held them out of it through the whole way down)      // (handed over eased, never in a frame)
       const sh = J['sh' + sd], le = v3.mad(sh, L.ua[k], LEN.uarm); let lg = pushOut(v3.mad(le, L.fa[k], LEN.farm + LEN.grip), 0.045, side);
       if (MO2) { const hpS = k ? hipR : hipL, anS = k ? J.ankleR : J.ankleL, lgV = v3.sub(hpS, anS), nlq = v3.norm([side * lgV[1], -side * lgV[0], 0]), oq = v3.dot(v3.sub(lg, anS), nlq); lg = v3.mad(lg, nlq, -smin(-oq, -0.17, 0.06) - oq); }
       const e = v3.mad(sh, v3.norm(v3.sub(v3.lerp(J['elbow' + sd], le, wa), sh)), LEN.uarm), g = v3.mad(e, v3.norm(v3.sub(v3.lerp(J['grip' + sd], lg, wa), e)), LEN.farm + LEN.grip);
@@ -479,7 +491,7 @@ const Skier = (() => {
     // (the pole's frame is also the fist's: y up the grip, x out of the back of the hand, z back toward the wrist, the same axes as the first-person
     // glove's hand space (07d_fpv.js), so the glove closed round the grip (Variants 'hand' b) rides on it and opens toward the forearm whichever way
     // the pole swings. The pole itself is round: turning its frame about the shaft changes nothing on it)
-    { const rt = [F[B.chest][0], F[B.chest][1], F[B.chest][2]]; F[B.poleL] = fistFrame(J.gripL, J.poleDL, J.wristL, rt); F[B.poleR] = fistFrame(J.gripR, J.poleDR, J.wristR, rt); }
+    { const rt = [F[B.chest][0], F[B.chest][1], F[B.chest][2]]; const fk = sec.gnd ? smooth(0.15, 0.6, tuck) : 0; F[B.poleL] = fistFrame(J.gripL, J.poleDL, J.wristL, rt, fk); F[B.poleR] = fistFrame(J.gripR, J.poleDR, J.wristR, rt, fk); }
     // (what the stroke did this time: where the tips are held, how far along the hands are, whether a tip has gone out of reach)
     const dp = dpw > 0 && hL.T ? { T: [hL.T, hR.T], u: [hL.u, hR.u], out: dpOut || Math.max(hL.ur, hR.ur) > 1 } : null;
     return { J, F, hb, t1, t2, pb, fbL: fbl, fbR: fbr, caps, c, hinge, up2, dp, hp: [hL.hp, hR.hp], br: ibr };
