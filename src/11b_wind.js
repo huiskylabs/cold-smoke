@@ -110,6 +110,9 @@ const Wind = (() => {
     W.wx = wx; W.wz = wz; W.ws = ws;
     // how hard it blows up on the crests: there is wind enough aloft on a clear day to smoke the high ridges, and a storm smokes them all
     W.plume = kv * (0.8 + 0.7 * smooth(2.5, 9, ws) + 0.35 * ks);
+    // (金色雪旗 above the trees on a clear day: the owner's video shows still air on the ridges, and the wisps stood up off every crest as
+    // pale vertical smudges against the deep blue sky. Only a storm smokes them there)
+    if (typeof Metro !== 'undefined' && Metro.kind() === 'd' && Variants.val.dalp === 'b') W.plume *= smooth(0.3, 0.8, ks);
     // and along the ground: some on the open slopes even in a breeze (a ridge more: it stands in the wind), much more in a storm; little where
     // the trees stand in the run (a glade)
     const c = Course.at(-cam.pos[2] + 20), open = 1 - 0.85 * (c.glade || 0);
