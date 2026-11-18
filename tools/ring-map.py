@@ -8,7 +8,7 @@ from matplotlib.patches import Circle
 for f in fm.findSystemFonts():
     if 'wqy' in f.lower(): fm.fontManager.addfont(f); plt.rcParams['font.family']=[fm.FontProperties(fname=f).get_name()]
 plt.rcParams['axes.unicode_minus']=False
-G=json.load(open(sys.argv[1])); P=json.load(open(sys.argv[2])); out=sys.argv[3]; d=P['diffs']['b']; T=P['terrain']
+G=json.load(open(sys.argv[1])); P=json.load(open(sys.argv[2])); out=sys.argv[3]; DK=sys.argv[4] if len(sys.argv)>4 else 'b'; d=P['diffs'][DK]; T=P['terrain']
 S=np.array([r['s'] for r in G]); CX=np.array([r['cx'] for r in G]); H=np.array([r['h'] for r in G]); U=np.arange(-90,91,2)
 # local relief: height minus a smooth along-slope trend, hillshade from gradients
 trend=np.array([np.convolve(H[:,k],np.ones(41)/41,mode='same') for k in range(H.shape[1])]).T
@@ -52,5 +52,5 @@ for fig_i in range(0,parts,3):
     h=[plt.Line2D([],[],color='#1f5fbf',label='主道边界'),plt.Line2D([],[],color='#3fa7d6',lw=6,alpha=0.55,label='林间雪槽'),plt.Line2D([],[],color='#d9a441',lw=6,alpha=0.55,label='林间小道'),
        plt.Line2D([],[],marker='o',ls='',color='#1e4d2b',label='树'),plt.Line2D([],[],color='#ff7a1a',lw=2.2,label='越野线路线'),plt.Line2D([],[],marker='o',ls='',mfc='none',mec='#e0361b',label='光圈（序号）')]
     fig.legend(handles=h,loc='upper center',bbox_to_anchor=(0.5,0.968),ncol=7,fontsize=11,frameon=False)
-    fig.suptitle('越野线 · 标准 · 全程平面图（%d 个圈）  底图：地形明暗，蓝 = 低洼/槽，红 = 隆起'%len(rings),y=0.993,fontsize=13)
+    fig.suptitle('越野线 · %s · 全程平面图（%d 个圈）  底图：地形明暗，蓝 = 低洼/槽，红 = 隆起'%({'a':'轻松','b':'标准','c':'难'}[DK],len(rings)),y=0.993,fontsize=13)
     plt.tight_layout(rect=[0,0,1,0.95]); plt.savefig(out%(fig_i//3+1),dpi=110); plt.close(fig)
