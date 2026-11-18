@@ -989,12 +989,16 @@ fn frag(v: VOut) -> FOut {
       let st: f32 = fallNoise(wxz, fdB, 9.0, 95.0, vec2f(0.71, 0.13));
       let st2: f32 = fallNoise(wxz, fdB, 26.0, 170.0, vec2f(0.29, 0.83));
       let blk: f32 = tex(tDetail, wxz / 23.0 + vec2f(0.21, 0.63)).z;
-      ra = vec3f(0.29, 0.265, 0.245) * (0.62 + 0.60 * st2) * (0.84 + 0.32 * st) * (0.85 + 0.30 * blk) * (1.0 - 0.40 * smoothstep(0.36, 0.26, ck) * near);
+      ra = vec3f(0.33, 0.275, 0.235) * (0.62 + 0.60 * st2) * (0.84 + 0.32 * st) * (0.85 + 0.30 * blk) * (1.0 - 0.40 * smoothstep(0.36, 0.26, ck) * near);
       ra *= 1.0 - 0.35 * (1.0 - smoothstep(0.55, 0.95, rock));
       lip = smoothstep(0.70, 0.80, st + 0.25 * (st2 - 0.5) + 0.35 * (Nm.y - 0.55)) * smoothstep(1400.0, 200.0, dist);
+      // (round 7, Okuhida: the face is laced with snow, thin runnels a few metres across down every groove and on every small ledge, so from
+      // any distance the rock reads as dark ribs between white threads, not as a bare grey slab)
+      let fine: f32 = fallNoise(wxz, fdB, 3.5, 38.0, vec2f(0.47, 0.91));
+      lip = max(lip, smoothstep(0.62, 0.72, fine + 0.30 * (st - 0.5)) * 0.9 * smoothstep(1800.0, 150.0, dist));
     }
     var rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
-    ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.02, 0.98, 0.95), 0.35); }' : ''}
+    ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.02, 0.98, 0.95), 0.15); }' : ''}
     col = mix(col, rc, rock * (1.0 - 0.9 * lip));
   }
   // distant forest reads as a dark speckled carpet with long shadows
@@ -1061,7 +1065,9 @@ fn frag(v: VOut) -> FOut {
   }
   // (金色雪旗: mist lying on the valley walls past the near trees, as in a Rockies valley after snow: torn banks at about half the walls'
   // height that drift slowly and let the forest through in holes; it climbs with distance, so it clings to the walls and never lies on the run)
-  if (U.world.x > 2.5) {
+  // (not on the clear day of the owner's video: there the cloud lies as a sea below the peaks, and a bank painted onto the face read as a
+  // white smudge on the rock, round 6)
+  if (U.world.x > 2.5 && !${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b' && Variants.val.dlight === 'c') ? 'true' : 'false'}) {
     let mv: vec3f = wp - U.camPos.xyz; let md: f32 = length(mv);
     let hc: f32 = 40.0 + 0.16 * md; let hw: f32 = 14.0 + 0.012 * md;
     let mdr: vec2f = vec2f(U.camPos.w * 0.9, U.camPos.w * 0.35);
