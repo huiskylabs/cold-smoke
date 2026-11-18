@@ -113,7 +113,9 @@ if (require.main === module) (async () => {
             out.bas.push([r3(col(Fp, 0)), r3(col(Fp, 1)), r3(col(Fs, 1)), r3(col(Fc, 0)), r3(col(Fc, 1)), r3(s.hb.X), r3(s.hb.Y), r3(s.hb.Z), r3(col(fl_, 0)), r3(col(fl_, 2)), r3(col(fr_, 0)), r3(col(fr_, 2))]); }
           out.arm.push([r3(p.armL), r3(p.armR)]);
           // (评分器用：两块板和两只手的完整坐标系 X,Y,Z,位置；板的是游戏的雪板骨，手的是手骨)
-          { const fr = m => [r3(col(m, 0)), r3(col(m, 1)), r3(col(m, 2)), r3(col(m, 3))]; out.ff.push([fr(s.F[FB.footL]), fr(s.F[FB.footR])]); out.hf.push([fr(s.F[FB.handL]), fr(s.F[FB.handR])]); }
+          { const fr = m => [r3(col(m, 0)), r3(col(m, 1)), r3(col(m, 2)), r3(col(m, 3))]; out.ff.push([fr(s.F[FB.footL]), fr(s.F[FB.footR])]); out.hf.push([fr(s.F[FB.handL]), fr(s.F[FB.handR])]);
+            // （拳的朝向：手套是跟着握杖的拳这个坐标走的，不是跟着手骨。X 轴 = 右手的手背方向；左手手套是镜像的，所以两只手自然握杖时 X 都指向身体的右）
+            out.pf = out.pf || []; out.pf.push([fr(s.F[FB.poleL]), fr(s.F[FB.poleR])]); }
           out.fl.push([r5(F.w), r5(F.ph), r5(F.rem), r5(F.soak), r5(F.reach), r5(F.prep), r5(F.ld), r5(F.sink), r5(G.timeScale), r5(F.q.yaw), r5(F.q.flip), r5(F.q.own), r5(F.gnd), r5(F.l), r5(F.Xs)]);
           // 雪板两端离雪面的高度（世界坐标）：尾、尖
           { const o = M.Render.origin, sg = W.seg, h = (q) => r5(q[1] + o[1] - C.height(q[0] + o[0], q[2] + o[2], 0.5)); out.skis.push([h(sg[0][0]), h(sg[0][1]), h(sg[1][0]), h(sg[1][1])]); }

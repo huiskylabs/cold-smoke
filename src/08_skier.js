@@ -435,6 +435,10 @@ const Skier = (() => {
       // second solve of the same frame starts from the same place). Never past it: there is nothing here to swing back)
       const pf = sec.pf ? sec.pf[side < 0 ? 0 : 1] : null;
       if (pf) { if (pf.n !== sec.pfN) { pf.p = pf.o; pf.n = sec.pfN; } if (pf.p && sec.pfDt > 0 && planted < 1) d = slerp(pf.p, d, lerp(1 - Math.exp(-sec.pfDt / 0.05), 1, planted)); pf.o = d; }
+      // (新求解器: and outside its own ski: the basket trails at least 15 cm clear of the ski's edge, measured across the ski as it lies on the snow. With the
+      // legs laid over in a turn the outside ski runs far out from under the body, and a pole that only kept clear of the leg trailed across its tail)
+      if (sec.gnd && planted < 1 && g < 1 && tuck < 1) { const ft = side < 0 ? J.footL : J.footR, bX = (side < 0 ? fbL : fbR).X, xl = Math.hypot(bX[0], bX[2]) || 1, xh = [bX[0] / xl, 0, bX[2] / xl], tp = v3.mad(t, d, PL), o = side * v3.dot(v3.sub(tp, ft), xh);
+        d = nlerp(d, v3.norm(v3.sub(v3.mad(tp, xh, side * (-smin(-o, -0.21, 0.06) - o)), t)), (1 - planted) * (1 - g) * (1 - tuck) * (1 - air)); }
       // (and the tip never goes under the snow, except to be planted)
       { const sy = clamp((lerp(0.035, DP.TIPY, low) - 0.045 * deep - t[1]) / PL, -1, 1); if (d[1] < sy) { const hz = Math.hypot(d[0], d[2]), k = Math.sqrt(1 - sy * sy) / (hz || 1); d = hz > 1e-6 ? [d[0] * k, sy, d[2] * k] : [0, sy, Math.sqrt(1 - sy * sy)]; } }
       return { w: t, e, d, planted, T: Tm, u: uo, ur, slip, hp };
