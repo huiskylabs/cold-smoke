@@ -34,6 +34,8 @@ const Skier = (() => {
   let bind = null, invBind = [];
 
   // yaw (turning the facing direction toward +x), pitch (tipping forward, toward -z), roll (tipping toward +x)
+  // (a basis turned about the upright by a: the game's own twist put onto a trunk the lab's posture supplied)
+  const yawB = (B, a) => { if (!a) return B; const c = Math.cos(a), n = Math.sin(a), r = q => [q[0] * c - q[2] * n, q[1], q[0] * n + q[2] * c]; const o = { X: r(B.X), Y: r(B.Y) }; if (B.Z) o.Z = r(B.Z); return o; };
   function basis(yaw, pitch, roll) {
     const cp = Math.cos(pitch), sp = Math.sin(pitch), cr = Math.cos(roll), sr = Math.sin(roll), cy = Math.cos(yaw), sy = Math.sin(yaw);
     const f = v => { // pitch, then roll, then yaw
@@ -103,7 +105,7 @@ const Skier = (() => {
   // trunk and head; lead, stance, lift*, pitch*: where the skis are; arm*: offsets of the hands; plant*: the pole touch at a turn; dp: phase of a double-pole
   // stroke (0 = none); grab*: that hand takes hold of the same-side ski beside the binding
   const CHG_H = 0.20;
-  const P0 = { lean: 0, edge: 0, crouch: 0.21, tuck: 0, air: 0, sep: 0, headYaw: 0, lead: 0, stance: 0.31, fore: 0, fa: 0, armL: [0, 0, 0], armR: [0, 0, 0], swing: 0, liftL: 0, liftR: 0, pitchL: 0, pitchR: 0, plantL: 0, plantR: 0, dp: 0, dpn: 0, chg: 0, grabL: 0, grabR: 0 };
+  const P0 = { lean: 0, edge: 0, crouch: 0.21, tuck: 0, air: 0, sep: 0, headYaw: 0, lead: 0, stance: 0.31, fore: 0, fa: 0, armL: [0, 0, 0], armR: [0, 0, 0], swing: 0, liftL: 0, liftR: 0, pitchL: 0, pitchR: 0, plantL: 0, plantR: 0, dp: 0, dpn: 0, chg: 0, sepQ: 0, hdQ: 0, grabL: 0, grabR: 0 };
   const SEC0 = { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: null, idle: null };
 
   // ---- the double-pole stroke (pose.dp = phase): reach 0..PLANT, tips in the snow PLANT..REL while the body goes past them, release, recover
@@ -204,7 +206,7 @@ const Skier = (() => {
       const lp = v3.add(am, v3.mul(L.pel, LabMo.LEG));
       lp[1] += -0.38 * (c - L.cref) - chgH - 0.06 * faF - 0.085 * faA + (liftL + liftR) * 0.5; lp[2] += -(p.fore || 0) * 0.06 - 0.16 * faF + 0.13 * faA;
       lp[1] += (pel[1] - lp[1]) * sat(p.drive || 0);      // (through a jump's drive the hips stand up with the game's legs, see the game's pose.drive)
-      pel = v3.lerp(pel, lp, L.w); pb = LabMo.mixB(pb, L.pb, L.w);
+      pel = v3.lerp(pel, lp, L.w); pb = LabMo.mixB(pb, L.pb, L.w); if (sec.gnd && p.sepQ) pb = yawB(pb, 0.35 * p.sepQ * L.w);
       for (let it = 0; it < 3; it++) {
         hipL = v3.add(v3.mad(pel, pb.X, -LEN.hipW), v3.mul(pb.Y, -LEN.hipD)); hipR = v3.add(v3.mad(pel, pb.X, LEN.hipW), v3.mul(pb.Y, -LEN.hipD));
         const over = Math.max(v3.len(v3.sub(hipL, J.ankleL)), v3.len(v3.sub(hipR, J.ankleR))) - (LEN.thigh + LEN.shin) * 0.975;
@@ -274,7 +276,11 @@ const Skier = (() => {
     // below stays the game's own. The lab's trunk and head had replaced both rules outright: the head rolled with the shoulders, 20 degrees
     // either way, and the trunk swung from side to side over the bumps)
     const MO3 = typeof Variants !== 'undefined' && Variants.val.mo3 === 'b';
-    if (L && L.w > 0) { const wq = MO3 ? L.w * (1 - 0.8 * (p.quiet || 0)) : L.w; t1 = LabMo.mixB(t1, L.t1, wq); t2 = LabMo.mixB(t2, L.t2, wq); }
+    if (L && L.w > 0) { const wq = MO3 ? L.w * (1 - 0.8 * (p.quiet || 0)) : L.w; t1 = LabMo.mixB(t1, L.t1, wq); t2 = LabMo.mixB(t2, L.t2, wq);
+      // (新求解器: the lab's trunk took the game's whole twist away with it, and with that the throw of a spin: Mac round 21, the shoulders stood
+      // square while a 360 was wound up, and the hips went first. What the game adds for a trick (p.sepQ, p.hdQ: the wind-up, the throw, the
+      // head looking round) is put back on top, shoulders more than hips, head most)
+      if (sec.gnd && p.sepQ) { t1 = yawB(t1, 0.7 * p.sepQ * wq); t2 = yawB(t2, p.sepQ * wq); } }
     J.chest = v3.mad(pel, t1.Y, LEN.spine + 0.004 * ibr); J.neck = v3.mad(J.chest, t2.Y, LEN.chest);
     // (shoulders come forward and together when the arms are in front of the face)
     const prot = 0.035 * tuck + 0.02 * gM;
@@ -283,7 +289,7 @@ const Skier = (() => {
     // head: eyes stay near level and look where the skier is going; folded right over, the neck cranes back as far as a neck goes
     const hp = Math.max(0.05 + 0.10 * cT + 0.02 * tuck + sec.head + (id ? id.hp : 0), up2 - 1.0);
     let hb = basis((p.sep || 0) + (p.headYaw || 0) + (id ? id.hy : 0), hp, lean * 0.10);
-    if (L && L.w > 0 && !MO3) hb = LabMo.mixB(hb, L.hb, L.w);
+    if (L && L.w > 0 && !MO3) hb = LabMo.mixB(hb, L.hb, L.w); if (L && L.w > 0 && !MO3 && sec.gnd && (p.sepQ || p.hdQ)) hb = yawB(hb, ((p.sepQ || 0) + (p.hdQ || 0)) * L.w);
     const nY = v3.norm(v3.add(t2.Y, hb.Y));
     J.skull = v3.mad(J.neck, nY, LEN.neck); J.head = v3.add(v3.mad(J.skull, hb.Y, LEN.head), v3.mul(hb.Z, -0.015));
     // body shapes the hands and the poles have to stay out of
@@ -543,6 +549,9 @@ const Skier = (() => {
       const e = v3.mad(sh, v3.norm(v3.sub(v3.lerp(J['elbow' + sd], le, wa), sh)), LEN.uarm), g = v3.mad(e, v3.norm(v3.sub(v3.lerp(J['grip' + sd], lg, wa), e)), LEN.farm + LEN.grip);
       const g0 = J['grip' + sd]; J['elbow' + sd] = e; J['grip' + sd] = g; h.e = e; h.w = g;
       // (the pole trails from the hand where it is now; its tip kept a little off the snow)
+      // (tried 2026-11-18: the shaft carried with the hand on hand()'s own line (d = h.d) took the corner at edge changes away (4.6 -> under 4
+      // deg/frame^2), and put the shaft through the legs and the basket onto its own ski's tail: Mac round 21, pole x leg 106 -> 824 frames,
+      // pole x ski 0 -> 61. Not kept: the tip aimed at stays the one hand() cleared of leg and ski)
       let d = (MO2 || sec.gnd) && h.planted < 1 ? v3.norm(v3.sub(v3.mad(g0, h.d, PL), g)) : h.d; if (sec.gnd) { const ty = g[1] + d[1] * PL, ty2 = -smin(-ty, -0.03, 0.06);      // (新求解器: the tip is eased onto its 3 cm over the snow, not stopped there: where it came down onto the limit and left it again the shaft turned a corner, a jolt at every edge change)
         if (ty2 > ty + 1e-5) { const hz = Math.hypot(d[0], d[2]) || 1, dy = clamp((ty2 - g[1]) / PL, -1, 1), k2 = Math.sqrt(1 - dy * dy) / hz; d = [d[0] * k2, dy, d[2] * k2]; } }
       else if (g[1] + d[1] * PL < 0.03) { const hz = Math.hypot(d[0], d[2]) || 1, dy = clamp((0.03 - g[1]) / PL, -1, 1), k2 = Math.sqrt(1 - dy * dy) / hz; d = [d[0] * k2, dy, d[2] * k2]; }
@@ -1226,7 +1235,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     // in through the seat), r: how far it swings to a side; v: the figure's velocity in the world, smoothed (its change, read in the figure's frame, is what the hem lags behind)
     { const H = st.hm, g = clo.h, u = !cut && dt > 0 ? v3.mul(v3.sub(root.pos, st.pos), 1 / dt) : [0, 0, 0];
       if (cut || !H.v) { H.v = u; H.p[0] = H.p[1] = H.r[0] = H.r[1] = 0; }
-      else if (dt > 0) { const n = v3.add(H.v, v3.mul(v3.sub(u, H.v), 1 - Math.exp(-dt * 18))), a = v3.mul(v3.sub(n, H.v), 1 / dt), ax = clamp(v3.dot(a, X), -14, 14), af = clamp(-v3.dot(a, Z), -14, 14), w = sat((-v3.dot(n, Z) - 4) / 22);
+      else if (dt > 0) { const n = v3.add(H.v, v3.mul(v3.sub(u, H.v), 1 - Math.exp(-dt * 18))), a = v3.mul(v3.sub(n, H.v), 1 / dt), ax = clamp(v3.dot(a, X), -14, 14), af = clamp(-v3.dot(a, Z), -14, 14), w = sat((-v3.dot(n, Z) - 4) / 22); sec.latA = ax;
         H.v = n; spr(H.p, g * (0.11 * w * w * (3 - 2 * w) + clamp(af * 0.008, -0.02, 0.06)), 14, 0.32, dt); spr(H.r, g * clamp(-ax * 0.007, -0.09, 0.09), 12, 0.3, dt); }
       const w = sat((-v3.dot(H.v, Z) - 6) / 20), fl = g * w * (0.022 * Math.sin(now * 47) + 0.014 * Math.sin(now * 29 + 1.3) + 0.01 * Math.sin(now * 71 + 0.4));
       H.o[0] = clamp(H.p[0] + fl, -0.02, 0.2); H.o[1] = clamp(H.r[0] + 0.6 * fl * Math.sin(now * 13), -0.12, 0.12); }
@@ -1250,7 +1259,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     for (let k = 0; k < 2; k++) { const P = st.pp[k]; sec.pl[k] = P; if (!P) continue;
       if (P.d) { P.w = smooth(0, 0.3, now - P.rel); P.g = smooth(0.3, 0.6, now - P.rel); } else { const w = P.W, d = [w[0] - root.pos[0], w[1] - root.pos[1], w[2] - root.pos[2]]; P.T = [v3.dot(d, X), v3.dot(d, Z)]; } }
     // (the lab's turns: which posture, how much of it; null = the game's own figure)
-    sec.lab = typeof LabMo !== 'undefined' && !K.boardOn() ? LabMo.step(cur, sec, cut ? 0 : dt, st.hm.v ? v3.len(st.hm.v) : 0) : null;
+    sec.lab = typeof LabMo !== 'undefined' && !K.boardOn() ? LabMo.step(cur, sec, cut ? 0 : dt, st.hm.v ? v3.len(st.hm.v) : 0, cut ? 0 : sec.latA || 0) : null;
     sec.labB = typeof LabMo !== 'undefined' && K.boardOn() ? LabMo.stepB(cur, sec, cut ? 0 : dt) : null;
     // (实验室人物, developer mode: the lab's skeleton and motion set every bone, 08i_labride.js; until its frames are solved the game's own stand in)
     sec.gnd = K.ground ? K.ground(cur, root, Y, toW, sec, cut ? 0 : dt) : null;

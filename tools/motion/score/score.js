@@ -106,9 +106,34 @@ function band(x, b) { if (x == null || !isFinite(x)) return null; const [lo, hi]
 const SEGM = [['pelvis', 'pelvis', 0.14], ['pelvis', 'neck', 0.36], ['head', 'head', 0.08], ['hipL', 'kneeL', 0.1], ['hipR', 'kneeR', 0.1], ['kneeL', 'ankleL', 0.045], ['kneeR', 'ankleR', 0.045], ['footL', 'footL', 0.015], ['footR', 'footR', 0.015], ['shL', 'elbowL', 0.028], ['shR', 'elbowR', 0.028], ['elbowL', 'gripL', 0.022], ['elbowR', 'gripR', 0.022]];
 function com(d, i) { let c = [0, 0, 0], m = 0; for (const [a, b, w] of SEGM) { c = v.add(c, v.mul(v.add(d.j(a, i), d.j(b, i)), w / 2)); m += w; } return v.mul(c, 1 / m); }
 
+// ---------------------------------------------------------------- 肩和头（2026-11-18：五条肩的指标；bands.js 里它们的范围全是暂定的，等专业视频量出来再校）
+// 人物关节是“板的坐标”：x = 身体的右，y = 雪面法线，-z = 板头方向（两块板永远朝 -z）。身体倾角 lean 为正 = 往 +x 倒 = 往右转。
+// 下面带符号的量都取“和 lean 同号 = 往弯里”。
+//   shRoll   肩线（左肩→右肩）的侧倾，相对雪面；shYaw 肩线朝向减板的朝向（正 = 朝 +x 那一侧拧）
+//   line     “脚中点→骨盆”这条线的内倾 减 躯干（骨盆→颈）的内倾，冠状面里量；乘上弯的方向后，正 = 反弓（肩更平），负 = 上身比腿倒得还多
+//   headRoll 眼睛那条线（头骨的 X 轴）的侧倾，相对雪面（和 lean 同一个基准，才能比“头歪了身体倾角的几成”）
+//   shYawV / skiYawV 肩线朝向、板的朝向 各自相对“行进方向”的偏角。行进方向 = root 位置差分出来的速度，投到雪面里（板的坐标里）量；慢于 1 m/s 记 null。
+//   （都在雪面里量、不在世界的水平面里量：坡是斜的，肩线一侧倾，从正上方看它就“拧”了十来度，头一转眼线就“歪”了，那是坡的几何，不是身体在拧。）
+function upper(d) {
+  const n = d.n, mk = () => new Array(n), wrap = a => a - 360 * Math.round(a / 360), U = { shRoll: mk(), shYaw: mk(), line: mk(), legRoll: mk(), headRoll: mk(), shYawV: mk(), skiYawV: mk() };
+  const roll = x => Math.atan2(-x[1], Math.hypot(x[0], x[2])) * R2D;
+  for (let i = 0; i < n; i++) {
+    const J = k => d.j(k, i), sh = v.sub(J('shR'), J('shL')), hbX = d.bas[i][5], F = d.root[i][1], Rt = v.cross(F, d.root[i][2]);
+    U.shRoll[i] = roll(sh); U.shYaw[i] = Math.atan2(sh[2], sh[0]) * R2D; U.headRoll[i] = roll(hbX);
+    const pel = J('pelvis'), tr = v.sub(J('neck'), pel), leg = v.sub(pel, v.mul(v.add(J('footL'), J('footR')), 0.5));
+    U.line[i] = (Math.atan2(leg[0], leg[1]) - Math.atan2(tr[0], tr[1])) * R2D;
+    U.legRoll[i] = Math.atan2(leg[0], leg[1]) * R2D;      // （腿线的侧倾：两脚中点→骨盆。肩先不先，是和它比，不是和游戏给的倾角指令比：指令比腿早，和它比肩永远不“先”）
+    const i0 = Math.max(0, i - 2), i1 = Math.min(n - 1, i + 2), vel = v.mul(v.sub(d.root[i1][0], d.root[i0][0]), FS / (i1 - i0)), sp = v.len(vel);
+    if (sp < 1 || sp > 80) { U.shYawV[i] = U.skiYawV[i] = null; continue; }      // （太慢方向不准；太快是位置跳了一下）
+    U.skiYawV[i] = -Math.atan2(v.dot(vel, Rt), v.dot(vel, F)) * R2D; U.shYawV[i] = wrap(U.shYaw[i] + U.skiYawV[i]);
+  }
+  return U;
+}
+
 // ---------------------------------------------------------------- F / R / E 指标（每张卡的样本）
 function metrics(d, S, tr, cards, co, sm) {
   const n = d.n, gear = (d.vars || {}).ride === 'b' ? 'board' : 'ski', L = d.LEN, leg = L.thigh + L.shin, out = [];   // [card, layer, id, value]
+  const U = upper(d);
   const put = (card, layer, id, x) => { if (x != null && isFinite(x)) out.push([card, layer, id, x]); };
   const inC = (i, c) => cards[i].has(c), frames = c => { const r = []; for (let i = 0; i < n; i++) if (inC(i, c)) r.push(i); return r; };
   const minutes = c => frames(c).length / FS / 60;
@@ -124,8 +149,8 @@ function metrics(d, S, tr, cards, co, sm) {
     put(c, 'F', 'F3h', pct(f.map(i => hv[i]), 0.99));
     put(c, 'F', 'F4', Math.max(...f.map(i => Math.max(D2[0][i], D2[1][i], D2[2][i], D2[3][i]))));
   }
-  // F6 一个钟 / F7 响应（连续转弯时）：躯干侧倾不比身体倾角早；输入到身体倾角的延迟
-  if (co.lags['躯干侧倾']) put('turn', 'F', 'F6', co.lags['躯干侧倾'].lag);
+  // F6 上身和身体倾角同时（2026-11-18 调研后改：不是肩先，也不是上身晚，范围见 bands）/ F7 响应（连续转弯时）：躯干侧倾比身体倾角早多少秒（正 = 上身先，用户定的标准；负 = 上身晚了，算错。2026-11-18 改：原来要求上身晚 0–0.2 秒“腿先动”，和用户的标准相反）；输入到身体倾角的延迟
+  if (co.lags['躯干侧倾']) put('turn', 'F', 'F6', -co.lags['躯干侧倾'].lag);
   if (co.lags['输入（玩家的转向）']) put('turn', 'F', 'F7', -co.lags['输入（玩家的转向）'].lag);
   // R 转弯：每个弯取弯中（0.4–0.6）的值，和专业滑手同样的量
   for (const t of tr.list) { const c = cards[Math.floor((t.i0 + t.i1) / 2)].has('carve') ? 'carve' : 'turn', mid = q => { const a = t.c[q].slice(13, 20); return a.reduce((s, x) => s + x, 0) / a.length; };
@@ -141,10 +166,30 @@ function metrics(d, S, tr, cards, co, sm) {
     put(c, 'R', 'Rincl', Math.abs(mid('incl'))); put(c, 'R', 'RkLong', mid('kneeO')); put(c, 'R', 'RkShort', mid('kneeI')); put(c, 'R', 'RhipH', mid('hipH'));
     put(c, 'R', 'RhandH', ((J('gripL')[1] + J('gripR')[1]) / 2 - hip[1]) / leg); put(c, 'R', 'Rspr', v.len(v.sub(J('gripL'), J('gripR'))) / leg);
     put(c, 'R', 'Rtwist', Math.abs(mid('twist'))); put(c, 'R', 'Rperiod', 2 * t.T);
+    // 肩和头（暂定范围，见 bands.js）：弯中 = 这个弯 40%–60% 的那一段
+    { const s = t.side, m0 = t.i0 + Math.floor(0.4 * (t.i1 - t.i0)), m1 = t.i0 + Math.ceil(0.6 * (t.i1 - t.i0)), avg = f => { let a = 0, k = 0; for (let i = m0; i <= m1; i++) { const x = f(i); if (x != null) { a += x; k++; } } return k ? a / k : null; };
+      put(c, 'R', 'Rshline', avg(i => s * U.line[i]));                                     // ① 躯干对“脚→骨盆”线：正 = 反弓
+      // ② 肩比身体倾角早多少秒：这个弯前后各多看 0.25 秒，肩线侧倾和 lean 做互相关（相关不到 0.8、或者顶到 ±0.4 秒搜索边上的不算：那是肩几乎没动的弯）
+      { const a = Math.max(0, t.i0 - 15), b = Math.min(n, t.i1 + 15), Ln = [], Sh = []; for (let i = a; i < b; i++) { Ln.push(U.legRoll[i]); Sh.push(U.shRoll[i]); } const x = A.xlag(Ln, Sh, 24); if (x.r >= 0.8 && Math.abs(x.lag) < 0.39) put(c, 'R', 'Rshlead', -x.lag); }
+      put(c, 'R', 'Rshyaw', avg(i => U.shYawV[i] == null ? null : s * U.shYawV[i]));       // ④ 肩线相对速度方向往弯里拧了多少
+      { const y = []; for (let i = t.i0; i < t.i1; i++) y.push(U.shYaw[i]); const m = y.reduce((p, q) => p + q, 0) / y.length; put(c, 'R', 'Rshfree', Math.sqrt(y.reduce((p, q) => p + (q - m) ** 2, 0) / y.length)); }      // ④ 肩有没有和板锁死
+      // ⑤ 头：弯中眼线的侧倾 / 身体倾角；整个弯里眼线最多歪了多少度（95% 分位）。都相对雪面
+      { const ln = avg(i => Math.abs(d.p('lean', i)) * R2D); if (ln > 6) put(c, 'R', 'Rheadk', avg(i => Math.abs(U.headRoll[i])) / ln); const h = []; for (let i = t.i0; i < t.i1; i++) h.push(Math.abs(U.headRoll[i])); put(c, 'R', 'Rheadabs', pct(h, 0.95)); } }
     // E3 手臂框架：肘微弯（双板）、手在胸前；E4 静中有动：外膝几乎不动的时间占比
     if (gear === 'ski') { put(c, 'E', 'E3el', (S.deg.elbowL[apex] + S.deg.elbowR[apex]) / 2); put(c, 'E', 'E3fwd', ((J('chest')[2] - J('gripL')[2]) + (J('chest')[2] - J('gripR')[2])) / 2); }
     const kO = t.c.kneeO, still = kO.filter((x, k) => k && Math.abs(x - kO[k - 1]) * 32 / t.T < 20).length / (kO.length - 1); put(c, 'E', 'E4', still);
   }
+  // 肩：回正和换刃（暂定范围）。“回正” = |lean| 从 0.05 以上落到 0.05 以下，而且这之前倒到过 0.15 以上（和 turns() 认一个弯的门槛一样）、人在雪上、没撑杖（回正以后人常常马上团身，团身不排除）。
+  { const ok = i => (d.flag[i] & 2) && !(d.flag[i] & 1) && !(d.s('crash', i) > 0) && !(d.p('dp', i) > 0), al = i => Math.abs(d.p('lean', i)); let pk = 0;
+    for (let i = 1; i < n - 18; i++) { if (!ok(i)) { pk = 0; continue; } pk = Math.max(pk, al(i - 1)); if (!(al(i - 1) >= 0.05 && al(i) < 0.05)) continue; const big = pk > 0.15, side = Math.sign(d.p('lean', i - 1)); pk = 0; if (!big) continue;
+      // ① 回正后 0.3 秒内，躯干离“脚→骨盆”线最多多少度（不分方向；团身的帧不看：上身趴平以后“冠状面里的侧倾”没有意义）
+      { let m = 0, good = true, cnt = 0; for (let k = i; k <= i + 18; k++) { if (!ok(k)) good = false; if (d.p('tuck', k) > 0.4) continue; m = Math.max(m, Math.abs(U.line[k])); cnt++; } if (good && cnt >= 6) put('edge', 'R', 'Rshline0', m); }
+      // ③ 回正后反向歪：倾角在 0.4 秒里一直小于 0.08（真的回到直滑，不是连着进下一个弯），之后 0.5 秒里肩线往另一侧最多歪了多少度
+      if (i + 30 < n) { let stay = true; for (let k = i; k <= i + 24; k++) if (al(k) >= 0.08 || !ok(k)) stay = false; if (stay) { let m = 0; for (let k = i; k <= i + 30; k++) m = Math.max(m, -side * U.shRoll[k]); put('turn', 'R', 'Rshtip', m); } } } }
+  // ② 换刃那一刻：肩线侧倾过零比身体倾角过零早多少秒（正 = 肩先；前后各找 0.5 秒，找不到不算）
+  for (let k = 1; k < tr.list.length; k++) { const b = tr.list[k]; if (tr.list[k - 1].i1 !== b.i0) continue; const i0 = b.i0, zc = (x, i) => i - 1 + x(i - 1) / ((x(i - 1) - x(i)) || 1e-9); let best = null;
+    for (let i = Math.max(1, i0 - 30); i <= Math.min(n - 1, i0 + 30); i++) if (U.shRoll[i - 1] * b.side <= 0 && U.shRoll[i] * b.side > 0) { const z = zc(j => U.shRoll[j], i); if (best == null || Math.abs(z - i0) < Math.abs(best - i0)) best = z; }
+    if (best != null) { let lz = null; for (let i = Math.max(1, i0 - 30); i <= Math.min(n - 1, i0 + 30); i++) if (U.legRoll[i - 1] * b.side <= 0 && U.legRoll[i] * b.side > 0) { const z = zc(j => U.legRoll[j], i); if (lz == null || Math.abs(z - i0) < Math.abs(lz - i0)) lz = z; } if (lz != null) put('edge', 'R', 'Rshlead0', (lz - best) / FS); } }
   // E5 左右对称：左弯和右弯的外膝、倾角差多少（相对）
   for (const c of ['turn', 'carve']) { const L_ = tr.list.filter(t => t.side < 0 && cards[t.i0 + 1].has(c)), R_ = tr.list.filter(t => t.side > 0 && cards[t.i0 + 1].has(c)); if (L_.length < 2 || R_.length < 2) continue;
     const m = (ts, q) => ts.reduce((s, t) => s + t.c[q].slice(13, 20).reduce((a, x) => a + x, 0) / 7, 0) / ts.length;
@@ -195,7 +240,7 @@ function scoreAll(dir) {
   }
   return { at: new Date(0).toISOString(), dir, scenarios: files.length, cards: res };
 }
-module.exports = { scoreAll, band, CARDS, GEARS };
+module.exports = { scoreAll, band, CARDS, GEARS, upper };
 if (require.main === module) {
   const R = scoreAll(dir), base = path.join(__dirname, 'baseline.json');
   if (opt('--json')) fs.writeFileSync(opt('--json'), JSON.stringify(R, null, 1));
