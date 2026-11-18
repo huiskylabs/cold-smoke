@@ -166,8 +166,9 @@ const Rings = (() => {
   }
   // Every ring floats: the snow under any part of its lower half stays at least GAP below it (ground rings and air rings alike).
   const GAP = 0.9;          // (用户 20:47 UTC: 离地再高一点; was 0.35)
-  function floatY(x, s, r, y) {
-    let top = -1e9; for (let i = -6; i <= 6; i++) { const a = i / 6 * 1.2, dx = Math.sin(a) * r, dy = -Math.cos(a) * r; top = Math.max(top, Course.height(x + dx, -s, 0.5) - dy); }
+  function floatY(x, s, r, y, yaw = 0) {
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);          // (a ring turned to face the line: its lower half reaches up or down the slope too)
+    let top = -1e9; for (let i = -6; i <= 6; i++) { const a = i / 6 * 1.2, dx = Math.sin(a) * r, dy = -Math.cos(a) * r; top = Math.max(top, Course.height(x + dx * cy, -(s - dx * sy), 0.5) - dy); }
     return Math.max(y, top + GAP);
   }
   function reset() { RG.rings.length = 0; RG.passed = RG.missed = 0; rnd = L.id ? L.seed : 1 + Math.floor((Date.now() % 100000)); lastS = null; drawList = []; cursor = null; L.fin = false; }
@@ -188,6 +189,7 @@ const Rings = (() => {
     }
     let live = RG.rings.filter(r => r.pass < 0).length;
     for (let tries = 0; live < AHEAD && tries < 20; tries++) { spawn(); const r = RG.rings[RG.rings.length - 1]; if (r.skip) RG.rings.pop(); else live++; }
+    aim(S, s);
     const ahead = RG.rings.filter(r => r.pass < 0);
     const cur = ahead[0]; if (!cur) return;
     const v = Math.max(6, S.speed || 0), dCur = cur.s - s;
@@ -202,17 +204,46 @@ const Rings = (() => {
     if (cur.flowT === undefined && !cur.fin && dCur < Math.max(18, v * 1.0)) cur.flowT = T;          // (Mac check 16:1x UTC: at 0.6 s / 4.5% it was barely seen: now ~1 s out)
 
     // (用户 05:16 UTC: 离圈一两米、头碰到圈面之前就要 splash 散开，半米一米时能不能过已经定了): the splash starts 1.6 m before the ring's plane
-    if (dCur < 1.6 && cur.splash < 0) {
-      const dy = (S.p[1] + 0.9) - cur.y, dx = S.p[0] - cur.x;
-      cur.splash = T; cur.hit = cur.air ? (Math.hypot(dx, dy) < cur.r) : (Math.abs(dx) < cur.r * 0.85);
+    // (用户 2026-11-18 21:47 UTC: 圈的方向是固定的吗？应该对着下一个圈) the ring now faces the way the line goes through it (aim()), so both
+    // the plane the skier crosses and 'across' are the ring's own: dN how far past its plane, dA how far off its centre along it
+    const yw = cur.yaw || 0, ex = S.p[0] - cur.x, es = s - cur.s, dN = ex * Math.sin(yw) + es * Math.cos(yw), dA = ex * Math.cos(yw) - es * Math.sin(yw);
+    if (dN > -1.6 && cur.splash < 0) {
+      const dy = (S.p[1] + 0.9) - cur.y;
+      cur.splash = T; cur.hit = cur.air ? (Math.hypot(dA, dy) < cur.r) : (Math.abs(dA) < cur.r * 0.85);
     }
-    if (dCur <= 0) {          // through or past it
-      const dy = (S.p[1] + 0.9) - cur.y, dx = S.p[0] - cur.x;
-      cur.hit = cur.air ? (Math.hypot(dx, dy) < cur.r) : (Math.abs(dx) < cur.r * 0.85);          // (ground rings: judged across only, the skier rides through the lower part)
+    if (dN >= 0 || dCur < -6) {          // through or past it
+      const dy = (S.p[1] + 0.9) - cur.y;
+      cur.hit = cur.air ? (Math.hypot(dA, dy) < cur.r) : (Math.abs(dA) < cur.r * 0.85);          // (ground rings: judged across only, the skier rides through the lower part)
       if (cur.splash < 0) cur.splash = T;
       if (cur.fin) { cur.hit = true; cur.pass = T; lineFinish(); return; }
       cur.pass = T; if (cur.hit) RG.passed++; else RG.missed++;
       if (ahead[1] && ahead[1].grow < 0 && ahead[1].s - s < OPEN) ahead[1].grow = T;
+    }
+  }
+  // (用户 2026-11-18 21:47 UTC: 光圈的方向是固定的吗？是不是应该对着下一个光圈) each ring turns to face the way the line runs through it:
+  // the bisector of the way in (from the ring before, or from where the skier was when it came) and the way out (to the ring after), as
+  // a slalom gate or an air-race gate is set square to the line through it. Pointing at the next ring alone would still be entered
+  // slantwise. Until the ring after exists the way in alone is used; once both are known it is fixed. At most 55 degrees off the fall
+  // line (the skier always runs downhill), the finish square on.
+  const YAWMAX = 55 * Math.PI / 180;
+  function aim(S, s) {
+    let prev = null;
+    for (let i = 0; i < RG.rings.length; i++) {
+      const r = RG.rings[i]; if (r.skip) continue;
+      const rx = r.x0 !== undefined ? r.x0 : r.x;
+      if (r.pvS === undefined) { if (prev) { r.pvX = prev.x0 !== undefined ? prev.x0 : prev.x; r.pvS = prev.s; } else { r.pvX = S.p[0]; r.pvS = Math.min(s, r.s - 20); } }
+      if (!r.yawFix) {
+        if (r.fin) { r.yaw = 0; r.yawFix = true; }
+        else {
+          let nx = null; for (let k = i + 1; k < RG.rings.length; k++) if (!RG.rings[k].skip) { nx = RG.rings[k]; break; }
+          let ix = rx - r.pvX, is = Math.max(1, r.s - r.pvS); const li = Math.hypot(ix, is); ix /= li; is /= li;
+          let ax = ix, as = is;
+          if (nx) { let ox = (nx.x0 !== undefined ? nx.x0 : nx.x) - rx, os = Math.max(1, nx.s - r.s); const lo = Math.hypot(ox, os); ax += ox / lo; as += os / lo; r.yawFix = true; }
+          r.yaw = RG.noYaw ? 0 : cl(Math.atan2(ax, as), -YAWMAX, YAWMAX);          // (RG.noYaw: tools compare with the old square-on rings)
+          if (r.yawFix) { const y = floatY(rx, r.s, r.r, r.y0 !== undefined ? r.y0 : r.y, r.yaw); if (r.y0 !== undefined) { r.y += y - r.y0; r.y0 = y; } else r.y = y; }
+        }
+      }
+      prev = r;
     }
   }
   // what each ring is this frame: how far open, how far scattered, how bright (far ones barely there), and its flame
@@ -260,7 +291,7 @@ const Rings = (() => {
   }
 
   // ---- the GPU side
-  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, d.nx ? d.fmode : 0], e: [Math.round(9600 * d.sz * (d.r.fin ? 2 : 1)), Math.round(800 * d.sz * (d.r.fin ? 2 : 1)), 0, d.ap || 0], f: d.nx || [0, 0, 0, 0], g: [d.fl, d.ab || 0, 0, 0] });
+  const ringU = (d, T) => ({ a: [d.c[0], d.c[1], d.c[2], d.r.r], b: [d.open, d.dis, d.A, d.near], c: [T, d.r.id % 4096, d.hitK, d.sz], d: [d.night, d.r.fin ? 1 : 0, d.grown, d.nx ? d.fmode : 0], e: [Math.round(9600 * d.sz * (d.r.fin ? 2 : 1)), Math.round(800 * d.sz * (d.r.fin ? 2 : 1)), 0, d.ap || 0], f: d.nx || [0, 0, 0, 0], g: [d.fl, d.ab || 0, 0, d.r.yaw || 0] });
   const ringLive = d => d.grown > 0.3 && d.dis < 1 && d.open > 0.01;
   RG.init = function (g) {
     gfx = g;
@@ -872,6 +903,8 @@ fn ringQuad(corner: vec2f, p0: vec3f, p1: vec3f, rw: f32, minPx: f32) -> RQ {
 const DUST_SSL = `
 struct DG { p: vec3f, b: f32, wsz: f32, minPx: f32, up: f32, col: vec3f, st: vec3f }
 fn bez3(a: vec3f, b: vec3f, c: vec3f, d: vec3f, t: f32) -> vec3f { let u: f32 = 1.0 - t; return a * (u * u * u) + b * (3.0 * u * u * t) + c * (3.0 * u * t * t) + d * (t * t * t); }
+// the ring's own frame turned to face the line through it (M.g.w the yaw, 0 = square to the fall line): x across, z back up the line
+fn ringRot(o: vec3f) -> vec3f { let cy: f32 = cos(M.g.w); let sy: f32 = sin(M.g.w); return vec3f(o.x * cy - o.z * sy, o.y, o.x * sy + o.z * cy); }
 fn dustGrain(i: u32) -> DG {
   var g: DG;
   let C: vec3f = M.a.xyz; let R0: f32 = M.a.w; let open: f32 = M.b.x; let dis: f32 = M.b.y;
@@ -946,10 +979,10 @@ fn dustGrain(i: u32) -> DG {
     let hf: vec3f = hashu3(i * 29u + rid * 211u + 17u);
     let hr: vec3f = hashu3(rid * 131u + 7u);
     let ro0: f32 = rr * open;
-    let Pown: vec3f = C + vec3f(cos(ang) * ro0, sin(ang) * ro0 + dy, dz);
+    let Pown: vec3f = C + ringRot(vec3f(cos(ang) * ro0, sin(ang) * ro0 + dy, dz));
     let a1: f32 = angD + 3.1415927 + (hd.x - 0.5) * 2.4;
     let Pland: vec3f = N + vec3f(cos(a1) * RN, sin(a1) * RN, (hf.y - 0.5) * 0.3);
-    let P0: vec3f = C + vec3f(cos(angD), sin(angD), 0.0) * R0 * open;
+    let P0: vec3f = C + ringRot(vec3f(cos(angD), sin(angD), 0.0) * R0 * open);
     let P1: vec3f = N + vec3f(cos(angD + 3.1415927), sin(angD + 3.1415927), 0.0) * RN * 0.6;
     let D: vec3f = P1 - P0; let dl: f32 = length(D);
     let sd: vec3f = normalize(vec3f(-D.z, 0.0, D.x) + vec3f(0.0001, 0.0, 0.0));
@@ -978,7 +1011,7 @@ fn dustGrain(i: u32) -> DG {
   } else if (md > 1.5 && md < 2.5 && dis > 0.0 && kind == 0u && hsel.x < 0.012) {
     // one thread: every grain on the same curve (handles from the ring's own hash), strung out along it by when it leaves
     let q: f32 = hsel.x / 0.012; let hr: vec3f = hashu3(rid * 131u + 7u); let hj: vec3f = hashu3(i * 43u + rid * 17u + 3u) - vec3f(0.5);
-    let P0: vec3f = C + vec3f(cos(angD), sin(angD), 0.0) * R0 * open;
+    let P0: vec3f = C + ringRot(vec3f(cos(angD), sin(angD), 0.0) * R0 * open);
     let P1: vec3f = N + vec3f(cos(angD + 3.1415927), sin(angD + 3.1415927), 0.0) * RN * 0.8;
     let D: vec3f = P1 - P0; let dl: f32 = length(D);
     let sd: vec3f = normalize(vec3f(-D.z, 0.0, D.x) + vec3f(0.0001, 0.0, 0.0));
@@ -1021,7 +1054,7 @@ fn dustGrain(i: u32) -> DG {
     // ring facing the next to the next one, meandering like a brook (two slow bends that drift with time), each grain a little to one
     // side of the line and on its own phase, so the stream is a dotted, living line that keeps flowing for as long as the ring is ahead
     let hr: vec3f = hashu3(rid * 131u + 7u);
-    let P0: vec3f = C + vec3f(cos(angD), sin(angD), 0.0) * R0 * open;
+    let P0: vec3f = C + ringRot(vec3f(cos(angD), sin(angD), 0.0) * R0 * open);
     let P1: vec3f = N + vec3f(cos(angD + 3.1415927), sin(angD + 3.1415927), 0.0) * RN * 0.85;
     let D: vec3f = P1 - P0; let dl: f32 = length(D);
     let sd: vec3f = normalize(vec3f(-D.z, 0.0, D.x) + vec3f(0.0001, 0.0, 0.0));
@@ -1082,7 +1115,7 @@ fn dustGrain(i: u32) -> DG {
     b = b * (1.0 + 2.2 * exp(-d * 10.0)) * pow(1.0 - d, 1.3) * hitK;
   }
   let ro: f32 = rr * open;
-  g.p = C + vec3f(cos(ang) * ro, sin(ang) * ro + dy, dz);
+  g.p = C + ringRot(vec3f(cos(ang) * ro, sin(ang) * ro + dy, dz));
   if (useFlow > 0.5) { g.p = flowP; }
   g.b = b * select(A, 1.0, useFlow > 0.5 && md > 6.5 && md < 7.5); g.wsz = wsz; g.minPx = minPx; g.up = up; g.col = col; g.st = flowSt;
   return g;

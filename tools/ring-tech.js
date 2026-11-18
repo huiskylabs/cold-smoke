@@ -21,7 +21,7 @@ const lines = (process.argv[4] || 'a,x').split(','), diffs = (process.argv[5] ||
     await pg.waitForFunction(() => __rings.line.st === 'go', null, { timeout: 60000 });
     res[line + d] = await pg.evaluate(() => {
       const G = __ski.game(), C = __ski.m.Course, RG = __rings, L = RG.line, seen = new Map();
-      const keep = () => { for (const q of RG.rings) if (!q.skip && !seen.has(q.id)) seen.set(q.id, { s: q.s, u: q.u, x: q.x, y: q.y, r: q.r, air: q.air, fin: !!q.fin }); };
+      const keep = () => { for (const q of RG.rings) if (!q.skip) { if (!seen.has(q.id)) seen.set(q.id, { s: q.s, u: q.u, x: q.x0 !== undefined ? q.x0 : q.x, y: q.y, r: q.r, air: q.air, fin: !!q.fin, cx: C.at(q.s).cx }); seen.get(q.id).yaw = +((q.yaw || 0) * 57.3).toFixed(1); } };
       const mode0 = G.mode; let s = -G.s.p[2], steps = 0;
       while (steps++ < 20000) {
         G.mode = 'run'; keep();
@@ -54,7 +54,7 @@ const lines = (process.argv[4] || 'a,x').split(','), diffs = (process.argv[5] ||
         else if (c.gul > 0.6 && e < 18) w = '主道雪槽'; else if (c.mog > 0.5 && e < 2) w = '主道蘑菇'; else if (e < 0) w = '主道'; else w = '道外树林/野雪';
         where[w] = (where[w] || 0) + 1; side.push(q.fin ? '' : e < 0 ? '|' : u < 0 ? 'L' : 'R'); }
       const n = rings.length, gs = C.segs.filter(g => g.s0 < (L.sEnd || 1e9)).map(g => g.type + '@' + Math.round(g.s0));
-      return { n, segs: gs, gully, mog, where, side: side.join('').replace(/(.)\1+/g, '$1') };
+      return { n, segs: gs, gully, mog, where, rings: rings.map(q => ({ s: +q.s.toFixed(1), x: +q.x.toFixed(2), cx: +q.cx.toFixed(2), r: q.r, yaw: q.yaw, air: q.air, fin: q.fin })), side: side.join('').replace(/(.)\1+/g, '$1') };
     });
     const r = res[line + d], g = r.gully, m = r.mog;
     console.log(line + d, 'rings', r.n, '| gully', g.length, 'onBank', g.filter(q => q.onBank).length, 'up', g.map(q => q.up).join(','), '| moguls', m.length, 'gaps', m.map(q => q.gapNext).join(','), 'trough', m.map(q => q.trough).join(','), '\n   where', JSON.stringify(r.where), 'sides', r.side);
