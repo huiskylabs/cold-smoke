@@ -120,8 +120,8 @@ const LabMo = (() => {
     // (the arms do not tip over with the trunk: hung from a trunk that leans in, the inside hand and forearm came down onto the inside thigh
     // (Mac round 16: hand x thigh 0 -> 136 frames). They keep the lab's own line, hands level, as a skier carries them)
     const ARM_IN = 0.0;
-    const TRUNK_LEAD_T = 0.07, TRUNK_UNLAG = 0, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.35, LOOK_H = 0.5, LOOK_C = 0.35, LOOK_END = 0.6, HEAD_AHEAD = 0.16, CHEST_AHEAD = 0.03, PEL_SQ = 0.3, HEAD_ROLL_KEEP = 0.45;
-    const TRUNK_IN = 0.6, lab = Math.atan2(r[0], r[1]);
+    const TRUNK_LEAD_T = 0.07, TRUNK_UNLAG = 0, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.20, LOOK_H = 0.5, LOOK_C = 0.35, LOOK_END = 0.6, HEAD_AHEAD = 0.16, CHEST_AHEAD = 0.03, PEL_SQ = 0.3, HEAD_ROLL_KEEP = 0.45;
+    const TRUNK_IN = 0.30, TRUNK_IN_SLOW = -0.20, SLOW_V0 = 4, SLOW_V1 = 13, lab = Math.atan2(r[0], r[1]);
     if (!quietU()) return fill(out, st, r, ph.lean * 1.07 - lab, 'z');
     // (新求解器, owner 2026-11-18: "想左转，一定是身体跟肩膀先倾过来…头稍微往正回一点点". Measured (turnM): the shoulders tipped 6 frames AFTER the hips
     // (they took the eased lean), so at every edge change they still hung 20-28 deg over the old turn; at 47 deg of lean the shoulder line stood at
@@ -135,7 +135,11 @@ const LabMo = (() => {
     //             shoulders that now lead, the poles lay across the thighs (12 scenarios: clip frames 6746 -> 7365; on lt 1814)
     //   kin       deep in a turn the trunk gives back less of the lean (TRUNK_IN_DEEP): the hips go in, the shoulders stay nearer level
     //   yaw       see the heading order below)
-    const lr = LEAD_RATE_MAX * Math.tanh(ph.lev / LEAD_RATE_MAX), lt = ph.le + (2 / ph.wn + TRUNK_LEAD_T) * lr, kin = TRUNK_IN + (TRUNK_IN_DEEP - TRUNK_IN) * sm(0.45, 0.85, Math.abs(lt));
+    const lr = LEAD_RATE_MAX * Math.tanh(ph.lev / LEAD_RATE_MAX), lt = ph.le + (2 / ph.wn + TRUNK_LEAD_T) * lr, kin = TRUNK_IN_SLOW + (TRUNK_IN - TRUNK_IN_SLOW) * sm(SLOW_V0, SLOW_V1, speed) - TRUNK_IN_DEEP * sm(0.45, 0.85, Math.abs(lt));
+    // (by speed, owner 2026-11-18 "要不要根据速度来区分拐弯的动作" + design doc: measured at each turn's deepest frame, the trunk (hips to shoulders) tipped
+    // 0.95 of the leg line (feet to hips) under 22 km/h and 0.61-0.75 above; a real skier's stands at 0-0.2 of it at slow speed (the legs steer, the
+    // trunk stays upright) and 0.4-0.6 carving (Ski Racing / LeMaster; frame-by-frame measurements of carving video, 2026-11-18). So the share of the
+    // lean given back to the trunk is TRUNK_IN_SLOW below SLOW_V0 m/s and TRUNK_IN from SLOW_V1 up, and TRUNK_IN_DEEP less deep in a turn. The lab's own turn posture already stands the trunk at about 0.4 of the leg line, so the shares are small and the slow one is negative: the trunk is stood back up)
     // (the trunk's own roll rides on the lean without the easing's lag (l0), not on the eased lean: on the eased one its lead was eaten, and against
     // the leg line (feet to pelvis) the shoulders went over 0.01 s BEFORE to 0.01 s AFTER the legs: together, not first (scorer Rshlead / Rshlead0, 2026-11-18))
     const l0 = ph.le + TRUNK_UNLAG * (2 / ph.wn) * lr;      // (TRUNK_UNLAG 1, lead 0.115 s: at a linked edge change the trunk stood 16 deg off the leg line, Rshline0; 0.5 gave 0.09 s. Now 0: research 2026-11-18 (LeMaster / Ski Racing, Brown & Reid) says the body tips in as a unit and the shoulders then stay more level than the legs; shoulders tipping first is banking, a fault)

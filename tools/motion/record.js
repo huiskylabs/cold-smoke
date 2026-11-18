@@ -44,6 +44,7 @@ const mkCtl = function (sc) {
     taps: t => { const u = [[4, 4.45, -1], [4.5, 4.95, 1], [7, 7.3, -1], [7.35, 7.65, 1], [9.5, 9.9, -1]].find(x => t >= x[0] && t < x[1]); key(u ? u[2] : 0); },
     turnback: t => { const u = (t - 3) % sc.per, k = Math.floor((t - 3) / sc.per); key(t < 3 || u > sc.hold ? 0 : (k % 2 ? 1 : -1)); },
     keys: t => { key(t < 3 ? 0 : (Math.floor((t - 3) / (sc.per / 2)) % 2 ? -1 : 1)); },
+    slowkeys: t => { key(t < 0.5 ? 0 : (Math.floor((t - 0.5) / (sc.per / 2)) % 2 ? -1 : 1)); },      // (慢速：不等加速，出发半秒后就开始左右转)
     sine: t => { I.script = t < 3 ? 0 : sc.amp * Math.sin((t - 3) * 2 * Math.PI / sc.per); },
     pilot: t => { I.script = pilot(t); },
     jump: t => { I.script = 0; I.btn.jump = t > 2 && S.contact && (G.flight.lipT < 0.5); },
