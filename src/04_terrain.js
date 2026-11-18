@@ -986,7 +986,9 @@ fn frag(v: VOut) -> FOut {
     col = mix(col, rc, rock * (1.0 - 0.9 * lip));
   }
   // distant forest reads as a dark speckled carpet with long shadows
-  var fw: f32 = sm.w;
+  // (金色雪旗 above the trees, round 3: the course's stands are drawn as real trees out to ~1.2 km; the carpet laid on top of them read as
+  // salt-and-pepper grain over the rock and the snow. Stands this sparse need no carpet)
+  var fw: f32 = sm.w * ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'select(1.0, 0.0, U.world.x > 2.5)' : '1.0'};
   // (金色雪旗: past the reach of the near trees the valley walls are wooded wherever they are not too steep to hold trees, up to a ragged
   // line high on them, with open avalanche tracks and rock bands between; a Rockies valley is never a bare snow wall)
   if (U.world.x > 2.5) {
