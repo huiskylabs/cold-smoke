@@ -1567,6 +1567,10 @@ fn cardN(e: vec2f, ph: f32) -> vec3f {
   let n: vec2f = e * 2.0 - 1.0;
   return x * n.x + y * n.y + z * sqrt(max(1.0 - dot(n, n), 0.0));
 }
+fn cardVN(p: vec2f) -> f32 {
+  let i: vec2f = floor(p); let f: vec2f = p - i; let u: vec2f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash21(i), hash21(i + vec2f(1.0, 0.0)), u.x), mix(hash21(i + vec2f(0.0, 1.0)), hash21(i + vec2f(1.0, 1.0)), u.x), u.y);
+}
 fn frag(v: VOut) -> FOut {
   var o: FOut;
   let g: f32 = treeGrain(v.clip.xy);
@@ -1584,6 +1588,17 @@ fn frag(v: VOut) -> FOut {
   // then the thin stem, fell away in pieces. Its own cut sits lower, near where the outline's falling alpha begins)
   let cut0: f32 = select(0.63 + 0.08 * mix(g, 0.5, U.lampDir.w), 0.47 + 0.05 * mix(g, 0.5, U.lampDir.w), v.vw.w > 9.5);
   if (al < cut0 || (v.ex.z < 0.999 && g < 1.0 - v.ex.z) || g > kd || kd < 0.34) { discard; }
+  // (a far rime birch, from the photographs of rime forest at 100-500 m: every crown a fine white grain, sky through it in specks, the
+  // outline frayed into the air; a card's smooth photograph of it read as a grey cotton ball. The grain is laid on here, in metres on the
+  // card, never finer than about two pixels so it does not crawl: it frays the outline into holes and grains the light inside)
+  var lace: f32 = 0.5; var edge: f32 = 0.0;
+  if (v.vw.w > 9.5) {
+    let pxm: f32 = dist * 2.0 * U.camRight.w / U.res.y;
+    let cm: vec2f = vec2f((v.uv.x * 2.0 - 1.0) * v.fx.y, v.uv.y * ${(V1 - V0).toFixed(2)} * v.fx.x) / max(0.16, 2.0 * pxm) + vec2f(v.gp.w * 97.0, v.gp.w * 41.0);
+    lace = cardVN(cm) * 0.6 + cardVN(cm * 2.07 + vec2f(5.3, 1.7)) * 0.4;
+    edge = 1.0 - smoothstep(cut0, cut0 + 0.4, al);
+    if (lace < edge * 0.85 + 0.12 * smoothstep(0.6, 1.0, v.uv.y)) { discard; }
+  }
   let b: vec4f = mix(texLod(tB, uv0, v.ex.w), texLod(tB, uv1, v.ex.w), w);
   let nl: vec3f = normalize(mix(cardN(a0.xy, v.vw.x * KSTEP), cardN(a1.xy, v.vw.y * KSTEP), w));
   let N: vec3f = vec3f(nl.x * v.ex.x + nl.z * v.ex.y, nl.y, nl.z * v.ex.x - nl.x * v.ex.y);
@@ -1620,6 +1635,8 @@ fn frag(v: VOut) -> FOut {
   if (cover < 0.999) { sh = sh * mix(exp(-v.fx.w * pow(1.0 - hq, 1.5)), 1.0, cover); }
   var col: vec3f = treeLight(s, V, sh);
   col += treeLamp(s, wt);
+  // (the grain in the light: clumps of rime brighter and darker, and the frayed rim pale with the sky through it)
+  if (v.vw.w > 9.5) { col = col * (0.78 + 0.44 * lace); col = mix(col, max(col, U.ambSky.rgb * 1.1 + U.sunCol.rgb * 0.1), edge * 0.45); }
   col = applyWoodFog(col, v.wp);
   o.color = vec4f(col, 1.0);
   return o;
