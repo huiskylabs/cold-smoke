@@ -860,7 +860,9 @@ const Course = ((vn1, vn2, h2U) => {
       if (Variants.val.start === 'b') d *= smooth(650, 1500, s + 220 * vnoise2(x / 240, z / 240, 27));
       // (the owner 2026-11-18: fewer trees: stands with open snow between them, not one unbroken wood)
       if (au > c.hw + 4) d *= 0.35 + 0.65 * smooth(-0.05, 0.30, vnoise2(x / 150, z / 150, 33));
-      if (Variants.val.dalp === 'b') d = 0;                                  // (above the tree line: no trees at all)
+      // (above the tree line: no trees up high; below it, a long way down, a thin scatter of spruce, never a wood. Owner 2026-11-18 03:57:
+      // "上面就没有树…下面…林线以下稍微有点树，但是也比较稀")
+      if (Variants.val.dalp === 'b') d *= 0.28 * smooth(2200, 3400, s + 300 * vnoise2(x / 260, z / 260, 34)) * smooth(0.0, 0.35, vnoise2(x / 90, z / 90, 35));
     }
     return d;
   };
