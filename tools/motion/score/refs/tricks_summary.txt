@@ -1,0 +1,62 @@
+TRICK LIBRARY POSE SUMMARY  (MediaPipe heavy + YOLO follow-crop; script human/video_tricks/scripts/trick_angles.py)
+Per pick (best 1-2 examples per move). Times are in seconds inside the cut range; the range is in the original clip.
+crouchK = max knee flex in the 0.8 s before pop (0 = straight); popK = knee at pop; air = takeoff->landing (for ground moves: start->end of the rotation/press);
+tuck = max(knee flex + hip flex) in the air; kAir = max knee flex in the air; twist = shoulder line vs hip line (pre-pop mean / air min / air max / at landing);
+spin = change of hip-line heading over the air (deg; UNRELIABLE for front/back views because of depth ambiguity: read it as a direction only);
+landK = max knee flex within 0.8 s after touchdown; absorb = time from touchdown to that max; armV = peak arm swing speed in the 0.4 s before pop (deg/s); rel = fraction of frames reliable in the air.
+Many tutorial demos are SLOW-MOTION: their air / absorb times are stretched (marked slo-mo). Read angles from them; read timing from real-speed clips.
+
+======================================== SKI ========================================
+move                       clip                                 range        camera         crouchK  popK   air  tuck  kAir twist pre/min/max/land   spin landK absorb   armV  rel
+ollie                      skiaddiction-ollie                   77.0-82.6    follow side sl     17    13  1.50   226   107 -14/-19/-4/-10            -44   106   0.67     90 1.00
+ollie                      skiaddiction-ollie                   37.0-42.6    static side/be     15    12  2.42   192    83 -19/-30/-6/-6             -43    85   0.12     62 1.00
+shifty-twist               stompit-most-important-trick         219.5-222.2  follow side/be     58    18  1.72   192   105 -5/-5/+49/-5               -9    72   0.00    120 1.00
+shifty-twist               stompit-most-important-trick         84.0-91.5    static front       30    21  4.40    95    56 +19/+20/+44/+29           +18    56   0.04    267 1.00
+butter-180-360 (ground)    empire-nose-butter-360               73.4-81.2    follow front/s     82    22  2.79    87    41 +4/-41/+8/-14             -39    69   0.46     63 1.00
+butter-180-360 (ground)    skiaddiction-nose-butter-180         68.5-78.1    static side/fr     74    14  5.79    85    31 +12/-10/+11/-8            -32    79   0.46    209 1.00
+flat-180-switch            empire-flatground-180                16.2-19.2    follow front       34    29  1.00    94    34 -12/-37/+12/+10          +198    40   0.43    238 1.00
+flat-180-switch            skiaddiction-how-to-180              53.3-59.2    static side        26    26  1.00   131    68 -19/-26/-14/-26           -28    61   0.00     68 1.00
+switch-skiing (ground)     skiaddiction-ski-switch              59.0-63.1    follow behind      33    33  4.07   111    50 -5/-30/+6/-30             -88    39   0.00      0 1.00
+switch-skiing (ground)     stompit-switch-carving               314.2-329.0  static front       36    36 14.76   124    66 +37/+5/+55/+31            +71    43   0.00      0 1.00
+tail-nose-press (ground)   stompit-tail-butter                  57.0-62.0    static side        12    12  1.48    98    45 -0/-4/+6/+5                +5    34   0.32     21 1.00
+tail-nose-press (ground)   stompit-knuckle-huck-butters-hand-dr 654.5-663.2  follow front/s     42    39  2.79   170    65 -25/-24/+19/+4           +155    70   0.25     50 1.00
+old-school-airs-grabs      daffy-demo                           7.0-9.9      static side lo  FAILED: 0 reliable frames
+old-school-airs-grabs      skiaddiction-safety-mute-grab        2.9-6.0      static side lo     98    85  1.88   211    85 -21/-26/+54/+32          -187    71   0.00    179 0.83
+spin-360-side-hit          trifes-first-360                     170.8-175.9  follow front       82    82  1.60   235   123 +1/-47/+31/-17           +196    80   0.67    247 1.00
+spin-360-side-hit          trifes-first-360                     99.4-103.5   follow front       56    56  1.70   238   125 -2/-47/+31/-23           +198    80   0.70    328 1.00
+backscratcher              skiing-backscratcher                 3.4-6.2      follow front p     58    46  1.00   177   104 -47/-47/+11/-22           -35    95   0.30    500 0.55
+backscratcher              old-school-backscratcher             10.0-20.8    static low slo     36    36  5.61    89    38 -36/-36/+39/+32          -159    37   0.30      0 0.25
+spin-landings              trifes-first-360                     170.8-175.9  follow front       82    82  1.60   235   123 +1/-47/+31/-17           +196    80   0.67    247 1.00
+
+======================================== BOARD ========================================
+move                       clip                                 range        camera         crouchK  popK   air  tuck  kAir twist pre/min/max/land   spin landK absorb   armV  rel
+ollie                      sa-how-to-ollie                      67.5-70.8    static front       29    20  1.08   242   109 +26/+24/+32/+31           +10    94   0.75    114 1.00
+ollie                      sa-how-to-ollie                      117.6-121.2  side               89    85  1.21   216    88 +0/-15/+46/+46           -190    63   0.75     49 0.97
+nollie                     sa-how-to-nollie                     110.0-112.6  static front       47    24  0.71   234   104 +25/+22/+32/+28            +2    90   0.54     46 1.00
+shifty                     sa-shifty-backside-180               124.2-136.9  side slow-mo       88    32  7.09   195   102 -6/-4/+93/+19            -139   107   0.13    223 1.00
+shifty                     sa-shifty-frontside-180              99.5-111.8   side slow-mo       80    33  0.17   116    43 +30/+10/+69/+69           -22    61   0.13    202 0.80
+flat-180 (ground)          sa-first-backside-180s               26.5-32.4    front follow       25    21  2.00    50    21 -3/-9/-3/-8               -39    19   0.04     32 1.00
+flat-180 (ground)          sa-first-frontside-180s              54.5-58.6    front follow       52    31  1.38   157    89 -22/-27/+56/+26          +109    92   0.75    274 0.94
+press-nose-butter (ground) sa-360-nose-roll                     5.0-9.6      front              22    19  3.20   108    57 -17/-20/+23/+14          -225    18   0.00     71 1.00
+press-nose-butter (ground) sa-tail-press                        15.2-28.6    static front       20    18  4.00   125    54 -21/-46/+60/+26          -504    54   0.27     27 1.00
+tail-butter-buttered-carve sa-tail-butter-frontside-180         84.5-96.5    static front       34    29  3.33    95    44 -19/-21/+15/+2            +36    61   0.25    102 1.00
+ground-spin-revert-scissor malcolm-moore-8-easy-tricks          316.6-327.5  front follow       27    27  3.40    86    54 +10/-7/+24/+8            -137    19   0.73     55 1.00
+ground-spin-revert-scissor 7-japanese-butter-ground-tricks      9.4-12.6     follow             54    54  1.70    81    56 -20/-44/+55/+26          -406    53   0.20    180 1.00
+grabs                      procamp-10-grabs                     31.5-36.5    front              62    26  2.70   231    99 +36/+30/+42/+32           -42    96   0.72     90 1.00
+grabs                      transworld-tail-grab                 12.5-17.2    slow-mo air cl     79    29  0.53   104    44 -30/-33/-15/-22            +0    52   0.27    256 1.00
+spin-360-side-hit          sa-360-with-grabs                    96.1-101.2   side slow-mo       58    58  2.70   217   104 -24/-20/+50/+33          +213    84   0.00    141 1.00
+spin-360-side-hit          sa-how-to-land-spins                 71.0-81.5    side slow-mo       95    94  5.38   260   126 +6/-25/+18/+18           +156    78   0.25     78 1.00
+method-stalefish           transworld-method                    13.8-20.2    slow-mo air cl     96    30  2.57   142    38 +6/-17/+56/+35            -27    41   0.60    127 1.00
+method-stalefish           transworld-stalefish                 11.8-17.8    slow-mo air cl     61    43  1.27   186    55 +17/+5/+19/+5             -14    50   0.00    155 1.00
+method-stalefish           sa-method-grab                       12.9-15.6    side               71    49  1.50   188    97 -15/-44/+77/+12          -325    70   0.43    404 0.93
+spin-landings              sa-how-to-land-spins                 45.0-56.0    front slow-mo      86    42  7.50   210    92 +12/-10/+37/-5            -45    66   0.71     21 1.00
+spin-landings              sa-how-to-land-spins                 71.0-81.5    side slow-mo       95    94  5.38   260   126 +6/-25/+18/+18           +156    78   0.25     78 1.00
+euro-carve-hand-drag (grou sa-eurocarve                         130.4-143.4  front              75    75  6.51   259   122 +8/-14/+11/-13            -34    14   0.20     92 1.00
+
+NOTES / CAVEATS
+- Auto timing (no takeoff/landing visible, so crouch/pop/air/landing are NOT meaningful; read only tuck/kAir/twist): board shifty sa-shifty-frontside-180 (cut before landing), grabs transworld-tail-grab, method-stalefish transworld-method and transworld-stalefish (mid-air only).
+- Slow motion (air/absorb times stretched): ski ollie 77.0/37.0, ski safety-mute, ski old-school-backscratcher; board shifty x2, spin-360 x2, spin-landings x2, transworld clips.
+- Failed: ski daffy-demo (phone clip, rider too small; 0 reliable frames). Weak: ski old-school-backscratcher (25% reliable in the air), skiing-backscratcher (55%).
+- "Spin" values for 360s read about 155-215 deg instead of 360: MediaPipe's hip-line heading flips when the rider faces the camera, so the unwrap loses half a turn. Use the sign and the twist profile, not the magnitude.
+- Ground moves: "air" = rotation/press duration from the labeled start to end; landK/absorb = re-flex after the move.
+- Every pick has per-frame CSV (knees, hips, tuck, hipH, trunk, twist, yaw, arm abduction, wrist height), a plot and a skeleton sheet in tricks/_poses/. All examples per clip are in <ski|board>/<move>/<slug>/moves.txt; the picks are in <ski|board>/picks.tsv.

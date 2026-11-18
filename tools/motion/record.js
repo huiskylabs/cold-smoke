@@ -46,6 +46,10 @@ const mkCtl = function (sc) {
     jump: t => { I.script = 0; I.btn.jump = t > 2 && S.contact && (G.flight.lipT < 0.5); },
     hops: t => { key(t < 3 ? 0 : (Math.floor((t - 3) / 1.5) % 2 ? -1 : 1)); const u = (t % sc.per); I.btn.jump = t > 4 && u < 0.25; },
     brake: t => { key(t < 7 ? 0 : t < 17 ? 1 : t < 22 ? 0 : -1); },
+    // (评分器的覆盖场景：深压 = 转弯时按住下；刹停 = 先直滑 acc 秒攒速度，再按住一边转到停)
+    keysDeep: t => { key(t < 3 ? 0 : (Math.floor((t - 3) / (sc.per / 2)) % 2 ? -1 : 1)); I.faScript = t < 3 ? 0 : -1; },
+    holdDeep: t => { key(t < 3 ? 0 : (sc.side || 1)); I.faScript = t < 3 ? 0 : -1; },
+    brakeAt: t => { const a = sc.acc || 6; key(t < a ? 0 : t < a + 8 ? (sc.side || 1) : 0); },
     crash: t => { // 朝前方最近的硬树干转
       let best = null; const p = S.p, vh = Math.hypot(S.v[0], S.v[2]) || 1, dx = S.v[0] / vh, dz = S.v[2] / vh;
       for (let a = 6; a <= 30; a += 3) for (let b = -8; b <= 8; b += 2) { const x = p[0] + dx * a - dz * b, z = p[2] + dz * a + dx * b; C.nearTree(x, z, tn); if (tn.ok && !tn.soft) { const ex = tn.x - p[0], ez = tn.z - p[2], f = ex * dx + ez * dz; if (f > 4 && (!best || f < best.f)) best = { x: tn.x, z: tn.z, f }; } }
@@ -59,31 +63,34 @@ const mkCtl = function (sc) {
 module.exports = { SCN, mkCtl };
 if (require.main === module) (async () => {
   fs.mkdirSync(outDir, { recursive: true });
-  const todo = SCN.filter(s => !only.length || only.includes(s.id));
-  const bySeg = {}; for (const s of todo) (bySeg[s.seg || ''] = bySeg[s.seg || ''] || []).push(s);
-  for (const seg of Object.keys(bySeg)) {
+  const LIST = process.env.MATRIX ? require('./score/scenarios.js').build() : SCN;      // MATRIX=1：评分器的覆盖矩阵（score/scenarios.js）
+  const todo = LIST.filter(s => !only.length || only.some(o => s.id === o || s.id.startsWith(o + '.')));
+  const gk = s => (s.seg || '') + '|' + (s.q || ''); const bySeg = {}; for (const s of todo) (bySeg[gk(s)] = bySeg[gk(s)] || []).push(s);
+  for (const key of Object.keys(bySeg)) {
+    const [seg, sq] = key.split('|');
     // （每种路段开一个新的浏览器：同一个浏览器里连开第二页偶尔会卡在加载上）
     const browser = await chromium.launch({ args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
     const page = await browser.newPage({ viewport: { width: 640, height: 360 }, deviceScaleFactor: 1 });
     page.on('pageerror', e => console.log('pageerror:', e.message));
-    const q = `dev&manual&backend=webgl2&w=320&h=180&gov=0&quality=2&seed=261111${seg ? '&seg=' + seg : ''}${process.env.Q ? '&' + process.env.Q : ''}`;
+    const q = `dev&manual&backend=webgl2&w=320&h=180&gov=0&quality=2&seed=261111${seg ? '&seg=' + seg : ''}${sq ? '&' + sq : ''}${process.env.Q ? '&' + process.env.Q : ''}`;
     await page.route('**/*', r => r.request().url().startsWith('file:') ? r.continue() : r.abort());      // 不等网络字体
     await page.goto('file://' + PAGE + '?' + q, { waitUntil: 'domcontentloaded' });
     const t0 = Date.now(), boot = await page.evaluate(() => window.__ski.boot());
-    console.log(`[${seg || '原山'}] boot`, boot, ((Date.now() - t0) / 1000).toFixed(1) + 's');
-    for (const sc of bySeg[seg]) {
+    console.log(`[${seg || '原山'}${sq ? ' ' + sq : ''}] boot`, boot, ((Date.now() - t0) / 1000).toFixed(1) + 's');
+    for (const sc of bySeg[key]) {
       const t1 = Date.now();
       const data = await page.evaluate(([sc, ctlSrc]) => {
         const K = window.__ski, M = K.m, G = M.Game, S = G.s, I = M.Input, Sk = M.Skier, C = M.Course, T = M.Tracks;
+        { const LR = self.__labride && self.__labride(); if (LR && LR.LabRide && LR.LabRide.on && LR.LabRide.on()) { const gear = M.Variants.val.ride === 'b' ? 'board' : 'ski'; let w = 0; while (!LR.LabRide.body(gear).ready && w < 6000) { K.sim(1 / 60, () => 0, { draw: false }); w++; } } }
         K.reset(sc.s0); G.trickSeed(12345); I.keys = {}; I.btn.jump = I.btn.tuck = false; I.script = null; I.faScript = null; I.kb = 0; I.kbV = 0;
         // （页面里的 tick 不是全局函数：用 __ski.sim 每次走一帧，fn 返回 null 表示走键盘那条路）
         const tick1 = () => K.sim(1 / 60, () => I.script, { draw: false });
         const ctl = (0, eval)('(' + ctlSrc + ')')(sc);
         const JK = ['pelvis', 'hipL', 'hipR', 'kneeL', 'kneeR', 'ankleL', 'ankleR', 'footL', 'footR', 'chest', 'neck', 'skull', 'head', 'shL', 'shR', 'elbowL', 'elbowR', 'wristL', 'wristR', 'gripL', 'gripR', 'tipL', 'tipR', 'poleDL', 'poleDR'];
         const PK = ['lean', 'edge', 'crouch', 'tuck', 'air', 'sep', 'headYaw', 'lead', 'stance', 'fore', 'fa', 'swing', 'liftL', 'liftR', 'pitchL', 'pitchR', 'plantL', 'plantR', 'dp', 'grabL', 'grabR', 'tilt', 'tipL', 'tipR', 'quiet'];
-        const SK = ['speed', 'lean', 'leanV', 'beta', 'load', 'e', 'leg', 'airT', 'landV', 'crash', 'charge', 'tuckIn', 'airK', 'dp', 'tuck', 'powder', 'aReac', 'u', 'brush', 'mogR'];
+        const SK = ['speed', 'lean', 'leanV', 'beta', 'load', 'e', 'leg', 'airT', 'landV', 'crash', 'charge', 'tuckIn', 'airK', 'dp', 'tuck', 'powder', 'aReac', 'u', 'brush', 'mogR', 'pdep'];
         const r3 = v => [Math.round(v[0] * 1e5) / 1e5, Math.round(v[1] * 1e5) / 1e5, Math.round(v[2] * 1e5) / 1e5], r5 = x => Math.round((x || 0) * 1e5) / 1e5;
-        const out = { id: sc.id, note: sc.note, dt: 1 / 60, JK, PK, SK, t: [], J: [], P: [], S: [], flag: [], root: [], bas: [], arm: [], ev: [], fl: [], seg: [], tGame: [], skis: [] };
+        const out = { ff: [], hf: [], id: sc.id, note: sc.note, sc, dt: 1 / 60, JK, PK, SK, t: [], J: [], P: [], S: [], flag: [], root: [], bas: [], arm: [], ev: [], fl: [], seg: [], tGame: [], skis: [] };
         G.start();
         let last = null; const up0 = Sk.update; Sk.update = function () { const r = up0.apply(this, arguments); if (arguments[0] === G.root) last = r; return r; };
         const n = Math.round(sc.dur * 60), gl2 = true;
@@ -105,9 +112,18 @@ if (require.main === module) (async () => {
           { const Fp = s.F[FB.pelvis], Fs = s.F[FB.spine], Fc = s.F[FB.chest], fl_ = s.F[FB.footL], fr_ = s.F[FB.footR];
             out.bas.push([r3(col(Fp, 0)), r3(col(Fp, 1)), r3(col(Fs, 1)), r3(col(Fc, 0)), r3(col(Fc, 1)), r3(s.hb.X), r3(s.hb.Y), r3(s.hb.Z), r3(col(fl_, 0)), r3(col(fl_, 2)), r3(col(fr_, 0)), r3(col(fr_, 2))]); }
           out.arm.push([r3(p.armL), r3(p.armR)]);
+          // (评分器用：两块板和两只手的完整坐标系 X,Y,Z,位置；板的是游戏的雪板骨，手的是手骨)
+          { const fr = m => [r3(col(m, 0)), r3(col(m, 1)), r3(col(m, 2)), r3(col(m, 3))]; out.ff.push([fr(s.F[FB.footL]), fr(s.F[FB.footR])]); out.hf.push([fr(s.F[FB.handL]), fr(s.F[FB.handR])]); }
           out.fl.push([r5(F.w), r5(F.ph), r5(F.rem), r5(F.soak), r5(F.reach), r5(F.prep), r5(F.ld), r5(F.sink), r5(G.timeScale), r5(F.q.yaw), r5(F.q.flip), r5(F.q.own), r5(F.gnd), r5(F.l), r5(F.Xs)]);
           // 雪板两端离雪面的高度（世界坐标）：尾、尖
           { const o = M.Render.origin, sg = W.seg, h = (q) => r5(q[1] + o[1] - C.height(q[0] + o[0], q[2] + o[2], 0.5)); out.skis.push([h(sg[0][0]), h(sg[0][1]), h(sg[1][0]), h(sg[1][1])]); }
+          // 板底离真实雪面（世界坐标，弯曲地形也对）：每块板 7 个截面 × 两条刃，[最低点, 板头到板尾那条线]，单位米
+          { const o = M.Render.origin, gh = q => { const w = Sk.toWorld(q); return w[1] + o[1] - C.height(w[0] + o[0], w[2] + o[2], 0.5); };
+            const sb = m => { const X = col(m, 0), Z = col(m, 2), P = col(m, 3); let lo = 9, line = -9;
+              for (const z of [-0.75, -0.6, -0.3, 0, 0.3, 0.6, 0.75]) { let e = 9; for (const x of [-0.055, 0.055]) { const y = gh([P[0] + X[0] * x + Z[0] * z, P[1] + X[1] * x + Z[1] * z, P[2] + X[2] * x + Z[2] * z]); lo = Math.min(lo, y); e = Math.min(e, y); } line = Math.max(line, e); }
+              return [r5(lo), r5(line)]; };
+            out.skb = out.skb || []; out.skb.push([sb(s.F[FB.footL]), sb(s.F[FB.footR])]); }
+          out.gnd = out.gnd || []; out.gnd.push(Sk.sec && Sk.sec.gnd ? Sk.sec.gnd.map(r5) : null);      // 新求解器：每块板脚下雪面的 [高度, 俯仰]
           for (const e of evs0) out.ev.push([r5(t), e.type, e.id || '', r5(e.v || 0)]);
           if (i % 30 === 0) out.seg.push(C.segAt(-S.p[2]).type);
           out.trick = out.trick || []; if (F.trick && out.trick[out.trick.length - 1] !== F.trick) out.trick.push(F.trick);

@@ -1,0 +1,141 @@
+TURN STYLE SUMMARY  (MediaPipe heavy, follow-crop; generated from poses/*_summary.json)
+Units: angles in deg; knee 0 = straight; incl = hip->ankle line from vertical (image plane); ang = angulation (+ = trunk more upright than legs);
+kLong/kShort = knee of the extended / folded leg at apex; hand_h = wrist height above hip (leg lengths); spr = wrist spread (leg lengths);
+twist = shoulder line vs hip line about vertical; pump = p95-p5 knee flex in the turn; hipH = hip-ankle distance / leg length (long leg) at apex;
+period = mean turn duration between edge changes; ecdur = time |incl| spends below 70% of the apex between apexes; knee@ec = mean knee at edge change.
+
+== arthur-longo-she-chapter-2_107.0  [Arthur Longo (board)]
+   period 1.61 s | edge changes [0.27, 1.97, 3.07, 5.1] | ecdur [0.5, 0.83, 1.1] | knee@ec [21.8, 26.8, 23.0, 35.6] | reliable 174/174
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.3   -62   +14    25     46  -0.05  0.38   -24  27.0  0.98  1.67 toe 
+                                                  2.0   +34   +21    28     34   0.07  0.53   -23  28.7  0.97  1.07 heel
+                                                  3.1   -34    +6    17     21   0.03  0.62   -31  23.7  0.99  2.00 toe 
+                                                  5.1   +39   +32    26     81   0.10  0.44   -24  41.3  0.98  0.63 heel
+== arthur-longo-she-chapter-3_105.2  [Arthur Longo (board)]
+   period 1.33 s | edge changes [1.28, 3.23, 5.13, 6.52, 6.98, 7.57, 9.83, 11.23, 11.88, 12.8, 14.6] | ecdur [1.02, 1.3, 0.55, 0.67, 0.25, 0.85, 1.22, 0.38, 0.38, 1.7, 0.48] | knee@ec [47.8, 66.6, 28.6, 48.9, 42.8, 50.0, 50.0, 23.2, 46.6, 53.5, 45.3] | reliable 896/906
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.0   +41   +39    30     66   0.44  1.30   -21  52.2  0.97  1.27 heel
+                                                  1.3   -70   +20    24     52   0.07  0.65   -21  52.1  0.98  1.93 toe 
+                                                  3.2   +35   +45    74     78   0.29  0.69   -24  67.6  0.80  1.88 heel
+                                                  5.1   -34   -10    61     76   0.01  0.71   -20  58.8  0.87  1.37 toe 
+                                                  6.5   +16   +37    36     43   0.48  1.14   -38  22.5  0.95  0.45 heel
+                                                  7.0   -14   -10    27     54   0.24  0.14   -14  13.0  0.97  0.57 toe 
+                                                  7.6   +36   +35    86     94   0.26  0.79   -21  62.1  0.73  2.25 heel
+                                                  9.8   -55   +27    22     48   0.28  0.45   -12  41.6  0.98  1.38 toe 
+                                                 11.2   +37   +37    10     35   0.52  1.00   -21  23.8  1.00  0.63 heel
+                                                 11.9   -36   +15    30     52   0.22  0.75   -23  31.6  0.97  0.90 toe 
+                                                 12.8   +27    -8     6      9   0.09  0.72    -9  60.9  1.00  1.78 toe 
+                                                 14.6   -39    +6    58     64   0.16  0.46    -5  31.1  0.87  0.47 toe 
+== austen-sweetin-wind-slab_149.8  [Austen Sweetin (board)]
+   period 0.93 s | edge changes [1.42, 2.0, 2.59, 4.38, 5.63, 6.05] | ecdur [0.29, 0.38, 0.42, 1.29, 0.83] | knee@ec [67.8, 43.3, 82.0, 121.3, 66.1, 122.5] | reliable 151/178
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.2   +27   -15    69     93  -0.07  0.68    +9  35.9  0.84  1.13 toe 
+                                                  1.4   -10   +34    72     74   0.12  1.06    +8  35.2  0.82  0.54 heel
+                                                  2.0   +10   -16    71     89   0.29  0.83   +10  47.2  0.82  0.54 toe 
+                                                  2.6   -48   +12    97    108   0.31  1.07   +13  71.0  0.68  1.75 heel
+                                                  4.4   +37    +3    67     68   0.03  0.96   +18  59.5  0.83  1.21 toe 
+                                                  6.0   +68   +68    87    133   0.30  0.86   -10  96.8  0.73  1.29 heel
+== austen-sweetin-wind-slab_235.2  [Austen Sweetin (board)]
+   period 1.21 s | edge changes [3.88, 5.09] | ecdur [3.25] | knee@ec [40.1, 39.3] | reliable 165/221
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.0   +47  +100    26     34   0.31  0.68    -2  83.1  0.97  3.84 heel
+                                                  3.9   -32   -24    23     52  -0.12  0.26   -14  26.1  0.98  1.17 toe 
+                                                  7.8   +15    -6    40     51  -0.05  0.33   +15  17.8  0.94  1.29 toe 
+== bryan-iguchi-the-unfound_318.0  [Bryan Iguchi (board)]  ** FAILED / unreliable **
+   period None s | edge changes [] | ecdur [] | knee@ec [] | reliable 26/65
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+== candide-thovex-blue-stick_19.9  [Candide Thovex (ski)]  ** FAILED / unreliable **
+   period None s | edge changes [1.08] | ecdur [] | knee@ec [47.2] | reliable 30/264
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.5   +30   +33    36     44   0.41  0.77   -17  48.2  0.95  0.54     
+                                                  8.5   -48   -24    12     26   0.00  0.43   +19 109.0  0.99  2.34     
+== candide-thovex-mellow-day-tignes_37.8  [Candide Thovex (ski)]
+   period 1.62 s | edge changes [1.83, 3.46] | ecdur [] | knee@ec [58.2, 46.3] | reliable 52/94
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  1.8   -18    -5    90     97   0.15  0.91   +18  74.0  0.72  1.58     
+== henrik-harlaut-mammoth-dec-4_34.8  [Henrik Harlaut (ski)]
+   period 0.43 s | edge changes [2.07, 2.47, 2.87, 3.24, 3.74, 4.27, 4.64] | ecdur [1.5, 0.33, 0.77] | knee@ec [86.2, 73.1, 77.7, 41.9, 23.7, 30.5, 41.9] | reliable 115/156
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  1.2   +90  +167    35     39   0.63  0.70   -13  71.8  0.95  0.83     
+                                                  3.2   -22    +6    82    100   0.84  0.83   -15  80.7  0.79  0.47     
+                                                  3.7   +27   -10    37    111   0.20  0.85   -18  70.0  0.95  0.50     
+                                                  4.6   -22   +54    40     46   0.47  1.51    -4  61.2  0.94  0.40     
+== henrik-harlaut-mammoth-dec-4_8.0  [Henrik Harlaut (ski)]
+   period None s | edge changes [] | ecdur [] | knee@ec [] | reliable 53/108
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  1.0   +46   +18    25     54   0.10  0.29    +2 109.6  0.98  1.84     
+== henrik-harlaut-zermatic_83.3  [Henrik Harlaut (ski)]
+   period None s | edge changes [2.02] | ecdur [] | knee@ec [89.9] | reliable 171/282
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.3   +21    -2     8     24   0.43  1.20   +10  89.8  1.00  1.67     
+                                                  2.0   -68    -2    23     39   0.09  0.39   -32  90.5  0.98  1.97     
+== korua-yearning-for-turning-vol2_158.3  [Korua riders (board)]  ** FAILED / unreliable **
+   period None s | edge changes [6.14] | ecdur [] | knee@ec [34.6] | reliable 55/310
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+== korua-yearning-for-turning-vol2_57.4  [Korua riders (board)]
+   period None s | edge changes [1.34] | ecdur [2.48] | knee@ec [61.0] | reliable 182/195
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.0   +48   +66    52     85   0.21  1.63   -37  30.5  0.90  1.32 heel
+                                                  1.3   -64   -50    64    100  -0.39  0.66   -13  68.7  0.85  2.52 toe 
+== markus-eder-homeruns_74.7  [Markus Eder (ski)]
+   period None s | edge changes [0.3] | ecdur [] | knee@ec [60.4] | reliable 83/114
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.3   +44   +77    92    120   0.03  0.31    -6  79.6  0.69  2.87     
+== markus-eder-ultimate-run_384.8  [Markus Eder (ski)]  ** FAILED / unreliable **
+   period 0.68 s | edge changes [2.04, 2.72] | ecdur [1.4] | knee@ec [95.2, 129.3] | reliable 123/153
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.0   +44    +9    61     78   0.07  0.89   +21  79.9  0.86  2.00     
+                                                  2.0   -31    -6    18     39   0.07  1.18   +22  69.5  0.99  0.64     
+                                                  2.7   +56    +2    50     60  -0.04  0.84   +16  74.1  0.91  3.32     
+== phil-casabon-changes_72.0  [Phil Casabon (ski)]
+   period 0.98 s | edge changes [0.75, 2.13, 2.46, 3.75, 4.67] | ecdur [0.88, 0.96, 0.58, 0.58] | knee@ec [44.8, 61.5, 67.3, 36.1, 61.6] | reliable 123/132
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.2   -18   +20    32     43  -0.33  0.42   +24  58.0  0.96  0.46     
+                                                  0.8   +37   +54    52     74  -0.05  0.23    +5  36.9  0.90  1.33     
+                                                  2.5   +25   +47    23     62  -0.10  0.36   -15  40.3  0.98  1.25     
+                                                  3.8    -7    +0    69    100   0.14  0.74   +18  56.3  0.83  0.88     
+                                                  4.7   +28   +31    54     76   0.26  0.89   +20  49.4  0.89  0.75     
+== phil-casabon-spirit-of-the-thing_38.9  [Phil Casabon (ski)]
+   period None s | edge changes [] | ecdur [] | knee@ec [] | reliable 59/99
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  1.6   +16   +34    18     24   0.01  0.36   +21  56.0  0.99  2.38     
+== reilly-mcglashan-carving-hokkaido_117.5  [Reilly McGlashan (ski)]
+   period 2.08 s | edge changes [4.12, 5.62, 8.29] | ecdur [1.46, 0.92, 0.83] | knee@ec [77.4, 110.5, 61.8] | reliable 291/324
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.0   -76   +39     4     96   0.03  0.27   +21  61.1  1.00  4.08     
+                                                  4.1   +64   +21    24     91   0.03  0.27   +38  81.5  0.98  1.46     
+                                                  5.6   -74   +42    22     71   0.06  0.59   +15  37.7  0.98  2.62     
+                                                  8.3   +60    +9    41     67   0.06  1.01   +23  96.3  0.94  3.75     
+== reilly-mcglashan-carving-hokkaido_26.5  [Reilly McGlashan (ski)]
+   period 3.29 s | edge changes [6.21, 9.5] | ecdur [0.25, 1.33] | knee@ec [40.5, 135.6] | reliable 252/264
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.1   +67   +50    32    107   0.11  0.98   +33  49.7  0.96  6.08     
+                                                  6.2   -76   +17    14     58   0.01  0.98    +8 120.7  0.99  3.25     
+                                                  9.5   +33   +84    76    108   0.30  0.34   -18  76.2  0.79  1.00     
+== sammy-carlson-deepest-powder_71.7  [Sammy Carlson (ski)]
+   period None s | edge changes [2.09] | ecdur [0.71] | knee@ec [122.2] | reliable 65/77
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.2   -34   +75   103    137   0.15  0.45    +3  87.9  0.63  1.84     
+                                                  2.1   +38   +64    55     97   0.11  0.83   +30  76.2  0.89  1.04     
+== slice-n-dice-vol4_118.8  [Slice n Dice (board)]
+   period None s | edge changes [5.96] | ecdur [0.32] | knee@ec [48.9] | reliable 83/180
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  3.8   -41    +6    62     73   0.00  0.16   -18  51.0  0.87  2.12 toe 
+                                                  6.0   +55   +51    26     52   0.11  0.27   -24  19.8  0.97  1.08 heel
+== terje-haakonsen-montafon-banked-slalom_47.0  [Terje Haakonsen (board)]
+   period None s | edge changes [0.9] | ecdur [1.17] | knee@ec [49.8] | reliable 66/84
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.0   +35   -22    25     38  -0.37  0.45    -4  60.8  0.98  0.87 toe 
+                                                  0.9   +80   +56    61     68   0.33  0.56   -20  53.0  0.86  1.73 heel
+== terje-haakonsen-montafon-banked-slalom_66.3  [Terje Haakonsen (board)]
+   period 2.17 s | edge changes [2.47, 4.63] | ecdur [0.9] | knee@ec [45.4, 51.0] | reliable 141/156
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  0.0   +82   +68    31     77   0.20  0.66   -16  54.7  0.96  2.43 heel
+                                                  2.5   -79    -2    41     47  -0.24  0.35    +9  75.3  0.94  2.13 toe 
+== this-is-freeride_175.0  [owner freeride clip (board)]
+   period 1.0 s | edge changes [1.2, 2.88, 4.24, 5.92, 6.28, 6.88] | ecdur [0.8, 0.76] | knee@ec [68.7, 29.9, 39.0, 41.8, 77.5, 38.4] | reliable 130/190
+   range / turn                                    t0  incl   ang kLong kShort hand_h   spr twist  pump  hipH   dur edge
+                                                  1.2   -44   +39    63     71  -0.07  0.61   +17  46.1  0.86  1.64 heel
+                                                  2.9   +51   +22    10     49  -0.03  0.77    +2  21.2  1.00  1.32 toe 
+                                                  6.3   +34   +39    28     44   0.02  0.32   -15  52.9  0.97  0.56 heel
+                                                  6.9   -46   +24    36     48   0.08  0.11   -21  31.4  0.95  0.64 toe 

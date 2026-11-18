@@ -1,0 +1,2681 @@
+{
+ "at": "1970-01-01T00:00:00.000Z",
+ "dir": "tools/motion/out/bg_ski",
+ "scenarios": 27,
+ "cards": {
+  "ski|start": {
+   "gear": "ski",
+   "card": "start",
+   "zh": "起步撑杖",
+   "fail": true,
+   "total": 0,
+   "F": 27,
+   "R": null,
+   "E": null,
+   "hard": [
+    {
+     "scn": "deepHold.ski.steeps.b",
+     "gear": "ski",
+     "card": "start",
+     "id": "H7",
+     "i": 0,
+     "t": 0,
+     "val": 6.94,
+     "lim": 5,
+     "what": "小腿在靴子里侧歪 6.9°",
+     "frames": 1,
+     "cards": [
+      "start"
+     ]
+    },
+    {
+     "scn": "deepM.ski.bowl.f",
+     "gear": "ski",
+     "card": "start",
+     "id": "H7",
+     "i": 0,
+     "t": 0,
+     "val": 7.74,
+     "lim": 5,
+     "what": "小腿在靴子里侧歪 7.7°",
+     "frames": 1,
+     "cards": [
+      "start"
+     ]
+    },
+    {
+     "scn": "deepM.ski.powder.a",
+     "gear": "ski",
+     "card": "start",
+     "id": "H7",
+     "i": 0,
+     "t": 0,
+     "val": 9,
+     "lim": 5,
+     "what": "小腿在靴子里侧歪 9.0°",
+     "frames": 1,
+     "cards": [
+      "start"
+     ]
+    },
+    {
+     "scn": "deepS.ski.steeps.d",
+     "gear": "ski",
+     "card": "start",
+     "id": "H7",
+     "i": 0,
+     "t": 0,
+     "val": 10.98,
+     "lim": 5,
+     "what": "小腿在靴子里侧歪 11.0°",
+     "frames": 1,
+     "cards": [
+      "start"
+     ]
+    },
+    {
+     "scn": "foreaft.ski.bowl.a",
+     "gear": "ski",
+     "card": "start",
+     "id": "H7",
+     "i": 0,
+     "t": 0,
+     "val": 7.94,
+     "lim": 5,
+     "what": "小腿在靴子里侧歪 7.9°",
+     "frames": 1,
+     "cards": [
+      "start"
+     ]
+    },
+    {
+     "scn": "gully.ski.gully.b",
+     "gear": "ski",
+     "card": "start",
+     "id": "H7",
+     "i": 0,
+     "t": 0,
+     "val": 6.06,
+     "lim": 5,
+     "what": "小腿在靴子里侧歪 6.1°",
+     "frames": 1,
+     "cards": [
+      "start",
+      "terrain"
+     ]
+    },
+    {
+     "scn": "hops.ski.bowl.b",
+     "gear": "ski",
+     "card": "start",
+     "id": "H7",
+     "i": 0,
+     "t": 0,
+     "val": 9.51,
+     "lim": 5,
+     "what": "小腿在靴子里侧歪 9.5°",
+     "frames": 1,
+     "cards": [
+      "start"
+     ]
+    },
+    {
+     "scn": "rollers.ski.rollers.a",
+     "gear": "ski",
+     "card": "start",
+     "id": "H7",
+     "i": 0,
+     "t": 0,
+     "val": 5.6,
+     "lim": 5,
+     "what": "小腿在靴子里侧歪 5.6°",
+     "frames": 1,
+     "cards": [
+      "start"
+     ]
+    }
+   ],
+   "det": [
+    {
+     "layer": "F",
+     "id": "F3k",
+     "zh": "膝角速度 99% 分位（度/秒）",
+     "n": 27,
+     "med": 160.165,
+     "lo": 150.46,
+     "hi": 184.735,
+     "band": [
+      0,
+      600
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3h",
+     "zh": "头转速 99% 分位（度/秒）",
+     "n": 27,
+     "med": 0,
+     "lo": 0,
+     "hi": 0.034,
+     "band": [
+      0,
+      300
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F4",
+     "zh": "手、头、髋一帧内的跳变（毫米/帧²）",
+     "n": 27,
+     "med": 49.658,
+     "lo": 38.286,
+     "hi": 56.408,
+     "band": [
+      0,
+      8
+     ],
+     "src": "估：相当于一帧跳 1 cm 左右",
+     "score": 0
+    },
+    {
+     "layer": "F",
+     "id": "F1",
+     "zh": "每分钟突变次数",
+     "n": 1,
+     "med": 742.105,
+     "lo": 742.105,
+     "hi": 742.105,
+     "band": [
+      0,
+      10
+     ],
+     "src": "真人动捕同一把尺约 8 次（tools/motion/README.md）",
+     "score": 0
+    }
+   ],
+   "cover": {
+    "低速": 40.966666666665624,
+    "中速": 6.749999999999981,
+    "高速": 0
+   }
+  },
+  "ski|glide": {
+   "gear": "ski",
+   "card": "glide",
+   "zh": "直滑",
+   "fail": true,
+   "total": 0,
+   "F": 80,
+   "R": null,
+   "E": 0,
+   "hard": [
+    {
+     "scn": "turnL.ski.bowl.a",
+     "gear": "ski",
+     "card": "glide",
+     "id": "H4",
+     "i": 467,
+     "t": 7.78,
+     "val": -16.78,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -16.8 cm",
+     "frames": 11707,
+     "cards": [
+      "glide",
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "deepM.ski.powder.a",
+     "gear": "ski",
+     "card": "glide",
+     "id": "H4",
+     "i": 368,
+     "t": 6.13,
+     "val": -14.29,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -14.3 cm",
+     "frames": 11620,
+     "cards": [
+      "tuck",
+      "glide",
+      "carve",
+      "edge"
+     ]
+    },
+    {
+     "scn": "turnM.ski.bowl.e",
+     "gear": "ski",
+     "card": "glide",
+     "id": "H4",
+     "i": 1059,
+     "t": 17.65,
+     "val": -16.9,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -16.9 cm",
+     "frames": 9585,
+     "cards": [
+      "glide",
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "hops.ski.bowl.b",
+     "gear": "ski",
+     "card": "glide",
+     "id": "H4",
+     "i": 292,
+     "t": 4.87,
+     "val": -16.91,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -16.9 cm",
+     "frames": 4657,
+     "cards": [
+      "glide",
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "deepS.ski.steeps.d",
+     "gear": "ski",
+     "card": "glide",
+     "id": "H4",
+     "i": 260,
+     "t": 4.33,
+     "val": -13.93,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -13.9 cm",
+     "frames": 2812,
+     "cards": [
+      "tuck",
+      "glide",
+      "carve",
+      "edge"
+     ]
+    },
+    {
+     "scn": "turnback.ski.bowl.a",
+     "gear": "ski",
+     "card": "glide",
+     "id": "H4",
+     "i": 556,
+     "t": 9.27,
+     "val": -12.71,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -12.7 cm",
+     "frames": 2246,
+     "cards": []
+    },
+    {
+     "scn": "turnS.ski.steeps.a",
+     "gear": "ski",
+     "card": "glide",
+     "id": "H4",
+     "i": 241,
+     "t": 4.02,
+     "val": -12.93,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -12.9 cm",
+     "frames": 1545,
+     "cards": [
+      "glide",
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "tuck.ski.steeps.c",
+     "gear": "ski",
+     "card": "glide",
+     "id": "H4",
+     "i": 1367,
+     "t": 22.78,
+     "val": -18.31,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -18.3 cm",
+     "frames": 1438,
+     "cards": [
+      "glide"
+     ]
+    }
+   ],
+   "det": [
+    {
+     "layer": "F",
+     "id": "F1",
+     "zh": "每分钟突变次数",
+     "n": 19,
+     "med": 0,
+     "lo": 0,
+     "hi": 0,
+     "band": [
+      0,
+      10
+     ],
+     "src": "真人动捕同一把尺约 8 次（tools/motion/README.md）",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3k",
+     "zh": "膝角速度 99% 分位（度/秒）",
+     "n": 27,
+     "med": 312.252,
+     "lo": 98.238,
+     "hi": 487.121,
+     "band": [
+      0,
+      600
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3h",
+     "zh": "头转速 99% 分位（度/秒）",
+     "n": 27,
+     "med": 74.577,
+     "lo": 13.893,
+     "hi": 229.468,
+     "band": [
+      0,
+      300
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F4",
+     "zh": "手、头、髋一帧内的跳变（毫米/帧²）",
+     "n": 27,
+     "med": 13.766,
+     "lo": 10.905,
+     "hi": 24.936,
+     "band": [
+      0,
+      8
+     ],
+     "src": "估：相当于一帧跳 1 cm 左右",
+     "score": 28
+    },
+    {
+     "layer": "E",
+     "id": "E2",
+     "zh": "直滑时头上下颠（cm）",
+     "n": 27,
+     "med": 8.156,
+     "lo": 2.918,
+     "hi": 13.396,
+     "band": [
+      0,
+      2
+     ],
+     "src": "估",
+     "score": 0
+    }
+   ],
+   "cover": {
+    "低速": 6.799999999999981,
+    "中速": 47.033333333331946,
+    "高速": 65.14999999999759
+   }
+  },
+  "ski|turn": {
+   "gear": "ski",
+   "card": "turn",
+   "zh": "普通转弯",
+   "fail": true,
+   "total": 0,
+   "F": 55,
+   "R": 92,
+   "E": 56,
+   "hard": [
+    {
+     "scn": "turnL.ski.bowl.a",
+     "gear": "ski",
+     "card": "turn",
+     "id": "H4",
+     "i": 467,
+     "t": 7.78,
+     "val": -16.78,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -16.8 cm",
+     "frames": 11707,
+     "cards": [
+      "glide",
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "turnL.ski.powder.a",
+     "gear": "ski",
+     "card": "turn",
+     "id": "H4",
+     "i": 998,
+     "t": 16.63,
+     "val": -15.89,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -15.9 cm",
+     "frames": 9752,
+     "cards": [
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "turnM.ski.bowl.e",
+     "gear": "ski",
+     "card": "turn",
+     "id": "H4",
+     "i": 1059,
+     "t": 17.65,
+     "val": -16.9,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -16.9 cm",
+     "frames": 9585,
+     "cards": [
+      "glide",
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "turnM.ski.powder.a",
+     "gear": "ski",
+     "card": "turn",
+     "id": "H4",
+     "i": 280,
+     "t": 4.67,
+     "val": -17.31,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -17.3 cm",
+     "frames": 8620,
+     "cards": [
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "touch.ski.bowl.g",
+     "gear": "ski",
+     "card": "turn",
+     "id": "H4",
+     "i": 1499,
+     "t": 24.98,
+     "val": -8.57,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -8.6 cm",
+     "frames": 6628,
+     "cards": [
+      "turn"
+     ]
+    },
+    {
+     "scn": "moguls.ski.moguls.g",
+     "gear": "ski",
+     "card": "turn",
+     "id": "H4",
+     "i": 236,
+     "t": 3.93,
+     "val": -15.03,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -15.0 cm",
+     "frames": 5196,
+     "cards": [
+      "terrain",
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "turnS.ski.bowl.c",
+     "gear": "ski",
+     "card": "turn",
+     "id": "H4",
+     "i": 241,
+     "t": 4.02,
+     "val": -15.33,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -15.3 cm",
+     "frames": 5155,
+     "cards": [
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "hops.ski.bowl.b",
+     "gear": "ski",
+     "card": "turn",
+     "id": "H4",
+     "i": 292,
+     "t": 4.87,
+     "val": -16.91,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -16.9 cm",
+     "frames": 4657,
+     "cards": [
+      "glide",
+      "turn",
+      "edge"
+     ]
+    }
+   ],
+   "det": [
+    {
+     "layer": "F",
+     "id": "F6",
+     "zh": "上身比身体倾角晚多少秒（腿先动）",
+     "n": 15,
+     "med": -0.168,
+     "lo": -0.387,
+     "hi": -0.126,
+     "band": [
+      0,
+      0.2
+     ],
+     "src": "估",
+     "score": 0
+    },
+    {
+     "layer": "F",
+     "id": "F7",
+     "zh": "按键到身体倾斜的延迟（秒）",
+     "n": 15,
+     "med": 0.268,
+     "lo": 0.225,
+     "hi": 0.471,
+     "band": [
+      0,
+      0.15
+     ],
+     "src": "估；Lonely Mountains 文章：手感先于一切",
+     "score": 22
+    },
+    {
+     "layer": "F",
+     "id": "F1",
+     "zh": "每分钟突变次数",
+     "n": 12,
+     "med": 10.357,
+     "lo": 0,
+     "hi": 29.197,
+     "band": [
+      0,
+      10
+     ],
+     "src": "真人动捕同一把尺约 8 次（tools/motion/README.md）",
+     "score": 96
+    },
+    {
+     "layer": "F",
+     "id": "F3k",
+     "zh": "膝角速度 99% 分位（度/秒）",
+     "n": 13,
+     "med": 323.219,
+     "lo": 286.27,
+     "hi": 415.127,
+     "band": [
+      0,
+      600
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3h",
+     "zh": "头转速 99% 分位（度/秒）",
+     "n": 13,
+     "med": 177.886,
+     "lo": 129.235,
+     "hi": 218.309,
+     "band": [
+      0,
+      300
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F4",
+     "zh": "手、头、髋一帧内的跳变（毫米/帧²）",
+     "n": 13,
+     "med": 18.72,
+     "lo": 9.161,
+     "hi": 31.763,
+     "band": [
+      0,
+      8
+     ],
+     "src": "估：相当于一帧跳 1 cm 左右",
+     "score": 0
+    },
+    {
+     "layer": "R",
+     "id": "R0",
+     "zh": "身体倾角和物理算出的倾角差（度）",
+     "n": 192,
+     "med": 7.7,
+     "lo": 2.005,
+     "hi": 13.548,
+     "band": [
+      0,
+      5
+     ],
+     "src": "物理：倾角由速度和转弯半径决定",
+     "score": 73
+    },
+    {
+     "layer": "R",
+     "id": "Rincl",
+     "zh": "弯中倾角（度）",
+     "n": 192,
+     "med": 39.393,
+     "lo": 23.614,
+     "hi": 51.698,
+     "band": [
+      13,
+      79
+     ],
+     "src": "专业视频（Candide Thovex、Henrik Harlaut、Markus Eder、Phil Casabon、Reilly McGlashan、Sammy Carlson），23 个弯",
+     "score": 100
+    },
+    {
+     "layer": "R",
+     "id": "RkLong",
+     "zh": "外腿（伸直那条）膝角",
+     "n": 192,
+     "med": 49.873,
+     "lo": 36.22,
+     "hi": 67.878,
+     "band": [
+      9,
+      95
+     ],
+     "src": "专业视频（Candide Thovex、Henrik Harlaut、Markus Eder、Phil Casabon、Reilly McGlashan、Sammy Carlson），23 个弯",
+     "score": 100
+    },
+    {
+     "layer": "R",
+     "id": "RkShort",
+     "zh": "内腿（收起那条）膝角",
+     "n": 192,
+     "med": 88.732,
+     "lo": 75.343,
+     "hi": 96.101,
+     "band": [
+      34,
+      116
+     ],
+     "src": "专业视频（Candide Thovex、Henrik Harlaut、Markus Eder、Phil Casabon、Reilly McGlashan、Sammy Carlson），23 个弯",
+     "score": 100
+    },
+    {
+     "layer": "R",
+     "id": "RhipH",
+     "zh": "髋到踝的长度 / 腿长",
+     "n": 192,
+     "med": 0.609,
+     "lo": 0.473,
+     "hi": 0.725,
+     "band": [
+      0.69,
+      1.02
+     ],
+     "src": "专业视频（Candide Thovex、Henrik Harlaut、Markus Eder、Phil Casabon、Reilly McGlashan、Sammy Carlson），23 个弯",
+     "score": 75
+    },
+    {
+     "layer": "R",
+     "id": "RhandH",
+     "zh": "手比髋高多少 / 腿长",
+     "n": 192,
+     "med": 0.108,
+     "lo": 0.085,
+     "hi": 0.152,
+     "band": [
+      -0.1,
+      0.48
+     ],
+     "src": "专业视频（Candide Thovex、Henrik Harlaut、Markus Eder、Phil Casabon、Reilly McGlashan、Sammy Carlson），23 个弯",
+     "score": 100
+    },
+    {
+     "layer": "R",
+     "id": "Rspr",
+     "zh": "两手宽度 / 腿长",
+     "n": 192,
+     "med": 0.669,
+     "lo": 0.648,
+     "hi": 0.803,
+     "band": [
+      0.22000000000000003,
+      1.06
+     ],
+     "src": "专业视频（Candide Thovex、Henrik Harlaut、Markus Eder、Phil Casabon、Reilly McGlashan、Sammy Carlson），23 个弯",
+     "score": 100
+    },
+    {
+     "layer": "R",
+     "id": "Rtwist",
+     "zh": "肩线对髋线扭了多少（度）",
+     "n": 192,
+     "med": 13.546,
+     "lo": 9.085,
+     "hi": 14.622,
+     "band": [
+      -1,
+      37
+     ],
+     "src": "专业视频（Candide Thovex、Henrik Harlaut、Markus Eder、Phil Casabon、Reilly McGlashan、Sammy Carlson），23 个弯",
+     "score": 100
+    },
+    {
+     "layer": "E",
+     "id": "E3el",
+     "zh": "弯中手肘角（双板）",
+     "n": 192,
+     "med": 78.071,
+     "lo": 75.886,
+     "hi": 82.208,
+     "band": [
+      20,
+      60
+     ],
+     "src": "今天定的：手臂微弯，不僵直、不夹紧",
+     "score": 10
+    },
+    {
+     "layer": "E",
+     "id": "E3fwd",
+     "zh": "手在胸前多远（米）",
+     "n": 192,
+     "med": 0.444,
+     "lo": 0.428,
+     "hi": 0.49,
+     "band": [
+      0.25,
+      0.45
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "E",
+     "id": "E4",
+     "zh": "一个弯里外膝几乎不动的时间占比",
+     "n": 192,
+     "med": 0.125,
+     "lo": 0.031,
+     "hi": 0.406,
+     "band": [
+      0.2,
+      0.5
+     ],
+     "src": "Alhammoud 2020：外膝约 34% 的时间几乎不动",
+     "score": 63
+    },
+    {
+     "layer": "E",
+     "id": "E5",
+     "zh": "左弯和右弯的差别（相对）",
+     "n": 11,
+     "med": 0.081,
+     "lo": 0.028,
+     "hi": 0.18,
+     "band": [
+      0,
+      0.1
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "E",
+     "id": "E1",
+     "zh": "胸口摆动 / 行进方向摆动",
+     "n": 12,
+     "med": 0.934,
+     "lo": 0.829,
+     "hi": 1.161,
+     "band": [
+      0,
+      0.35
+     ],
+     "src": "估；教学：上身朝坡下、安静",
+     "score": 0
+    }
+   ],
+   "cover": {
+    "低速": 21.550000000000058,
+    "中速": 26.733333333333096,
+    "高速": 181.88333333337022
+   }
+  },
+  "ski|carve": {
+   "gear": "ski",
+   "card": "carve",
+   "zh": "深压切弯",
+   "fail": true,
+   "total": 0,
+   "F": 76,
+   "R": 85,
+   "E": 59,
+   "hard": [
+    {
+     "scn": "deepM.ski.bowl.f",
+     "gear": "ski",
+     "card": "carve",
+     "id": "H4",
+     "i": 1155,
+     "t": 19.25,
+     "val": -14.63,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -14.6 cm",
+     "frames": 11666,
+     "cards": [
+      "tuck",
+      "carve",
+      "edge"
+     ]
+    },
+    {
+     "scn": "deepM.ski.powder.a",
+     "gear": "ski",
+     "card": "carve",
+     "id": "H4",
+     "i": 368,
+     "t": 6.13,
+     "val": -14.29,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -14.3 cm",
+     "frames": 11620,
+     "cards": [
+      "tuck",
+      "glide",
+      "carve",
+      "edge"
+     ]
+    },
+    {
+     "scn": "deepS.ski.steeps.d",
+     "gear": "ski",
+     "card": "carve",
+     "id": "H4",
+     "i": 260,
+     "t": 4.33,
+     "val": -13.93,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -13.9 cm",
+     "frames": 2812,
+     "cards": [
+      "tuck",
+      "glide",
+      "carve",
+      "edge"
+     ]
+    },
+    {
+     "scn": "deepM.ski.powder.a",
+     "gear": "ski",
+     "card": "carve",
+     "id": "H2",
+     "i": 424,
+     "t": 7.07,
+     "val": 4.37,
+     "lim": 1,
+     "what": "两板夹角 4.4°",
+     "frames": 313,
+     "cards": [
+      "tuck",
+      "carve"
+     ]
+    },
+    {
+     "scn": "deepS.ski.steeps.d",
+     "gear": "ski",
+     "card": "carve",
+     "id": "H1",
+     "i": 1311,
+     "t": 21.85,
+     "val": 5.42,
+     "lim": 1,
+     "what": "板陷进雪 6.3 cm（粉雪允许 0.9）",
+     "frames": 232,
+     "cards": [
+      "tuck",
+      "carve",
+      "edge"
+     ]
+    },
+    {
+     "scn": "deepM.ski.bowl.f",
+     "gear": "ski",
+     "card": "carve",
+     "id": "H1",
+     "i": 1530,
+     "t": 25.5,
+     "val": 5,
+     "lim": 1,
+     "what": "板陷进雪 6.6 cm（粉雪允许 1.6）",
+     "frames": 186,
+     "cards": [
+      "tuck",
+      "carve"
+     ]
+    },
+    {
+     "scn": "deepM.ski.bowl.f",
+     "gear": "ski",
+     "card": "carve",
+     "id": "H2",
+     "i": 1518,
+     "t": 25.3,
+     "val": 4.45,
+     "lim": 1,
+     "what": "两板夹角 4.4°",
+     "frames": 150,
+     "cards": [
+      "tuck",
+      "carve"
+     ]
+    },
+    {
+     "scn": "deepM.ski.powder.a",
+     "gear": "ski",
+     "card": "carve",
+     "id": "H5",
+     "i": 1251,
+     "t": 20.85,
+     "val": -0.41,
+     "lim": 0,
+     "what": "左手掌心朝外（拳翻过来或左右手装反）",
+     "frames": 46,
+     "cards": [
+      "tuck",
+      "carve"
+     ]
+    }
+   ],
+   "det": [
+    {
+     "layer": "F",
+     "id": "F1",
+     "zh": "每分钟突变次数",
+     "n": 3,
+     "med": 0,
+     "lo": 0,
+     "hi": 0,
+     "band": [
+      0,
+      10
+     ],
+     "src": "真人动捕同一把尺约 8 次（tools/motion/README.md）",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3k",
+     "zh": "膝角速度 99% 分位（度/秒）",
+     "n": 3,
+     "med": 279.744,
+     "lo": 279.296,
+     "hi": 322.903,
+     "band": [
+      0,
+      600
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3h",
+     "zh": "头转速 99% 分位（度/秒）",
+     "n": 3,
+     "med": 167.576,
+     "lo": 157.252,
+     "hi": 198.433,
+     "band": [
+      0,
+      300
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F4",
+     "zh": "手、头、髋一帧内的跳变（毫米/帧²）",
+     "n": 3,
+     "med": 15.086,
+     "lo": 14.034,
+     "hi": 16.776,
+     "band": [
+      0,
+      8
+     ],
+     "src": "估：相当于一帧跳 1 cm 左右",
+     "score": 11
+    },
+    {
+     "layer": "R",
+     "id": "R0",
+     "zh": "身体倾角和物理算出的倾角差（度）",
+     "n": 48,
+     "med": 6.095,
+     "lo": 2.778,
+     "hi": 9.792,
+     "band": [
+      0,
+      5
+     ],
+     "src": "物理：倾角由速度和转弯半径决定",
+     "score": 89
+    },
+    {
+     "layer": "R",
+     "id": "Rincl",
+     "zh": "弯中倾角（度）",
+     "n": 48,
+     "med": 61.779,
+     "lo": 43.894,
+     "hi": 65.644,
+     "band": [
+      55,
+      81
+     ],
+     "src": "专业视频（Reilly McGlashan），7 个弯",
+     "score": 100
+    },
+    {
+     "layer": "R",
+     "id": "RkLong",
+     "zh": "外腿（伸直那条）膝角",
+     "n": 48,
+     "med": 50.391,
+     "lo": 40.38,
+     "hi": 65.067,
+     "band": [
+      9,
+      46
+     ],
+     "src": "专业视频（Reilly McGlashan），7 个弯",
+     "score": 88
+    },
+    {
+     "layer": "R",
+     "id": "RkShort",
+     "zh": "内腿（收起那条）膝角",
+     "n": 48,
+     "med": 87.698,
+     "lo": 84.003,
+     "hi": 91.7,
+     "band": [
+      62,
+      112
+     ],
+     "src": "专业视频（Reilly McGlashan），7 个弯",
+     "score": 100
+    },
+    {
+     "layer": "R",
+     "id": "RhipH",
+     "zh": "髋到踝的长度 / 腿长",
+     "n": 48,
+     "med": 0.342,
+     "lo": 0.299,
+     "hi": 0.512,
+     "band": [
+      0.9099999999999999,
+      1.02
+     ],
+     "src": "专业视频（Reilly McGlashan），7 个弯",
+     "score": 0
+    },
+    {
+     "layer": "R",
+     "id": "RhandH",
+     "zh": "手比髋高多少 / 腿长",
+     "n": 48,
+     "med": 0.095,
+     "lo": 0.087,
+     "hi": 0.129,
+     "band": [
+      -0.020000000000000004,
+      0.16
+     ],
+     "src": "专业视频（Reilly McGlashan），7 个弯",
+     "score": 100
+    },
+    {
+     "layer": "R",
+     "id": "Rspr",
+     "zh": "两手宽度 / 腿长",
+     "n": 48,
+     "med": 0.654,
+     "lo": 0.65,
+     "hi": 0.69,
+     "band": [
+      0.22000000000000003,
+      1.03
+     ],
+     "src": "专业视频（Reilly McGlashan），7 个弯",
+     "score": 100
+    },
+    {
+     "layer": "R",
+     "id": "Rtwist",
+     "zh": "肩线对髋线扭了多少（度）",
+     "n": 48,
+     "med": 14.962,
+     "lo": 12.002,
+     "hi": 15.852,
+     "band": [
+      10,
+      38
+     ],
+     "src": "专业视频（Reilly McGlashan），7 个弯",
+     "score": 100
+    },
+    {
+     "layer": "E",
+     "id": "E3el",
+     "zh": "弯中手肘角（双板）",
+     "n": 48,
+     "med": 78.152,
+     "lo": 77.861,
+     "hi": 80.323,
+     "band": [
+      20,
+      60
+     ],
+     "src": "今天定的：手臂微弯，不僵直、不夹紧",
+     "score": 9
+    },
+    {
+     "layer": "E",
+     "id": "E3fwd",
+     "zh": "手在胸前多远（米）",
+     "n": 48,
+     "med": 0.434,
+     "lo": 0.43,
+     "hi": 0.463,
+     "band": [
+      0.25,
+      0.45
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "E",
+     "id": "E4",
+     "zh": "一个弯里外膝几乎不动的时间占比",
+     "n": 48,
+     "med": 0.156,
+     "lo": 0.063,
+     "hi": 0.25,
+     "band": [
+      0.2,
+      0.5
+     ],
+     "src": "Alhammoud 2020：外膝约 34% 的时间几乎不动",
+     "score": 78
+    },
+    {
+     "layer": "E",
+     "id": "E5",
+     "zh": "左弯和右弯的差别（相对）",
+     "n": 3,
+     "med": 0.089,
+     "lo": 0.056,
+     "hi": 0.132,
+     "band": [
+      0,
+      0.1
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "E",
+     "id": "E1",
+     "zh": "胸口摆动 / 行进方向摆动",
+     "n": 3,
+     "med": 0.829,
+     "lo": 0.817,
+     "hi": 0.86,
+     "band": [
+      0,
+      0.35
+     ],
+     "src": "估；教学：上身朝坡下、安静",
+     "score": 0
+    }
+   ],
+   "cover": {
+    "低速": 0,
+    "中速": 3.9999999999999907,
+    "高速": 55.566666666664794
+   }
+  },
+  "ski|edge": {
+   "gear": "ski",
+   "card": "edge",
+   "zh": "换刃",
+   "fail": true,
+   "total": 0,
+   "F": 27,
+   "R": null,
+   "E": null,
+   "hard": [
+    {
+     "scn": "turnL.ski.bowl.a",
+     "gear": "ski",
+     "card": "edge",
+     "id": "H4",
+     "i": 467,
+     "t": 7.78,
+     "val": -16.78,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -16.8 cm",
+     "frames": 11707,
+     "cards": [
+      "glide",
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "deepM.ski.bowl.f",
+     "gear": "ski",
+     "card": "edge",
+     "id": "H4",
+     "i": 1155,
+     "t": 19.25,
+     "val": -14.63,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -14.6 cm",
+     "frames": 11666,
+     "cards": [
+      "tuck",
+      "carve",
+      "edge"
+     ]
+    },
+    {
+     "scn": "deepM.ski.powder.a",
+     "gear": "ski",
+     "card": "edge",
+     "id": "H4",
+     "i": 368,
+     "t": 6.13,
+     "val": -14.29,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -14.3 cm",
+     "frames": 11620,
+     "cards": [
+      "tuck",
+      "glide",
+      "carve",
+      "edge"
+     ]
+    },
+    {
+     "scn": "turnL.ski.powder.a",
+     "gear": "ski",
+     "card": "edge",
+     "id": "H4",
+     "i": 998,
+     "t": 16.63,
+     "val": -15.89,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -15.9 cm",
+     "frames": 9752,
+     "cards": [
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "turnM.ski.bowl.e",
+     "gear": "ski",
+     "card": "edge",
+     "id": "H4",
+     "i": 1059,
+     "t": 17.65,
+     "val": -16.9,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -16.9 cm",
+     "frames": 9585,
+     "cards": [
+      "glide",
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "turnM.ski.powder.a",
+     "gear": "ski",
+     "card": "edge",
+     "id": "H4",
+     "i": 280,
+     "t": 4.67,
+     "val": -17.31,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -17.3 cm",
+     "frames": 8620,
+     "cards": [
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "moguls.ski.moguls.g",
+     "gear": "ski",
+     "card": "edge",
+     "id": "H4",
+     "i": 236,
+     "t": 3.93,
+     "val": -15.03,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -15.0 cm",
+     "frames": 5196,
+     "cards": [
+      "terrain",
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "turnS.ski.bowl.c",
+     "gear": "ski",
+     "card": "edge",
+     "id": "H4",
+     "i": 241,
+     "t": 4.02,
+     "val": -15.33,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -15.3 cm",
+     "frames": 5155,
+     "cards": [
+      "turn",
+      "edge"
+     ]
+    }
+   ],
+   "det": [
+    {
+     "layer": "F",
+     "id": "F1",
+     "zh": "每分钟突变次数",
+     "n": 9,
+     "med": 23.529,
+     "lo": 0,
+     "hi": 294.444,
+     "band": [
+      0,
+      10
+     ],
+     "src": "真人动捕同一把尺约 8 次（tools/motion/README.md）",
+     "score": 0
+    },
+    {
+     "layer": "F",
+     "id": "F3k",
+     "zh": "膝角速度 99% 分位（度/秒）",
+     "n": 14,
+     "med": 352.663,
+     "lo": 156.438,
+     "hi": 386.838,
+     "band": [
+      0,
+      600
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3h",
+     "zh": "头转速 99% 分位（度/秒）",
+     "n": 14,
+     "med": 212.713,
+     "lo": 122.392,
+     "hi": 233.101,
+     "band": [
+      0,
+      300
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F4",
+     "zh": "手、头、髋一帧内的跳变（毫米/帧²）",
+     "n": 14,
+     "med": 16.737,
+     "lo": 6.775,
+     "hi": 26.738,
+     "band": [
+      0,
+      8
+     ],
+     "src": "估：相当于一帧跳 1 cm 左右",
+     "score": 0
+    }
+   ],
+   "cover": {
+    "低速": 4.383333333333323,
+    "中速": 3.649999999999992,
+    "高速": 53.7666666666649
+   }
+  },
+  "ski|takeoff": {
+   "gear": "ski",
+   "card": "takeoff",
+   "zh": "起跳",
+   "fail": true,
+   "total": 0,
+   "F": 52,
+   "R": 90,
+   "E": null,
+   "hard": [
+    {
+     "scn": "kick.ski.kickers.a",
+     "gear": "ski",
+     "card": "takeoff",
+     "id": "H5",
+     "i": 1674,
+     "t": 27.9,
+     "val": -0.6,
+     "lim": 0,
+     "what": "右手掌心朝外（拳翻过来或左右手装反）",
+     "frames": 3092,
+     "cards": [
+      "tuck",
+      "takeoff"
+     ]
+    },
+    {
+     "scn": "tuck.ski.steeps.c",
+     "gear": "ski",
+     "card": "takeoff",
+     "id": "H5",
+     "i": 837,
+     "t": 13.95,
+     "val": -0.52,
+     "lim": 0,
+     "what": "左手掌心朝外（拳翻过来或左右手装反）",
+     "frames": 1331,
+     "cards": [
+      "tuck",
+      "takeoff",
+      "land"
+     ]
+    },
+    {
+     "scn": "glide.ski.powder.b",
+     "gear": "ski",
+     "card": "takeoff",
+     "id": "H5",
+     "i": 1024,
+     "t": 17.07,
+     "val": -0.47,
+     "lim": 0,
+     "what": "左手掌心朝外（拳翻过来或左右手装反）",
+     "frames": 1260,
+     "cards": [
+      "tuck",
+      "takeoff"
+     ]
+    },
+    {
+     "scn": "moguls.ski.moguls.g",
+     "gear": "ski",
+     "card": "takeoff",
+     "id": "H1",
+     "i": 772,
+     "t": 12.87,
+     "val": 32.8,
+     "lim": 1,
+     "what": "板陷进雪 33.1 cm",
+     "frames": 788,
+     "cards": [
+      "terrain",
+      "takeoff"
+     ]
+    },
+    {
+     "scn": "charge.ski.bowl.c",
+     "gear": "ski",
+     "card": "takeoff",
+     "id": "H5",
+     "i": 884,
+     "t": 14.73,
+     "val": -0.56,
+     "lim": 0,
+     "what": "左手掌心朝外（拳翻过来或左右手装反）",
+     "frames": 681,
+     "cards": [
+      "tuck",
+      "takeoff"
+     ]
+    },
+    {
+     "scn": "standjump.ski.start.d",
+     "gear": "ski",
+     "card": "takeoff",
+     "id": "H5",
+     "i": 885,
+     "t": 14.75,
+     "val": -0.57,
+     "lim": 0,
+     "what": "左手掌心朝外（拳翻过来或左右手装反）",
+     "frames": 503,
+     "cards": [
+      "tuck",
+      "takeoff"
+     ]
+    },
+    {
+     "scn": "stopHigh.ski.steeps.c",
+     "gear": "ski",
+     "card": "takeoff",
+     "id": "H4",
+     "i": 947,
+     "t": 15.78,
+     "val": -11.11,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -11.1 cm",
+     "frames": 476,
+     "cards": [
+      "stop",
+      "takeoff"
+     ]
+    },
+    {
+     "scn": "moguls.ski.moguls.g",
+     "gear": "ski",
+     "card": "takeoff",
+     "id": "H2",
+     "i": 750,
+     "t": 12.5,
+     "val": 7.98,
+     "lim": 1,
+     "what": "两板夹角 8.0°",
+     "frames": 312,
+     "cards": [
+      "terrain",
+      "turn",
+      "takeoff"
+     ]
+    }
+   ],
+   "det": [
+    {
+     "layer": "F",
+     "id": "F1",
+     "zh": "每分钟突变次数",
+     "n": 4,
+     "med": 18.75,
+     "lo": 0,
+     "hi": 37.5,
+     "band": [
+      0,
+      10
+     ],
+     "src": "真人动捕同一把尺约 8 次（tools/motion/README.md）",
+     "score": 13
+    },
+    {
+     "layer": "F",
+     "id": "F3k",
+     "zh": "膝角速度 99% 分位（度/秒）",
+     "n": 17,
+     "med": 349.094,
+     "lo": 269.956,
+     "hi": 597.576,
+     "band": [
+      0,
+      600
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3h",
+     "zh": "头转速 99% 分位（度/秒）",
+     "n": 17,
+     "med": 24.296,
+     "lo": 1.616,
+     "hi": 191.985,
+     "band": [
+      0,
+      300
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F4",
+     "zh": "手、头、髋一帧内的跳变（毫米/帧²）",
+     "n": 17,
+     "med": 10.515,
+     "lo": 5.457,
+     "hi": 18.599,
+     "band": [
+      0,
+      8
+     ],
+     "src": "估：相当于一帧跳 1 cm 左右",
+     "score": 69
+    },
+    {
+     "layer": "R",
+     "id": "RpopK",
+     "zh": "离雪那一刻的膝角",
+     "n": 74,
+     "med": 69.319,
+     "lo": 45.313,
+     "hi": 100.006,
+     "band": [
+      8,
+      87
+     ],
+     "src": "教练示范（14 段）",
+     "score": 100
+    },
+    {
+     "layer": "R",
+     "id": "RcrouchK",
+     "zh": "起跳前下蹲最深的膝角",
+     "n": 74,
+     "med": 101.998,
+     "lo": 84.397,
+     "hi": 116.441,
+     "band": [
+      12,
+      87
+     ],
+     "src": "教练示范（14 段）",
+     "score": 80
+    }
+   ],
+   "cover": {
+    "低速": 1.2000000000000006,
+    "中速": 1.2000000000000006,
+    "高速": 27.199999999999736
+   }
+  },
+  "ski|air": {
+   "gear": "ski",
+   "card": "air",
+   "zh": "空中",
+   "fail": true,
+   "total": 0,
+   "F": 27,
+   "R": null,
+   "E": null,
+   "hard": [
+    {
+     "scn": "kick.ski.kickers.a",
+     "gear": "ski",
+     "card": "air",
+     "id": "H6",
+     "i": 869,
+     "t": 14.48,
+     "val": -4.63,
+     "lim": 0,
+     "what": "左膝往后折（反关节）",
+     "frames": 12,
+     "cards": [
+      "air"
+     ]
+    },
+    {
+     "scn": "moguls.ski.moguls.g",
+     "gear": "ski",
+     "card": "air",
+     "id": "H7",
+     "i": 0,
+     "t": 0,
+     "val": 13.07,
+     "lim": 5,
+     "what": "小腿在靴子里侧歪 13.1°",
+     "frames": 1,
+     "cards": [
+      "air"
+     ]
+    }
+   ],
+   "det": [
+    {
+     "layer": "F",
+     "id": "F1",
+     "zh": "每分钟突变次数",
+     "n": 7,
+     "med": 97.959,
+     "lo": 0,
+     "hi": 207.835,
+     "band": [
+      0,
+      10
+     ],
+     "src": "真人动捕同一把尺约 8 次（tools/motion/README.md）",
+     "score": 0
+    },
+    {
+     "layer": "F",
+     "id": "F3k",
+     "zh": "膝角速度 99% 分位（度/秒）",
+     "n": 15,
+     "med": 374.521,
+     "lo": 267.621,
+     "hi": 586.353,
+     "band": [
+      0,
+      600
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3h",
+     "zh": "头转速 99% 分位（度/秒）",
+     "n": 15,
+     "med": 98.359,
+     "lo": 9.353,
+     "hi": 249.486,
+     "band": [
+      0,
+      300
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F4",
+     "zh": "手、头、髋一帧内的跳变（毫米/帧²）",
+     "n": 15,
+     "med": 20.523,
+     "lo": 12.161,
+     "hi": 59.52,
+     "band": [
+      0,
+      8
+     ],
+     "src": "估：相当于一帧跳 1 cm 左右",
+     "score": 0
+    }
+   ],
+   "cover": {
+    "低速": 1.4499999999999997,
+    "中速": 2.033333333333331,
+    "高速": 46.449999999998646
+   }
+  },
+  "ski|land": {
+   "gear": "ski",
+   "card": "land",
+   "zh": "落地",
+   "fail": true,
+   "total": 0,
+   "F": 81,
+   "R": 100,
+   "E": null,
+   "hard": [
+    {
+     "scn": "gully.ski.gully.b",
+     "gear": "ski",
+     "card": "land",
+     "id": "H4",
+     "i": 866,
+     "t": 14.43,
+     "val": 7,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 7.0 cm",
+     "frames": 2501,
+     "cards": [
+      "terrain",
+      "land"
+     ]
+    },
+    {
+     "scn": "tuck.ski.steeps.c",
+     "gear": "ski",
+     "card": "land",
+     "id": "H5",
+     "i": 837,
+     "t": 13.95,
+     "val": -0.52,
+     "lim": 0,
+     "what": "左手掌心朝外（拳翻过来或左右手装反）",
+     "frames": 1331,
+     "cards": [
+      "tuck",
+      "takeoff",
+      "land"
+     ]
+    },
+    {
+     "scn": "rollers.ski.rollers.a",
+     "gear": "ski",
+     "card": "land",
+     "id": "H1",
+     "i": 1262,
+     "t": 21.03,
+     "val": 31.73,
+     "lim": 1,
+     "what": "板陷进雪 40.8 cm（粉雪允许 9.1）",
+     "frames": 959,
+     "cards": [
+      "glide",
+      "land"
+     ]
+    },
+    {
+     "scn": "gully.ski.gully.b",
+     "gear": "ski",
+     "card": "land",
+     "id": "H1",
+     "i": 1458,
+     "t": 24.3,
+     "val": 34.57,
+     "lim": 1,
+     "what": "板陷进雪 45.0 cm（粉雪允许 10.4）",
+     "frames": 712,
+     "cards": [
+      "terrain",
+      "glide",
+      "land"
+     ]
+    },
+    {
+     "scn": "kick.ski.kickers.a",
+     "gear": "ski",
+     "card": "land",
+     "id": "H1",
+     "i": 881,
+     "t": 14.68,
+     "val": 29.88,
+     "lim": 1,
+     "what": "板陷进雪 38.4 cm（粉雪允许 8.5）",
+     "frames": 425,
+     "cards": [
+      "glide",
+      "land"
+     ]
+    },
+    {
+     "scn": "tuck.ski.steeps.c",
+     "gear": "ski",
+     "card": "land",
+     "id": "H1",
+     "i": 816,
+     "t": 13.6,
+     "val": 19.4,
+     "lim": 1,
+     "what": "板陷进雪 23.8 cm（粉雪允许 4.5）",
+     "frames": 358,
+     "cards": [
+      "tuck",
+      "land"
+     ]
+    },
+    {
+     "scn": "glide.ski.steeps.d",
+     "gear": "ski",
+     "card": "land",
+     "id": "H1",
+     "i": 884,
+     "t": 14.73,
+     "val": 23.4,
+     "lim": 1,
+     "what": "板陷进雪 41.8 cm（粉雪允许 18.4）",
+     "frames": 252,
+     "cards": [
+      "tuck",
+      "land"
+     ]
+    },
+    {
+     "scn": "stopHigh.ski.steeps.c",
+     "gear": "ski",
+     "card": "land",
+     "id": "H1",
+     "i": 1203,
+     "t": 20.05,
+     "val": 37.11,
+     "lim": 1,
+     "what": "板陷进雪 50.4 cm（粉雪允许 13.3）",
+     "frames": 227,
+     "cards": [
+      "stop",
+      "land"
+     ]
+    }
+   ],
+   "det": [
+    {
+     "layer": "F",
+     "id": "F1",
+     "zh": "每分钟突变次数",
+     "n": 6,
+     "med": 5.035,
+     "lo": 0,
+     "hi": 42.857,
+     "band": [
+      0,
+      10
+     ],
+     "src": "真人动捕同一把尺约 8 次（tools/motion/README.md）",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3h",
+     "zh": "头转速 99% 分位（度/秒）",
+     "n": 17,
+     "med": 86.218,
+     "lo": 26.928,
+     "hi": 167.039,
+     "band": [
+      0,
+      300
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F4",
+     "zh": "手、头、髋一帧内的跳变（毫米/帧²）",
+     "n": 17,
+     "med": 12.786,
+     "lo": 6.612,
+     "hi": 34.427,
+     "band": [
+      0,
+      8
+     ],
+     "src": "估：相当于一帧跳 1 cm 左右",
+     "score": 40
+    },
+    {
+     "layer": "R",
+     "id": "RlandK",
+     "zh": "落地后最深的膝角",
+     "n": 73,
+     "med": 85.662,
+     "lo": 72.48,
+     "hi": 106.861,
+     "band": [
+      34,
+      90
+     ],
+     "src": "教练示范（14 段）",
+     "score": 100
+    },
+    {
+     "layer": "R",
+     "id": "Rabsorb",
+     "zh": "触雪到蹲到最深用了几秒",
+     "n": 73,
+     "med": 0.283,
+     "lo": 0.183,
+     "hi": 0.783,
+     "band": [
+      -0.05,
+      0.7200000000000001
+     ],
+     "src": "教练示范（12 段，不含慢动作）",
+     "score": 100
+    }
+   ],
+   "cover": {
+    "低速": 3.133333333333327,
+    "中速": 2.3999999999999964,
+    "高速": 51.93333333333167
+   }
+  },
+  "ski|stop": {
+   "gear": "ski",
+   "card": "stop",
+   "zh": "刹停",
+   "fail": true,
+   "total": 0,
+   "F": 84,
+   "R": null,
+   "E": null,
+   "hard": [
+    {
+     "scn": "stopMid.ski.bowl.b",
+     "gear": "ski",
+     "card": "stop",
+     "id": "H4",
+     "i": 591,
+     "t": 9.85,
+     "val": -12.76,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -12.8 cm",
+     "frames": 1957,
+     "cards": [
+      "stop"
+     ]
+    },
+    {
+     "scn": "stopLow.ski.bowl.a",
+     "gear": "ski",
+     "card": "stop",
+     "id": "H4",
+     "i": 331,
+     "t": 5.52,
+     "val": -9.11,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -9.1 cm",
+     "frames": 1396,
+     "cards": [
+      "stop"
+     ]
+    },
+    {
+     "scn": "stopHigh.ski.steeps.c",
+     "gear": "ski",
+     "card": "stop",
+     "id": "H4",
+     "i": 947,
+     "t": 15.78,
+     "val": -11.11,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -11.1 cm",
+     "frames": 476,
+     "cards": [
+      "stop",
+      "takeoff"
+     ]
+    },
+    {
+     "scn": "stopMid.ski.bowl.b",
+     "gear": "ski",
+     "card": "stop",
+     "id": "H5",
+     "i": 435,
+     "t": 7.25,
+     "val": -0.36,
+     "lim": 0,
+     "what": "左手掌心朝外（拳翻过来或左右手装反）",
+     "frames": 258,
+     "cards": [
+      "tuck",
+      "stop"
+     ]
+    },
+    {
+     "scn": "stopHigh.ski.steeps.c",
+     "gear": "ski",
+     "card": "stop",
+     "id": "H1",
+     "i": 1203,
+     "t": 20.05,
+     "val": 37.11,
+     "lim": 1,
+     "what": "板陷进雪 50.4 cm（粉雪允许 13.3）",
+     "frames": 227,
+     "cards": [
+      "stop",
+      "land"
+     ]
+    },
+    {
+     "scn": "stopHigh.ski.steeps.c",
+     "gear": "ski",
+     "card": "stop",
+     "id": "H2",
+     "i": 905,
+     "t": 15.08,
+     "val": 4.23,
+     "lim": 1,
+     "what": "两板夹角 4.2°",
+     "frames": 76,
+     "cards": [
+      "stop"
+     ]
+    },
+    {
+     "scn": "stopMid.ski.bowl.b",
+     "gear": "ski",
+     "card": "stop",
+     "id": "H1",
+     "i": 574,
+     "t": 9.57,
+     "val": 6.08,
+     "lim": 1,
+     "what": "板陷进雪 7.7 cm（粉雪允许 1.6）",
+     "frames": 46,
+     "cards": [
+      "stop"
+     ]
+    },
+    {
+     "scn": "stopMid.ski.bowl.b",
+     "gear": "ski",
+     "card": "stop",
+     "id": "H2",
+     "i": 572,
+     "t": 9.53,
+     "val": 4.26,
+     "lim": 1,
+     "what": "两板夹角 4.3°",
+     "frames": 36,
+     "cards": [
+      "stop"
+     ]
+    }
+   ],
+   "det": [
+    {
+     "layer": "F",
+     "id": "F1",
+     "zh": "每分钟突变次数",
+     "n": 3,
+     "med": 0,
+     "lo": 0,
+     "hi": 136.571,
+     "band": [
+      0,
+      10
+     ],
+     "src": "真人动捕同一把尺约 8 次（tools/motion/README.md）",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3k",
+     "zh": "膝角速度 99% 分位（度/秒）",
+     "n": 3,
+     "med": 168.458,
+     "lo": 138.531,
+     "hi": 305.915,
+     "band": [
+      0,
+      600
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3h",
+     "zh": "头转速 99% 分位（度/秒）",
+     "n": 3,
+     "med": 43.651,
+     "lo": 43.414,
+     "hi": 59.64,
+     "band": [
+      0,
+      300
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F4",
+     "zh": "手、头、髋一帧内的跳变（毫米/帧²）",
+     "n": 3,
+     "med": 12.681,
+     "lo": 6.081,
+     "hi": 57.04,
+     "band": [
+      0,
+      8
+     ],
+     "src": "估：相当于一帧跳 1 cm 左右",
+     "score": 41
+    }
+   ],
+   "cover": {
+    "低速": 8.58333333333334,
+    "中速": 7.0833333333333135,
+    "高速": 12.066666666666846
+   }
+  },
+  "ski|tuck": {
+   "gear": "ski",
+   "card": "tuck",
+   "zh": "团身和前后压板",
+   "fail": true,
+   "total": 0,
+   "F": 79,
+   "R": null,
+   "E": null,
+   "hard": [
+    {
+     "scn": "deepM.ski.bowl.f",
+     "gear": "ski",
+     "card": "tuck",
+     "id": "H4",
+     "i": 1155,
+     "t": 19.25,
+     "val": -14.63,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -14.6 cm",
+     "frames": 11666,
+     "cards": [
+      "tuck",
+      "carve",
+      "edge"
+     ]
+    },
+    {
+     "scn": "deepM.ski.powder.a",
+     "gear": "ski",
+     "card": "tuck",
+     "id": "H4",
+     "i": 368,
+     "t": 6.13,
+     "val": -14.29,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -14.3 cm",
+     "frames": 11620,
+     "cards": [
+      "tuck",
+      "glide",
+      "carve",
+      "edge"
+     ]
+    },
+    {
+     "scn": "kick.ski.kickers.a",
+     "gear": "ski",
+     "card": "tuck",
+     "id": "H9",
+     "i": 304,
+     "t": 5.07,
+     "val": 43.08,
+     "lim": 6,
+     "what": "左杖没从腋下夹着过：杖身离腋窝 43 cm",
+     "frames": 3708,
+     "cards": [
+      "tuck"
+     ]
+    },
+    {
+     "scn": "kick.ski.kickers.a",
+     "gear": "ski",
+     "card": "tuck",
+     "id": "H5",
+     "i": 1674,
+     "t": 27.9,
+     "val": -0.6,
+     "lim": 0,
+     "what": "右手掌心朝外（拳翻过来或左右手装反）",
+     "frames": 3092,
+     "cards": [
+      "tuck",
+      "takeoff"
+     ]
+    },
+    {
+     "scn": "foreaft.ski.bowl.a",
+     "gear": "ski",
+     "card": "tuck",
+     "id": "H4",
+     "i": 576,
+     "t": 9.6,
+     "val": -18.41,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -18.4 cm",
+     "frames": 3062,
+     "cards": [
+      "tuck",
+      "turn"
+     ]
+    },
+    {
+     "scn": "deepHold.ski.steeps.b",
+     "gear": "ski",
+     "card": "tuck",
+     "id": "H4",
+     "i": 482,
+     "t": 8.03,
+     "val": -11.87,
+     "lim": 7,
+     "what": "左杖身离自己的板外侧只有 -11.9 cm",
+     "frames": 3004,
+     "cards": [
+      "tuck"
+     ]
+    },
+    {
+     "scn": "deepS.ski.steeps.d",
+     "gear": "ski",
+     "card": "tuck",
+     "id": "H4",
+     "i": 260,
+     "t": 4.33,
+     "val": -13.93,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -13.9 cm",
+     "frames": 2812,
+     "cards": [
+      "tuck",
+      "glide",
+      "carve",
+      "edge"
+     ]
+    },
+    {
+     "scn": "glide.ski.steeps.d",
+     "gear": "ski",
+     "card": "tuck",
+     "id": "H9",
+     "i": 216,
+     "t": 3.6,
+     "val": 43.22,
+     "lim": 6,
+     "what": "左杖没从腋下夹着过：杖身离腋窝 43 cm",
+     "frames": 1860,
+     "cards": [
+      "tuck"
+     ]
+    }
+   ],
+   "det": [
+    {
+     "layer": "F",
+     "id": "F1",
+     "zh": "每分钟突变次数",
+     "n": 15,
+     "med": 0,
+     "lo": 0,
+     "hi": 17.17,
+     "band": [
+      0,
+      10
+     ],
+     "src": "真人动捕同一把尺约 8 次（tools/motion/README.md）",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3k",
+     "zh": "膝角速度 99% 分位（度/秒）",
+     "n": 16,
+     "med": 229.349,
+     "lo": 63.102,
+     "hi": 313.228,
+     "band": [
+      0,
+      600
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3h",
+     "zh": "头转速 99% 分位（度/秒）",
+     "n": 16,
+     "med": 41.933,
+     "lo": 4.986,
+     "hi": 167.5,
+     "band": [
+      0,
+      300
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F4",
+     "zh": "手、头、髋一帧内的跳变（毫米/帧²）",
+     "n": 16,
+     "med": 14.034,
+     "lo": 2.515,
+     "hi": 24.34,
+     "band": [
+      0,
+      8
+     ],
+     "src": "估：相当于一帧跳 1 cm 左右",
+     "score": 25
+    }
+   ],
+   "cover": {
+    "低速": 19.08333333333353,
+    "中速": 7.299999999999979,
+    "高速": 201.1666666667189
+   }
+  },
+  "ski|terrain": {
+   "gear": "ski",
+   "card": "terrain",
+   "zh": "蘑菇和地形",
+   "fail": true,
+   "total": 0,
+   "F": 27,
+   "R": null,
+   "E": null,
+   "hard": [
+    {
+     "scn": "moguls.ski.moguls.g",
+     "gear": "ski",
+     "card": "terrain",
+     "id": "H4",
+     "i": 236,
+     "t": 3.93,
+     "val": -15.03,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 -15.0 cm",
+     "frames": 5196,
+     "cards": [
+      "terrain",
+      "turn",
+      "edge"
+     ]
+    },
+    {
+     "scn": "gully.ski.gully.b",
+     "gear": "ski",
+     "card": "terrain",
+     "id": "H4",
+     "i": 866,
+     "t": 14.43,
+     "val": 7,
+     "lim": 7,
+     "what": "右杖身离自己的板外侧只有 7.0 cm",
+     "frames": 2501,
+     "cards": [
+      "terrain",
+      "land"
+     ]
+    },
+    {
+     "scn": "moguls.ski.moguls.g",
+     "gear": "ski",
+     "card": "terrain",
+     "id": "H1",
+     "i": 772,
+     "t": 12.87,
+     "val": 32.8,
+     "lim": 1,
+     "what": "板陷进雪 33.1 cm",
+     "frames": 788,
+     "cards": [
+      "terrain",
+      "takeoff"
+     ]
+    },
+    {
+     "scn": "gully.ski.gully.b",
+     "gear": "ski",
+     "card": "terrain",
+     "id": "H1",
+     "i": 1458,
+     "t": 24.3,
+     "val": 34.57,
+     "lim": 1,
+     "what": "板陷进雪 45.0 cm（粉雪允许 10.4）",
+     "frames": 712,
+     "cards": [
+      "terrain",
+      "glide",
+      "land"
+     ]
+    },
+    {
+     "scn": "gully.ski.gully.b",
+     "gear": "ski",
+     "card": "terrain",
+     "id": "H2",
+     "i": 1222,
+     "t": 20.37,
+     "val": 12.21,
+     "lim": 1,
+     "what": "两板夹角 12.2°",
+     "frames": 425,
+     "cards": [
+      "terrain"
+     ]
+    },
+    {
+     "scn": "moguls.ski.moguls.g",
+     "gear": "ski",
+     "card": "terrain",
+     "id": "H2",
+     "i": 750,
+     "t": 12.5,
+     "val": 7.98,
+     "lim": 1,
+     "what": "两板夹角 8.0°",
+     "frames": 312,
+     "cards": [
+      "terrain",
+      "turn",
+      "takeoff"
+     ]
+    },
+    {
+     "scn": "moguls.ski.moguls.g",
+     "gear": "ski",
+     "card": "terrain",
+     "id": "H5",
+     "i": 1233,
+     "t": 20.55,
+     "val": -0.47,
+     "lim": 0,
+     "what": "左手掌心朝外（拳翻过来或左右手装反）",
+     "frames": 45,
+     "cards": [
+      "terrain",
+      "turn"
+     ]
+    },
+    {
+     "scn": "gully.ski.gully.b",
+     "gear": "ski",
+     "card": "terrain",
+     "id": "H3",
+     "i": 485,
+     "t": 8.08,
+     "val": 9.51,
+     "lim": 0.5,
+     "what": "雪杖R×大腿R 穿进去 9.5 cm（226 帧）",
+     "frames": 5,
+     "cards": [
+      "terrain",
+      "turn"
+     ]
+    }
+   ],
+   "det": [
+    {
+     "layer": "F",
+     "id": "F1",
+     "zh": "每分钟突变次数",
+     "n": 2,
+     "med": 250.057,
+     "lo": 45.86,
+     "hi": 250.057,
+     "band": [
+      0,
+      10
+     ],
+     "src": "真人动捕同一把尺约 8 次（tools/motion/README.md）",
+     "score": 0
+    },
+    {
+     "layer": "F",
+     "id": "F3k",
+     "zh": "膝角速度 99% 分位（度/秒）",
+     "n": 2,
+     "med": 515.424,
+     "lo": 379.131,
+     "hi": 515.424,
+     "band": [
+      0,
+      600
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F3h",
+     "zh": "头转速 99% 分位（度/秒）",
+     "n": 2,
+     "med": 205.313,
+     "lo": 121.604,
+     "hi": 205.313,
+     "band": [
+      0,
+      300
+     ],
+     "src": "估",
+     "score": 100
+    },
+    {
+     "layer": "F",
+     "id": "F4",
+     "zh": "手、头、髋一帧内的跳变（毫米/帧²）",
+     "n": 2,
+     "med": 135.928,
+     "lo": 34.731,
+     "hi": 135.928,
+     "band": [
+      0,
+      8
+     ],
+     "src": "估：相当于一帧跳 1 cm 左右",
+     "score": 0
+    }
+   ],
+   "cover": {
+    "低速": 5.116666666666654,
+    "中速": 9.950000000000074,
+    "高速": 34.8999999999993
+   }
+  }
+ }
+}
