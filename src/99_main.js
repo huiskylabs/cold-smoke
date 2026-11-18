@@ -32,7 +32,7 @@ async function boot(stage) {
   if (Metro.on()) Sky.setClock(Metro.kind() === 'c' ? Sky.times.dusk : Sky.times.night);                    // (不夜城 opens at night, and stays there: see the clock below)
   // 金色雪旗 (Variants 'dlight' b): its own light, not the old map's. Low sun off to the right, out of the picture (raking light, long blue shadows
   // thrown across the run, the volcano and the lake lit gold), no cumulus, and the run opens in the hour of gold (refs: alpenglow photos on Commons)
-  if (Metro.kind() === 'd' && Variants.val.dlight === 'b') { Sky.az = Sky.azD; Sky.setClock(Variants.val.dalp === 'b' ? Sky.times.day : Sky.times.golden); }      // (above the tree line: the bright day of the owner's photo, cloud about the peaks)
+  if (Metro.kind() === 'd' && Variants.val.dlight !== 'a') { Sky.az = Sky.azD; Sky.setClock(Variants.val.dalp === 'b' ? Sky.times.day : Sky.times.golden); }      // (above the tree line: the bright day of the owner's photo, cloud about the peaks)
   if (QS.get('tod')) { const q = QS.get('tod'); Sky.setClock(q in Sky.times ? Sky.times[q] : +q || 0); }
   await step(0.08, '磨雪');
   makeNoiseTextures(gfx); makeSnowTexture(gfx, Sky.az); Terrain.setSun(Sky.az);
