@@ -121,7 +121,7 @@ const LabMo = (() => {
     // (Mac round 16: hand x thigh 0 -> 136 frames). They keep the lab's own line, hands level, as a skier carries them)
     const ARM_IN = 0.0;
     const TRUNK_LEAD_T = 0.07, TRUNK_UNLAG = 0, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.20, LOOK_H = 0.5, LOOK_C = 0.35, LOOK_END = 0.6, HEAD_AHEAD = 0.16, CHEST_AHEAD = 0.03, PEL_SQ = 0.3, HEAD_ROLL_KEEP = 0.45;
-    const TRUNK_IN = 0.30, TRUNK_IN_SLOW = -0.20, SLOW_V0 = 4, SLOW_V1 = 13, lab = Math.atan2(r[0], r[1]);
+    const TRUNK_IN = 0.30, TRUNK_IN_SLOW = -0.03, SLOW_V0 = 5, SLOW_V1 = 13, lab = Math.atan2(r[0], r[1]);
     if (!quietU()) return fill(out, st, r, ph.lean * 1.07 - lab, 'z');
     // (新求解器, owner 2026-11-18: "想左转，一定是身体跟肩膀先倾过来…头稍微往正回一点点". Measured (turnM): the shoulders tipped 6 frames AFTER the hips
     // (they took the eased lean), so at every edge change they still hung 20-28 deg over the old turn; at 47 deg of lean the shoulder line stood at
