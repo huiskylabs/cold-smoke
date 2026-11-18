@@ -120,7 +120,7 @@ const LabMo = (() => {
     // (the arms do not tip over with the trunk: hung from a trunk that leans in, the inside hand and forearm came down onto the inside thigh
     // (Mac round 16: hand x thigh 0 -> 136 frames). They keep the lab's own line, hands level, as a skier carries them)
     const ARM_IN = 0.0;
-    const TRUNK_LEAD_T = 0.07, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.35, SH_YAW_IN = 0.15, SH_YAW_LEAD = 0.03, SH_YAW_MAX = 0.09, HEAD_YAW_KEEP = 0.5, HEAD_ROLL_KEEP = 0.45;
+    const TRUNK_LEAD_T = 0.07, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.35, LOOK_H = 0.5, LOOK_C = 0.35, HEAD_ROLL_KEEP = 0.45;
     const TRUNK_IN = 0.6, lab = Math.atan2(r[0], r[1]);
     if (!quietU()) return fill(out, st, r, ph.lean * 1.07 - lab, 'z');
     // (新求解器, owner 2026-11-18: "想左转，一定是身体跟肩膀先倾过来…头稍微往正回一点点". Measured (turnM): the shoulders tipped 6 frames AFTER the hips
@@ -134,16 +134,19 @@ const LabMo = (() => {
     //   arms      tip by that same lt (their amount is unchanged: ARM_IN), so the hands go over with the shoulders. Left on the eased lean under
     //             shoulders that now lead, the poles lay across the thighs (12 scenarios: clip frames 6746 -> 7365; on lt 1814)
     //   kin       deep in a turn the trunk gives back less of the lean (TRUNK_IN_DEEP): the hips go in, the shoulders stay nearer level
-    //   yaw       the lab's trunk is square to the skis (0-3 deg). It is turned a little into the turn, the outside shoulder coming forward: SH_YAW_IN
-    //             of the lean, and SH_YAW_LEAD rad per rad/s of lean rate ahead of it (never more than SH_YAW_MAX), so it turns in as the turn
-    //             begins. The head takes HEAD_YAW_KEEP of that (it stays nearer straight ahead than the shoulders) and HEAD_ROLL_KEEP of its tilt
-    //             (eyes nearer level))
+    //   yaw       see the heading order below)
     const lr = LEAD_RATE_MAX * Math.tanh(ph.lev / LEAD_RATE_MAX), lt = ph.le + (2 / ph.wn + TRUNK_LEAD_T) * lr, kin = TRUNK_IN + (TRUNK_IN_DEEP - TRUNK_IN) * sm(0.45, 0.85, Math.abs(lt));
     fill(out, st, r, ph.lean * 1.07 - lab, 'z', ph.le * 1.07 - lab + kin * lt, lt * 1.07 - lab + ARM_IN * ph.le);
-    const yl = SH_YAW_MAX * Math.tanh(SH_YAW_LEAD * lr / SH_YAW_MAX), rotY = (q, a) => { const c = Math.cos(a), n = Math.sin(a); return [q[0] * c + q[2] * n, q[1], -q[0] * n + q[2] * c]; };
-    const a = -(SH_YAW_IN * lt + yl), tb = B => ortho(rotY(B.X, a), rotY(B.Y, a));
-    out.t1 = tb(out.t1); out.t2 = tb(out.t2);
-    { let X = rotY(out.hb.X, a), Y = rotY(out.hb.Y, a); const ah = Math.atan2(X[2], X[0]) * (1 - HEAD_YAW_KEEP); X = rotY(X, ah); Y = rotY(Y, ah);
+    // (heading order, owner 2026-11-18 (the research on sports games, adopted): the head looks where the skier will be going in LOOK_H s, the chest
+    // LOOK_C, the skis last. The way the line is about to turn is read from the lean the trunk already leads with (lt): a
+    // carving skier's heading turns at g tan(lean) / v. Each is held under its cap, so head over chest and chest over hips never twist far.
+    // Before: the shoulders 0.15 of the lean, the head HALF of that: the head followed the shoulders, it did not lead them)
+    const psi = 9.81 * Math.tan(Math.max(-1, Math.min(1, lt))) / Math.max(speed, 6), capY = (x, m) => m * Math.tanh(x / m), rotY = (q, a) => { const c = Math.cos(a), n = Math.sin(a); return [q[0] * c + q[2] * n, q[1], -q[0] * n + q[2] * c]; };
+    const a = -capY(LOOK_C * psi, 0.30), aH = -capY(LOOK_H * psi, 0.45), aP = 0,      // (the hips are left as the lab's posture has them: measured 2026-11-18 (turnM), the pelvis already stands 17 deg into the turn at 30 deg of lean, more than the chest's 9; LOOK_P s of look-ahead on top made it 20)
+       tb = B => ortho(rotY(B.X, a), rotY(B.Y, a)), t1b = B => ortho(rotY(B.X, (a + aP) / 2), rotY(B.Y, (a + aP) / 2));
+    out.pb = ortho(rotY(out.pb.X, aP), rotY(out.pb.Y, aP));
+    out.t1 = t1b(out.t1); out.t2 = tb(out.t2);
+    { let X = rotY(out.hb.X, aH), Y = rotY(out.hb.Y, aH);
       const bh = -Math.atan2(X[1], Math.hypot(X[0], X[2])) * (1 - HEAD_ROLL_KEEP), f = [-X[2], 0, X[0]], fl = Math.hypot(f[0], f[2]) || 1, ax = [f[0] / fl, 0, f[2] / fl];      // (the tilt is taken out about the level line the head faces along)
       const rod = q => { const c = Math.cos(bh), n = Math.sin(bh), d = dt3(ax, q), x = crs(ax, q); return [q[0] * c + x[0] * n + ax[0] * d * (1 - c), q[1] * c + x[1] * n + ax[1] * d * (1 - c), q[2] * c + x[2] * n + ax[2] * d * (1 - c)]; };
       out.hb = ortho(rod(X), rod(Y)); }
