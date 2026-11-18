@@ -934,7 +934,7 @@ fn dustGrain(i: u32) -> DG {
     let ht: vec3f = hashu3(i * 59u + rid * 7u + 2u); let at: f32 = ht.x * 6.2831853; let rt: f32 = RN * max(open, 0.3) * (1.0 + 0.06 * (ht.y - 0.5));
     let tgt: vec3f = N + vec3f(cos(at) * rt, sin(at) * rt, (ht.z - 0.5) * 0.25);
     flowP = mix(colP, tgt, ea);
-    flowSt = mix(vec3f(0.0, -0.5, 0.0), normalize(colP - tgt + vec3f(0.0, 0.001, 0.0)) * (0.3 + 1.2 * ea), select(0.0, 1.0, ab > 0.0));
+    flowSt = vec3f(0.0, -0.5, 0.0);
     b = 0.45 * apr * min(1.0, ph * 10.0) * pow(1.0 - ph, 1.3) * (1.0 - saturate(dis * 2.0));
     let fadeK: f32 = select(1.0 - kk, (1.0 + 1.2 * ea) * (1.0 - saturate((kk - 0.85) / 0.15)), suck > 0.5);
     b = select(b, 0.45 * apr * min(1.0, ph * 10.0) * pow(1.0 - ph, mix(1.3, 0.0, suck * kk)) * fadeK, ab > 0.0);
