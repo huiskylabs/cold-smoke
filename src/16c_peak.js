@@ -568,7 +568,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   for (var i: i32 = 0; i < 2; i++) {
     let waist: f32 = step(1.5, f32(i)); let up: f32 = f32(i & 1);
     let hgt: f32 = mix(${f(520 * P.K)}, ${f(2250 * P.K)}, waist) + up * mix(${f(190 * P.K)}, ${f(260 * P.K)}, waist);
-    let dk: vec3f = peakDeck(dl, sl, hgt, mix(mix(${DS ? '0.40' : '0.15'}, 0.60, isC), 0.52, waist), mix(${f(5200 * P.K)}, ${f(2600 * P.K)}, waist));
+    let dk: vec3f = peakDeck(dl, sl, hgt, mix(mix(${DS ? '0.62' : '0.15'}, 0.60, isC), 0.52, waist), mix(${f(5200 * P.K)}, ${f(2600 * P.K)}, waist));
     if (dk.x > 0.002) {
       let pw: vec2f = dl * dk.z;
       // (the belt keeps to a ring about the peak; the sea keeps off our own mountain's foot)
@@ -597,17 +597,18 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     let tm2: f32 = U.camPos.w;
     let aa: f32 = abs(a);
     let c1: f32 = 0.075 + ${f(P.lift)} + 0.030 * (fbm2(vec2f(a * 3.0, 1.0)) - 0.5);
-    let w1: f32 = 0.012 + 0.020 * fbm2(vec2f(a * 9.0 + tm2 * 0.002, 4.0));
+    let w1: f32 = (0.012 + 0.020 * fbm2(vec2f(a * 9.0 + tm2 * 0.002, 4.0))) * ${DS ? '2.0' : '1.0'};      // (DS: the video's sea of cloud, thick and heaped)
     let v1: f32 = (th - c1) / w1;
-    let cov1: f32 = smoothstep(0.40, 0.66, fbm2(vec2f(a * 16.0 + tm2 * 0.004, th * 55.0 + 3.0)));
+    let cov1: f32 = smoothstep(${DS ? '0.28' : '0.40'}, ${DS ? '0.56' : '0.66'}, fbm2(vec2f(a * 16.0 + tm2 * 0.004, th * 55.0 + 3.0)));
     let c2: f32 = 0.15 + ${f(P.lift)} + 0.06 * (fbm2(vec2f(a * 2.2, 6.0)) - 0.5);
-    let w2: f32 = 0.020 + 0.030 * fbm2(vec2f(a * 6.0 - tm2 * 0.002, 8.0));
+    let w2: f32 = (0.020 + 0.030 * fbm2(vec2f(a * 6.0 - tm2 * 0.002, 8.0))) * ${DS ? '1.6' : '1.0'};
     let v2: f32 = (th - c2) / w2;
-    let cov2: f32 = smoothstep(0.45, 0.70, fbm2(vec2f(a * 11.0 - tm2 * 0.003, th * 40.0 + 7.0))) * smoothstep(0.40, 0.70, aa);
+    let cov2: f32 = smoothstep(${DS ? '0.32' : '0.45'}, ${DS ? '0.60' : '0.70'}, fbm2(vec2f(a * 11.0 - tm2 * 0.003, th * 40.0 + 7.0))) * smoothstep(0.40, 0.70, aa);
     let mk: f32 = (exp(-v1 * v1 * 1.6) * cov1 + exp(-v2 * v2 * 1.6) * cov2) * (1.0 - water) * (1.0 - smoothstep(1.05, 1.30, aa));
     if (mk > 0.002) {
-      var mcol: vec3f = vec3f(0.96, 0.97, 1.0) * cloudLit * 0.85;
-      mcol = mix(mcol, vistaHaze(d), 0.35);
+      var mcol: vec3f = vec3f(0.96, 0.97, 1.0) * cloudLit * ${DS ? '1.0' : '0.85'};
+      mcol = mix(mcol, vistaHaze(d), ${DS ? '0.18' : '0.35'});
+      ${DS ? 'mcol *= mix(1.04, 0.80, smoothstep(-0.8, 1.2, v1));      // (sunlit heads, a shaded grey-blue underside, as in the video)' : ''}
       res = mix(res, mcol, saturate(mk) * ${DS ? '0.92' : '0.72'} * ex);
     }
   }
