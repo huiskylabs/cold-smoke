@@ -1,0 +1,217 @@
+[
+{
+"dur": 3.5,
+"tod": "golden",
+"wx": "light",
+"at": {
+"seg": "kickers",
+"off": 75
+},
+"lead": 250,
+"trick": "360grab",
+"trickSeed": 3,
+"variants": {
+"rings": "on"
+},
+"id": "chase",
+"cam": "chase"
+},
+{
+"dur": 3.5,
+"tod": "golden",
+"wx": "light",
+"at": {
+"seg": "kickers",
+"off": 75
+},
+"lead": 250,
+"trick": "360grab",
+"trickSeed": 3,
+"variants": {
+"rings": "on"
+},
+"id": "fp",
+"cam": "fp"
+},
+{
+"dur": 3.5,
+"tod": "golden",
+"wx": "light",
+"at": {
+"seg": "kickers",
+"off": 75
+},
+"lead": 250,
+"trick": "360grab",
+"trickSeed": 3,
+"variants": {
+"rings": "on"
+},
+"id": "tips",
+"cam": "tips"
+},
+{
+"dur": 3.5,
+"tod": "golden",
+"wx": "light",
+"at": {
+"seg": "kickers",
+"off": 75
+},
+"lead": 250,
+"trick": "360grab",
+"trickSeed": 3,
+"variants": {
+"rings": "on"
+},
+"id": "low",
+"cam": "low"
+},
+{
+"dur": 3.5,
+"tod": "golden",
+"wx": "light",
+"at": {
+"seg": "kickers",
+"off": 75
+},
+"lead": 250,
+"trick": "360grab",
+"trickSeed": 3,
+"variants": {
+"rings": "on"
+},
+"id": "high",
+"cam": "high"
+},
+{
+"dur": 3.5,
+"tod": "golden",
+"wx": "light",
+"at": {
+"seg": "kickers",
+"off": 75
+},
+"lead": 250,
+"trick": "360grab",
+"trickSeed": 3,
+"variants": {
+"rings": "on"
+},
+"id": "right",
+"cam": "right"
+},
+{
+"dur": 3.5,
+"tod": "golden",
+"wx": "light",
+"at": {
+"seg": "kickers",
+"off": 75
+},
+"lead": 250,
+"trick": "360grab",
+"trickSeed": 3,
+"variants": {
+"rings": "on"
+},
+"id": "front",
+"cam": "front"
+},
+{
+"dur": 3.5,
+"tod": "golden",
+"wx": "light",
+"at": {
+"seg": "kickers",
+"off": 75
+},
+"lead": 250,
+"trick": "360grab",
+"trickSeed": 3,
+"variants": {
+"rings": "on"
+},
+"id": "far",
+"cam": "far"
+},
+{
+"dur": 3.5,
+"tod": "golden",
+"wx": "light",
+"at": {
+"seg": "kickers",
+"off": 75
+},
+"lead": 250,
+"trick": "360grab",
+"trickSeed": 3,
+"variants": {
+"rings": "on"
+},
+"id": "tv",
+"cam": {
+"kind": "fixed",
+"at": [
+9,
+2.2,
+34
+],
+"fov": 0.32
+}
+},
+{
+"dur": 3.5,
+"tod": "golden",
+"wx": "light",
+"at": {
+"seg": "kickers",
+"off": 75
+},
+"lead": 250,
+"trick": "360grab",
+"trickSeed": 3,
+"variants": {
+"rings": "on"
+},
+"id": "orbit",
+"cam": {
+"kind": "orbit",
+"r": 7,
+"h": 1.4,
+"az0": 1.0,
+"az1": 2.4,
+"fov": 0.8
+}
+},
+{
+"dur": 3.5,
+"tod": "golden",
+"wx": "light",
+"at": {
+"seg": "kickers",
+"off": 75
+},
+"lead": 250,
+"trick": "360grab",
+"trickSeed": 3,
+"variants": {
+"rings": "on"
+},
+"id": "drone",
+"cam": {
+"kind": "drone",
+"from": [
+14,
+9,
+-6
+],
+"to": [
+10,
+7,
+6
+],
+"fov": 0.9
+}
+}
+]
