@@ -837,7 +837,7 @@ const Game = (() => {
     // skier in a step: it sinks away to the landing below over a few tenths of a second, and the skier is seen to rise from it
     if (first || dt <= 0) { fl.sg = hb; fl.sgV = 0; fl.sgP = hb; } else weighted(fl, 'sg', hb, fl.sgV, 4.5, dt);
     // a double-pole stroke is drawn by the skier from pose.dp: while one runs, the turn pole plant, the tuck and the balance arms stand back
-    const dpK = fl.dpK = damp(fl.dpK, S.dp > 0 ? 1 : 0, 14, kd); pose.dp = S.dp || 0; pose.dpn = S.dpMore ? 1 : 0;
+    const dpK = fl.dpK = damp(fl.dpK, S.dp > 0 ? 1 : 0, 14, kd); pose.dp = S.dp || 0; pose.dpn = S.dpMore ? 1 : 0; pose.chg = S.charge || 0;
     fl.crashK = damp(fl.crashK, S.crash, S.crash > fl.crashK ? 25 : 60, kd); const crash = fl.crashK;
     // tuck when running straight and fast
     // (above a hundred an hour a racer holds the tuck through long turns too, and only stands out of it to turn hard)
