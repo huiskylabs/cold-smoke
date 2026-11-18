@@ -154,7 +154,7 @@ const LabMo = (() => {
     // taken back out of the chest, and half of it out of the lower trunk. Nothing at zero, so it comes in without a step)
     // (only at slow speed, and eased in over the first 2 deg: taken out whole at every speed, it stopped the shoulders dead at each edge change,
     // where they rightly cross a moment before or after the eased lean: jolts 17 -> 129 in a deep carve run)
-    { const c0 = Math.atan2(-out.t2.X[1], out.t2.X[0]), n = Math.max(0, -c0 * Math.sign(ph.le)), c = -Math.sign(ph.le) * (n * n / (n + 0.035)) * (1 - sm(4, 7, speed)); if (c !== 0) { const rz = (q, a) => { const cs = Math.cos(a), sn = Math.sin(a); return [q[0] * cs + q[1] * sn, -q[0] * sn + q[1] * cs, q[2]]; };
+    { const c0 = Math.atan2(-out.t2.X[1], out.t2.X[0]), n = Math.max(0, -c0 * Math.sign(ph.le)), c = -Math.sign(ph.le) * (n * n / (n + 0.035)) * (1 - sm(4, 7, speed)) * sm(0, 0.08, Math.abs(ph.le));      /* (which side is outward flips as the lean crosses zero: faded in over the first 0.08 rad so it never steps) */ if (c !== 0) { const rz = (q, a) => { const cs = Math.cos(a), sn = Math.sin(a); return [q[0] * cs + q[1] * sn, -q[0] * sn + q[1] * cs, q[2]]; };
         out.t2 = ortho(rz(out.t2.X, -c), rz(out.t2.Y, -c)); out.t1 = ortho(rz(out.t1.X, -c / 2), rz(out.t1.Y, -c / 2)); } }
     // (heading order, owner 2026-11-18 (the research on sports games, adopted): the head looks where the skier will be going in LOOK_H s, the chest
     // LOOK_C, the skis last. The way the line is about to turn is read from the lean the trunk already leads with (lt): a
@@ -185,7 +185,7 @@ const LabMo = (() => {
     { let X = rotY(out.hb.X, aH), Y = rotY(out.hb.Y, aH);
       // (Mac round 27: on a trunk that now stands up, the lab's own head, which was levelled against a leaning trunk, tipped 3-9 deg to the OUTSIDE of
       // the turn. A head keeps HEAD_ROLL_KEEP of a tilt into the turn and none of a tilt out of it: X is the head's right, so X[1] against the lean is outward)
-      const hx = Math.atan2(X[1], Math.hypot(X[0], X[2])), bh = -hx * (hx * ph.le > 0 ? 1 : 1 - HEAD_ROLL_KEEP), f = [-X[2], 0, X[0]], fl = Math.hypot(f[0], f[2]) || 1, ax = [f[0] / fl, 0, f[2] / fl];      // (the tilt is taken out about the level line the head faces along)
+      const hx = Math.atan2(X[1], Math.hypot(X[0], X[2])), bh = -hx * (1 - HEAD_ROLL_KEEP * sm(-0.01, 0.01, -hx * ph.le)),      /* (blended, Mac round 31: switched outright at each edge change the head stepped 3-4 deg in a frame) */ f = [-X[2], 0, X[0]], fl = Math.hypot(f[0], f[2]) || 1, ax = [f[0] / fl, 0, f[2] / fl];      // (the tilt is taken out about the level line the head faces along)
       const rod = q => { const c = Math.cos(bh), n = Math.sin(bh), d = dt3(ax, q), x = crs(ax, q); return [q[0] * c + x[0] * n + ax[0] * d * (1 - c), q[1] * c + x[1] * n + ax[1] * d * (1 - c), q[2] * c + x[2] * n + ax[2] * d * (1 - c)]; };
       out.hb = ortho(rod(X), rod(Y)); }
     return out;
