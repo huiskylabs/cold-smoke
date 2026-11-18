@@ -121,7 +121,7 @@ const LabMo = (() => {
     // (Mac round 16: hand x thigh 0 -> 136 frames). They keep the lab's own line, hands level, as a skier carries them)
     const ARM_IN = 0.0;
     const TRUNK_LEAD_T = 0.07, TRUNK_UNLAG = 0, LEAD_RATE_MAX = 3.0, TRUNK_IN_DEEP = 0.20, LOOK_H = 0.5, LOOK_C = 0.35, LOOK_END = 0.6, HEAD_AHEAD = 0.16, CHEST_AHEAD = 0.03, PEL_SQ = 0.3, HEAD_ROLL_KEEP = 0.45;
-    const TRUNK_IN = 0.30, TRUNK_IN_SLOW = -0.03, SLOW_V0 = 5, SLOW_V1 = 13, lab = Math.atan2(r[0], r[1]);
+    const TRUNK_IN = 0.22, TRUNK_IN_SLOW = -0.12, SLOW_V0 = 5, SLOW_V1 = 13, BAL = 0.18, lab = Math.atan2(r[0], r[1]);
     if (!quietU()) return fill(out, st, r, ph.lean * 1.07 - lab, 'z');
     // (新求解器, owner 2026-11-18: "想左转，一定是身体跟肩膀先倾过来…头稍微往正回一点点". Measured (turnM): the shoulders tipped 6 frames AFTER the hips
     // (they took the eased lean), so at every edge change they still hung 20-28 deg over the old turn; at 47 deg of lean the shoulder line stood at
@@ -143,7 +143,12 @@ const LabMo = (() => {
     // (the trunk's own roll rides on the lean without the easing's lag (l0), not on the eased lean: on the eased one its lead was eaten, and against
     // the leg line (feet to pelvis) the shoulders went over 0.01 s BEFORE to 0.01 s AFTER the legs: together, not first (scorer Rshlead / Rshlead0, 2026-11-18))
     const l0 = ph.le + TRUNK_UNLAG * (2 / ph.wn) * lr;      // (TRUNK_UNLAG 1, lead 0.115 s: at a linked edge change the trunk stood 16 deg off the leg line, Rshline0; 0.5 gave 0.09 s. Now 0: research 2026-11-18 (LeMaster / Ski Racing, Brown & Reid) says the body tips in as a unit and the shoulders then stay more level than the legs; shoulders tipping first is banking, a fault)
-    fill(out, st, r, ph.lean * 1.07 - lab, 'z', l0 * 1.07 - lab + kin * lt, lt * 1.07 - lab + ARM_IN * ph.le);
+    // (balance: stood up over legs that stay where they were, the trunk carried the body's weight outward: the line from the centre of mass along
+    // the lean came down 13% of the stance OUTSIDE the outside foot in deep carves (scorer R0 1.7 -> 4.1 cm, R0s 0.98 -> 1.13). A skier who angulates
+    // puts the hips further IN by as much as the shoulders come out. The trunk is about 0.6 of the weight, 0.3 m above the hips, the whole about 1 m
+    // up the leg line: BAL = 0.18 rad of extra roll for the whole figure per rad the trunk was stood up (against the 0.6 share it had before))
+    const bal = BAL * (0.6 - kin) * l0;
+    fill(out, st, r, ph.lean * 1.07 - lab + bal, 'z', l0 * 1.07 - lab + kin * lt + bal, lt * 1.07 - lab + ARM_IN * ph.le + bal);
     // (heading order, owner 2026-11-18 (the research on sports games, adopted): the head looks where the skier will be going in LOOK_H s, the chest
     // LOOK_C, the skis last. The way the line is about to turn is read from the lean the trunk already leads with (lt): a
     // carving skier's heading turns at g tan(lean) / v. Each is held under its cap, so head over chest and chest over hips never twist far.
