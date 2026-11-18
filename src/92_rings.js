@@ -786,10 +786,10 @@ fn dustGrain(i: u32) -> DG {
     col = ringHue(ang, 0.25, n);
   }
   var flowP: vec3f = vec3f(0.0); var flowSt: vec3f = vec3f(0.0); var useFlow: f32 = 0.0;
-  // (用户 07:57 UTC: 所有粒子都飞太夸张、太晃眼，只要少一点、subtle 一点) only about one grain in ten of the swarm flies (as bright as before:
+  // (用户 07:57 UTC: 所有粒子都飞太夸张、太晃眼，只要少一点、subtle 一点) (07:59 UTC: 再试 2%) only about one grain in fifty of the swarm flies (as bright as before:
   // fewer grains is what makes it quiet); the rest splash where they are as before
   let hsel: vec3f = hashu3(i * 37u + rid * 613u + 21u);
-  if (dis > 0.0 && M.d.w > 0.5 && kind == 0u && hsel.x < 0.1) {
+  if (dis > 0.0 && M.d.w > 0.5 && kind == 0u && hsel.x < 0.02) {
     // (用户 2026-11-18 07:53 UTC: 靠近光圈时，绿光飞走，快速流向下一个光圈、融进去，告诉你下一个圈大概在哪个方向；每颗粒子不统一、
     // 有点乱，但整体犀利、一下子全部流过去). Variants rflow. Each grain leaves from where it is on this ring, is thrown out a little off the
     // ring and up, then swoops on its own curve (a cubic through two random handles, a wobble that dies at both ends) to its own place on
