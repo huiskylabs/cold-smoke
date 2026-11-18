@@ -22,7 +22,7 @@ const I18N = (() => {
     /*}native*/
     // ---- title and loading
     '一个人，一座山，一直往下': 'One skier, one mountain, all the way down',
-    '沉浸模式': 'Immersive', '捏一下手指 出发': 'Pinch to start', '左右歪头转弯 · 头往前压板头，往后压板尾': 'Lean your head to turn · forward for the tips, back for the tails',
+    '沉浸模式': 'Immersive', '捏一下手指 出发': 'Pinch to start', '左右歪头转弯 · 转弯时头往后压刃拐急，头往前搓雪减速': 'Lean your head to turn · head back in a turn to carve tighter, forward to skid and slow',
     '右手捏住 蹲低加速 · 左手捏住 蓄力，松开起跳': 'Right pinch held: tuck · Left pinch held: load a jump, let go to fly', '按数码表冠退出': 'Press the Digital Crown to leave',
     '出发': 'Start', '场景': 'Scene', '视角': 'Views', '操作': 'Controls', '回车': 'Enter', '静音': 'Mute', '全屏': 'Full screen', '退出全屏': 'Exit full screen',
     '画面和声音全部由代码实时生成，没有一张贴图、一段录音。戴上耳机更好。': 'Every picture and every sound is made live by code: not one texture, not one recording. Best with headphones.',
@@ -40,11 +40,12 @@ const I18N = (() => {
     '日出': 'Sunrise', '日落': 'Sunset', '加速': 'Tuck', '跳': 'Jump', '换视角': 'Change view', '菜单': 'Menu', '声音开关': 'Sound on or off', '暂停': 'Paused',
     '像握方向盘一样倾斜手机': 'Tilt the phone like a steering wheel', '按住屏幕，左右拖动': 'Hold the screen, drag left or right',
     '连着转弯，把雪扬起来': 'Link your turns, throw up the snow', '按住「跳」蓄力，松开起跳': 'Hold Jump to load up, let go to fly',
-    '← → 转弯 · ↑ ↓ 压板头 / 板尾 · 空格 跳 · Shift 加速': '← → to turn · ↑ ↓ weight on the tips / tails · Space to jump · Shift to tuck',
-    '按住屏幕，左右拖转弯，上下拖压板头 / 板尾': 'Hold and drag: across to turn, up for the tips, down for the tails',
-    '↑ 压板头入弯 · ↓ 压板尾出弯 · 空格 跳': '↑ tips into a turn · ↓ tails out of it · Space to jump',
-    '压板头 · 压板尾：入弯压头切得紧，出弯压尾冲出去，弯尾还压头会搓雪减速': 'Weight on the tips or the tails: tips into a turn to bite, tails out of it to shoot on; still on the tips at the end, the tails skid and slow you',
-    '上下拖动': 'Drag up / down', '往上压板头，往下压板尾': 'Up puts weight on the tips, down on the tails', '前后重心': 'Fore / aft',
+    '← → 转弯 · 转弯时按 ↓ 压刃拐急 · ↑ 搓雪减速 · 空格 跳 · Shift 加速': '← → to turn · ↓ in a turn to carve tighter · ↑ to skid and slow · Space to jump · Shift to tuck',
+    '按住屏幕，左右拖转弯，转弯时往下拖压刃拐急，往上拖搓雪减速': 'Hold and drag: across to turn, down in a turn to carve tighter, up to skid and slow',
+    '转弯时按住 ↓ 压刃拐急 · ↑ 搓雪减速 · 空格 跳': 'Hold ↓ in a turn to carve tighter · ↑ to skid and slow · Space to jump',
+    '压刃：转弯时按住，人蹲得更低、板子立得更陡，弯拐得更急也咬得更稳；直滑时按住，重心坐到板尾': 'Drive the edges: held in a turn you go lower and tip the skis up further, so the turn is tighter and holds better; held running straight you sit back over the tails',
+    '压板头：板头吃雪、板尾甩出去搓雪，用来减速': 'Weight on the tips: the tips dig in and the tails skid out, to slow you down',
+    '上下拖动': 'Drag up / down', '转弯时往下拖压刃拐急，往上拖搓雪减速': 'Down in a turn carves tighter, up skids to slow you', '前后重心': 'Fore / aft',
     '空格 跳（按住蓄力） · ↓ 加速': 'Space to jump (hold to load up) · ↓ to tuck', '← →  或  A D  转弯': '← →  or  A D  to turn',
     '画面断开了': 'THE PICTURE WAS LOST', '点一下重新上山': 'Tap to ski again',
     // ---- the runs (Course: SEG_NAMES), the hours, the weather, the views, the animals

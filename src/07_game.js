@@ -389,6 +389,8 @@ const Game = (() => {
     // better, held on through the bottom it lightens the tails and they wash out into a skid that brakes (the way to scrub speed). Pressing the
     // tails: the tips are light, so the edges come up slower and the arc is wider; through the bottom the tails hold and the ski runs on out of
     // the turn with less drag; sat back at the top the tips do not hook and the skis wash. Timed right (forward in, back out) is the clean carve
+    // (since the deep carve above, down held WHILE steering is that and not the tails (k below gives the tails' share back as deep comes on), so
+    // what a player meets is: down in a turn = lower and tighter, up = the tails wash out and scrub speed. The controls text says so, 2026-11-18)
     const FA = FB && Variants.val.fa === 'b' && !S.air;
     let fa = 0, ph = 0, gripFA = 1, turnFA = 1, dragFA = 1;
     if (FA) {
