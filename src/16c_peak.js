@@ -27,7 +27,7 @@ Peak.sets = {
 function peakP(kind) {
   if (kind !== 'd') return Peak;
   const P = Object.assign({}, Peak, Peak.sets[Variants.val.lake] || Peak.sets.b);
-  if (Variants.val.start === 'b') { P.sum = true; P.PC = [0, -3000]; P.HP = 14000; P.CAP = 11800; P.H = P.CAP + 260; P.LC = [P.LC[0], P.LC[1] + 9500]; }
+  if (Variants.val.start === 'b') { P.sum = true; P.PC = [0, -3000]; P.HP = 13000; P.CAP = 10600; P.H = P.CAP + 260; P.LC = [P.LC[0], P.LC[1] + 12000]; P.LR = [P.LR[0] * 1.35, P.LR[1] * 1.6]; }
   return P;
 }
 function peakBakeFS(kind) {
