@@ -888,7 +888,7 @@ fn dustGrain(i: u32) -> DG {
     flowSt = vec3f(0.0, -0.35, 0.0);
     b = 0.4 * apr * sin(3.1415927 * ph) * (1.0 - 0.6 * ph) * (1.0 - saturate(dis * 2.0));
     useFlow = 1.0;
-  } else if (md > 5.5 && md < 6.5 && kind == 0u && hsel.x < 0.022 && apr > 0.0) {
+  } else if (md > 5.5 && md < 6.5 && kind == 0u && hsel.x < 0.05 && apr > 0.0) {
     // 6 溪流 (用户 16:23 UTC: 细流和光柱都不错，再研究): the trickle made one stream. All its grains run on one shared curve from the side of this
     // ring facing the next to the next one, meandering like a brook (two slow bends that drift with time), each grain a little to one
     // side of the line and on its own phase, so the stream is a dotted, living line that keeps flowing for as long as the ring is ahead
@@ -904,9 +904,10 @@ fn dustGrain(i: u32) -> DG {
     let mw: vec3f = (sd * sin(e * 9.0 + T * 0.7 + hr.x * 6.0) * 0.05 + vec3f(0.0, sin(e * 6.0 + T * 0.5 + hr.y * 6.0), 0.0) * 0.02) * dl * bell;
     let hj: vec3f = hashu3(i * 47u + rid * 19u + 5u) - vec3f(0.5);
     flowP = bez3(P0, c1, c2, P1, e) + mw + (sd * hj.x + vec3f(0.0, hj.y * 0.6, 0.0)) * 0.35 * sz * (0.4 + bell) + vec3f(0.0, 0.04 * sin(T * 5.0 + hsel.z * 30.0), 0.0);
-    flowSt = vec3f(0.0);
-    b = 0.5 * apr * min(1.0, e * 8.0) * min(1.0, (1.0 - e) * 6.0) * (1.0 - saturate(dis * 3.0));
-    wsz = wsz * 1.4; minPx = 2.0;
+    let tg: vec3f = bez3(P0, c1, c2, P1, min(1.0, e + 0.01)) - bez3(P0, c1, c2, P1, e);
+    flowSt = -normalize(tg + vec3f(0.0, 0.0001, 0.0)) * 0.35;          // (a short tail along the stream: Mac check 16:4x UTC, bare dots at 2.2% were not seen)
+    b = 0.85 * apr * min(1.0, e * 8.0) * min(1.0, (1.0 - e) * 6.0) * (1.0 - saturate(dis * 3.0));
+    wsz = wsz * 1.8; minPx = 2.4;
     useFlow = 1.0;
   } else if (md > 6.5 && md < 7.5 && kind == 0u && hsel.x < 0.035 && apr > 0.0) {
     // 7 细高光柱: a thin tall column over the next ring, 35 m, densest at the bottom, swaying a little at the top, grains streaming upward
@@ -917,13 +918,14 @@ fn dustGrain(i: u32) -> DG {
     flowSt = vec3f(0.0, -0.5, 0.0);
     b = 0.45 * apr * min(1.0, ph * 10.0) * pow(1.0 - ph, 1.3) * (1.0 - saturate(dis * 2.0));
     useFlow = 1.0;
-  } else if (md > 7.5 && md < 8.5 && kind == 0u && hsel.x < 0.03 && apr > 0.0) {
+  } else if (md > 7.5 && md < 8.5 && kind == 0u && hsel.x < 0.05 && apr > 0.0) {
     // 8 螺旋光柱: two strands of grains winding up round the next ring's axis, narrowing as they rise, fading at 24 m
     let ph: f32 = fract(T / 4.0 + hsel.y * 11.0); let st2: f32 = select(0.0, 3.1415927, hsel.z > 0.5);
     let a0: f32 = ph * 12.566 + T * 1.1 + st2; let rj: f32 = RN * 0.55 * (1.0 - 0.45 * ph) + (fract(hsel.y * 53.0) - 0.5) * 0.25;
     flowP = N + vec3f(cos(a0) * rj, RN * 0.5 + ph * 24.0, sin(a0) * rj);
-    flowSt = vec3f(0.0);
-    b = 0.45 * apr * sin(3.1415927 * ph) * (1.0 - saturate(dis * 2.0));
+    flowSt = -normalize(vec3f(-sin(a0) * rj * 12.566, 24.0, cos(a0) * rj * 12.566)) * 0.45;          // (a short tail along the strand; bare dots were not seen)
+    b = 0.75 * apr * sin(3.1415927 * ph) * (1.0 - saturate(dis * 2.0));
+    wsz = wsz * 1.6; minPx = 2.2;
     useFlow = 1.0;
   } else if (dis > 0.0) {
     let hd: vec3f = hashu3(i * 23u + rid * 101u + 9u);
