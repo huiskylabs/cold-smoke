@@ -50,8 +50,9 @@ const Post = (() => {
     // 金色雪旗 above the tree line (Variants dalp b): the owner's photo of the Rockies above the trees: snow nearly white even in shade
     // (bright cloud overhead fills it), only a hint of blue, far peaks soft in cloud
     dA: { e: 1.62, veil: 0.03, wb: 0.15, sp: 0.88, so: 0.92, haze: 0.55, black: 0.02, sky: 1.25, milk: 0.95, hzc: [0.92, 0.97, 1.06] },
-    // (dlight c, the owner's 八海山 video: sunlit snow white, shade a clean sky blue, a deep blue zenith, the far air clear)
-    dS: { e: 1.55, veil: 0.02, wb: 0.38, sp: 1.08, so: 1.06, haze: 0.30, black: 0.02, sky: 1.65, milk: 0.62, hzc: [0.90, 0.97, 1.08] },
+    // (dlight c, the owner's 八海山 video: sunlit snow white, shade a clean sky blue, a clear mid blue overhead (not navy), the horizon a
+    // white-blue milk with no yellow in it: a boosted sky turned the yellow of the low sky green)
+    dS: { e: 1.55, veil: 0.02, wb: 0.38, sp: 1.08, so: 1.06, haze: 0.30, black: 0.02, sky: 1.30, milk: 1.0, hzc: [0.96, 0.99, 1.05] },
     d: { e: 1.42, veil: 0.02, wb: 0.25, sp: 1.12, so: 1.08, haze: 0.42, black: 0.022, sky: 1.55, milk: 0.85, hzc: [0.84, 0.95, 1.12] },
   };
   // the tint of the horizon's milk in world d (05_sky.js, 16_vista.js): its own when each map has its own grade

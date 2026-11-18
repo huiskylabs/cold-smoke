@@ -290,6 +290,8 @@ fn frag(v: VOut) -> FOut { var o: FOut;
 // ---- every frame, in the sky shader (after the sky, its aurora and its moon are known: the lake mirrors them)
 function peakSSL() {
   const V = Vista, f = metroF, P = peakP(Metro.kind()), isC = Metro.kind() === 'c';
+  // (金色雪旗 above the trees in the clear light of the owner's 八海山 video: the sea of cloud lies in the far valleys, wrapped about the ranges)
+  const DS = Metro.kind() === 'd' && Variants.val.dalp === 'b' && Variants.val.dlight === 'c';
   // (金色雪旗's own grade: how much of the far air by day, 09_post.js Post.grades)
   const hzD = (typeof Variants !== 'undefined' && Variants.val.grade === 'a') ? 1 : Post.gD().haze;
   const sa = Math.atan2(P.PC[0], P.PC[1]), bt0 = Math.atan((P.H - 2900) / (Math.hypot(P.PC[0], P.PC[1]) - 0.52 * P.PR)) + P.lift;      // the peak's bearing; where the cloud about its waist lies
@@ -566,7 +568,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
   for (var i: i32 = 0; i < 2; i++) {
     let waist: f32 = step(1.5, f32(i)); let up: f32 = f32(i & 1);
     let hgt: f32 = mix(${f(520 * P.K)}, ${f(2250 * P.K)}, waist) + up * mix(${f(190 * P.K)}, ${f(260 * P.K)}, waist);
-    let dk: vec3f = peakDeck(dl, sl, hgt, mix(mix(0.15, 0.60, isC), 0.52, waist), mix(${f(5200 * P.K)}, ${f(2600 * P.K)}, waist));
+    let dk: vec3f = peakDeck(dl, sl, hgt, mix(mix(${DS ? '0.40' : '0.15'}, 0.60, isC), 0.52, waist), mix(${f(5200 * P.K)}, ${f(2600 * P.K)}, waist));
     if (dk.x > 0.002) {
       let pw: vec2f = dl * dk.z;
       // (the belt keeps to a ring about the peak; the sea keeps off our own mountain's foot)
@@ -606,7 +608,7 @@ fn peakPlain(d: vec3f, mu: f32, sky0: vec3f) -> vec3f {
     if (mk > 0.002) {
       var mcol: vec3f = vec3f(0.96, 0.97, 1.0) * cloudLit * 0.85;
       mcol = mix(mcol, vistaHaze(d), 0.35);
-      res = mix(res, mcol, saturate(mk) * 0.72 * ex);
+      res = mix(res, mcol, saturate(mk) * ${DS ? '0.92' : '0.72'} * ex);
     }
   }
   return res;
