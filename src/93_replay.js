@@ -192,14 +192,18 @@ const Replay = self.Replay = (() => {
     if (s && s.inp && typeof Input !== 'undefined') { Input.script = s.inp.script; Input.faScript = s.inp.fa; }
     G.events.length = 0;
     if (el) { el.root.classList.remove('on'); appEl().classList.remove('replay', 'rp-bare'); }
+    snapCam();
     if (!quiet && rg && rg.cardShow) rg.cardShow(true);
   }
   R.stop = () => stop(false);
+  // the chase camera (07_game.js) and the views' rig (07b_views.js) start again where the skier now is, instead of swinging in from afar
+  function snapCam() { if (G.cam) G.cam.init = false; G.setView(G.view, true); tv.i = -1; tv.look = null; }
 
   // put the run's moment P.t on the figure, the rings and the clocks. events: also play what happened between the last frame shown and this one
   function applyFrame(dt, events) {
-    const r = R.rec, [k, u] = frameAt(P.t), F = r.frames;
+    const r = R.rec, [k, u] = frameAt(P.t), F = r.frames, p0 = S.p.slice();
     unpack(r.lay, F[k], F[k + 1], u);
+    if (Math.hypot(S.p[0] - p0[0], S.p[2] - p0[2]) > 15) snapCam();          // (a jump along the run, the time line dragged: the lens is put there, not flown there)
     G.runT = r.runT[k] + ((r.runT[k + 1] || r.runT[k]) - r.runT[k]) * u;
     if (typeof Sky !== 'undefined') Sky.setClock(r.clock[k]);
     if (events && P.last >= 0 && k > P.last && k - P.last < 600) for (let i = P.last + 1; i <= k; i++) if (r.ev[i]) for (const e of r.ev[i]) G.events.push(Object.assign({}, e));
@@ -270,10 +274,11 @@ const Replay = self.Replay = (() => {
       + '#replay button.on{color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun)}#replay button.pp{width:40px;padding:0;justify-content:center;color:var(--snow)}'
       + '@media (hover:hover){#replay button:hover{color:var(--snow);box-shadow:inset 0 0 0 1px rgba(244,247,251,.5)}#replay button.on:hover{color:#ffe2b5;box-shadow:inset 0 0 0 1px #ffe2b5}}'
       + '#replay kbd{font-family:var(--f-lat);font-size:.85em;letter-spacing:.04em;opacity:.55}#replay .sp{display:flex;gap:4px}#replay .sp button{padding:0 9px}#replay .sep{width:1px;height:20px;background:var(--hair);margin:0 4px;flex:none}'
-      + '#replay .cams{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}#replay .cams::-webkit-scrollbar{display:none}#replay .cams button{font-family:var(--f-song);letter-spacing:.2em}#replay .more{display:none}'
+      + '#replay .cams{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;min-width:0}#replay .cams::-webkit-scrollbar{display:none}#replay .cams button,#replay .camc button{font-family:var(--f-song);letter-spacing:.2em}#replay .camc{display:none}'
       // (a phone on its side: the cameras stand down the right edge, under the thumb, the six most used; the rest behind 更多)
-      + '@media (max-height:520px){#replay .cams{position:absolute;right:var(--gr);top:calc(var(--gt) + 46px);bottom:calc(var(--gb) + 70px);flex-direction:column;align-items:flex-end;overflow-y:auto;overflow-x:visible;pointer-events:auto}'
-      + '#replay .cams button{background:rgba(5,8,13,.42);height:30px}#replay .cams button.on{background:rgba(5,8,13,.55)}#replay .cams kbd{display:none}#replay .cams button.x6{display:none}#replay .cams.all button.x6{display:inline-flex}#replay .more{display:inline-flex}#replay .row .sep.c,#replay .row kbd{display:none}#replay .t{min-width:0}}'
+      + '@media (max-height:520px){#replay .cams,#replay .row .sep.c,#replay .row kbd{display:none}#replay .t{min-width:0}'
+      + '#replay .camc{display:flex;position:absolute;right:var(--gr);top:calc(var(--gt) + 46px);bottom:calc(var(--gb) + 74px);flex-direction:column;align-items:flex-end;gap:6px;overflow-y:auto;scrollbar-width:none;pointer-events:auto;text-shadow:none}'
+      + '#replay .camc button{background:rgba(5,8,13,.42);height:30px;flex:none}#replay .camc button.on{background:rgba(5,8,13,.55)}#replay .camc button.x6{display:none}#replay .camc.all button.x6{display:inline-flex}#replay.idle .camc{opacity:0;pointer-events:none}#replay .camc{transition:opacity .45s}}'
       + '</style>'
       + '<div class="surf"></div>'
       + '<div class="ui"><div class="tag"><i></i><em>回放</em>REPLAY</div><button class="x" data-a="x" aria-label="退出回放"><svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg></button>'
@@ -281,8 +286,9 @@ const Replay = self.Replay = (() => {
       + '<div class="bt0"><div class="tl"><div class="rail"></div><div class="done"></div><div class="mk"></div><div class="kn"></div></div>'
       + '<div class="row"><button class="pp" data-a="pp" aria-label="播放/暂停"></button><button data-a="re" aria-label="从头"><svg viewBox="0 0 20 20"><path d="M4.5 10a5.5 5.5 0 1 0 1.8-4.1"/><path d="M4.2 3.6v3h3"/></svg></button><span class="t"></span>'
       + '<span class="sp">' + SPEEDS.map(s => '<button data-sp="' + s + '">' + (s === 0.25 ? '¼' : s === 0.5 ? '½' : s) + '×</button>').join('') + '</span><span class="sep c"></span>'
-      + '<span class="cams">' + CAMS.map(([id, n], i) => '<button data-cam="' + id + '"' + (i >= 6 ? ' class="x6"' : '') + '>' + n + '<kbd>' + ((i + 1) % 10) + '</kbd></button>').join('') + '<button class="more" data-a="more">更多</button></span>'
-      + '<span class="gap"></span><button data-a="hide">隐藏<kbd>H</kbd></button></div></div></div>';
+      + '<span class="cams">' + CAMS.map(([id, n], i) => '<button data-cam="' + id + '">' + n + '<kbd>' + ((i + 1) % 10) + '</kbd></button>').join('') + '</span>'
+      + '<span class="gap"></span><button data-a="hide">隐藏<kbd>H</kbd></button></div></div>'
+      + '<div class="camc">' + CAMS.map(([id, n], i) => '<button data-cam="' + id + '"' + (i >= 6 ? ' class="x6"' : '') + '>' + n + '</button>').join('') + '<button class="more" data-a="more">更多</button></div></div>';
     appEl().appendChild(d);
     el = { root: d, q: s => d.querySelector(s) };
     // the camera buttons move to the edge of a phone on its side: they are taken out of the bar there, so the bar's own hiding does not take them
@@ -295,7 +301,7 @@ const Replay = self.Replay = (() => {
       else if (b.dataset.a === 're') { P.t = 0; P.last = -1; P.splitI = 0; P.play = true; paint(); }
       else if (b.dataset.a === 'x') stop(false);
       else if (b.dataset.a === 'hide') bare(true);
-      else if (b.dataset.a === 'more') { el.q('.cams').classList.toggle('all'); }
+      else if (b.dataset.a === 'more') { el.q('.camc').classList.toggle('all'); }
       if (b.blur) b.blur();
     });
     // the time line: pressed or dragged, the replay goes to that moment (and holds there while it is held)

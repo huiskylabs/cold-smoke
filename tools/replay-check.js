@@ -19,7 +19,7 @@ fs.mkdirSync(out, { recursive: true });
   console.log('renderer', await pg.evaluate(() => __ski.app().gfx.caps.backend + ' / ' + __ski.app().gfx.caps.renderer));
   await pg.evaluate(() => { __ski.tod('golden'); });
   await pg.waitForTimeout(2000);
-  let n = 0; const shot = async name => { if (!SHOTS) return; await pg.waitForTimeout(400); n++; const f = path.join(out, String(n).padStart(2, '0') + '_' + name + '.png'); await pg.screenshot({ path: f }); console.log('shot', f); };
+  let n = 0; const shot = async (name, still) => { if (!SHOTS) return; if (!still) await pg.mouse.move(640 + (n % 7), 330); await pg.waitForTimeout(400); n++; const f = path.join(out, String(n).padStart(2, '0') + '_' + name + '.png'); await pg.screenshot({ path: f }); console.log('shot', f); };
   await pg.evaluate(() => {
     window.__pilot = () => () => {
       const G = __ski.game(), S = G.s, p = S.p, R = __rings, C = __ski.m.Course;
@@ -88,8 +88,8 @@ fs.mkdirSync(out, { recursive: true });
   if (SHOTS) {
     await pg.evaluate(m => { Replay.setCam('orbit'); Replay.seek(m); Replay.setSpeed(0.25); Replay.pause(false); }, mid); await pg.waitForTimeout(1500); await shot('回放_慢放环绕');
     await pg.evaluate(() => { Replay.setCam('fp'); Replay.setSpeed(1); Replay.pause(true); }); await shot('回放_暂停');
-    await pg.keyboard.press('KeyH'); await shot('回放_隐藏界面'); await pg.keyboard.press('KeyH');
-    await pg.setViewportSize({ width: 844, height: 390 }); await pg.evaluate(() => { Replay.setCam('chase'); Replay.pause(false); window.dispatchEvent(new Event('resize')); }); await pg.waitForTimeout(1200); await shot('手机横屏');
+    await pg.keyboard.press('KeyH'); await shot('回放_隐藏界面', true); await pg.keyboard.press('KeyH');
+    await pg.setViewportSize({ width: 844, height: 390 }); await pg.mouse.move(420, 200); await pg.evaluate(() => { Replay.setCam('chase'); Replay.pause(false); window.dispatchEvent(new Event('resize')); }); await pg.waitForTimeout(1200); await shot('手机横屏');
     await pg.setViewportSize({ width: 1280, height: 720 }); await pg.waitForTimeout(600);
   }
   // out again: Esc puts back the skier, the mode and the card
