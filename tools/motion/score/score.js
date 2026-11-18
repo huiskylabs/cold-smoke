@@ -190,6 +190,10 @@ function metrics(d, S, tr, cards, co, sm) {
   for (let k = 1; k < tr.list.length; k++) { const b = tr.list[k]; if (tr.list[k - 1].i1 !== b.i0) continue; const i0 = b.i0, zc = (x, i) => i - 1 + x(i - 1) / ((x(i - 1) - x(i)) || 1e-9); let best = null;
     for (let i = Math.max(1, i0 - 30); i <= Math.min(n - 1, i0 + 30); i++) if (U.shRoll[i - 1] * b.side <= 0 && U.shRoll[i] * b.side > 0) { const z = zc(j => U.shRoll[j], i); if (best == null || Math.abs(z - i0) < Math.abs(best - i0)) best = z; }
     if (best != null) { let lz = null; for (let i = Math.max(1, i0 - 30); i <= Math.min(n - 1, i0 + 30); i++) if (U.legRoll[i - 1] * b.side <= 0 && U.legRoll[i] * b.side > 0) { const z = zc(j => U.legRoll[j], i); if (lz == null || Math.abs(z - i0) < Math.abs(lz - i0)) lz = z; } if (lz != null) put('edge', 'R', 'Rshlead0', (lz - best) / FS); } }
+  // ④ 换刃时重心先过、板后立刃：腿线（两脚中点→骨盆）过零比两块板的刃角过零早多少秒（正 = 身体先越过雪板。2026-11-18 调研：进弯是重心先向弯内移，板随后才立上新刃）
+  for (let k = 1; k < tr.list.length; k++) { const b = tr.list[k]; if (tr.list[k - 1].i1 !== b.i0) continue; const i0 = b.i0, zc = (x, i) => i - 1 + x(i - 1) / ((x(i - 1) - x(i)) || 1e-9), eg = i => S.deg.edgeL[i] + S.deg.edgeR[i];
+    const near = g => { let z0 = null; for (let i = Math.max(1, i0 - 30); i <= Math.min(n - 1, i0 + 30); i++) if (g(i - 1) * g(i) < 0) { const z = zc(g, i); if (z0 == null || Math.abs(z - i0) < Math.abs(z0 - i0)) z0 = z; } return z0; };
+    const zb = near(i => U.legRoll[i]), ze = near(eg); if (zb != null && ze != null) put('edge', 'R', 'Rcomlead', (ze - zb) / FS); }
   // E5 左右对称：左弯和右弯的外膝、倾角差多少（相对）
   for (const c of ['turn', 'carve']) { const L_ = tr.list.filter(t => t.side < 0 && cards[t.i0 + 1].has(c)), R_ = tr.list.filter(t => t.side > 0 && cards[t.i0 + 1].has(c)); if (L_.length < 2 || R_.length < 2) continue;
     const m = (ts, q) => ts.reduce((s, t) => s + t.c[q].slice(13, 20).reduce((a, x) => a + x, 0) / 7, 0) / ts.length;
