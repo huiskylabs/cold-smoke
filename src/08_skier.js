@@ -104,7 +104,7 @@ const Skier = (() => {
   // lean/edge: body and ski roll (+ = to the skier's right); crouch 0..1: how far the legs are folded (0.38 m of travel); tuck, air 0..1; sep, headYaw: twist of
   // trunk and head; lead, stance, lift*, pitch*: where the skis are; arm*: offsets of the hands; plant*: the pole touch at a turn; dp: phase of a double-pole
   // stroke (0 = none); grab*: that hand takes hold of the same-side ski beside the binding
-  const CHG_H = 0.20;
+  const CHG_H = 0.20, LND_H = 0.12;
   const P0 = { lean: 0, edge: 0, crouch: 0.21, tuck: 0, air: 0, sep: 0, headYaw: 0, lead: 0, stance: 0.31, fore: 0, fa: 0, armL: [0, 0, 0], armR: [0, 0, 0], swing: 0, liftL: 0, liftR: 0, pitchL: 0, pitchR: 0, plantL: 0, plantR: 0, dp: 0, dpn: 0, chg: 0, sepQ: 0, hdQ: 0, grabL: 0, grabR: 0 };
   const SEC0 = { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: null, idle: null };
 
@@ -173,7 +173,7 @@ const Skier = (() => {
     // (新求解器, owner 2026-11-18: wound up for a jump with the ring full the skier sat no lower than at the bottom of any compression, hips 0.63 m over
     // the feet: "至少应该再…往下蹲". The wind-up (p.chg, the game's S.charge) takes the hips down CHG_H further, thighs to about level, the deepest a
     // skier loads a jump from; it is the figure's own, the physics' leg travel is as it was)
-    const chgH = gd ? CHG_H * sat(ez(sec, 'chg', sat(p.chg || 0), 14)) : 0; H -= chgH;      // (eased: let go, the charge is gone in four frames, and the legs take the whole take-off to straighten)
+    const chgH = gd ? Math.min(CHG_H * sat(ez(sec, 'chg', sat(p.chg || 0), 14)) + LND_H * sat(p.lnd || 0), CHG_H) : 0; H -= chgH;      // (p.lnd: and a hard landing LND_H, see land b in 07_game.js)      // (eased: let go, the charge is gone in four frames, and the legs take the whole take-off to straighten)
     if (gd && gd[4]) H += gd[4];      // (新求解器: the body carried higher over bumps the legs could not take, begun ahead of them: see lift in 08j_solver.js)
     // (p.reach, mo4 b: the legs reached out long for a landing. On legs that long the trunk's own rule stands it nearly upright, and the hips open to
     // 50 degrees where a skier touches down at 55 to 65: the chest is kept forward by a hand, as a skier meeting a landing has it)
