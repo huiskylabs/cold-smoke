@@ -567,7 +567,11 @@ const Course = ((vn1, vn2, h2U) => {
   // the U gully (经典编排): a flat floor UF*gw either side of the trough's line, then walls that rise over UW*gw as a half cosine, steepest
   // (about 40 degrees) half way up and level again at the rim, so riding up one and over the top never meets a lip. The wall on the outside of
   // each meander stands taller (the cut bank of a stream) and the inside one lower: that is where the line climbs. Depth 0..1 (times gul)
-  const UF = 0.5, UW = 1.25;
+  // (用户 2026-11-18 22:29 UTC: 现在的雪槽是不是太平了？之前是比较圆滑的，现在像梯形，之前像一个 U 型槽) the flat floor of 0.5 gw either side
+  // and 1.25 gw walls read as a trapezoid: a flat strip, a hard bend, a straight-looking wall. Now the floor is all but gone (0.1 gw) and the
+  // half cosine runs over 1.6 gw: the bottom is one round curve that turns into the walls (about 9 m radius at the bottom, walls about
+  // 30 degrees at their steepest, as the old bell's 27, not 40), still level at the rim, so riding up and over never meets a lip
+  const UF = 0.1, UW = 1.6;
   function uWall(ug, c) {
     const a = Math.abs(ug), fw = UF * c.gw, w = UW * c.gw, sd = clamp((ug > 0 ? 1 : -1) * c.goff / 8, -1, 1);
     const prof = a <= fw ? 1 : a >= fw + w ? 0 : 0.5 + 0.5 * Math.cos(PI * (a - fw) / w);

@@ -158,12 +158,66 @@ const Rings = (() => {
     const c = Course.at(s, pc), hw2 = c.hw || 14;
     if (!tech) u = cl(u, -hw2 * 0.6, hw2 * 0.6);
     if (first && !tech) u = u0;          // (用户 18:08/18:11 UTC: 第一个圈在正前方，慢慢预热；只要第一个)
-    const uu = tech ? clear(s, u, hw2, 40) : clear(s, u, hw2); if (uu === null) { cursor = { s, u: u0 }; RG.rings.push({ id: serial++, s, skip: true }); return; }
+    let uu = tech ? clear(s, u, hw2, 40) : clear(s, u, hw2); if (uu === null) { cursor = { s, u: u0 }; RG.rings.push({ id: serial++, s, skip: true }); return; }
     // (用户 04:47 UTC 一整个圈; 16:55 UTC 不要接到雪地上，留一点空间，悬浮起来): the whole ring floats, its lowest point a little above the snow
-    const lv = cl(Math.round(pl.lv + D.off + (pl.how === 'zip' ? 0.4 : (rand() - 0.5) * 1.3)), 0, 2), pick = SIZES[lv], r = pick[0], x = c.cx + uu;
+    const lv = cl(Math.round(pl.lv + D.off + (pl.how === 'zip' ? 0.4 : (rand() - 0.5) * 1.3)), 0, 2), pick = SIZES[lv], r = pick[0];
+    // (seen from the chase camera coming up on the ring before: else the nearest place it is, sideways a little or pulled in. Technique
+    // rings (gully walls, mogul troughs) move at most 3 m sideways, the rest within the run)
+    let x = c.cx + uu;
+    { const live = RG.rings.filter(q => !q.skip), cr = live[live.length - 1], pr = live[live.length - 2];
+      if (cr && !cr.air && !cr.fin) {
+        const P = pr ? { x: pr.x0 !== undefined ? pr.x0 : pr.x, s: pr.s } : { x: cr.x, s: cr.s - 30 }, Cq = { x: cr.x0 !== undefined ? cr.x0 : cr.x, s: cr.s }, st = RG.sightStat; st.tried++;
+        const okA = (s2, u2) => { const c2 = Course.at(s2, pc); return Math.abs(u2) <= (c2.hw || 14) - 3 && clear(s2, u2, c2.hw || 14, 40) !== null && Math.abs(clear(s2, u2, c2.hw || 14, 40) - u2) < 0.01; };
+        const f = sightFix(P, Cq, { s, u: uu, r }, okA, tech ? 3 : 8);
+        if (f) { if (f.moved) { st.moved++; s = f.s; uu = f.u; x = Course.at(s, pc).cx + uu; } } else st.failed++;
+      } }
     cursor = { s, u: uu };
     RG.rings.push({ id: serial++, s, u: uu, x, y: floatY(x, s, r, -1e9), r, tag: pick[1], air: false, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 });
   }
+
+  // ---- (用户 2026-11-18 22:14 UTC: 设定圈的时候要确保追身视角靠近当前圈的时候能看到下一个圈或者光柱！全部检查一遍)
+  // Coming up on a ring, the chase camera must have the ring after it, or the light column over it while it is still a flame, in the
+  // picture and not behind the snow or a tree. The lens as the game has it (07_game.js): about 4.3 m behind the skier and 1.8 m over
+  // the snow, turned a little over half way from the valley toward the skier's heading (at most 0.7 rad), a 16:9 frame some 44 degrees
+  // either side. Tried 25, 15 and 8 m short of the ring, the skier coming in on the line from the ring before. Targets: the ring's centre
+  // and top, and, while it is still a flame (more than ~45 m off, OPEN in update()), the column at 3..28 m over it (22:31 UTC: the column is enough, the ring itself may be out of the picture). Trees as the game's
+  // own lens takes them (a cone of boughs 0.24 x height wide at its foot); the 6 m from the lens past the skier are left out (14_trees.js
+  // fades what stands against it). tools/ring-sight.js checks the same thing on a real ride with the real camera.
+  const tnS = {};
+  function losClear(e, q) {
+    const dx = q[0] - e[0], dy = q[1] - e[1], ds = q[2] - e[2], Lq = Math.hypot(dx, dy, ds), n = Math.ceil(Lq / 1.5);
+    for (let i = 1; i < n; i++) {
+      const f = i / n, x = e[0] + dx * f, y = e[1] + dy * f, s = e[2] + ds * f, dl = Lq * f;
+      if (y < Course.height(x, -s, 0.5) + 0.05) return false;
+      if (dl > 6 && Lq - dl > 2) { Course.nearTree(x, -s, tnS); if (tnS.ok && !tnS.soft) { const g = Course.height(tnS.x, tnS.z, 0.5), hy = (y - g) / Math.max(1, tnS.h); if (hy > 0.08 && hy < 1 && tnS.d < 0.24 * tnS.h * (1 - hy) + 0.25) return false; } }
+    }
+    return true;
+  }
+  // p the ring before, c the ring being come up on, q the one after it: {x (world), s, r}
+  function sightOK(p, c, q) {
+    let ix = c.x - p.x, is = Math.max(1, c.s - p.s); const l = Math.hypot(ix, is); ix /= l; is /= l;
+    const head = Math.atan2(ix, is), cy = Course.yawAt(c.s), camY = cy + cl((head - cy) * 0.55, -0.7, 0.7), yq = floatY(q.x, q.s, q.r, -1e9);
+    for (const d of [8, 15, 25]) {
+      const sx = c.x - ix * d, ss = c.s - is * d, ex = sx - Math.sin(camY) * 4.3, es = ss - Math.cos(camY) * 4.3, ey = Course.height(ex, -es, 0.5) + 1.8;
+      let da = Math.atan2(q.x - ex, q.s - es) - camY; da = Math.atan2(Math.sin(da), Math.cos(da)); if (Math.abs(da) > 0.66) { RG.sightWhy = 'frame@' + d; return false; }
+      const T = [[q.x, yq, q.s], [q.x, yq + q.r, q.s]];
+      if (Math.hypot(q.x - sx, q.s - ss) > 45) for (const h of [3, 8, 14, 20, 28]) T.push([q.x, yq + q.r * 0.5 + h, q.s]);          // (only a flame has its column: within ~45 m it has opened, OPEN in update())
+      if (!T.some(t => losClear([ex, ey, es], t))) { RG.sightWhy = 'hid@' + d; return false; }
+    }
+    return true;
+  }
+  // the nearest place to q (sideways first, then pulled in toward c) from where it is seen: {s, u} or null when none within reach.
+  // ok(s, u) says whether a place is allowed at all (room among trees, on the run, ...); duMax how far sideways it may go
+  function sightFix(p, c, q, ok, duMax) {
+    const tries = []; for (const ds of [0, -3, 4, -6, -9, 8, -12, -16]) for (const du of [0, 1.5, -1.5, 3, -3, 4.5, -4.5, 6, -6, 8, -8, 10, -10, 12, -12]) if (Math.abs(du) <= duMax && q.s + ds - c.s >= 8) tries.push([Math.abs(du) + 0.5 * Math.abs(ds), ds, du]);
+    tries.sort((a, b) => a[0] - b[0]);
+    for (const [, ds, du] of tries) {
+      const s = q.s + ds, u = q.u + du; if (!ok(s, u)) continue;
+      if (sightOK(p, c, { x: Course.at(s, pc).cx + u, s, r: q.r })) return { s, u, moved: ds !== 0 || du !== 0 };
+    }
+    return null;
+  }
+  RG.sightOK = sightOK; RG.sightStat = { tried: 0, moved: 0, failed: 0 };
   // Every ring floats: the snow under any part of its lower half stays at least GAP below it (ground rings and air rings alike).
   const GAP = 0.9;          // (用户 20:47 UTC: 离地再高一点; was 0.35)
   function floatY(x, s, r, y, yaw = 0) {
@@ -518,6 +572,40 @@ const Rings = (() => {
       if (room < 2) continue;
       rings.push({ s: R.s, u, r, off: Math.abs(u) > R.hw });
     }
+    // (用户 2026-11-18 22:14 UTC: 追身视角靠近当前圈时能看到下一个圈或光柱) each ring seen from the chase camera coming up on the one before
+    // (sightOK): else moved to the nearest place it is, up to 8 m sideways or pulled up to 12 m in, with room round it among the trees
+    // and never onto the rim of the run's gully. Not the drop rings (the line there is the drop), not the first (straight ahead)
+    { const st = RG.sightStat, tn2 = {};
+      const okX = r => (s2, u2) => { const c2 = Course.at(s2, pc); if (c2.gul > 0.3 && Math.abs(u2 - c2.goff) < (c2.gU > 0.5 ? 1.75 : 1.3) * c2.gw + 6) return false;
+        Course.nearTree(c2.cx + u2, -s2, tn2); return !(tn2.ok && !tn2.soft && tn2.d < Math.max(2, r + 0.8)); };
+      const X = q => ({ x: Course.at(q.s, pc).cx + q.u, s: q.s, r: q.r });
+      for (let i = 1; i < rings.length; i++) {
+        const q = rings[i], c = rings[i - 1]; if (q.how === 'drop' || c.how === 'drop') continue;
+        const P = i >= 2 ? X(rings[i - 2]) : { x: Course.at(c.s - 30, pc).cx, s: c.s - 30 }; st.tried++;
+        let f = sightFix(P, X(c), q, okX(q.r), 12);
+        // (none: then the ring before it moves a little too, as long as it is still seen itself, coming up on the one before it)
+        if (!f && i >= 2 && c.how !== 'lane') {
+          const PP = i >= 3 ? X(rings[i - 3]) : { x: Course.at(rings[i - 2].s - 30, pc).cx, s: rings[i - 2].s - 30 }, okC = okX(c.r);
+          outer: for (const ds of [0, -4, 4]) for (const du of [1.5, -1.5, 3, -3, 4.5, -4.5, 6, -6]) {
+            const c2 = { s: c.s + ds, u: c.u + du, r: c.r }; if (c2.s - rings[i - 2].s < 8 || q.s - c2.s < 8 || !okC(c2.s, c2.u)) continue;
+            if (!sightOK(PP, X(rings[i - 2]), { x: Course.at(c2.s, pc).cx + c2.u, s: c2.s, r: c2.r })) continue;
+            for (const ds2 of [0, -6, -12]) for (const du2 of [0, 3, -3, 6, -6]) { const s2 = q.s + ds2, u2 = q.u + du2; if (s2 - c2.s < 8 || !okX(q.r)(s2, u2)) continue;
+              if (sightOK(X(rings[i - 2]), X(c2), { x: Course.at(s2, pc).cx + u2, s: s2, r: q.r })) { c.s = c2.s; c.u = c2.u; f = { s: s2, u: u2, moved: true }; break outer; } }
+          }
+        }
+        // (still none: one more ring between the two, where it is seen and from where the next is seen)
+        if (!f && q.s - c.s >= 18) {
+          let m = null;
+          ins: for (let s2 = c.s + 8; s2 <= q.s - 8; s2 += 3) for (const du of [0, 1.5, -1.5, 3, -3, 4.5, -4.5, 6, -6, 8, -8]) {
+            const u2 = c.u + (q.u - c.u) * (s2 - c.s) / (q.s - c.s) + du; if (!okX(sz[1])(s2, u2)) continue;
+            const M = { x: Course.at(s2, pc).cx + u2, s: s2, r: sz[1] };
+            if (sightOK(P, X(c), M) && sightOK(X(c), M, X(q))) { m = { s: s2, u: u2, r: sz[1], off: Math.abs(u2) > (Course.at(s2, pc).hw || 14), how: 'sight' }; break ins; }
+          }
+          if (m) { rings.splice(i, 0, m); st.moved++; continue; }
+        }
+        if (!f) { st.failed++; continue; }
+        if (f.moved) { st.moved++; q.s = f.s; q.u = f.u; q.off = Math.abs(q.u) > (Course.at(q.s, pc).hw || 14); }
+      } }
     let off = 0; for (let k = 0; k < n; k++) if (Math.abs(pu[k]) > rows[k].hw) off++;
     L.xp = { sE, df, rings, path: pu, off: off / n, ms: Date.now() - t0 };
     return L.xp;
