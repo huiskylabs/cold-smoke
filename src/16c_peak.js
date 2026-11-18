@@ -291,7 +291,7 @@ fn frag(v: VOut) -> FOut { var o: FOut;
 function peakSSL() {
   const V = Vista, f = metroF, P = peakP(Metro.kind()), isC = Metro.kind() === 'c';
   // (金色雪旗's own grade: how much of the far air by day, 09_post.js Post.grades)
-  const hzD = (typeof Variants !== 'undefined' && Variants.val.grade === 'a') ? 1 : Post.grades.d.haze;
+  const hzD = (typeof Variants !== 'undefined' && Variants.val.grade === 'a') ? 1 : Post.gD().haze;
   const sa = Math.atan2(P.PC[0], P.PC[1]), bt0 = Math.atan((P.H - 2900) / (Math.hypot(P.PC[0], P.PC[1]) - 0.52 * P.PR)) + P.lift;      // the peak's bearing; where the cloud about its waist lies
   // (and where the same cloud lies in the lake: an object h m up and D m off is seen in the water atan((H + h) / D) under the horizon)
   const bt1 = Math.atan((P.H + 2900) / (Math.hypot(P.PC[0], P.PC[1]) - 0.52 * P.PR)) + P.lift;

@@ -64,13 +64,13 @@ const Sky = (() => {
         let hz: f32 = smoothstep(0.16, 0.0, d.y);
         // (金色雪旗 by day: dry clear mountain air, the horizon stays blue (Peyto, Zermatt): its own share of the milk, 09_post.js Post.grades)
         // (and its milk is cool, the pale blue-white of thin dry air over snow, never the beige of a valley's dust)
-        col = mix(col, vec3f(luma(col)) * mix(vec3f(1.03, 1.0, 1.0), vec3f(${Post.hzTint()}), step(2.5, U.world.x)), 0.55 * hz * U.sunDir.w * mix(1.0, ${(typeof Variants !== 'undefined' && Variants.val.grade === 'a') ? '1.0' : Post.grades.d.milk.toFixed(3)}, step(2.5, U.world.x)));
+        col = mix(col, vec3f(luma(col)) * mix(vec3f(1.03, 1.0, 1.0), vec3f(${Post.hzTint()}), step(2.5, U.world.x)), 0.55 * hz * U.sunDir.w * mix(1.0, ${(typeof Variants !== 'undefined' && Variants.val.grade === 'a') ? '1.0' : Post.gD().milk.toFixed(3)}, step(2.5, U.world.x)));
         col = antiSolar(d, col);
         let ang: f32 = acos(clamp(mu, -1.0, 1.0));
         // polariser on the lens: sky light scattered at right angles to the sun is strongly polarised, so the blue deepens away from the sun
         col *= 1.0 - M.p.z * (1.0 - mu * mu) * smoothstep(-0.02, 0.32, d.y);
         // (金色雪旗's own grade: the clean deep blue of a dry mountain sky, 09_post.js Post.grades)
-        col = max(mix(vec3f(luma(col)), col, mix(1.0, ${(typeof Variants !== 'undefined' && Variants.val.grade === 'a') ? '1.0' : Post.grades.d.sky.toFixed(3)}, step(2.5, U.world.x) * smoothstep(0.0, 0.25, U.sunDir.y))), vec3f(0.0));
+        col = max(mix(vec3f(luma(col)), col, mix(1.0, ${(typeof Variants !== 'undefined' && Variants.val.grade === 'a') ? '1.0' : Post.gD().sky.toFixed(3)}, step(2.5, U.world.x) * smoothstep(0.0, 0.25, U.sunDir.y))), vec3f(0.0));
         let skyL: f32 = luma(col);
         // stars come out as the sky lets them
         // the nebula: by day a pale ghost riding on the blue (scaled with the sky behind it), lost in the haze toward the horizon and in the sun's glare
