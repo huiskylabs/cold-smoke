@@ -22,6 +22,8 @@ const Sky = (() => {
     }
     return DAY[0][1];
   };
+  S.azD = -0.2 + 2.25;                                              // (金色雪旗: the sun behind the skier's left shoulder)
+  Variants.def('dlight', '光 (金色雪旗)', [['a', '旧图的光（迎着太阳）'], ['b', '自己的光（金色、侧后光、无积云）']], 'b');
   S.times = { day: 619.7, golden: 968.7, sunset: 1110, dusk: 1219.7, night: 1424.7, dawn: 299.4, sunrise: 360 };
   S.setClock = function (t) { S.clock = t; S.sunElev = S.elevAt(t); };
   S.setClock(S.times.day);                                          // the picture opens in the afternoon, as it always has
