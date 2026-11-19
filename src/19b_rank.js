@@ -199,6 +199,15 @@ const Rank = self.Rank = (() => {
       return { top: top ? back(+top.score) : null, topName: top ? who(top.nickname) : '', mine: me.status === 'EXACT' ? back(+me.score) : null, rank: me.status === 'EXACT' ? me.rank : me.status === 'OVER_LIMIT' ? '500+' : null };
     } catch (e) { if (fatal(code(e))) off(e); return null; }
   };
+  // ---- this player on a board: the nickname the platform shows for them and their place (路线卡, 94_routecard.js). The platform gives the
+  // name only in the list, so it is the list entry at the player's own place; null outside the container
+  R.me = async function (b) {
+    if (!R.on || !mt || !b) return null;
+    try { const r = await read(b, 'all'), me = r.me || {}; let nick = me.nickname || null;
+      if (!nick && me.status === 'EXACT') { const it = r.list.find(q => +q.rank === +me.rank); if (it) nick = it.nickname || null; }
+      return { nick, rank: me.status === 'EXACT' ? me.rank : me.status === 'OVER_LIMIT' ? '500+' : null };
+    } catch (e) { return null; }
+  };
   R.show = function () { if (el && R.on) render(); };
 
   // ---- the day card: today's places, if they come back while the card is still up
