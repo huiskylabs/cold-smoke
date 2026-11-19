@@ -498,7 +498,7 @@ const RouteCard = self.RouteCard = (() => {
     const HG = { x0: Math.floor((xa - 420) / 10) * 10, s0: Math.floor(sA / 10) * 10, step: 10, rows: [] }, NX = Math.ceil((xb + 420 - HG.x0) / 10) + 1;
     const TG = { x0: Math.floor((xa - 360) / 8) * 8, s0: Math.floor(sA / 8) * 8, step: 8, rows: [] }, TX = Math.ceil((xb + 360 - TG.x0) / 8) + 1;
     const cx = []; for (let s = Math.max(0, sA); s <= sB; s += 10) { const c = C.at(s); cx.push([s, c.cx, c.hw]); }
-    const mt = C.mountainBySeed && C.mountainBySeed(), d = { track: T, rings, segs, names: (o.names || []).map(s => { const m = /^(\d+ )(.+)$/.exec(s); return m ? m[1] + RC_W(m[2]) : RC_W(s); }), cx, line: RC_W(o.name || ''), diff: RC_W(({ a: '轻松', b: '标准', c: '难' })[o.diff] || ''), mountain: mt ? (RC_EN() ? mt.en || mt.zh : mt.zh) : '',
+    const mt = C.mountainBySeed && C.mountainBySeed(), d = { track: T, rings, segs, names: (o.names || []).map(s => { const m = /^(\d+ )(.+)$/.exec(s); return m ? m[1] + RC_W(m[2]) : RC_W(s); }), cx, line: RC_W(o.name || ''), diff: RC_W(({ a: '轻松', b: '标准', c: '难' })[o.diff] || ''), mountain: mt ? (RC_EN() ? mt.en || mt.zh : mt.zh) : typeof App !== 'undefined' && App.isDaily && App.isDaily() ? RC_W('今日之山') : '',
       score: o.score, t: o.t, split: o.splits || [], date: r.date, seed: (Math.random() * 1e9) | 0, player: RC_W('雪友'), rank: null, ready: false };
     RCg.data = d; RCg.rec = null;
     let js = HG.s0, jt = TG.s0;
