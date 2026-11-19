@@ -44,7 +44,8 @@ async function boot(stage) {
   const farW = +QS.get('vistares') || (/*native{*/spatial ? 4096 : /*}native*/gfx.caps.maxTex >= 4096 ? 3072 : 2048), cityW = +QS.get('cityres') || (/*native{*/spatial ? 1536 : /*}native*/1024);
   if (Variants.val.par !== 'a' && (!manual || QS.has('par'))) {          // (tests: ?manual&par to use them too)
     const hc = navigator.hardwareConcurrency || 4;
-    if (Par.start(Math.max(1, Math.min(4, hc - 1)), { vars: Object.assign({}, Variants.val), seed: Course.seed, fT: Course.forceType, cl: Course.classic, az: Sky.az })) {
+    if (Par.start(Math.max(2, Math.min(4, hc)),          // (the page itself mostly waits on them, so as many threads as cores, up to 4)
+       { vars: Object.assign({}, Variants.val), seed: Course.seed, fT: Course.forceType, cl: Course.classic, az: Sky.az })) {
       // first what is needed first (the snow and noise textures, the far ranges), then the heights of the mountain round where Game.reset
       // will stand the skier; the page meanwhile carves the skier, plants the trees and lights the city
       pre.noise = Par.run('noiseData', {}).catch(() => null); 

@@ -42,7 +42,7 @@ const srv = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'te
     console.log(`\n=== run ${run + 1}  backend=${r.backend} tier=${r.tier} gpu=${r.gpu}`);
     console.log(`html 开始解析 ${r.nav.responseEnd.toFixed(0)}ms  body 开头 ${r.b00.toFixed(0)}ms  脚本开始执行 ${r.bt[0][1].toFixed(0)}ms`);
     for (let i = 1; i < r.bt.length; i++) console.log(String(r.bt[i - 1][0]).padEnd(12), '→', String(r.bt[i][0]).padEnd(12), (r.bt[i][1] - r.bt[i - 1][1]).toFixed(0).padStart(6) + 'ms', ' 累计', r.bt[i][1].toFixed(0) + 'ms');
-    const tl = logs.filter(l => /^(vista|deer|trees|terrain|quality|parcheck)/.test(l)); if (tl.length) console.log(tl.join('\n'));
+    const tl = logs.filter(l => /^(vista|deer|trees|terrain|quality|parcheck)|rror|arn|WebG|fail/i.test(l)); if (tl.length) console.log(tl.join('\n'));
     if (process.env.PROF) {
       const { profile } = await cdp.send('Profiler.stop');
       fs.writeFileSync(path.join(__dirname, 'tmp/boot.cpuprofile'), JSON.stringify(profile));
