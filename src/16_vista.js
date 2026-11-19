@@ -484,8 +484,12 @@ const Vista = (() => {
     V.setRes(opt.farW, opt.cityW);
     const far = opt.far || buildFar(V.farW, V.farH), t1 = performance.now();          // (opt.far: made in a background thread, see Par.jobs.vistaFar)
     V.towers = buildCityList();
-    const city = renderCity(V.towers, V.cityW, V.cityH), t2 = performance.now();
-    const lights = buildLights(V.towers, city.zb, city.BW, city.BH), t3 = performance.now(); lights.Z = city.Z; city.zb = null;
+    // (opt.city: the city's panorama and its lights as the last start made them, 00e_cache.js)
+    const oc = opt.city && opt.city.w === V.cityW ? opt.city : null;
+    const city = oc ? { A: oc.A, B: oc.B, Z: oc.Z } : renderCity(V.towers, V.cityW, V.cityH), t2 = performance.now();
+    const lights = oc ? { faces: oc.faces, spots: oc.spots, beams: oc.beams, glow: oc.glow } : buildLights(V.towers, city.zb, city.BW, city.BH), t3 = performance.now(); lights.Z = city.Z; city.zb = null;
+    if (oc) V.glowEnc = oc.glowEnc;
+    if (opt.grab) V.cityData = { w: V.cityW, A: city.A, B: city.B, Z: city.Z, faces: lights.faces, spots: lights.spots, beams: lights.beams, glow: lights.glow, glowEnc: V.glowEnc };
     const mkT = (w, h, data) => { const t = gfx.texture({ w, h, format: 'rgba8', filter: 'linear', wrap: 'clamp', mips: true, data }); gfx.genMips(t); return t; };
     V.farA = mkT(V.farW, V.farH, far.A); V.farB = mkT(V.farW, V.farH, far.B);
     V.cityA = mkT(V.cityW, V.cityH, city.A); V.cityB = mkT(V.cityW, V.cityH, city.B);
@@ -509,6 +513,12 @@ const Vista = (() => {
   };
   V.farH_ = farH;
   Par.jobs.vistaFar = a => buildFar(a.w, V.farH); V.farBuild = w => buildFar(w, V.farH);
+  // (dev, ?cachecheck: the city and its lights made again and compared number for number with what the cache gave)
+  V.cityCheck = function (c) {
+    const same = (a, b) => { let bad = 0; if (!a || !b || a.length !== b.length) return -1; for (let i = 0; i < a.length; i++) if (a[i] !== b[i] && !(a[i] !== a[i] && b[i] !== b[i])) bad++; return bad; };
+    const keep = V.glowEnc, city = renderCity(buildCityList(), V.cityW, V.cityH), L = buildLights(V.towers, city.zb, city.BW, city.BH), r = { A: same(city.A, c.A), B: same(city.B, c.B), Z: same(city.Z, c.Z), faces: same(L.faces, c.faces), spots: same(L.spots, c.spots), beams: same(L.beams, c.beams), glow: same(L.glow, c.glow), enc: V.glowEnc === c.glowEnc };
+    V.glowEnc = keep; return r;
+  };
   V.cores = CORES; V.famc = FAMC;
   return V;
 })();
