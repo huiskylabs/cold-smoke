@@ -31,7 +31,7 @@ script = script.replace("'__BUILD_HASH__'", () => "'" + require('crypto').create
 const polyfills = fs.readFileSync(path.join(root, 'xhs', 'polyfills.js'), 'utf8');
 
 // ---- markup and style: the template without its script, its claude.ai meta, inside a whole document
-let body = cssFallbacks(tpl.slice(0, m.index)).replace(/<title>[\s\S]*?<\/title>\s*/, '').replace(/<meta name="claude:[^>]*>\s*/g, '');
+let body = cssFallbacks(tpl.slice(0, m.index)).replace(/<title>[\s\S]*?<\/title>\s*/, '').replace(/<meta name="claude:[^>]*>\s*/g, '').replace(/<meta name="viewport"[^>]*>\s*/g, '');      // (the document below has its own viewport)
 const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
