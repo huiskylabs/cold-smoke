@@ -47,7 +47,8 @@ const Par = (() => {
   function pump() {
     for (const s of pool) {
       if (s.busy || !queue.length || s.dead || !s.up) continue;
-      const j = queue.shift(); s.busy = j;
+      const k = queue.findIndex(j => !j.slot || j.slot === s); if (k < 0) continue;
+      const j = queue.splice(k, 1)[0]; s.busy = j;
       const m = { id: j.id, job: j.job, a: j.a }; if (s.init) { m.init = s.init; s.init = null; }
       try { s.w.postMessage(m, j.tr || []); } catch (e) { fail(s, e.message); }
     }
@@ -55,13 +56,22 @@ const Par = (() => {
   function done(s, m) { const j = s.busy; s.busy = null; if (j) { if (m.err) j.no(new Error(m.err)); else j.go(m.res); } pump(); }
   function fail(s, why) {
     s.dead = true; const j = s.busy; s.busy = null; if (j) j.no(new Error(why));
+    for (let i = queue.length - 1; i >= 0; i--) if (queue[i].slot === s) { if (queue[i].soft) queue[i].slot = null; else queue.splice(i, 1)[0].no(new Error(why)); }
     if (pool.every(x => x.dead)) { P.ok = false; while (queue.length) queue.shift().no(new Error('no workers')); }
     pump();
   }
   // run(job, args, transfer): a promise of the job's result. (tr: buffers handed over with the arguments; the page no longer has them)
-  P.run = function (job, a, tr) {
+  // (on: the number of the thread to run it in, so that work on one stretch of the mountain stays where that stretch is already known;
+  // a thread that has died hands it to whichever is free)
+  P.run = function (job, a, tr, on) {
     if (!P.ok) return Promise.reject(new Error('no workers'));
-    return new Promise((go, no) => { queue.push({ id: ++seq, job, a, tr, go, no }); pump(); });
+    const slot = on != null ? pool[on % pool.length] : null;
+    return new Promise((go, no) => { queue.push({ id: ++seq, job, a, tr, go, no, slot: slot && !slot.dead ? slot : null, soft: true }); pump(); });
+  };
+  // each(job, args): the same job once in every thread (to hand them all the same data before a round of work), a promise of all of them
+  P.each = function (job, a) {
+    const live = pool.filter(s => !s.dead); if (!P.ok || !live.length) return Promise.reject(new Error('no workers'));
+    return Promise.all(live.map(slot => new Promise((go, no) => { queue.push({ id: ++seq, job, a, slot, go, no }); pump(); })));
   };
   P.stop = function () { for (const s of pool) { clearTimeout(s.t); try { s.w.terminate(); } catch (e) { } } pool.length = 0; P.ok = false; P.n = 0; if (url) { try { URL.revokeObjectURL(url); } catch (e) { } url = null; } };
   P.idle = () => !queue.length && pool.every(s => !s.busy);

@@ -49,6 +49,7 @@ async function boot(stage) {
       // will stand the skier; the page meanwhile carves the skier, plants the trees and lights the city
       pre.noise = Par.run('noiseData', {}).catch(() => null); 
       pre.snow = Promise.all([Par.run('snowData', { az: Sky.az, only: 'fine' }), Par.run('snowData', { az: Sky.az, only: 'snow' })]).then(([f, s]) => ({ snow: s.snow, fine: f.fine }), () => null);
+      pre.skier = Par.run('skierMesh', {}).catch(() => null);
       pre.far = Par.run('vistaFar', { w: farW }).catch(() => null);
       const c = Course.at(14, {}); Terrain.setSun(Sky.az); Terrain.prefill(c.cx, -14);
     }
@@ -65,20 +66,23 @@ async function boot(stage) {
   };
   const own = async () => {
     await step(0.36, '立起天空');
-    Render.init(gfx, canvas); Sky.init(gfx); Terrain.init(gfx); Post.init(gfx); Skier.init(gfx);
-    if (!lazy) { await step(0.40, '林子里有鹿'); makeDeer(gfx); }
-    await step(0.44, '种树');
-    { const t0 = performance.now(); Trees.init(gfx); if (DEV) console.log('trees', Math.round(performance.now() - t0) + 'ms', Math.round(Trees.stats.tris) + ' tris'); }
-    Gates.init(gfx);
+    Render.init(gfx, canvas); Sky.init(gfx); Terrain.init(gfx); Post.init(gfx);
+    const skier = () => Skier.init(gfx), trees = () => { const t0 = performance.now(); Trees.init(gfx); Gates.init(gfx); if (DEV) console.log('trees', Math.round(performance.now() - t0) + 'ms', Math.round(Trees.stats.tris) + ' tris'); };
+    // (with the threads the skier is being carved in one of them: the trees are planted first, and the body is taken in after)
+    if (pre.skier) { await step(0.44, '种树'); trees(); Skier.adopt(await pre.skier); skier(); }
+    else { skier(); if (!lazy) { await step(0.40, '林子里有鹿'); makeDeer(gfx); } await step(0.44, '种树'); trees(); }
+    if (pre.skier && !lazy) { await step(0.40, '林子里有鹿'); makeDeer(gfx); }
   };
   if (Par.ok) { Vista.setRes(farW, cityW); await own(); await texs(); }
+  else { await texs(); await own(); }
   // (dev, ?parcheck: every piece the threads made, made again here and compared number for number)
   if (DEV && QS.has('parcheck') && Par.ok) {
     const same = (a, b) => { let bad = 0; if (!a || !b || a.length !== b.length) return -1; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) bad++; return bad; };
     const N0 = noiseData(), S0 = snowData(Sky.az), F0 = Vista.farBuild(farW), N1 = await pre.noise, S1 = await pre.snow, F1 = await pre.far;
+    const K0 = Skier.freshMesh(), K1 = Skier.mesh;
+    console.log('parcheck skier', JSON.stringify({ same: K0 !== K1, V: same(K0.V, K1.V), W: same(K0.W, K1.W), I: same(K0.I, K1.I) }));
     console.log('parcheck tex', JSON.stringify({ noise: same(N0.noise, N1.noise), detail: same(N0.detail, N1.detail), snow: same(S0.snow, S1.snow), fine: same(S0.fine, S1.fine), farA: same(F0.A, F1.A), farB: same(F0.B, F1.B) }));
   }
-  else { await texs(); await own(); }
   await step(0.56, '点亮星云');
   Spray.init(gfx); Grains.init(gfx); Dust.init(gfx); Nebula.init(gfx, +QS.get('nebres') || (gfx.caps.maxTex >= 4096 && (navigator.deviceMemory || 8) >= 4 ? 1536 : 768)); Clouds.init(gfx, +QS.get('cloudres') || 0); Shafts.init(gfx); Tracks.init(gfx);
   Wind.init(gfx);                                                        // snow the wind carries off the crests and along the ground (11b_wind.js)
@@ -112,7 +116,7 @@ async function boot(stage) {
   App.skierRoot = Game.root; App.skierPose = Game.pose;
   tick(1 / 60, false);
   if (DEV && QS.has('parcheck')) Terrain.check = true;
-  { const t0 = performance.now(); await Terrain.firstFill(Render.cam.pos[0], Render.cam.pos[2]); if (DEV) console.log('terrain', Math.round(performance.now() - t0) + 'ms', Par.ok ? 'par ' + Par.n : '', Terrain.check ? 'parcheck ' + JSON.stringify(Terrain.check) : ''); }
+  { const t0 = performance.now(); await Terrain.firstFill(Render.cam.pos[0], Render.cam.pos[2]); if (DEV) console.log('terrain', Math.round(performance.now() - t0) + 'ms', Par.ok ? 'par ' + Par.n + ' ' + JSON.stringify(Terrain.fillMs) : '', Terrain.check ? 'parcheck ' + JSON.stringify(Terrain.check) : ''); }
   if (!lazy) Par.stop();
   // the first picture bakes the nebula and the trees: do it while the loading page still covers the canvas
   if (!manual) { await step(0.96, '第一缕光'); tick(1 / 60, true); await step(1, null); }

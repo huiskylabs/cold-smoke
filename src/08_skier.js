@@ -1031,6 +1031,16 @@ const Skier = (() => {
     K.mesh = K.meshes[key] = { V, W, I, nv, ni, v, ride: rd, hand: hv, lr };
     return K.mesh;
   };
+  // (the body carved in a background thread at start-up, 00d_par.js: the same mesh, taken in here as if built here)
+  Par.jobs.skierMesh = () => { const m = K.build(); return { V: m.V, W: m.W, I: m.I, nv: m.nv, ni: m.ni, v: m.v, ride: m.ride, hand: m.hand, lr: m.lr }; };
+  K.freshMesh = function () { const keep = K.meshes, cur = K.mesh; K.meshes = {}; const m = K.build(); K.meshes = keep; K.mesh = cur; return m; };      // (dev: ?parcheck)
+  K.adopt = function (m) {
+    if (!m) return;
+    const rd = rideV(), hv = handV(m.v, rd), lr = lrV(rd), key = m.v + rd + hv + lr;
+    if (m.v !== (Variants.val.body === 'a' ? 'a' : 'b') || m.ride !== rd || m.hand !== hv || m.lr !== lr || K.meshes[key]) return;
+    if (!bind) { bind = solve(P0); invBind = bind.F.map(q => q ? m4.invert(q) : null); K.bind = bind; bind.seatC = m4.tp(bind.F[B.pelvis], SEATC); }
+    K.mesh = K.meshes[key] = m;
+  };
 
   K.init = function (g) {
     gfx = g;

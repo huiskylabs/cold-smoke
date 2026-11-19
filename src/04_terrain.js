@@ -309,23 +309,29 @@ const Terrain = (() => {
     for (let gz = gz0, k = 0; gz <= gz1; gz++) { const z = gz * c, ref = HREF_SLOPE * z; for (let gx = gx0; gx <= gx1; gx++) out[k++] = Course.height(gx * c, z, c) - ref; }
     return { l: a.l, r: a.r, h: out };
   };
+  // (every thread is handed all the levels' heights once, terrainSet, then works out bands of them, terrainUp)
+  Par.jobs.terrainSet = function (a) {
+    T.levels.length = 0;
+    for (let l = 0; l < T.LEVELS; l++) T.levels.push({ l, cell: 0.5 * (1 << l), H: a.H[l], cx: a.cx[l], cz: a.cz[l], valid: true, pend: [0, 0, 0, 0], hTex: 'h', nTex: 'n', sTex: 's' });
+    return 1;
+  };
   Par.jobs.terrainUp = function (a) {
     const rec = [], keep = gfx;
     gfx = { updateTexture(t, x, y, w, h, d) { rec.push({ t, x, y, w, h, d: d.slice() }); } };
     try {
-      T.levels.length = 0;
-      for (let l = 0; l < T.LEVELS; l++) T.levels.push({ l, cell: 0.5 * (1 << l), H: a.H[l], cx: a.cx[l], cz: a.cz[l], valid: true, pend: [0, 0, 0, 0], hTex: 'h', nTex: 'n', sTex: 's' });
-      const L = T.levels[a.l]; uploadRect(L, L.cx - 128, L.cx + 127, L.cz - 128, L.cz + 127);
+      const L = T.levels[a.l]; uploadRect(L, L.cx - 128, L.cx + 127, L.cz - 128 + a.z0, L.cz - 128 + a.z1);
     } finally { gfx = keep; }
-    return { l: a.l, rec };
+    return { l: a.l, z0: a.z0, rec };
   };
   let pre = null;
+  // which thread a level goes to, both halves of its work: a fine level (its trees' shade costs the most) with a coarse one
+  T.slotOf = l => { const n = Par.n || 1, k = Math.min(l, T.LEVELS - 1 - l), side = l < T.LEVELS / 2 ? 0 : 1; return n >= 4 ? k : (k * 2 + side) % n; };
   // as soon as the mountain is known: start the heights of every level round (x, z), where the skier will stand
   T.prefill = function (x, z) {
     if (!Par.ok) return;
     pre = [];
     const jobs = [];
-    for (let l = T.LEVELS - 1; l >= 0; l--) { const mg = Math.min(24, Math.ceil(14 / (0.5 * (1 << l))) + 2); jobs.push(Par.run('terrainH', { l, r: hBox(l, x, z, mg) }).then(r => { pre[r.l] = r; }, () => { })); }
+    for (let l = T.LEVELS - 1; l >= 0; l--) { const mg = Math.min(24, Math.ceil(14 / (0.5 * (1 << l))) + 2); jobs.push(Par.run('terrainH', { l, r: hBox(l, x, z, mg) }, null, T.slotOf(l)).then(r => { pre[r.l] = r; }, () => { })); }
     T.preP = Promise.all(jobs);
   };
   function fillFromPre(L) {
@@ -341,18 +347,22 @@ const Terrain = (() => {
   // the first fill (boot): the same as update(camX, camZ, true), with the work shared out where there are threads
   T.firstFill = async function (camX, camZ) {
     if (!Par.ok || !T.preP) { T.update(camX, camZ, true); return; }
-    await T.preP;
+    const t0 = performance.now(); await T.preP; const t1 = performance.now();
     dropQueue();
     for (const L of T.levels) { target(L, camX, camZ); L.cx = tgt[0]; L.cz = tgt[1]; L.valid = true; fillFromPre(L); }
     pre = null; T.preP = null;
-    const cx = T.levels.map(L => L.cx), cz = T.levels.map(L => L.cz), H = T.levels.map(L => L.H), done = [];
-    const ups = T.levels.map(L => Par.run('terrainUp', { l: L.l, cx, cz, H }).then(r => { done[r.l] = r; }, e => { console.warn('terrainUp', e); }));
-    await Promise.all(ups);
-    for (const L of T.levels) {
-      const r = done[L.l];
-      if (!r) { uploadRect(L, L.cx - 128, L.cx + 127, L.cz - 128, L.cz + 127); continue; }
+    // (each level in bands of rows, SPLIT to a level, so that the threads finish together: the fine levels, with the trees' shade, cost more)
+    const cx = T.levels.map(L => L.cx), cz = T.levels.map(L => L.cz), H = T.levels.map(L => L.H), done = [], SPLIT = 4, ups = [];
+    const set = Par.each('terrainSet', { cx, cz, H }).catch(e => console.warn('terrainSet', e));
+    for (const L of T.levels) for (let b = 0; b < SPLIT; b++) { const z0 = b * N / SPLIT, z1 = (b + 1) * N / SPLIT - 1;
+      ups.push(Par.run('terrainUp', { l: L.l, z0, z1 }, null, T.slotOf(L.l)).then(r => { done[L.l * SPLIT + b] = r; }, e => { console.warn('terrainUp', e); })); }
+    await set; await Promise.all(ups); const t2 = performance.now();
+    for (const L of T.levels) for (let b = 0; b < SPLIT; b++) {
+      const r = done[L.l * SPLIT + b];
+      if (!r) { uploadRect(L, L.cx - 128, L.cx + 127, L.cz - 128 + b * N / SPLIT, L.cz - 129 + (b + 1) * N / SPLIT); continue; }
       for (const u of r.rec) gfx.updateTexture(u.t === 'h' ? L.hTex : u.t === 'n' ? L.nTex : L.sTex, u.x, u.y, u.w, u.h, u.d);
     }
+    T.fillMs = [Math.round(t1 - t0), Math.round(t2 - t1), Math.round(performance.now() - t2)];
     T.lastGen = N * N * T.LEVELS;
     if (T.check) T.check = checkFill(done);
   };
@@ -364,10 +374,12 @@ const Terrain = (() => {
       for (let i = 0; i < H0.length; i++) { n++; if (H0[i] !== L.H[i] && !(H0[i] !== H0[i] && L.H[i] !== L.H[i])) bad++; }
     }
     for (const L of T.levels) {
-      const rec = []; gfx = { updateTexture(t, x, y, w, h, d) { rec.push(d.slice()); } };
-      try { uploadRect(L, L.cx - 128, L.cx + 127, L.cz - 128, L.cz + 127); } finally { gfx = keep; }
-      const r = done[L.l]; if (!r) continue;
-      rec.forEach((d, j) => { const e = r.rec[j].d; for (let i = 0; i < d.length; i++) { n++; if (d[i] !== e[i] && !(d[i] !== d[i] && e[i] !== e[i])) bad++; } });
+      for (let b = 0; b < 4; b++) {
+        const rec = []; gfx = { updateTexture(t, x, y, w, h, d) { rec.push(d.slice()); } };
+        try { uploadRect(L, L.cx - 128, L.cx + 127, L.cz - 128 + b * 64, L.cz - 129 + (b + 1) * 64); } finally { gfx = keep; }
+        const r = done[L.l * 4 + b]; if (!r) continue;
+        rec.forEach((d, j) => { const e = r.rec[j].d; for (let i = 0; i < d.length; i++) { n++; if (d[i] !== e[i] && !(d[i] !== d[i] && e[i] !== e[i])) bad++; } });
+      }
     }
     return { n, bad };
   }
