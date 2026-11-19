@@ -630,7 +630,7 @@ const Rings = (() => {
   function beep(f, d, g) {
     try { const A = Sound.ctx; if (!A || !Sound.on) return; const o = A.createOscillator(), v = A.createGain(), t = A.currentTime; o.type = 'sine'; o.frequency.value = f; v.gain.setValueAtTime(0, t); v.gain.linearRampToValueAtTime(g, t + 0.012); v.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(v); v.connect(A.destination); o.start(t); o.stop(t + d + 0.05); } catch (e) { }
   }
-  const recKey = () => 'coldsmoke.line2.' + L.id + '.' + diffKey();          // (line2: scores with the ring bonus, 2026-11-19; the old penalty bests stay under coldsmoke.line.)
+  const recKey = () => 'coldsmoke.line2.' + L.id + '.' + diffKey() + mapSuf();          // (line2: scores with the ring bonus, 2026-11-19; the old penalty bests stay under coldsmoke.line.)
   // (records go through Store where it is there (00d_store.js): in the Xiaohongshu container it keeps them when the page's own storage is not kept)
   const ST = () => typeof Store !== 'undefined' && Store.getJSON ? Store : null;
   function recLoad() { try { const S = ST(); if (S) { if (S.durable) S.durable(recKey()); return S.getJSON(recKey()) || null; } return JSON.parse(localStorage.getItem(recKey()) || 'null'); } catch (e) { return null; } }
@@ -730,7 +730,7 @@ const Rings = (() => {
       + fs([[fmt(L.tEnd), tx('用时', 'Time')], [RG.passed + ' / ' + tot, tx('光圈', 'Rings')], ['−' + bonus, tx('光圈奖励（秒）', 'Ring bonus (s)'), 'g']])
       + '<table><tr><th>' + tx('分站', 'Stage') + '</th><th>' + tx('本局', 'This run') + '</th><th>' + tx('之前最好', 'Best before') + '</th><th></th></tr>' + rows.map((r, i) => '<tr' + (i === worst ? ' class="worst"' : '') + '><td>' + TN(r.n) + '</td><td>' + fmt(r.d) + '</td>' + td(r) + '</tr>').join('') + '</table>'
       + '<div class="tip">' + [miss ? tx('漏了 ' + miss + ' 个圈，少减 ' + +(miss * p).toFixed(1) + ' 秒', miss + ' rings missed: ' + +(miss * p).toFixed(1) + ' s of bonus lost') : '', worst >= 0 ? tx('最慢的一站：' + rows[worst].n + '，比最好慢 ' + wd.toFixed(2) + ' 秒', 'Slowest stage: ' + TN(rows[worst].n) + ', ' + wd.toFixed(2) + ' s off its best') : ''].filter(Boolean).join(tx('；', '; ')) + '</div>'
-      + (rankOn() ? fs([[fmt(rec.best.score), tx('个人最好', 'Your best')], ['…', tx('全部最好', 'Best of all'), 'gtop'], ['…', tx('排名', 'Place'), 'grank']])
+      + (rankOn() && boardOf(L.id, L.diff) ? fs([[fmt(rec.best.score), tx('个人最好', 'Your best')], ['…', tx('全部最好', 'Best of all'), 'gtop'], ['…', tx('排名', 'Place'), 'grank']])
       + '<div class="tip">' + (hcOf(L.id, L.diff) ? tx('排行榜成绩 ' + fmt(score + hcOf(L.id, L.diff)) + '（' + DNAME[L.diff] + '加时 +' + hcOf(L.id, L.diff) + ' 秒，三档一起排）', 'Board time ' + fmt(score + hcOf(L.id, L.diff)) + ' (' + T(DNAME[L.diff]) + ' +' + hcOf(L.id, L.diff) + ' s; all three levels on one board)') : tx('排行榜成绩 ' + fmt(score) + '（难不加时，三档一起排）', 'Board time ' + fmt(score) + ' (Hard: nothing added; all three levels on one board)')) + '</div>' : fs([[fmt(rec.best.score), tx('个人最好', 'Your best')]]))
       + '<div class="bt"><button class="p" data-a="again">' + tx('再来一局', 'Again') + '<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">' + tx('增加难度', 'Harder') + '</button>' : '') + '' + RG.cardButtons.map((b, i) => '<button data-cb="' + i + '">' + T(b.label) + (b.key ? '<kbd>' + b.key + '</kbd>' : '') + '</button>').join('') + '<button data-a="free">' + tx('继续滑', 'Ski on') + '<kbd>Esc</kbd></button></div>';
     emit('finish', { line: L.id, name: LINES[L.id].name, diff: L.diff, score, t: L.tEnd, bonus: p, missed: miss, passed: RG.passed, splits: L.split.slice(), names: L.names.slice(), isNew });
@@ -826,7 +826,12 @@ const Rings = (() => {
   // A map = an official mountain (Course.mountains). Today there is one, 寒烟山, with these two lines; a mountain with none says so
   const MAP_LINES = { hanyan: ['a', 'x'] };
   const mapNow = () => { try { const m = Course.mountainBySeed(); return m ? m : null; } catch (e) { return null; } };
-  const mapLines = () => { const m = mapNow(); return m && MAP_LINES[m.id] ? MAP_LINES[m.id] : []; };
+  const mapLines = () => { const m = mapNow(); return m && MAP_LINES[m.id] ? MAP_LINES[m.id] : ['a', 'x']; };
+  // (用户 2026-11-19 01:54 UTC: 「这张地图还没有挑战」wtf；现在只有寒烟山一张地图) the lines were tied to the official mountain's id, so on any
+  // other seed (今日之山, a dev seed) the panel said there was no challenge. Both lines are laid out from whatever course is under the skis, so
+  // every mountain has them; only the boards stay with the official ones (Rank.chalBoard), and a best is kept per mountain
+  const mapSuf = () => { const m = mapNow(); return m && m.id === 'hanyan' ? '' : '.s' + (typeof Course !== 'undefined' ? Course.seed : 0); };
+  const mapLabel = () => { const m = mapNow(); if (m) return isEN() ? m.en || m.zh : m.zh; return typeof App !== 'undefined' && App.isDaily && App.isDaily() ? T('今日之山') : tx('这座山', 'this mountain'); };
   // the ranked line's board (小红书): the 标准 run of a map's ranked line only (用户 02:40 UTC: 每张地图一条长线上榜)
   const boardOf = (id, df) => { const m = mapNow(); return m && typeof Rank !== 'undefined' && Rank.chalBoard ? Rank.chalBoard(m.id, id) : 0; };
   // (用户 2026-11-19 00:52 UTC: 中文模式出现了 Challenge) every word of the challenge in the language of the moment: T for names that are in
@@ -884,12 +889,12 @@ const Rings = (() => {
     });
     return d;
   }
-  function bestOf(id, df) { try { const k = 'coldsmoke.line2.' + id + '.' + df, S = ST(); const r = S ? S.getJSON(k) : JSON.parse(localStorage.getItem(k) || 'null'); return r && r.best ? r.best.score : null; } catch (e) { return null; } }
+  function bestOf(id, df) { try { const k = 'coldsmoke.line2.' + id + '.' + df + mapSuf(), S = ST(); const r = S ? S.getJSON(k) : JSON.parse(localStorage.getItem(k) || 'null'); return r && r.best ? r.best.score : null; } catch (e) { return null; } }
   function pickDraw() {
     const d = pickUI(), df = diffKey(), ids = mapLines(), m = mapNow();
     if (!ids.includes(RG.pkSel)) RG.pkSel = ids.includes(Variants.val.rline) ? Variants.val.rline : ids[0];
     const cur = RG.pkSel;
-    d.querySelector('h4').textContent = tx('挑战 · ' + (m ? m.zh : '这张地图'), 'Challenge · ' + (m ? m.en || m.zh : 'this mountain'));
+    d.querySelector('h4').textContent = (isEN() ? 'Challenge · ' : '挑战 · ') + mapLabel();
     d.querySelector('.go').textContent = tx('开始挑战', 'Start'); d.querySelector('[data-x]').innerHTML = tx('取消', 'Cancel') + '<kbd>Esc</kbd>';
     d.classList.toggle('none', !ids.length);
     d.querySelector('.l').innerHTML = !ids.length ? tx('<div class="no">这张地图还没有挑战。<br>回到寒烟山就有。</div>', '<div class="no">No challenge on this mountain yet.<br>Mount Cold Smoke has them.</div>') : PICK.filter(p => ids.includes(p[0])).map(([id, n, t]) => {
@@ -904,8 +909,8 @@ const Rings = (() => {
       Rank.line(null, bd).then(r => { if (RG.pkSig !== sig || !sp.isConnected) return; sp.textContent = !r ? tx('排行榜暂时读不到', 'Board unavailable for now') : (r.top != null ? tx('第一 ', 'Top ') + fmt(r.top) : tx('还没有人上榜', 'No one on the board yet')) + (r.rank != null ? tx(' · 我 ', ' · me ') + (typeof r.rank === 'number' ? tx('第 ' + r.rank + ' 名', '#' + r.rank) : r.rank) : ''); });
     }
     d.querySelector('.d').innerHTML = ['a', 'b', 'c'].map(k => '<button data-d="' + k + '" class="' + (df === k ? 'on' : '') + '">' + T(DNAME[k]) + '</button>').join('');
-    d.querySelector('.t').textContent = isEN() ? 'Each ring passed takes ' + BON[df] + ' s off' + (rankOn() ? ' · all three levels share one board, ' + (df === 'c' ? 'Hard adds nothing' : T(DNAME[df]) + ' adds ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => T(LINES[k].name) + ' +' + hcOf(k, df) + ' s').join(', ')) : '') + ' · counts down 3, 2, 1 · Backspace to restart'
-      : '每穿过一个圈减 ' + BON[df] + ' 秒' + (rankOn() ? ' · 排行榜三档一起排，' + (df === 'c' ? '难不加时' : DNAME[df] + '加时 ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => LINES[k].name + ' +' + hcOf(k, df) + ' 秒').join('、')) : '') + ' · 开始后倒数 3、2、1 · 途中 Backspace 重来';
+    d.querySelector('.t').textContent = isEN() ? 'Each ring passed takes ' + BON[df] + ' s off' + (rankOn() && ids.some(k => boardOf(k, df)) ? ' · all three levels share one board, ' + (df === 'c' ? 'Hard adds nothing' : T(DNAME[df]) + ' adds ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => T(LINES[k].name) + ' +' + hcOf(k, df) + ' s').join(', ')) : '') + ' · counts down 3, 2, 1 · Backspace to restart'
+      : '每穿过一个圈减 ' + BON[df] + ' 秒' + (rankOn() && ids.some(k => boardOf(k, df)) ? ' · 排行榜三档一起排，' + (df === 'c' ? '难不加时' : DNAME[df] + '加时 ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => LINES[k].name + ' +' + hcOf(k, df) + ' 秒').join('、')) : '') + ' · 开始后倒数 3、2、1 · 途中 Backspace 重来';
   }
   if (typeof I18N !== 'undefined' && I18N.on) I18N.on(() => { if (RG.pkOpen) pickDraw(); });          // (the language changed while the panel is up)
   function pickOpen(on) {
