@@ -50,8 +50,10 @@ const Photo = self.Photo = (() => {
     const c = Render.cam, F = typeof Fpv !== 'undefined' ? Fpv : null;
     saved = { /*native{*/fromRun, /*}native*/pos: c.pos.slice(), fwd: c.fwd.slice(), up: c.up.slice(), right: c.right.slice(), fovY: c.fovY, near: c.near, roll: c.roll,
       scale: Render.scale, blur: Render.motionBlur, fpv: F ? [F.vis, F.hideFig] : null };
-    // (from inside the helmet, first person and the ski tips, the figure is drawn without its head and its own arms: here it is seen whole)
-    if (F) { F.vis = false; F.hideFig = false; }
+    // (from inside the helmet, first person and the ski tips, the figure is drawn without its head and its own arms. Here it is seen whole
+    // once the photo lens has left the head; while it is still in it, the picture stays the one the player saw. 2026-11-18: it was made
+    // whole at once, and a photo taken in first person showed the figure's own neck, collar, sleeves and thighs from inside its head)
+    saved.cut = typeof Skier !== 'undefined' ? Skier.lensCut : null; fpHere(c.pos);
     c.near = CAM_NEAR;
     // the picture at its full sharpness while it holds still (the frame-rate governor may have drawn it smaller to keep a run smooth)
     if (Render.scale !== 1 && !QS.get('w')) { Render.scale = 1; if (App.fit) App.fit(); }
@@ -70,6 +72,7 @@ const Photo = self.Photo = (() => {
     if (s) {
       c.pos = s.pos; c.fwd = s.fwd; c.up = s.up; c.right = s.right; c.fovY = s.fovY; c.near = s.near; c.roll = s.roll;
       const F = typeof Fpv !== 'undefined' ? Fpv : null; if (F && s.fpv) { F.vis = s.fpv[0]; F.hideFig = s.fpv[1]; }
+      if (typeof Skier !== 'undefined') Skier.lensCut = s.cut;
       if (Render.scale !== s.scale) { Render.scale = s.scale; if (App.fit) App.fit(); }
       Render.motionBlur = s.blur;
     }
@@ -124,8 +127,16 @@ const Photo = self.Photo = (() => {
     for (const f of App.onTick) f(0, true);
     (App.renderHook || Render.render)();
   };
+  // the first-person drawing (07d_fpv.js) kept while the photo lens is within FPNEAR m of where it started, the figure whole beyond
+  const FPNEAR = 0.6;
+  function fpHere(pos) {
+    const F = typeof Fpv !== 'undefined' ? Fpv : null, s = saved; if (!F || !s || !s.fpv) return;
+    const near = s.fpv[0] && Math.hypot(pos[0] - s.pos[0], pos[1] - s.pos[1], pos[2] - s.pos[2]) < FPNEAR;
+    F.vis = near && s.fpv[0]; F.hideFig = near && s.fpv[1];
+    if (typeof Skier !== 'undefined') Skier.lensCut = near ? s.cut : null;
+  }
   function frame(dt) {
-    steer(dt); place(); P.drawFrozen();
+    steer(dt); place(); fpHere(cam.pos); P.drawFrozen();
     if (want) { const request = want; want = false; grab(request); }
     if (toastT > 0 && (toastT -= dt) <= 0) el.toast.classList.remove('on');
     lens();

@@ -1,6 +1,6 @@
 // Screenshots of 穿圈拖影 (rtrail) for review (headless, no window): playwright's own Chromium, never the installed Chrome.
 //   node tools/trail-shots.js <outDir> [variants=a,b]
-// For each variant: the 光圈 line (前三站, easy), a pilot aimed at the rings; near one ring the game is stepped a frame at a time and
+// For each variant: the 光圈 line (速降线, easy), a pilot aimed at the rings; near one ring the game is stepped a frame at a time and
 // shots are taken as the skier comes up to the ring, goes through, and rides on (the afterimages trailing behind him).
 const path = require('path'), fs = require('fs');
 const { chromium } = require('playwright');
@@ -11,7 +11,7 @@ fs.mkdirSync(out, { recursive: true });
   for (const v of vars) {
     const pg = await b.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 2, locale: 'zh-CN' });
     const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => { if (m.type() === 'error' || /rings|line:/.test(m.text())) errs.push(m.text().slice(0, 200)); });
-    await pg.goto('file://' + path.resolve(__dirname, '../dist/dev.html') + '?dev&v-rline=b&v-ringdiff=a&v-rtrail=' + v);
+    await pg.goto('file://' + path.resolve(__dirname, '../dist/dev.html') + '?dev&v-rline=a&v-ringdiff=a&v-rtrail=' + v);
     await pg.waitForFunction(() => window.__ski && window.__rings && __ski.ui().state === 'title', null, { timeout: 180000 });
     await pg.evaluate(() => { __ski.tod('day'); });
     await pg.waitForTimeout(4000);
@@ -23,7 +23,7 @@ fs.mkdirSync(out, { recursive: true });
         if (-(tz - p[2]) < 6) { const c = C.at(-p[2] + 20); tx = c.cx; tz = p[2] - 20; }
         return Math.max(-0.85, Math.min(0.85, (Math.atan2(tx - p[0], -(tz - p[2])) - Math.atan2(S.v[0], -S.v[2])) * 2.4));
       };
-      __ski.ui().go();
+      (__rings.chal = true, __ski.ui().go());
     });
     await pg.waitForFunction(() => __rings.line.st === 'go', null, { timeout: 20000 });
     // ride (no drawing) to the third ring, 14 m out

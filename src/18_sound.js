@@ -250,6 +250,7 @@ const Sound = (() => {
     // leaving the ground (fly: how long the flight is going to last, hgt: how high over the snow) and coming back to it: the score's business
     R.takeoff = (t, fly, hgt) => { if (mus) mus.takeoff(t, fly, hgt); };
     R.down = (t, v, airT) => { if (mus) mus.down(t, v, airT); };
+    R.ring = (t, k, fin, side) => { if (mus) mus.ring(t, k, fin, side); };          // (92_rings.js: through a ring)
     R.hoof = (t, amp, pn) => {             // a pair of hooves driving into the snow: a soft thump and the crust giving
       if (hfP.pan) hfP.pan.setTargetAtTime(pn, t, 0.02); R.hoofs = (R.hoofs || 0) + 1;
       hit(hfG, t, 1.5 * amp, 0.004, 0.018, 0.05); hit(hcG, t + 0.004, 0.36 * amp, 0.004, 0.022, 0.06);
@@ -352,6 +353,8 @@ const Sound = (() => {
     }
     wake(0);
   };
+  // made once: at start-up, or (Variants 'bootlz' b, 99_main.js) once the title page is up, or by the first tap if that comes sooner
+  A.ensure = function () { if (A.inited) return; A.inited = true; A.init(); };
   A.init = function () {
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     try { A.ctx = new AC({ latencyHint: 'interactive' }); A.rig = A.build(A.ctx); } catch (e) { console.warn('audio unavailable', e); A.ctx = null; A.rig = null; return; }
@@ -369,7 +372,7 @@ const Sound = (() => {
   };
   // from a tap: browsers only let sound begin there
   A.unlock = function () {
-    if (!A.ctx) return; A.unlocked = true;
+    A.ensure(); if (!A.ctx) return; A.unlocked = true;
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { }
     A.refresh(0.5);
   };
@@ -378,7 +381,7 @@ const Sound = (() => {
   A.now = () => A.ctx.currentTime + 0.012;
   A.snapshot = function () {
     const S = Game.s, c = Course.at(-S.p[2], A.pc), sg = Course.segAt(-S.p[2]), wd = Game.feel ? Game.feel.wind : null;
-    return { run: Game.mode === 'run', title: Game.mode === 'title', speed: Math.hypot(S.v[0], S.v[1], S.v[2]), contact: S.contact, lat: S.aReac / 9.81, skid: Math.abs(Math.sin(S.beta)), load: S.load / 9.81, powder: S.powder, I: Spray.intensity, tuck: S.tuck, lean: S.lean, edge: S.edge ?? S.lean,
+    return { run: Game.mode === 'run' || Game.mode === 'replay', park: Game.mode === 'park', title: Game.mode === 'title', speed: Math.hypot(S.v[0], S.v[1], S.v[2]), contact: S.contact, lat: S.aReac / 9.81, skid: Math.abs(Math.sin(S.beta)), load: S.load / 9.81, powder: S.powder, I: Spray.intensity, tuck: S.tuck, lean: S.lean, edge: S.edge ?? S.lean,
       ridge: c.ridge || 0, forest: Math.max(c.forest || 0, c.glade || 0),
       wind: wd ? wd.v : null, push: wd ? wd.b : 0, tk: Math.max(S.tuck, S.tuckIn || 0),       // (for the wind: what is met, the blow of the moment, either tuck)
       air: S.air, airT: S.airT, ts: Game.timeScale || 1, kind: sg.type, slope: sg.p.slope, sun: Sky.sunElev,       // (for the score)
@@ -398,7 +401,7 @@ const Sound = (() => {
     A.rig.update(A.snapshot(), t);
     // trunks going by: when the skier comes to a new row of tree cells, the nearest trunk on either side of that row is given its moment,
     // timed for the instant it draws level
-    if (Game.mode === 'run' && S.speed > 7 && S.v[2] < -3) {
+    if ((Game.mode === 'run' || Game.mode === 'replay') && S.speed > 7 && S.v[2] < -3) {
       const cj = Math.floor(S.p[2] / TREE_CELL) - 1;
       if (cj !== A.row) {
         A.row = cj; const ci = Math.floor(S.p[0] / TREE_CELL), tn = A.tn || (A.tn = {});

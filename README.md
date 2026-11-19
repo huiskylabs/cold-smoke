@@ -47,7 +47,8 @@ What makes it unusual is what the repository **doesn't** contain:
 | Action | Keyboard | Phone | WebXR on Apple Vision Pro |
 |---|---|---|---|
 | Turn | ← → or A D | drag left / right (or tilt) | lean or tip your head left / right |
-| Weight on the tips / tails | ↑ ↓ or W S | drag the steering finger up / down | head forward / back |
+| Drive the edges in a turn (lower, tighter) | ↓ or S held while turning | drag the steering finger down | head back |
+| Weight on the tips: the tails skid, you slow down | ↑ or W | drag the steering finger up | head forward |
 | Jump (hold to load up) | Space | hold the Jump button, let go | hold a left-hand pinch, let go |
 | Tuck for speed | Shift | hold the Tuck button | hold a right-hand pinch |
 | Change camera | V (Shift+V back) | camera button above Jump | (chase camera only) |
@@ -158,7 +159,8 @@ If you like it, a ⭐ helps other people find it.
 | 动作 | 键盘 | 手机 | Apple Vision Pro 网页沉浸模式 |
 |---|---|---|---|
 | 转弯 | ← → 或 A D | 左右拖动（或倾斜手机） | 头往左右歪或身体往左右挪 |
-| 压板头 / 板尾 | ↑ ↓ 或 W S | 转弯的手指上下拖动 | 头往前 / 往后 |
+| 压刃（转弯时按住：更低、拐得更急） | 转弯时按住 ↓ 或 S | 转弯的手指往下拖 | 头往后 |
+| 压板头（板尾甩出去搓雪减速） | ↑ 或 W | 转弯的手指往上拖 | 头往前 |
 | 跳（按住蓄力） | 空格 | 按住「跳」，松开起跳 | 左手捏住，松开起跳 |
 | 压低加速 | Shift | 按住「加速」 | 右手捏住 |
 | 换机位 | V（Shift+V 往回） | 「跳」上方的机位按钮 | （只有追身机位） |

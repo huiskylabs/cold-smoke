@@ -409,7 +409,7 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
         t('按住 A 蓄力，松开起跳 · RT 加速'), t('LB / RB 换视角 · X 拍照'), t('Y 校准正前方 · 菜单键退出')] };
     }
     /*}native*/
-    if (UI.state === 'title' || UI.state === 'starting') return { kind: 'title', lines: [t('捏一下手指 出发'), t('左右歪头转弯 · 头往前压板头，往后压板尾'), t('右手捏住 蹲低加速 · 左手捏住 蓄力，松开起跳'), /*native{*/self.COLD_SMOKE?.spatial ? t('手柄：左摇杆转向 · A 起跳 · RT 加速 · 菜单键退出') : /*}native*/t('按数码表冠退出')] };
+    if (UI.state === 'title' || UI.state === 'starting') return { kind: 'title', lines: [t('捏一下手指 出发'), t('左右歪头转弯 · 转弯时头往后压刃拐急，头往前搓雪减速'), t('右手捏住 蹲低加速 · 左手捏住 蓄力，松开起跳'), /*native{*/self.COLD_SMOKE?.spatial ? t('手柄：左摇杆转向 · A 起跳 · RT 加速 · 菜单键退出') : /*}native*/t('按数码表冠退出')] };
     if (UI.state === 'run') return { kind: 'run', lines: [String(Math.round((Game.s.speed || 0) * 3.6))] };
     return null;
   }

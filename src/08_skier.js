@@ -104,7 +104,7 @@ const Skier = (() => {
   // lean/edge: body and ski roll (+ = to the skier's right); crouch 0..1: how far the legs are folded (0.38 m of travel); tuck, air 0..1; sep, headYaw: twist of
   // trunk and head; lead, stance, lift*, pitch*: where the skis are; arm*: offsets of the hands; plant*: the pole touch at a turn; dp: phase of a double-pole
   // stroke (0 = none); grab*: that hand takes hold of the same-side ski beside the binding
-  const CHG_H = 0.20;
+  const CHG_H = 0.20, LND_H = 0.12;
   const P0 = { lean: 0, edge: 0, crouch: 0.21, tuck: 0, air: 0, sep: 0, headYaw: 0, lead: 0, stance: 0.31, fore: 0, fa: 0, armL: [0, 0, 0], armR: [0, 0, 0], swing: 0, liftL: 0, liftR: 0, pitchL: 0, pitchR: 0, plantL: 0, plantR: 0, dp: 0, dpn: 0, chg: 0, sepQ: 0, hdQ: 0, grabL: 0, grabR: 0 };
   const SEC0 = { ct: 0, cf: 0, roll: 0, yaw: 0, hand: [0, 0, 0], head: 0, drop: 0, dp: null, pl: null, idle: null };
 
@@ -173,7 +173,7 @@ const Skier = (() => {
     // (新求解器, owner 2026-11-18: wound up for a jump with the ring full the skier sat no lower than at the bottom of any compression, hips 0.63 m over
     // the feet: "至少应该再…往下蹲". The wind-up (p.chg, the game's S.charge) takes the hips down CHG_H further, thighs to about level, the deepest a
     // skier loads a jump from; it is the figure's own, the physics' leg travel is as it was)
-    const chgH = gd ? CHG_H * sat(ez(sec, 'chg', sat(p.chg || 0), 14)) : 0; H -= chgH;      // (eased: let go, the charge is gone in four frames, and the legs take the whole take-off to straighten)
+    const chgH = gd ? Math.min(CHG_H * sat(ez(sec, 'chg', sat(p.chg || 0), 14)) + LND_H * sat(p.lnd || 0), CHG_H) : 0; H -= chgH;      // (p.lnd: and a hard landing LND_H, see land b in 07_game.js)      // (eased: let go, the charge is gone in four frames, and the legs take the whole take-off to straighten)
     if (gd && gd[4]) H += gd[4];      // (新求解器: the body carried higher over bumps the legs could not take, begun ahead of them: see lift in 08j_solver.js)
     // (p.reach, mo4 b: the legs reached out long for a landing. On legs that long the trunk's own rule stands it nearly upright, and the hips open to
     // 50 degrees where a skier touches down at 55 to 65: the chest is kept forward by a hand, as a skier meeting a landing has it)
@@ -1031,6 +1031,16 @@ const Skier = (() => {
     K.mesh = K.meshes[key] = { V, W, I, nv, ni, v, ride: rd, hand: hv, lr };
     return K.mesh;
   };
+  // (the body carved in a background thread at start-up, 00d_par.js: the same mesh, taken in here as if built here)
+  Par.jobs.skierMesh = () => { const m = K.build(); return { V: m.V, W: m.W, I: m.I, nv: m.nv, ni: m.ni, v: m.v, ride: m.ride, hand: m.hand, lr: m.lr }; };
+  K.freshMesh = function () { const keep = K.meshes, cur = K.mesh; K.meshes = {}; const m = K.build(); K.meshes = keep; K.mesh = cur; return m; };      // (dev: ?parcheck)
+  K.adopt = function (m) {
+    if (!m) return;
+    const rd = rideV(), hv = handV(m.v, rd), lr = lrV(rd), key = m.v + rd + hv + lr;
+    if (m.v !== (Variants.val.body === 'a' ? 'a' : 'b') || m.ride !== rd || m.hand !== hv || m.lr !== lr || K.meshes[key]) return;
+    if (!bind) { bind = solve(P0); invBind = bind.F.map(q => q ? m4.invert(q) : null); K.bind = bind; bind.seatC = m4.tp(bind.F[B.pelvis], SEATC); }
+    K.mesh = K.meshes[key] = m;
+  };
 
   K.init = function (g) {
     gfx = g;
@@ -1079,7 +1089,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
 `;
     pipe = gfx.pipeline({
       name: 'skier', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SKIN_SSL, SKIER_SSL, headSSL], buffers,
-      varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', bn: 'vec3f', mat: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f' },
+      varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', bn: 'vec3f', mat: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', s: 'vec4f' },
       textures: { tBones: 'fetch', tDetail: '2d', tShadow: 'shadow', tSky: '2d' },
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let s: SkinV = skinVertex(a.pos, a.nrm, a.bw); v.wp = s.wp; v.nrm = s.n; v.bp = a.pos; v.bn = a.nrm; v.mat = a.mat; v.clip = U.viewProj * vec4f(s.wp, 1.0); return v; }`,
       fs: SKIER_FS.replace('/*MARKS*/', marks),
@@ -1235,7 +1245,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     // in through the seat), r: how far it swings to a side; v: the figure's velocity in the world, smoothed (its change, read in the figure's frame, is what the hem lags behind)
     { const H = st.hm, g = clo.h, u = !cut && dt > 0 ? v3.mul(v3.sub(root.pos, st.pos), 1 / dt) : [0, 0, 0];
       if (cut || !H.v) { H.v = u; H.p[0] = H.p[1] = H.r[0] = H.r[1] = 0; }
-      else if (dt > 0) { const n = v3.add(H.v, v3.mul(v3.sub(u, H.v), 1 - Math.exp(-dt * 18))), a = v3.mul(v3.sub(n, H.v), 1 / dt), ax = clamp(v3.dot(a, X), -14, 14), af = clamp(-v3.dot(a, Z), -14, 14), w = sat((-v3.dot(n, Z) - 4) / 22);
+      else if (dt > 0) { const n = v3.add(H.v, v3.mul(v3.sub(u, H.v), 1 - Math.exp(-dt * 18))), a = v3.mul(v3.sub(n, H.v), 1 / dt), ax = clamp(v3.dot(a, X), -14, 14), af = clamp(-v3.dot(a, Z), -14, 14), w = sat((-v3.dot(n, Z) - 4) / 22); sec.latA = ax;
         H.v = n; spr(H.p, g * (0.11 * w * w * (3 - 2 * w) + clamp(af * 0.008, -0.02, 0.06)), 14, 0.32, dt); spr(H.r, g * clamp(-ax * 0.007, -0.09, 0.09), 12, 0.3, dt); }
       const w = sat((-v3.dot(H.v, Z) - 6) / 20), fl = g * w * (0.022 * Math.sin(now * 47) + 0.014 * Math.sin(now * 29 + 1.3) + 0.01 * Math.sin(now * 71 + 0.4));
       H.o[0] = clamp(H.p[0] + fl, -0.02, 0.2); H.o[1] = clamp(H.r[0] + 0.6 * fl * Math.sin(now * 13), -0.12, 0.12); }
@@ -1259,7 +1269,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     for (let k = 0; k < 2; k++) { const P = st.pp[k]; sec.pl[k] = P; if (!P) continue;
       if (P.d) { P.w = smooth(0, 0.3, now - P.rel); P.g = smooth(0.3, 0.6, now - P.rel); } else { const w = P.W, d = [w[0] - root.pos[0], w[1] - root.pos[1], w[2] - root.pos[2]]; P.T = [v3.dot(d, X), v3.dot(d, Z)]; } }
     // (the lab's turns: which posture, how much of it; null = the game's own figure)
-    sec.lab = typeof LabMo !== 'undefined' && !K.boardOn() ? LabMo.step(cur, sec, cut ? 0 : dt, st.hm.v ? v3.len(st.hm.v) : 0) : null;
+    sec.lab = typeof LabMo !== 'undefined' && !K.boardOn() ? LabMo.step(cur, sec, cut ? 0 : dt, st.hm.v ? v3.len(st.hm.v) : 0, cut ? 0 : sec.latA || 0) : null;
     sec.labB = typeof LabMo !== 'undefined' && K.boardOn() ? LabMo.stepB(cur, sec, cut ? 0 : dt) : null;
     // (实验室人物, developer mode: the lab's skeleton and motion set every bone, 08i_labride.js; until its frames are solved the game's own stand in)
     sec.gnd = K.ground ? K.ground(cur, root, Y, toW, sec, cut ? 0 : dt) : null;
@@ -1299,6 +1309,8 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   K.toWorld = function (p) { return m4.tp(K.world.root, p); };
   K.sec = st.sec;      // (what update last handed to solve besides the pose: tests draw a figure from it)
   const nite = [0, 0, 0, 0];      // (x: how far into the night it is: Sky.night)
+  // (K.lensCut, set by the first-person view (07d_fpv.js): [from, to] m from the lens, the figure fades out inside it; 0: nothing is cut)
+  const CUT0 = [0, 0, 0, 0]; K.lensCut = null;
   // (the body asked for in the panel: built at the first draw that wants it, then swapped in at once)
   const bodyV = () => Variants.val.body === 'a' ? 'a' : 'b';
   function useBody(m) {
@@ -1312,7 +1324,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     clo.q[2] += (want[1] - clo.q[2]) * e; clo.q[3] += (want[0] - clo.q[3]) * e; clo.h += (want[2] - clo.h) * e;
     nite[0] = typeof Sky !== 'undefined' && Sky.night === Sky.night ? smooth(0.35, 1, Sky.night) : 0;
     nite[3] = Variants.val.kit === 'b' && nite[1] > 0 ? 1 : 0;      // (the finer details of the clothes, Variants 'kit' b: new body only)      // (from deep dusk on: dusk itself stays as it was)
-    gfx.draw(pipe, { u: { p: clo.p, q: clo.q, r: nite }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count });
+    gfx.draw(pipe, { u: { p: clo.p, q: clo.q, r: nite, s: K.lensCut || CUT0 }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count });
   };
   K.drawShadow = function () { wantBody(); gfx.draw(pipeShadow, { u: { p: [0, 0, 0, 0] }, tex: { tBones: boneTex }, vb: [vb, vb2], ib, count }); };
   return K;
@@ -1358,6 +1370,9 @@ fn skLine(d: f32, px: f32) -> f32 { let w: f32 = 0.0011 + px * 0.5; return smoot
 const SKIER_FS = (L => { const V = a => 'vec3f(' + a.map(x => x.toFixed(3)).join(', ') + ')', F = x => x.toFixed(3); return `
 fn frag(v: VOut) -> FOut {
   var o: FOut;
+  // (seen from inside its own head, first person: what of the figure is near the lens (head, neck, collar, pack, shoulders) is left out, fading
+  // through a fixed screen-door pattern between M.s.x and M.s.y metres; what is further (legs, skis) stays)
+  if (M.s.y > 0.0) { let dc: f32 = distance(v.wp, U.camPos.xyz); if (dc < M.s.y) { let dz: f32 = fract(52.9829189 * fract(dot(v.clip.xy, vec2f(0.06711056, 0.00583715)))); if (dc < mix(M.s.x, M.s.y, dz)) { discard; } } }
   var id: f32 = floor(v.mat.x + 0.5);
   let qy: f32 = v.mat.z; let qz: f32 = v.mat.w;
   if (id > 3.5 && id < 4.5 && abs(qy - 0.004) < 0.020 && qz > -0.09) { id = 6.0; }

@@ -111,13 +111,13 @@ const UI = (() => {
     const hh = U.hh, framed = U.framed, fa = faOn(); el.app.classList.toggle('fa', fa);
     /*native{*/if (self.COLD_SMOKE?.spatial) { el.how.textContent = T('选择沉浸模式，或按手柄 Y 进入 · A 出发 / 起跳 · RT 加速') + ' · ' + T('LB / RB 换视角 · X 拍照'); return; }
     /*}native*/if (!hh) {
-      el.how.textContent = T(fa ? '← → 转弯 · ↑ ↓ 压板头 / 板尾 · 空格 跳 · Shift 加速' : '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速');
+      el.how.textContent = T(fa ? '← → 转弯 · 转弯时按 ↓ 压刃拐急 · ↑ 搓雪减速 · 空格 跳 · Shift 加速' : '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速');
       return;
     }
-    const steering = fa ? '按住屏幕，左右拖转弯，上下拖压板头 / 板尾' : framed ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
+    const steering = fa ? '按住屏幕，左右拖转弯，转弯时往下拖压刃拐急，往上拖搓雪减速' : framed ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
     /*native{*/
     if (self.COLD_SMOKE?.nativeWindow) {
-      const gesture = fa ? '左右拖动转弯，上拖压板头，下拖压板尾' : steering;
+      const gesture = fa ? '左右拖转弯，下拖压刃，上拖减速' : steering;
       el.how.textContent = T(gesture) + '\n' + T('滑行时，用下方按钮起跳或加速');
       return;
     }
@@ -173,7 +173,7 @@ const UI = (() => {
   function showHint(kind) {
     U.hintKind = kind; el.hint.className = kind + ' on';
     el.hintT.textContent = T(kind === 'tilt' ? '像握方向盘一样倾斜手机' : kind === 'drag' ? '按住屏幕，左右拖动' : kind === 'pace' ? '连着转弯，把雪扬起来'
-      : kind === 'moves' ? (U.hh ? '按住「跳」蓄力，松开起跳' : faOn() ? '↑ 压板头入弯 · ↓ 压板尾出弯 · 空格 跳' : '空格 跳（按住蓄力） · ↓ 加速') : '← →  或  A D  转弯');
+      : kind === 'moves' ? (U.hh ? '按住「跳」蓄力，松开起跳' : faOn() ? '转弯时按住 ↓ 压刃拐急 · ↑ 搓雪减速 · 空格 跳' : '空格 跳（按住蓄力） · ↓ 加速') : '← →  或  A D  转弯');
   }
   // per displayed frame
   U.frame = function (dt) {
@@ -493,7 +493,7 @@ const UI = (() => {
     if (on && U.state === 'run') holdOn();
     U.open = on; if (on) { if (!el.pane.querySelector('section.on')) show(sec); paint(); el.say.classList.remove('on'); sayT = 0; }
     const run = U.state === 'run';
-    el.mk.textContent = T(run ? 'PAUSED · 暂停' : 'MENU · 菜单'); el.mGo.textContent = T(run ? '继续滑' : '出发'); el.mTop.hidden = !run;
+    el.mk.textContent = T(run ? 'PAUSED · 暂停' : 'MENU · 菜单'); el.mGo.textContent = T(run ? '继续滑' : '自由滑'); el.mTop.hidden = !run;
     el.menu.classList.toggle('on', on); el.menu.setAttribute('aria-hidden', on ? 'false' : 'true'); el.mn.setAttribute('aria-expanded', on ? 'true' : 'false');
     el.app.classList.toggle('menuopen', on);          // (the thumbs' buttons step aside under it)
     if (U.state === 'title') el.title.classList.toggle('on', !on);          // (the title's own words make way for it, and come back)
@@ -547,7 +547,7 @@ const UI = (() => {
     for (const b of el.kinds.children) b.textContent = T(SEG_NAMES[b.dataset.seg] || b.dataset.seg);
     evSig = vwSig = vSig = wxSig = null;
     U.layout();
-    const run = U.state === 'run'; el.mk.textContent = T(run ? 'PAUSED · 暂停' : 'MENU · 菜单'); el.mGo.textContent = T(run ? '继续滑' : '出发');
+    const run = U.state === 'run'; el.mk.textContent = T(run ? 'PAUSED · 暂停' : 'MENU · 菜单'); el.mGo.textContent = T(run ? '继续滑' : '自由滑');
     if (U.hintKind && el.hint.classList.contains('on') && !/gap|done/.test(U.hintKind)) showHint(U.hintKind);
     if (U.state === 'run' && U.segIdx >= 0) { try { const sg = Course.segs[U.segIdx]; if (sg) segCard({ idx: U.segIdx, type: sg.type }); } catch (e) { } }
     if (el.tune) for (const n of el.tune.querySelectorAll('[data-zh]')) n.textContent = T(n.dataset.zh);
@@ -582,7 +582,7 @@ const UI = (() => {
   // ---- the versions the owner picks between: their own page of the menu, not part of the game. One row for each choice in Variants, in
   // groups (a choice this list does not know yet goes under 新加的), the current version filled, the recommended one marked with a grain of
   // amber. A press switches at once (each module eases its own change); 恢复推荐 puts every choice back to the recommended version
-  const VGROUP = [['实验室人物（11 月 17 日）', ['rider', 'ride', 'rski', 'rboard', 'rtski', 'rtboard']], ['画面与音乐（11 月 16 日评审）', ['glint', 'gold', 'tbtn', 'nebday', 'nebnight', 'mlevel', 'tmusic', 'lsnow', 'plume', 'wbal', 'vary']], ['性能（11 月 17 日）', ['pslice', 'govjs', 'mbtap', 'patchd', 'bootq', 'tcull']], ['人物动作（11 月 16 日评审）', ['mo1', 'medge', 'mo2', 'mo3', 'mo4', 'kring']], ['镜头', ['cam', 'wood', 'shots', 'tips', 'fptuck', 'edge', 'chatter', 'buffet']], ['人物与动作', ['body', 'cloth', 'poles', 'motion']],
+  const VGROUP = [['实验室人物（11 月 17 日）', ['rider', 'ride', 'rski', 'rboard', 'rtski', 'rtboard']], ['画面与音乐（11 月 16 日评审）', ['glint', 'gold', 'tbtn', 'nebday', 'nebnight', 'mlevel', 'tmusic', 'lsnow', 'plume', 'wbal', 'vary']], ['性能（11 月 17 日）', ['pslice', 'govjs', 'mbtap', 'patchd', 'bootq', 'tcull']], ['人物动作（11 月 16 日评审）', ['mo1', 'medge', 'mo2', 'mo3', 'mo4', 'land', 'kring']], ['镜头', ['cam', 'wood', 'shots', 'tips', 'fptuck', 'edge', 'chatter', 'buffet']], ['人物与动作', ['body', 'cloth', 'poles', 'motion']],
     ['画面', ['ghost', 'hi', 'nspray', 'nsky', 'cu']], ['雪', ['spray', 'curtain', 'sparkle', 'clumps', 'lens', 'pdepth', 'drift']], ['场景与天气', ['tpass', 'tgrain', 'tvar', 'rock', 'moon', 'aurora', 'snow', 'rtree', 'flag', 'sink', 'wind']], ['手感', ['keys']]];
   let vSig = null, wxSig = null;
   const varMod = () => { try { return typeof Variants !== 'undefined' && Variants && Array.isArray(Variants.defs) ? Variants : null; } catch (e) { return null; } };
@@ -613,6 +613,12 @@ const UI = (() => {
           el.vrows.appendChild(g);
         }
         const versBtn = el.nav.querySelector('[data-sec="vers"]'); if (versBtn) versBtn.hidden = !defs.length;
+      }
+      // how long the start-up took on this device, stage by stage (App.bootT, 99_main.js): for reading off a phone with a screenshot
+      if (!el.vboot && el.vrows.parentNode) { el.vboot = document.createElement('p'); el.vboot.className = 'note'; el.vboot.style.cssText = 'opacity:.7;font-size:11px;line-height:1.5'; el.vrows.parentNode.insertBefore(el.vboot, el.vrows); }
+      if (el.vboot && typeof App !== 'undefined' && App.bootT && App.bootT.length) {
+        const B = App.bootT, r = B.find(x => x[0] === 'ready'), f = ms => (ms / 1000).toFixed(2) + 's';
+        el.vboot.textContent = T('启动用时') + ' ' + (r ? f(r[1]) : '…') + ' · ' + B.map((x, i) => x[0] === 'ready' ? null : T(x[0].replace(/^后补:/, '')) + ' ' + (x[0].startsWith('后补:') ? '+' + f(x[1] - (r ? r[1] : 0)) : f((B[i + 1] ? B[i + 1][1] : x[1]) - x[1]))).filter(Boolean).join(' · ') + ' · ' + (App.gfx ? App.gfx.caps.backend : '');
       }
       let all = true;
       for (const b of el.vrows.querySelectorAll('button')) { const on = !!V && V.val[b.dataset.vn] === b.dataset.vid; b.classList.toggle('on', on); if (on && !b.classList.contains('rec')) all = false; }

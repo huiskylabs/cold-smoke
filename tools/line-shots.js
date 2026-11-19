@@ -28,7 +28,7 @@ fs.mkdirSync(out, { recursive: true });
     };
   });
   const startCount = async () => {
-    await pg.evaluate(() => { __ski.ui().go(); });
+    await pg.evaluate(() => { (__rings.chal = true, __ski.ui().go()); });
     await pg.waitForFunction(() => __rings.line.st === 'count', null, { timeout: 20000 });
   };
   // ride until a condition, a little at a time so the screen keeps up
@@ -41,8 +41,10 @@ fs.mkdirSync(out, { recursive: true });
 
   // ---- run 1: leaves a record (title, count-down, first finish card)
   await shot('标题页');
-  await startCount(); await settle(250); await shot('倒数_3');
+  const first = () => pg.evaluate(() => { const r = __rings.rings.find(q => q.pass < 0); return r ? (r.grow < 0 ? 'flame' : 'ring') : 'none'; });
+  await startCount(); await settle(250); console.log('first ring during count', await first()); await shot('倒数_3');
   await pg.waitForFunction(() => __rings.line.st === 'go', null, { timeout: 10000 }); await settle(120); await shot('出发');
+  await settle(1300); console.log('first ring after 出发', await first()); await shot('出发_圈打开');
   await ride(-1, "L.st !== 'go'", 600);
   await settle(300); await shot('第一次_过终点');
   await settle(1800); await shot('第一次_成绩页');
@@ -56,12 +58,18 @@ fs.mkdirSync(out, { recursive: true });
   await ride(99, 'L.split.length > 0'); await settle(250); await shot('过一站_分段对比');
   await ride(99, "(() => { const c = R.rings.find(r => r.pass < 0 && !r.skip); return c && c.fin && c.s + G.s.p[2] < 30; })()");
   await shot('前方终点圈');
-  await ride(99, "L.st !== 'go'"); await settle(300); await shot('过终点_成绩');
+  await ride(99, "L.st !== 'go'");
+  { const t0 = Date.now(), p0 = await pg.evaluate(() => [__ski.game().s.p.slice(), __ski.game().s.speed]); console.log('speed at finish', p0[1].toFixed(1));
+    await pg.waitForFunction(() => __ski.game().mode === 'park', null, { timeout: 15000 }).catch(() => {});
+    const p1 = await pg.evaluate(() => __ski.game().s.p.slice()); console.log('stopped after (s)', ((Date.now() - t0) / 1000).toFixed(1), 'distance (m)', Math.hypot(p1[0] - p0[0][0], p1[2] - p0[0][2]).toFixed(1)); }
+  await settle(300); await shot('过终点_成绩');
   await settle(1800); await shot('成绩页');
   // (用户 18:54 UTC: 结束后就停下来): the skier brakes by himself; the game runs on in real time until he stands still
   await pg.waitForFunction(() => __ski.game().s.speed < 0.6, null, { timeout: 15000 }).catch(() => console.log('did not stop, speed', 0));
-  console.log('speed after finish', await pg.evaluate(() => __ski.game().s.speed.toFixed(2))); await shot('刹停');
-  await pg.evaluate(() => document.querySelector('#rline [data-a=free]').click()); await settle(800); await shot('继续滑');
+  console.log('speed after finish', await pg.evaluate(() => __ski.game().s.speed.toFixed(2)), 'mode', await pg.evaluate(() => __ski.game().mode)); await shot('刹停');
+  const p0 = await pg.evaluate(() => __ski.game().s.p.slice()); await settle(3000);
+  console.log('moved while parked (m)', await pg.evaluate(p0 => Math.hypot(...__ski.game().s.p.map((v, i) => v - p0[i])).toFixed(3), p0)); await shot('停住_3秒后');
+  await pg.evaluate(() => document.querySelector('#rline [data-a=free]').click()); await settle(1500); console.log('after 继续滑 mode', await pg.evaluate(() => __ski.game().mode)); await shot('继续滑');
   console.log('errors:', errs.length ? errs.join(' | ') : 'none');
   await b.close();
 })().catch(e => { console.error(e); process.exit(1); });

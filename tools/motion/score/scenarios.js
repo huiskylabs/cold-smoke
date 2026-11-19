@@ -67,7 +67,14 @@ function build() {
   return out.map(c => {
     const b = BASES.find(x => x.id === c.base), q = c.gear === 'board' ? `v-ride=b&v-rboard=${c.style}` : `v-ride=a&v-rski=${c.style}`;
     return Object.assign({}, b, { id: `${c.base}.${c.gear}.${c.seg || 'start'}.${c.style}`, base: c.base, gear: c.gear, seg: c.seg, style: c.style, q, s0: c.s0 || b.s0 || 60, extreme: !!c.extreme, why: c.why || '', note: `${b.id} · ${c.gear === 'board' ? '单板' : '双板'} · ${c.seg || '出发处'} · 风格 ${c.style}${c.why ? ' · ' + c.why : ''}` });
-  });
+  }).concat(SLOW.map(x => Object.assign({ base: x.id.split('.')[0], gear: 'ski', style: 'a', q: 'v-ride=a&v-rski=a', s0: 60, extreme: false, why: x.note }, x)));
 }
-module.exports = { BASES, STYLES, PAIRS, EXTREME, build };
+// 慢速转弯（2026-11-18，设计稿“转弯动作随速度变化”）：矩阵里的场景都是一路加速，163 个弯里 128 个在 65 km/h 以上，慢速只有零星几个。
+// 这两个固定加在矩阵最后（不参加上面的两两覆盖，原来 41 个场景的编号和内容不变）：
+//   slowweave 刚出发（1 m/s 起）马上连续左右转 8 秒；slowgo 加速后按住一边刹到停，松开重新起步再往另一边转
+const SLOW = [
+  { id: 'slowweave.ski.bowl.a', ctl: 'slowkeys', per: 2.4, seg: 'bowl', dur: 9, fam: 'turn', cards: ['turn', 'edge'], note: '刚出发就连续转弯（慢速）' },
+  { id: 'slowgo.ski.bowl.a', ctl: 'brake', seg: 'bowl', dur: 30, fam: 'stop', cards: ['stop', 'turn'], note: '刹停后重新起步转弯（慢速）' },
+];
+module.exports = { BASES, STYLES, PAIRS, EXTREME, SLOW, build };
 if (require.main === module) { const L = build(); console.log(L.length, '个场景，游戏时间', (L.reduce((s, c) => s + c.dur, 0) / 60).toFixed(1), '分钟'); for (const c of L) console.log(c.id.padEnd(34), c.dur + 's', c.why); }
