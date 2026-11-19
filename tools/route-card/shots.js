@@ -3,7 +3,7 @@
 // node tools/route-card/shots.js <ride.json> <out dir> [styles=abc] [diff=b]
 const path = require('path'), fs = require('fs'); const { chromium } = require('playwright');
 const ride = JSON.parse(fs.readFileSync(path.resolve(process.argv[2]), 'utf8')), outDir = path.resolve(process.argv[3] || 'route-card-out');
-const styles = (process.argv[4] || 'abc').split(',').length > 1 ? process.argv[4].split(',') : (process.argv[4] || 'abc').split(''), diff = process.argv[5] || 'b', scale = +(process.env.SCALE || 1);
+const styles = (process.argv[4] || 'abc').match(/[a-uw-z]v?/g)          // (a letter per style; a 'v' after it = the tall 3:4 card, e.g. 'eev' = e wide and e tall), diff = process.argv[5] || 'b', scale = +(process.env.SCALE || 1);
 fs.mkdirSync(outDir, { recursive: true });
 (async () => {
   const b = await chromium.launch({ headless: true });
