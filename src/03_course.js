@@ -16,7 +16,7 @@ const SEG_TYPES = {
   // (经典编排 only: a narrow lane through tall forest that winds, the trees close at its edges; never dealt on a random mountain)
   corridor: { slope: 0.2, hw: 13, dish: 0.9, shoulder: 0.5, gul: 0, gw: 14, gAmp: 0, rollA: 0.3, rollL: 32, mog: 0, forest: 1.0, glade: 0, powder: 0.5, ridge: 0, mean: 0.4, kick: 0, enc: 1, gU: 0 },
 };
-const SEG_KEYS = ['slope', 'hw', 'dish', 'shoulder', 'gul', 'gw', 'gAmp', 'rollA', 'rollL', 'mog', 'forest', 'glade', 'powder', 'ridge', 'mean', 'kick', 'enc', 'gU'];
+const SEG_KEYS = ['slope', 'hw', 'dish', 'shoulder', 'gul', 'gw', 'gAmp', 'rollA', 'rollL', 'mog', 'forest', 'glade', 'powder', 'ridge', 'mean', 'kick', 'enc', 'gU', 'lip'];
 const SEG_NAMES = { bowl: '开阔大坡', steeps: '陡坡', glade: '树林', rollers: '起伏', gully: '雪槽', kickers: '跳台', powder: '深粉雪', ridge: '山脊', moguls: '蘑菇', corridor: '林道' };
 // how fast each kind of run is covered (metres of mountain per second, measured with the test pilot, who weaves): its length is set so
 // that it lasts about half a minute
@@ -58,7 +58,7 @@ if (typeof Variants !== 'undefined') {
   // b: 经典编排, the first lap is a set order of stations (ROUTE below) that alternates 藏 (a winding lane closed in by forest, a deep U
   // gully) and 露 (out onto a crest that looks down the valley at the city in the clouds), then the dealt runs carry on as before.
   // Live for everyone since 2026-11-17 (owner: 合并上线).
-  Variants.def('route', '雪道', [['a', '随机'], ['b', '经典编排'], ['c', '九曲十八弯'], ['d', '大回环'], ['e', 'U 型峡谷九曲']], 'b');
+  Variants.def('route', '雪道', [['a', '随机'], ['b', '经典编排'], ['c', '九曲十八弯'], ['d', '大回环'], ['e', 'U 型峡谷九曲'], ['f', '视频雪道']], 'b');
   // 雪道清障 (owner, 2026-11-17: no trees in the middle of the U gully). The lone groups of trees out on the run were placed knowing nothing of
   // the lines the run is built round, so they stood on the gully's floor, in a jump's run-in and landing and in the mogul field's smooth
   // channel. b keeps those lines clear. a: as it was
@@ -99,8 +99,8 @@ const Course = ((vn1, vn2, h2U) => {
     b: { L: 5.6, W: 5.0, H: 0.58, B0: 0.65, B1: 0.7, Q: 0.58, R: 0.7, J: 0.22, I: 1 },
     c: { L: 3.7, W: 4.0, H: 0.8, B0: 0.88, B1: 0.24, Q: 0.55, R: 0.6, J: 0.04, I: 1 },
   };
-  const CH = 2048, NF = 20;       // metres per cache chunk, fields per metre
-  const F = { baseY: 0, cx: 1, hw: 2, dish: 3, shoulder: 4, gul: 5, gw: 6, goff: 7, roll: 8, mog: 9, forest: 10, glade: 11, powder: 12, ridge: 13, wall: 14, rtail: 15, tilt: 16, bank: 17, enc: 18, gU: 19 };
+  const CH = 2048, NF = 21;       // metres per cache chunk, fields per metre
+  const F = { baseY: 0, cx: 1, hw: 2, dish: 3, shoulder: 4, gul: 5, gw: 6, goff: 7, roll: 8, mog: 9, forest: 10, glade: 11, powder: 12, ridge: 13, wall: 14, rtail: 15, tilt: 16, bank: 17, enc: 18, gU: 19, lip: 20 };
   const chunks = new Map();
   // Adjacent terrain texels query the same nine tree cells for ambient occlusion.
   const nearbyCells = new Array(64 * 64);
@@ -131,8 +131,8 @@ const Course = ((vn1, vn2, h2U) => {
     C.lv = TERR_LV[tv.tdiff] ? tv.tdiff : 'b'; LV = tv.terr === 'b' ? TERR_LV[C.lv] : null; C.rich = !!LV; C.isl = LV ? LV.isl : 1;
     trng = RNG((KEY ^ 0x7e4a11) + 131 * C.lv.charCodeAt(0));
     // (金色雪旗 takes its own run, the U trough, where the route is left at the default)
-    const rv = tv.route === 'b' && tv.world === 'd' ? (tv.dalp === 'a' ? 'e' : 'c') : tv.route;      // (金色雪旗 above the trees: 九曲十八弯 by default, the owner 2026-11-18 04:29)      // (Variants, not Metro: Metro is declared later and setSeed runs before it is)
-    C.route = rv === 'b' || rv === 'c' || rv === 'd' || rv === 'e'; ROUTE = ROUTES[rv] || ROUTES.b; C.ROUTE = ROUTE; C.rclear = tv.rclear === 'b';
+    const rv = tv.route === 'b' && tv.world === 'd' ? (tv.dalp === 'a' ? 'e' : tv.dsea === 'b' ? 'f' : 'c') : tv.route;      // (春雪: the video's runs, 视频雪道)      // (金色雪旗 above the trees: 九曲十八弯 by default, the owner 2026-11-18 04:29)      // (Variants, not Metro: Metro is declared later and setSeed runs before it is)
+    C.route = rv === 'b' || rv === 'c' || rv === 'd' || rv === 'e' || rv === 'f'; ROUTE = ROUTES[rv] || ROUTES.b; C.ROUTE = ROUTE; C.rclear = tv.rclear === 'b';
     SH = SHAPES[tv.shape] || SHAPES.a;
     ALPG = tv.world === 'd' && tv.dalp === 'b' ? [1.3, 1.9, 2.2, 2.4] : [1, 1, 1, 1];
     planTo(4000);
@@ -218,7 +218,24 @@ const Course = ((vn1, vn2, h2U) => {
     { type: 'gully', U: 1, deep: 3.0, wind: 0.85, lam: 240, sec: 30 },
     { type: 'gully', U: 1, deep: 2.6, wind: 0.80, lam: 280, sec: 30 },
   ];
-  const ROUTES = { b: ROUTE_B, c: ROUTE_C, d: ROUTE_D, e: ROUTE_E };
+  // 视频雪道 (owner 2026-11-19 03:47, of the video snowboard-yixin-niceone: "去学它这个各种滑道", the three kinds of run it rides one after
+  // another, then again): A, open ground on a ridge, round knolls the snow drops away beyond and lips along both edges; B, a steep run down
+  // through the trees, one side a slanting wall of snow, small drops off roots; C, a narrow way a few metres wide winding through dense
+  // forest, a berm along each side. p: the run's own numbers; wall: the side wall's height (m); drops: how many small drops
+  const ROUTE_F = [
+    { type: 'bowl', wind: 0.35, lam: 420 },                                                                   // 起点
+    { type: 'ridge', aim: 1, sec: 30, p: { rollA: 2.4, rollL: 44, lip: 2.4, hw: 24 } },                        // A 山脊开阔坡：圆包、翘边
+    { type: 'steeps', enc: 0.6, wind: 0.30, lam: 300, wall: 4.0, drops: 3, p: { hw: 17, forest: 1, slope: 0.5 } },  // B 陡林间坡：侧雪墙、树根小台阶
+    { type: 'corridor', sec: 30, wind: 0.60, lam: 230, p: { hw: 7.5, lip: 1.4, slope: 0.22 } },                // C 林间窄道：两边雪埂
+    { type: 'rollers', aim: 1, sec: 28, p: { rollA: 2.2, rollL: 40, lip: 1.3, hw: 26, ridge: 0.5, forest: 0.3 } },  // A 再来一次
+    { type: 'steeps', enc: 0.6, wind: 0.35, lam: 280, wall: 4.5, drops: 4, p: { hw: 16, forest: 1, slope: 0.52 } },
+    { type: 'corridor', sec: 32, wind: 0.70, lam: 210, p: { hw: 7, lip: 1.5, slope: 0.21 } },
+    { type: 'powder', aim: 1, sec: 28, p: { rollA: 1.8, rollL: 50, lip: 1.4 } },                               // 开阔：看湖
+    { type: 'steeps', enc: 0.6, wind: 0.30, lam: 320, wall: 4.0, drops: 3, p: { hw: 18, forest: 1, slope: 0.48 } },
+    { type: 'corridor', sec: 30, wind: 0.65, lam: 240, p: { hw: 7.5, lip: 1.4, slope: 0.22 } },
+    { type: 'kickers' },
+  ];
+  const ROUTES = { b: ROUTE_B, c: ROUTE_C, d: ROUTE_D, e: ROUTE_E, f: ROUTE_F };
   let ROUTE = ROUTE_B;
   C.ROUTE = ROUTE;
   function routeType() { const st = ROUTE[C.segs.length]; dealt.push(st.type); hand = []; return st.type; }
@@ -289,7 +306,7 @@ const Course = ((vn1, vn2, h2U) => {
       if (C.forceType) type = C.forceType;
       lastTypes.push(type); if (lastTypes.length > 5) lastTypes.shift();
       const base = SEG_TYPES[type], p = {}, v = () => 0.85 + rng() * 0.3;
-      for (const k of SEG_KEYS) p[k] = base[k];
+      for (const k of SEG_KEYS) p[k] = base[k] || 0;
       p.slope *= 0.93 + rng() * 0.14; p.hw *= v(); p.rollL *= v(); p.rollA *= v(); p.gAmp *= v(); p.gul *= v(); p.mean *= v();
       if (LV) { p.slope = Math.min(0.68, p.slope * LV.slope); p.hw *= LV.hw; p.mog *= LV.mog; p.rollA *= Math.min(1, LV.slope); }
       const SK = SLOPE_K[(typeof Variants !== 'undefined' && Variants.val.slope) || 'a'] || SLOPE_K.a;
@@ -301,6 +318,7 @@ const Course = ((vn1, vn2, h2U) => {
       if (st) {
         if (st.sec && C.segs.length) len *= st.sec / 30;
         if (st.enc) p.enc = st.enc;
+        if (st.p) for (const k in st.p) p[k] = st.p[k];      // (视频雪道: a station may set the run's own numbers)
         if (st.U) { const dp = st.deep || 1; p.gU = 1; p.gul = 6 * dp * (0.92 + 0.16 * rng()); p.gw = 10 * Math.pow(dp, 0.7); p.gAmp = 8; p.forest = 0.9; p.enc = 0.5; if (dp > 1) p.hw = Math.max(p.hw, 1.75 * p.gw); }
       }
       const seg = { type, s0: planned, len, p, idx: C.segs.length, seed: (rng() * 1e9) | 0 };
@@ -315,6 +333,16 @@ const Course = ((vn1, vn2, h2U) => {
         for (let i = 0; i < n; i++) addFeat({ s: seg.s0 + 120 + rng() * (len - 240), u: (rng() - 0.5) * 30, len: 12, wid: 10, h: 1.1 + rng() * 0.6, kind: 'kicker' });
       }
       if (LV) enrich(seg, type);
+      // (视频雪道, the owner's video 9-17 s: a steep run through the trees with one side a slanting wall of snow to ride along)
+      if (st && st.wall) { const sd = st.wallSide || (rng() < 0.5 ? -1 : 1); seg.xs = [{ s: seg.s0 + 40, tilt: 0, bank: st.wall * sd }, { s: seg.s0 + len - 40, tilt: 0, bank: 0 }]; }
+      // (and small drops off roots and ledges among the trees, a metre or so, a soft landing below; always a way round)
+      if (st && st.drops) {
+        for (let i = 0; i < st.drops; i++) {
+          const sl = seg.s0 + 80 + (i + 0.3 + 0.4 * rng()) * (len - 160) / st.drops, wid = 6 + rng() * 4, side = rng() < 0.5 ? -1 : 1;
+          const u = side * Math.max(0, p.hw - wid * 0.5 - 2 - rng() * 3), D = 0.9 + rng() * 0.7;
+          if (!busy(sl - 80, sl + 50, u, wid * 0.5 + 6)) addFeat({ s: sl - 40, len: 58, lip: sl, u, wid, h: D, kind: 'drop' });
+        }
+      }
       planned += len;
     }
   }
@@ -566,7 +594,7 @@ const Course = ((vn1, vn2, h2U) => {
       for (let i = 0; i <= CH; i++) { const j = Math.min(CH / 32 - 1, i >> 5), f = (i - j * 32) / 32; c[i * NF + F.rtail] = T32[j] + (T32[j + 1] - T32[j]) * f; }
       for (let i = 0; i <= CH; i++) {
         const s = ci * CH + i, o = i * NF, p = paramsAt(s, _pp);
-        base64[i] = y; c[o + F.cx] = C.route ? cxI : centre(s, p.mean); c[o + F.enc] = p.enc; c[o + F.gU] = p.gU; c[o + F.hw] = p.hw; c[o + F.dish] = p.dish; c[o + F.shoulder] = p.shoulder; c[o + F.gul] = p.gul; c[o + F.gw] = p.gw;
+        base64[i] = y; c[o + F.cx] = C.route ? cxI : centre(s, p.mean); c[o + F.enc] = p.enc; c[o + F.gU] = p.gU; c[o + F.lip] = p.lip; c[o + F.hw] = p.hw; c[o + F.dish] = p.dish; c[o + F.shoulder] = p.shoulder; c[o + F.gul] = p.gul; c[o + F.gw] = p.gw;
         c[o + F.goff] = p.gAmp * Math.sin(gph); c[o + F.roll] = p.rollA * Math.sin(rph); c[o + F.mog] = p.mog; c[o + F.forest] = p.forest; c[o + F.glade] = p.glade; c[o + F.powder] = p.powder; c[o + F.ridge] = p.ridge;
         if (LV) { const sd = sideAt(s), nr = 1 - p.ridge; c[o + F.tilt] = sd[0] * nr; c[o + F.bank] = sd[1] * nr; }
         // (经典编排) a lane's bends are banked: the snow on the outside of each bend is piled into a berm a skier can lean into and ride
@@ -592,7 +620,7 @@ const Course = ((vn1, vn2, h2U) => {
   const _py = {};
   C.yawAt = function (s) { const a = at(s - 5, _py).cx; return Math.atan2(at(s + 35, _py).cx - a, 40); };
 
-  const cur = { baseY: 0, cx: 0, hw: 40, dish: 0, shoulder: 0.3, gul: 0, gw: 10, goff: 0, roll: 0, mog: 0, forest: 0, glade: 0, powder: 0, ridge: 0, wall: 1, rtail: 0, tilt: 0, bank: 0, enc: 0, gU: 0, s: 0 };
+  const cur = { baseY: 0, cx: 0, hw: 40, dish: 0, shoulder: 0.3, gul: 0, gw: 10, goff: 0, roll: 0, mog: 0, forest: 0, glade: 0, powder: 0, ridge: 0, wall: 1, rtail: 0, tilt: 0, bank: 0, enc: 0, gU: 0, lip: 0, s: 0 };
   function at(s, out) {
     out = out || cur;
     const ci = Math.floor(s / CH), c = chunk(ci), fs = s - ci * CH, i = Math.min(CH - 1, Math.floor(fs)), f = fs - i, o = i * NF, o2 = o + NF;
@@ -603,7 +631,7 @@ const Course = ((vn1, vn2, h2U) => {
     out.forest = c[o + 10] + (c[o2 + 10] - c[o + 10]) * f; out.glade = c[o + 11] + (c[o2 + 11] - c[o + 11]) * f; out.powder = c[o + 12] + (c[o2 + 12] - c[o + 12]) * f; out.ridge = c[o + 13] + (c[o2 + 13] - c[o + 13]) * f;
     out.wall = c[o + 14] + (c[o2 + 14] - c[o + 14]) * f; out.rtail = c[o + 15] + (c[o2 + 15] - c[o + 15]) * f;
     out.tilt = c[o + 16] + (c[o2 + 16] - c[o + 16]) * f; out.bank = c[o + 17] + (c[o2 + 17] - c[o + 17]) * f;
-    out.enc = c[o + 18] + (c[o2 + 18] - c[o + 18]) * f; out.gU = c[o + 19] + (c[o2 + 19] - c[o + 19]) * f;
+    out.enc = c[o + 18] + (c[o2 + 18] - c[o + 18]) * f; out.gU = c[o + 19] + (c[o2 + 19] - c[o + 19]) * f; out.lip = c[o + 20] + (c[o2 + 20] - c[o + 20]) * f;
     out.s = s; return out;
   }
   C.at = at;
@@ -668,6 +696,14 @@ const Course = ((vn1, vn2, h2U) => {
     // wall that only rose to the edge and stopped was a lip that threw whoever rode up it. Its curve changes smoothly all the way, so
     // riding up it and over the top takes a lateral speed no skier carries to leave the snow)
     if (c.bank !== 0) { const x = sat(((c.bank > 0 ? u : -u) / hw - 0.45) / 1.2); h += Math.abs(c.bank) * x * x * x * (10 - 15 * x + 6 * x * x); }
+    // (视频雪道, the owner's video: a run whose edges curl up, wind lips along a ridge and the berms either side of a narrow way through
+    // the trees, to ride up and slash. Rising from 0.62 of the half-width to its crest just past the edge, smooth all the way (no crease to
+    // throw a skier), falling away more slowly behind; its height wanders along the run, a lip is never one even kerb)
+    if (c.lip > 0.01) {
+      const r = au / hw, pk = 1.0 + 0.06 * vnoise1(s / 37 + (u > 0 ? 5.1 : 0), 83);
+      const t = r < pk ? sat((r - 0.62) / (pk - 0.62)) : sat(1 - (r - pk) / 0.55);
+      h += c.lip * (0.65 + 0.35 * vnoise1(s / 53 + (u > 0 ? 2.3 : 7.9), 84)) * t * t * (3 - 2 * t);
+    }
     // forested banks either side of the run, each stretch of the run with its own; on a ridge they fall away instead. Farther out they
     // level off into the valley's own walls, which do not care what the run below is doing
     // (from fifteen metres out the land answers less to the ridge here and more to the ridge above: c.rtail)
@@ -881,7 +917,7 @@ const Course = ((vn1, vn2, h2U) => {
     if (s < 60) d *= smooth(8, 60, s + au);       // keep the start gate clear
     // (金色雪旗 from the volcano's top: the first stretch is above the trees, open snow and rock of the cone; the forest begins below)
     if (d > 0 && typeof Metro !== 'undefined' && Metro.kind() === 'd') {
-      if (Variants.val.start === 'b') d *= smooth(650, 1500, s + 220 * vnoise2(x / 240, z / 240, 27));
+      if (Variants.val.start === 'b') d *= Variants.val.dsea === 'b' && Variants.val.dalp === 'b' ? smooth(1100, 1300, s) : smooth(650, 1500, s + 220 * vnoise2(x / 240, z / 240, 27));      // (视频雪道: the woods begin where the ridge ends)
       // (the owner 2026-11-18: fewer trees: stands with open snow between them, not one unbroken wood)
       if (au > c.hw + 4 && !(Variants.val.dsea === 'b' && e > 140)) d *= 0.35 + 0.65 * smooth(-0.05, 0.30, vnoise2(x / 150, z / 150, 33));
       // (above the tree line: no trees up high; below it, a long way down, a thin scatter of spruce, never a wood. Owner 2026-11-18 03:57:
