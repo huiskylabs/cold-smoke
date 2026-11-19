@@ -3,7 +3,7 @@
 // node tools/route-card/shots.js <ride.json> <out dir> [styles=abc] [diff=b]
 const path = require('path'), fs = require('fs'); const { chromium } = require('playwright');
 const ride = JSON.parse(fs.readFileSync(path.resolve(process.argv[2]), 'utf8')), outDir = path.resolve(process.argv[3] || 'route-card-out');
-const styles = (process.argv[4] || 'abc').split(''), diff = process.argv[5] || 'b', scale = +(process.env.SCALE || 1);
+const styles = (process.argv[4] || 'abc').split(',').length > 1 ? process.argv[4].split(',') : (process.argv[4] || 'abc').split(''), diff = process.argv[5] || 'b', scale = +(process.env.SCALE || 1);
 fs.mkdirSync(outDir, { recursive: true });
 (async () => {
   const b = await chromium.launch({ headless: true });
@@ -27,7 +27,7 @@ fs.mkdirSync(outDir, { recursive: true });
       const missed = r.rings.filter(q => !q.fin && !q.pass).length;
       const d = { track: r.track, rings: r.rings.filter(q => !q.fin), segs: r.segs, names: r.names, H, cx, trees: r.trees, T, split: r.split, player: '雪友', rank: 12, line, diff: dn, mountain: '寒烟山',
         score: r.tEnd + missed * pen, t: r.tEnd, pen, date: Date.UTC(2026, 10, 18, 22, 47), seed: 20261118 };
-      const cv = document.createElement('canvas'); cv.width = 1600 * scale; cv.height = 900 * scale;
+      const cv = document.createElement('canvas'); const PT = st.endsWith('v'); st = PT ? st.slice(0, -1) : st; cv.width = (PT ? 1200 : 1600) * scale; cv.height = (PT ? 1600 : 900) * scale;
       RouteCard.draw(cv, d, st); return cv.toDataURL('image/png');
     }, [r, ride.line === 'x' ? '越野线' : '速降线', DN[diff], PEN[diff], st, scale]);
     const f = path.join(outDir, 'route_' + ride.line + '_' + st + '.png'); fs.writeFileSync(f, Buffer.from(url.split(',')[1], 'base64'));

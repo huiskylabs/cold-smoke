@@ -264,11 +264,17 @@ const RouteCard = self.RouteCard = (() => {
   // Beck's Tube map (stations as numbered marks with the name beside, every stop the same mark). Paper, ink, and one strong red for the line.
   function drawD(g, W, H, d, st, TH) {
     TH = TH || THEMES.paper;
-    const u = W / 1600, T = d.track, n = T.length, sA = T[0][1], sB = st.sMax;
+    // (owner 23:59 UTC: 卡片一般都是竖的…适合竖屏) on a tall canvas (3:4, the shape of a 小红书 post) the words go above in one glass panel, the
+    // strips stand under it, the speed and the key at the foot; on a wide one the words sit in a column on the left as before
+    const PT = H > W, u = PT ? W / 1200 : W / 1600, T = d.track, n = T.length, sA = T[0][1], sB = st.sMax;
+    const Lo = PT ? { strips: [48, W / u - 48, 500, H / u - 300], panel: [36, 36, W / u - 72, 430], title: [72, 128, 56], diff: [74, 166], rule: [72, 188], time: [66, 300, 100], pen: [72, 336], who: [72, 376, 20],
+        stats: [700, 140, 210, 96, 2, 36], legend: [700, H / u - 254], speed: [72, H / u - 250, 560, 104], brand: [72, H / u - 62], code: [W / u - 72, H / u - 62, 'right'] }
+      : { strips: [452, W / u - 56, 92, H / u - 62], panel: [36, 40, 392, H / u - 80], title: [64, 124, 50], diff: [66, 156], rule: [64, 176], time: [61, 262, 76], pen: [64, 290], who: [64, 318, 16],
+        stats: [64, 372, 112, 58, 3, 24], legend: [64, 512], speed: [64, 0, 336, 70], brand: [64, H / u - 92], code: [64, H / u - 66, 'left'] };
     const INK = TH.ink, GREY = TH.grey, RED = TH.line, FOREST = TH.forest, FORESTD = TH.forestD, SNOWW = TH.snow, LOW = TH.low, SHADE = TH.shade, SHADE2 = TH.shade2, SUNW = TH.sun;
     TH.ground(g, W, H, u);
     // the strips: as many as keep each about 1.5 km, laid right of the panel
-    const N = cl(Math.round((sB - sA) / 1450), 2, 6), cX0 = 452 * u, cX1 = W - 56 * u, gap = 30 * u, cY0 = 92 * u, cY1 = H - 62 * u;
+    const N = cl(Math.round((sB - sA) / 1450), 2, 6), cX0 = Lo.strips[0] * u, cX1 = Lo.strips[1] * u, gap = (PT ? 24 : 30) * u, cY0 = Lo.strips[2] * u, cY1 = Lo.strips[3] * u;
     const cw = (cX1 - cX0 - gap * (N - 1)) / N, ch = cY1 - cY0, seg = (sB - sA + 40) / N, k = ch / seg;
     const cols = [];
     for (let c = 0; c < N; c++) {
@@ -389,39 +395,40 @@ const RouteCard = self.RouteCard = (() => {
     // between the strips: where the line goes on (an arrow from the foot of one strip to the head of the next)
     g.strokeStyle = TH.frame; g.lineWidth = 1 * u; g.fillStyle = GREY;
     for (let c = 0; c < N - 1; c++) { const a = cols[c], b = cols[c + 1], ya = cY1 + 16 * u, yb = cY0 - 30 * u; g.font = '500 ' + 10 * u + 'px ' + LAT; g.textAlign = 'center'; g.fillText('↓', a.mid, cY1 + 18 * u); g.fillText('↓', b.mid + cw * 0.36, cY0 - 26 * u); }
-    // the panel: name, time, numbers, the key, a strip of speed over the run, the code
-    const L = 64 * u; g.textAlign = 'left'; g.textBaseline = 'alphabetic'; if (TH.panel) TH.panel(g, W, H, u);
-    g.fillStyle = INK; g.font = '500 ' + 50 * u + 'px ' + SONG; g.fillText(d.line, L, 124 * u);
-    g.fillStyle = GREY; g.font = '400 ' + 17 * u + 'px ' + SONG; spaced(g, d.diff + ' · ' + d.mountain, L + 2 * u, 156 * u, 0.3 * 17 * u);
-    g.fillStyle = RED; g.fillRect(L, 176 * u, 34 * u, 3 * u);
-    g.fillStyle = INK; g.font = '300 ' + 76 * u + 'px ' + LAT; g.fillText(fmt(d.score), L - 3 * u, 262 * u);
-    const pen = d.score - d.t; if (pen > 0.01) { g.fillStyle = GREY; g.font = '400 ' + 13 * u + 'px ' + SONG; spaced(g, '用时 ' + fmt(d.t) + '  罚时 +' + pen.toFixed(0) + ' 秒', L, 290 * u, 0.1 * 13 * u); }
+    // the panel: name, time, who and the place, the numbers, the key, a strip of speed over the run, the code
+    g.textAlign = 'left'; g.textBaseline = 'alphabetic'; if (TH.panel) TH.panel(g, Lo.panel.map(v => v * u), u);
+    const at2 = (k, i) => Lo[k][i] * u;
+    g.fillStyle = INK; g.font = '500 ' + at2('title', 2) + 'px ' + SONG; g.fillText(d.line, at2('title', 0), at2('title', 1));
+    g.fillStyle = GREY; g.font = '400 ' + 17 * u * (PT ? 1.2 : 1) + 'px ' + SONG; spaced(g, d.diff + ' · ' + d.mountain, at2('diff', 0), at2('diff', 1), 0.3 * 17 * u);
+    g.fillStyle = RED; g.fillRect(at2('rule', 0), at2('rule', 1), 34 * u, 3 * u);
+    g.fillStyle = INK; g.font = '300 ' + at2('time', 2) + 'px ' + LAT; g.fillText(fmt(d.score), at2('time', 0), at2('time', 1));
+    const pen = d.score - d.t; if (pen > 0.01) { g.fillStyle = GREY; g.font = '400 ' + 13 * u * (PT ? 1.25 : 1) + 'px ' + SONG; spaced(g, '用时 ' + fmt(d.t) + '  罚时 +' + pen.toFixed(0) + ' 秒', at2('pen', 0), at2('pen', 1), 0.1 * 13 * u); }
     // who skied it and where it stands (小红书: the player's nickname from the boards, later the login; the place on this line's board)
-    { const who = d.player || '雪友', rk = d.rank != null ? (typeof d.rank === 'number' ? '第 ' + d.rank + ' 名' : String(d.rank)) : '';
-      g.fillStyle = INK; g.font = '400 ' + 16 * u + 'px ' + SONG; const ex = spaced(g, who, L, 318 * u, 0.12 * 16 * u);
-      if (rk) { g.fillStyle = RED; g.font = '400 ' + 16 * u + 'px ' + SONG; spaced(g, rk, ex + 14 * u, 318 * u, 0.12 * 16 * u); } }
-    const items = [[st.passed + '/' + st.tot, '光圈'], [(st.vmax * 3.6).toFixed(0), '最快 km/h'], [(st.dist / 1000).toFixed(2), '滑行 km'], [Math.round(st.drop).toLocaleString('en-US'), '落差 m'], [st.air.toFixed(1), '腾空 s'], [String(N), '折成几段']];
-    items.slice(0, 5).forEach(([v, k2], i) => { const x = L + (i % 3) * 112 * u, y = 372 * u + Math.floor(i / 3) * 58 * u; g.fillStyle = INK; g.font = '400 ' + 24 * u + 'px ' + LAT; g.fillText(v, x, y); g.fillStyle = GREY; g.font = '400 ' + 12 * u + 'px ' + SONG; spaced(g, k2, x, y + 20 * u, 0.12 * 12 * u); });
+    { const who = d.player || '雪友', rk = d.rank != null ? (typeof d.rank === 'number' ? '第 ' + d.rank + ' 名' : String(d.rank)) : '', fs = at2('who', 2);
+      g.fillStyle = INK; g.font = '400 ' + fs + 'px ' + SONG; const ex = spaced(g, who, at2('who', 0), at2('who', 1), 0.12 * fs);
+      if (rk) { g.fillStyle = RED; spaced(g, rk, ex + 14 * u, at2('who', 1), 0.12 * fs); } }
+    const items = [[st.passed + '/' + st.tot, '光圈'], [(st.vmax * 3.6).toFixed(0), '最快 km/h'], [(st.dist / 1000).toFixed(2), '滑行 km'], [Math.round(st.drop).toLocaleString('en-US'), '落差 m'], [st.air.toFixed(1), '腾空 s']];
+    { const [sx, sy, dx, dy, nc, vs] = Lo.stats;
+      items.forEach(([v, k2], i) => { const x = (sx + (i % nc) * dx) * u, y = (sy + Math.floor(i / nc) * dy) * u; g.fillStyle = INK; g.font = '300 ' + vs * u + 'px ' + LAT; g.fillText(v, x, y); g.fillStyle = GREY; g.font = '400 ' + (PT ? 14 : 12) * u + 'px ' + SONG; spaced(g, k2, x, y + (PT ? 26 : 20) * u, 0.12 * 12 * u); }); }
     // the key
-    let ky = 512 * u; g.fillStyle = GREY; g.font = '500 ' + 10.5 * u + 'px ' + LAT; spaced(g, 'LEGEND', L, ky, 0.4 * 10.5 * u); ky += 24 * u;
+    const L = at2('legend', 0); let ky = at2('legend', 1); g.fillStyle = GREY; g.font = '500 ' + 10.5 * u + 'px ' + LAT; spaced(g, 'LEGEND', L, ky, 0.4 * 10.5 * u); ky += 24 * u;
     g.lineCap = 'round'; [30, 70, 110].forEach((kmh, i) => { const x = L + i * 70 * u; g.strokeStyle = RED; g.lineWidth = wv(kmh / 3.6); g.beginPath(); g.moveTo(x, ky); g.lineTo(x + 34 * u, ky); g.stroke(); g.fillStyle = GREY; g.font = '400 ' + 10.5 * u + 'px ' + LAT; g.fillText(kmh, x + 38 * u, ky + 4 * u); });
     g.fillStyle = INK; g.font = '400 ' + 12 * u + 'px ' + SONG; g.fillText('线宽 = 速度 km/h', L + 214 * u, ky + 4 * u); ky += 28 * u;
     g.strokeStyle = TH.air; g.lineWidth = 1.2 * u; g.setLineDash([2 * u, 2.6 * u]); g.beginPath(); g.moveTo(L, ky); g.lineTo(L + 34 * u, ky); g.stroke(); g.setLineDash([]); g.fillText('腾空', L + 42 * u, ky + 4 * u);
     g.beginPath(); g.arc(L + 102 * u, ky, 2.6 * u, 0, 6.2832); g.strokeStyle = TH.miss; g.lineWidth = 1 * u; g.stroke(); g.fillText('漏掉的圈', L + 110 * u, ky + 4 * u);
     g.beginPath(); g.arc(L + 190 * u, ky, 8 * u, 0, 6.2832); g.fillStyle = TH.bestDisc; g.fill(); g.fillStyle = INK; g.fillText('最快的一站', L + 203 * u, ky + 4 * u); ky += 26 * u;
-    // speed over the run, Minard's lower strip: the red area is the speed, the station marks under it
-    const sy0 = ky + 26 * u, sh2 = 70 * u, sx1 = 400 * u, sxL = sx1 - L;
+    // speed over the run, Minard's lower strip: the filled area is the speed, the station marks under it
+    const sxA = at2('speed', 0), sy0 = PT ? at2('speed', 1) + 20 * u : ky + 26 * u, sh2 = at2('speed', 3) * (PT ? 0.8 : 1), sx1 = sxA + at2('speed', 2), sxL = sx1 - sxA;
     { let acc = 0; const Dd = [0]; for (let i = 1; i < n; i++) { acc += Math.hypot(T[i][0] - T[i - 1][0], T[i][1] - T[i - 1][1]); Dd.push(acc); }
-      g.fillStyle = TH.speedFill; g.beginPath(); g.moveTo(L, sy0 + sh2); for (let i = 0; i < n; i += 3) g.lineTo(L + Dd[i] / acc * sxL, sy0 + sh2 - T[i][3] / st.vmax * sh2); g.lineTo(sx1, sy0 + sh2); g.closePath(); g.fill();
-      g.strokeStyle = INK; g.lineWidth = 0.8 * u; g.beginPath(); g.moveTo(L, sy0 + sh2); g.lineTo(sx1, sy0 + sh2); g.stroke();
-      stations(d).forEach((q, i) => { const j = at(T, Math.max(sA + 3, q.s)), x = L + Dd[j] / acc * sxL; g.beginPath(); g.moveTo(x, sy0 + sh2); g.lineTo(x, sy0 + sh2 + 5 * u); g.stroke(); g.fillStyle = GREY; g.font = '500 ' + 8.5 * u + 'px ' + LAT; g.textAlign = 'center'; g.fillText(String(i + 1), x + 0, sy0 + sh2 + 15 * u); });
-      g.textAlign = 'left'; g.fillStyle = GREY; g.font = '400 ' + 11 * u + 'px ' + SONG; g.fillText('一路的速度', L, sy0 - 8 * u); }
-    // the foot: the card's code and date, the game
+      g.fillStyle = TH.speedFill; g.beginPath(); g.moveTo(sxA, sy0 + sh2); for (let i = 0; i < n; i += 3) g.lineTo(sxA + Dd[i] / acc * sxL, sy0 + sh2 - T[i][3] / st.vmax * sh2); g.lineTo(sx1, sy0 + sh2); g.closePath(); g.fill();
+      g.strokeStyle = INK; g.lineWidth = 0.8 * u; g.beginPath(); g.moveTo(sxA, sy0 + sh2); g.lineTo(sx1, sy0 + sh2); g.stroke();
+      stations(d).forEach((q, i) => { const j = at(T, Math.max(sA + 3, q.s)), x = sxA + Dd[j] / acc * sxL; g.beginPath(); g.moveTo(x, sy0 + sh2); g.lineTo(x, sy0 + sh2 + 5 * u); g.stroke(); g.fillStyle = GREY; g.font = '500 ' + 8.5 * u + 'px ' + LAT; g.textAlign = 'center'; g.fillText(String(i + 1), x + 0, sy0 + sh2 + 15 * u); });
+      g.textAlign = 'left'; g.fillStyle = GREY; g.font = '400 ' + 11 * u + 'px ' + SONG; g.fillText('一路的速度', sxA, sy0 - 8 * u); }
+    // the foot: the game, the card's code and the date
     const dt = new Date(d.date || Date.now()), ds = dt.getFullYear() + '.' + String(dt.getMonth() + 1).padStart(2, '0') + '.' + String(dt.getDate()).padStart(2, '0') + ' ' + String(dt.getHours()).padStart(2, '0') + ':' + String(dt.getMinutes()).padStart(2, '0');
-    g.fillStyle = INK; g.font = '500 ' + 22 * u + 'px ' + SONG; spaced(g, '雪迹', L, H - 92 * u, 0.3 * 22 * u); g.fillStyle = GREY; g.font = '500 ' + 10 * u + 'px ' + LAT; spaced(g, 'COLD SMOKE', L + 74 * u, H - 93 * u, 0.4 * 10 * u);
-    g.font = '500 ' + 11 * u + 'px ' + LAT; spaced(g, '#' + st.code + '   ' + ds, L, H - 66 * u, 0.2 * 11 * u);
+    g.fillStyle = INK; g.font = '500 ' + 22 * u + 'px ' + SONG; spaced(g, '雪迹', at2('brand', 0), at2('brand', 1), 0.3 * 22 * u); g.fillStyle = GREY; g.font = '500 ' + 10 * u + 'px ' + LAT; spaced(g, 'COLD SMOKE', at2('brand', 0) + 74 * u, at2('brand', 1) - 1 * u, 0.4 * 10 * u);
+    g.font = '500 ' + 11 * u + 'px ' + LAT; (Lo.code[2] === 'right' ? spacedR : spaced)(g, '#' + st.code + '   ' + ds, at2('code', 0), at2('code', 1), 0.2 * 11 * u);
   }
-
 
   // ---- the two looks of the plan card: paper (ink and one red, a printed map) and the game's own (雪迹's menus and result card: the dusk
   // glass, snow-white words, the sun's gold for what matters, coral for what was lost; Song serif names, light Jost figures)
@@ -440,7 +447,7 @@ const RouteCard = self.RouteCard = (() => {
         const sun = g.createRadialGradient(W * 0.12, H * 0.08, 0, W * 0.12, H * 0.08, W * 0.5); sun.addColorStop(0, 'rgba(255,214,160,.16)'); sun.addColorStop(1, 'rgba(255,214,160,0)'); g.fillStyle = sun; g.fillRect(0, 0, W, H);
         const R = rnd(91); for (let i = 0; i < 420; i++) { g.fillStyle = 'rgba(244,247,251,' + (0.03 + R() * 0.07).toFixed(3) + ')'; g.fillRect(R() * W, R() * H, 1.2 * u, 1.2 * u); } },
       // the result card's glass behind the words: rgba(5,8,13,.52), 12 px corners, a hairline inside
-      panel: (g, W, H, u) => { const x = 36 * u, y = 40 * u, w = 392 * u, h = H - 80 * u, r = 12 * u; g.save(); g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+      panel: (g, R4, u) => { const [x, y, w, h] = R4, r = 12 * u; g.save(); g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
         g.fillStyle = 'rgba(5,8,13,.52)'; g.fill(); g.strokeStyle = 'rgba(244,247,251,.22)'; g.lineWidth = 1 * u; g.stroke(); g.restore(); } },
   };
 
