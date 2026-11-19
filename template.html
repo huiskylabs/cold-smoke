@@ -301,20 +301,19 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #app.wide.short #say { height: 32px; } #app.wide.short.run #say { top: calc(var(--ht) + 48px); }
 /* a change of place is a cut: the picture dips to black over it, the words stay */
 #cut { position: absolute; inset: 0; background: var(--ink); opacity: 0; pointer-events: none; } #cut.slow { transition: opacity .26s ease; }
-/* held in the hands: the two moves, under the right thumb (the left one steers). Jump in the corner where the thumb lies, accelerate a reach inward */
+/* held in the hands: the two moves, under the right thumb (the left one steers). Jump in the corner where the thumb lies, accelerate a reach inward.
+   (owner 2026-11-19: subtle, little of the picture taken. Each is drawn as a hairline ring smaller than the button (::after), the button itself,
+   what a thumb can hit, stays as large; the view button is its glyph alone) */
 #pad button { position: absolute; appearance: none; -webkit-appearance: none; margin: 0; padding: 0; border: 0; border-radius: 50%; background: rgba(5, 8, 13, .30); box-shadow: inset 0 0 0 1px rgba(244, 247, 251, .36); color: var(--snow); font-family: var(--f-ui); text-shadow: 0 1px 8px rgba(5, 8, 13, .5);
   pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: background .12s ease, color .12s ease, transform .12s ease, box-shadow .12s ease; }
-#jump { right: calc(var(--gr) + 8px); bottom: calc(var(--gb) + 38px); width: 72px; height: 72px; font-size: 20px; }
-#tuck { right: calc(var(--gr) + 94px); bottom: calc(var(--gb) + 2px); width: 60px; height: 60px; font-size: 13px; letter-spacing: .12em; text-indent: .12em; }
-/* (the phone steering: the left thumb is free, so the weight forward and back sit there, fore above aft as on the keys. Shown only then, #app.tiltfa) */
-#pad .fab { left: calc(var(--gl) + 6px); width: 88px; height: 58px; border-radius: 16px; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
-#pad .fab b { font-weight: 500; font-size: 16px; letter-spacing: .08em; } #pad .fab small { font-size: 11px; opacity: .8; letter-spacing: .04em; }
-#fwd { bottom: calc(var(--gb) + 72px); } #aft { bottom: calc(var(--gb) + 2px); }
-#app.tiltfa #pad .fab { display: flex; }
-#app.en #pad .fab b { font-size: 13px; letter-spacing: .02em; } #app.en #pad .fab small { font-size: 10px; letter-spacing: 0; }
-#pad button.down { background: rgba(255, 208, 138, .92); box-shadow: none; color: #1b1408; text-shadow: none; transform: scale(.95); }
+#jump { right: calc(var(--gr) + 8px); bottom: calc(var(--gb) + 38px); width: 72px; height: 72px; font-size: 15px; }
+#tuck { right: calc(var(--gr) + 94px); bottom: calc(var(--gb) + 2px); width: 60px; height: 60px; font-size: 11px; letter-spacing: .1em; text-indent: .1em; }
+#pad button { background: none; box-shadow: none; isolation: isolate; color: rgba(244, 247, 251, .88); text-shadow: 0 0 3px rgba(5, 8, 13, .7); }
+#pad button::after { content: ""; position: absolute; inset: 9px; border-radius: 50%; z-index: -1; background: rgba(5, 8, 13, .10); box-shadow: inset 0 0 0 1px rgba(244, 247, 251, .5), 0 0 3px rgba(5, 8, 13, .35); transition: background .12s ease, box-shadow .12s ease; }
+#vw::after { display: none; } #pad #vw { color: rgba(244, 247, 251, .75); }
+#pad button.down { background: none; color: #1b1408; text-shadow: none; transform: scale(.95); } #pad button.down::after { background: rgba(255, 208, 138, .92); box-shadow: none; }
 /* (held, the jump loads: the ring round it closes as the legs fold) */
-#jump::before { content: ""; position: absolute; inset: -6px; border-radius: 50%; background: conic-gradient(var(--sun) calc(var(--k, 0) * 1turn), rgba(244, 247, 251, 0) 0); opacity: 0; transition: opacity .2s ease;
+#jump::before { content: ""; position: absolute; inset: 3px; border-radius: 50%; background: conic-gradient(var(--sun) calc(var(--k, 0) * 1turn), rgba(244, 247, 251, 0) 0); opacity: 0; transition: opacity .2s ease;
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 1.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 1.5px)); }
 #jump.down::before { opacity: 1; }
 /* (at a keyboard there is no button to ring: while the jump key is held the same ring stands at the foot of the picture, under the skier. Variants 'kring') */
@@ -328,6 +327,20 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 /* (under the open sheet of switches the two buttons step aside) */
 #pad button { transition: background .12s ease, color .12s ease, transform .12s ease, box-shadow .12s ease, opacity .3s ease; }
 #app.menuopen #pad button { opacity: 0; pointer-events: none; }
+/* the left thumb's cross (owner 2026-11-19): up 前压, down 后压, across steers, as the steering finger already does; a hairline plus and two small
+   words at rest in the corner, nothing more. A thumb put down anywhere carries it there (the drag is measured from where it came down) and
+   lights the arm it pushes along; let go, it goes back to the corner. The tilt steers at the same time (Input.update) */
+#cross { position: absolute; left: calc(var(--gl) + 4px); bottom: var(--gb); width: 104px; height: 104px; pointer-events: none; color: var(--snow); font-family: var(--f-ui); filter: drop-shadow(0 0 2px rgba(5, 8, 13, .6)); transition: opacity .3s ease; }
+#app.desk #cross, #app.menuopen #cross { opacity: 0; }
+#cross i, #cross b { position: absolute; display: block; }
+#cross .h { left: 14px; top: 52px; width: 76px; height: 1px; background: rgba(244, 247, 251, .35); }
+#cross .v { left: 52px; top: 20px; width: 1px; height: 64px; background: rgba(244, 247, 251, .35); }
+#cross b { left: 0; width: 104px; text-align: center; font-size: 11px; line-height: 14px; letter-spacing: .1em; font-weight: 400; opacity: .7; transition: color .12s ease, opacity .12s ease; }
+#cross .up { top: 0; } #cross .dn { bottom: 0; } #cross b.on { color: var(--sun); opacity: 1; }
+#app:not(.fa) #cross .v, #app:not(.fa) #cross b { display: none; }
+#cross .arm { left: 52.5px; top: 52px; width: 1px; height: 1px; transform-origin: 0 50%; transform: scaleX(0); background: var(--sun); }
+#cross .dot { left: 49px; top: 49px; width: 7px; height: 7px; border-radius: 50%; background: rgba(244, 247, 251, .7); }
+#cross.held .dot { background: var(--sun); }
 /* (held in the hands the drop stands on the speed's own line) */
 #hud #drop2 { display: none; font-style: normal; margin-left: 1.3em; } #app:not(.desk) #hud #drop2 { display: inline; }
 /* the title's other ways in: the menu at its scene, its views, its keys. Quieter than 出发, beside it */
@@ -444,7 +457,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #app.en #menu .note, #app.en #menu .keys, #app.en #menu .chips button, #app.en #menu .cards button, #app.en #menu .tiles button { letter-spacing: .03em; }
 #app.en #menu .vrow > span { width: 9em; letter-spacing: .02em; } #app.en #menu .vrow button, #app.en #menu .vgrp > i { letter-spacing: .04em; } #app.en #menu .vrow button { white-space: nowrap; }
 #app.en #pause b { letter-spacing: .1em; margin-right: -.1em; }
-#app.en #tuck { font-size: 12px; letter-spacing: .06em; text-indent: .06em; } #app.en #jump { font-size: 15px; letter-spacing: .04em; }
+#app.en #tuck { font-size: 10px; letter-spacing: .04em; text-indent: .04em; } #app.en #jump { font-size: 12px; letter-spacing: .02em; }
 @media (prefers-reduced-motion: reduce) { #go::after, #hint i::before, #hint i::after { animation: none; } }
 #fatal { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px)); font: 12px/1.4 ui-monospace, Menlo, monospace; color: #ffb4a8; background: rgba(40, 8, 4, .9); white-space: pre-wrap; z-index: 99; max-height: 40%; overflow: auto; }
 
@@ -518,8 +531,9 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
     <div id="clock"><div class="t"><svg id="clk-g" viewBox="0 0 16 16" aria-hidden="true"></svg><b id="clk-t">10:19</b></div><small class="sub" id="clk-s">小雪 · 上午</small></div>
     <div id="day"><small class="k" id="day-k"></small><b class="t" id="day-t"></b><i class="rule"></i><div class="fs" id="day-f"></div><small class="rk" id="day-r"></small></div>
     <div id="chg" aria-hidden="true"></div>
+    <div id="cross" aria-hidden="true"><i class="h"></i><i class="v"></i><i class="arm"></i><b class="up">前压</b><b class="dn">后压</b><i class="dot"></i></div>
     <div id="steer"><i class="l"></i><i class="v" id="steer-v"></i><i class="a"></i><i class="b"></i><i class="o"></i></div>
-    <div id="pad"><button id="vw" type="button" aria-label="换视角"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="6" width="11" height="9" rx="2"/><path d="M13.5 9l4-2.2v7.4l-4-2.2"/></svg></button><button id="tuck" type="button" aria-label="加速">加速</button><button id="jump" type="button" aria-label="跳">跳</button><button id="fwd" class="fab" type="button" aria-label="前压"><b>前压</b><small>搓雪减速</small></button><button id="aft" class="fab" type="button" aria-label="后压"><b>后压</b><small>压刃拐急</small></button></div>
+    <div id="pad"><button id="vw" type="button" aria-label="换视角"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="6" width="11" height="9" rx="2"/><path d="M13.5 9l4-2.2v7.4l-4-2.2"/></svg></button><button id="tuck" type="button" aria-label="加速">加速</button><button id="jump" type="button" aria-label="跳">跳</button></div>
   </section>
   <div id="bar">
     <button id="mn" type="button" aria-label="菜单" aria-expanded="false" aria-controls="menu"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12"/></svg></button>
@@ -575,7 +589,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
           <div class="keys"><b>V</b><span>换视角</span><b>M　F</b><span>静音 · 全屏</span><b>Esc　H</b><span>菜单 · 这一页</span></div>
           <div class="keys dev-only"><b>T　X</b><span>换时间 · 换天气</span><b>N</b><span>下一种路段</span><b>G　P</b><span>叫出动物 · 航班</span><b>R</b><span>换一座山</span><b>`</b><span>版本对比</span></div>
         </div>
-        <div class="keys hand-only"><b>按住拖动</b><span>左右拖动转弯，拖过刻度就切雪</span><b class="fa-only">上下拖动</b><span class="fa-only">转弯时往下拖压刃拐急，往上拖搓雪减速</span><b class="fa-only">倾斜手机</b><span class="fa-only">像方向盘一样左右倾转弯；这时左边出现两个按钮：「前压」，转弯时板尾甩出去搓雪减速；「后压」，转弯时压刃拐得更急</span><b>跳</b><span>按住蓄力，松开起跳</span><b>加速</b><span>按住压低，慢的时候自动撑杖</span><b>机位</b><span>换视角</span><b>两指拖动</b><span>环顾四周</span></div>
+        <div class="keys hand-only"><b>左手 左右推</b><span>转弯。屏幕上任意处按住都行，推得越远转得越急</span><b class="fa-only">左手 往上推</b><span class="fa-only">前压：转弯时板尾甩出去搓雪，用来减速</span><b class="fa-only">左手 往下推</b><span class="fa-only">后压：转弯时压刃，弯拐得更急、咬得更稳</span><b class="fa-only">斜着推</b><span class="fa-only">转弯和前压 / 后压一起</span><b>倾斜手机</b><span>像方向盘一样左右倾也能转弯，可以和左手一起用</span><b>跳</b><span>按住蓄力，松开起跳</span><b>加速</b><span>按住压低，慢的时候自动撑杖</span><b>机位</b><span>换视角</span><b>两指拖动</b><span>环顾四周</span></div>
         <p class="note desk-only">Shift + 字母 往回切换。</p>
         <p class="note">暂停菜单里点「拍照」：时间全部停住，界面收起，自由移动镜头取景，再按快门存图。</p></section>
       <section data-sec="opt"><h4>SETTINGS · 设置<kbd>M</kbd><kbd>F</kbd></h4><div class="chips opts"><button type="button" id="o-snd" aria-pressed="true">声音 开</button><button type="button" id="o-fs" aria-pressed="false">全屏</button><button type="button" id="o-lang" lang="en">English</button><button type="button" id="o-q">画质 自动</button></div>

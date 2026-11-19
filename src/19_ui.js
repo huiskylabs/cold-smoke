@@ -16,7 +16,7 @@ const UI = (() => {
       seg: $('seg'), segEn: $('seg-en'), segCn: $('seg-cn'), hint: $('hint'), hintT: $('hint-t'), spd: $('spd'), tach: $('tach'), drop: $('drop'), snd: $('snd'), fs: $('fs'),
       bar: $('bar'), mn: $('mn'), menu: $('menu'), nav: $('menu').querySelector('nav'), pane: $('mpane'), mk: $('m-k'), mGo: $('m-go'), mTop: $('m-top'), mBack: $('m-back'), oSnd: $('o-snd'), oFs: $('o-fs'), oLang: $('o-lang'), oQ: $('o-q'),
       time: $('sw-time'), kinds: $('sw-seg'), ev: $('sw-ev'), view: $('sw-view'), seed: $('sw-seed'), skied: $('sw-skied'), more: $('more'), drop2: $('drop2'), vw: $('vw'),
-      say: $('say'), sayK: $('say-k'), sayV: $('say-v'), cut: $('cut'), jump: $('jump'), tuck: $('tuck'), fwd: $('fwd'), aft: $('aft'),
+      say: $('say'), sayK: $('say-k'), sayV: $('say-v'), cut: $('cut'), jump: $('jump'), tuck: $('tuck'), cross: $('cross'),
       pause: $('pause'), pauseS: $('pause-s'), pauseT: $('pause-t'), steer: $('steer'), steerV: $('steer-v'), chg: $('chg'),
       clk: $('clock'), clkT: $('clk-t'), clkS: $('clk-s'), clkG: $('clk-g') };
     // developer mode (?dev, or a path ending in /dev; never in the 小红书 build). The time, the weather, the encounters and the versions
@@ -144,7 +144,7 @@ const UI = (() => {
     }
     // (where the phone can steer: the page's tilt outside a frame, or the 小工具's gyroscope once it reports, Input.onTiltOn)
     const tilt = !framed || Input.tiltLive();
-    const steering = fa ? (tilt && Variants.val.tilt === 'a' ? '倾斜手机转弯，转弯时按左边「前压」搓雪减速、「后压」压刃拐急；也可以按住屏幕拖' : '按住屏幕，左右拖转弯，转弯时往下拖压刃拐急，往上拖搓雪减速') : !tilt ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
+    const steering = fa ? (tilt ? '左手左右推或倾斜手机转弯，转弯时往上推前压搓雪减速，往下推后压压刃拐急' : '左手左右推转弯，转弯时往上推前压搓雪减速，往下推后压压刃拐急') : !tilt ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
     /*native{*/
     if (self.COLD_SMOKE?.nativeWindow) {
       const gesture = fa ? '左右拖转弯，下拖压刃，上拖减速' : steering;
@@ -204,14 +204,12 @@ const UI = (() => {
   function showHint(kind) {
     U.hintKind = kind; el.hint.className = kind + ' on';
     el.hintT.textContent = T(kind === 'tilt' ? '像握方向盘一样倾斜手机' : kind === 'drag' ? '按住屏幕，左右拖动' : kind === 'pace' ? '连着转弯，把雪扬起来'
-      : kind === 'fa2' ? '左边「前压」：转弯时搓雪减速 · 「后压」：转弯时压刃拐急'
+      : kind === 'fa2' ? '左手往上推「前压」：转弯时搓雪减速 · 往下推「后压」：压刃拐急'
       : kind === 'moves' ? (U.hh ? '按住「跳」蓄力，松开起跳' : faOn() ? '转弯时按住 ↓ 压刃拐急 · ↑ 搓雪减速 · 空格 跳' : '空格 跳（按住蓄力） · ↓ 加速') : '← →  或  A D  转弯');
   }
   // per displayed frame
   U.frame = function (dt) {
     if (!el) return;
-    // (the two buttons at the left, 前压 / 后压: only while the phone steers, where the left thumb is free; see Input.faButtons)
-    { const on = U.hh && Input.faButtons(); if (on !== !!U.faBtn) { U.faBtn = on; el.app.classList.toggle('tiltfa', on); if (!on) { Input.btn.fwd = Input.btn.aft = false; if (el.fwd) { el.fwd.classList.remove('down'); el.aft.classList.remove('down'); } } } }
     if (U.state !== 'load') { switches(dt); clockFrame(); }
     if (U.state !== 'run') return;
     const S = Game.s, since = (performance.now() - U.t0) / 1000;
@@ -219,8 +217,8 @@ const UI = (() => {
     if (!U.hintKind && since > 0.7) showHint(Input.tiltLive() ? 'tilt' : U.hh ? 'drag' : 'keys');
     // (once the first turns are made, an invitation: link them, and throw the snow up; and after that the two moves: the jump, and the
     // push or tuck that makes speed)
-    // (the phone steering with the two buttons at the left: first what they do, then the rest)
-    else if (U.hintKind === 'gap' || U.hintKind === 'gap2' || U.hintKind === 'gap4') { U.hintT += dt; if (U.hintT > 1.0) { showHint(U.hintKind === 'gap' ? (Input.faButtons() ? 'fa2' : 'pace') : U.hintKind === 'gap4' ? 'pace' : 'moves'); U.hintT = 0; } }
+    // (held in the hands with fore/aft on: first what the thumb's up and down do, then the rest)
+    else if (U.hintKind === 'gap' || U.hintKind === 'gap2' || U.hintKind === 'gap4') { U.hintT += dt; if (U.hintT > 1.0) { showHint(U.hintKind === 'gap' ? (U.hh && faOn() ? 'fa2' : 'pace') : U.hintKind === 'gap4' ? 'pace' : 'moves'); U.hintT = 0; } }
     else if (U.hintKind === 'pace' || U.hintKind === 'moves' || U.hintKind === 'fa2') { U.hintT += dt; if (U.hintT > (U.hintKind === 'fa2' ? 6.5 : 5.5)) { el.hint.classList.remove('on'); U.hintKind = U.hintKind === 'pace' ? 'gap2' : U.hintKind === 'fa2' ? 'gap4' : 'done'; U.hintT = 0; } }
     else if (U.hintKind && U.hintKind !== 'done') {
       if (U.hintKind !== 'tilt' && Input.tiltLive() && !Input.used) showHint('tilt');
@@ -485,7 +483,7 @@ const UI = (() => {
     el.pane.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
     el.nav.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
     $('view').addEventListener('pointerdown', e => { gy.id = e.pointerId; gy.y = View.y(e); });
-    holdBtn(el.jump, 'jump'); holdBtn(el.tuck, 'tuck'); if (el.fwd) { holdBtn(el.fwd, 'fwd'); holdBtn(el.aft, 'aft'); }
+    holdBtn(el.jump, 'jump'); holdBtn(el.tuck, 'tuck');
     // the next view, under the thumb (a press here never reaches the picture, where it would steer)
     el.vw.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); });
     el.vw.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); U.nextView(1); });
@@ -972,7 +970,8 @@ const UI = (() => {
     // the steering finger: from where it came down to where it is (no further than full lock: past that nothing more happens), and whether
     // it is past the carve. The two numbers are Input's lock distance and the game's carve range (0.72 of full lock)
     { const d = U.state === 'run' && !hold ? Input.drag : null;
-      if (d && gy.id === d.id) {
+      if (U.hh && el.cross) crossFrame(d && gy.id === d.id ? d : null);
+      else if (d && gy.id === d.id) {
         const L = Math.min(View.w || innerWidth, (View.h || innerHeight) * 1.4, 900) * 0.2, c = L * 0.72, dx = clamp(d.x - d.x0, -L, L), over = Math.abs(dx) > c, neg = dx < 0;
         if (!gy.on) { gy.on = true; el.steer.style.transform = 'translate(' + d.x0.toFixed(1) + 'px, ' + gy.y.toFixed(1) + 'px)'; el.steer.style.setProperty('--c', c.toFixed(1) + 'px'); el.steer.classList.add('on'); }
         el.steer.firstElementChild.style.transform = 'scaleX(' + dx.toFixed(1) + ')';
@@ -985,6 +984,23 @@ const UI = (() => {
     if (el.chg && Variants.val.kring === 'b') { const on = !!Input.jump && !Input.btn.jump && Game.s.charge > 0, k = on ? sat(Game.s.charge || 0) : (U.shown.kk || 0);
       if (on !== !!U.shown.kon) { U.shown.kon = on; el.chg.classList.toggle('on', on); } if (k !== (U.shown.kk || 0)) { U.shown.kk = k; el.chg.style.setProperty('--k', k.toFixed(3)); } }
     swAcc += dt; if (U.open && swAcc > 0.25) { swAcc = 0; paint(); }
+  }
+  // the left thumb's cross (template #cross): carried to where the thumb came down, the dot and the lit arm follow it as far as full lock
+  // (the same lock distance as Input), the word lit for the weight it asks for (past the same play as Input's)
+  const cr = { on: false, up: false, dn: false };
+  function crossFrame(d) {
+    const c = el.cross, dot = c.querySelector('.dot'), arm = c.querySelector('.arm'), ub = c.querySelector('.up'), db = c.querySelector('.dn');
+    if (!d) {
+      if (cr.on) { cr.on = cr.up = cr.dn = false; c.classList.remove('held'); c.style.left = c.style.top = c.style.bottom = ''; dot.style.transform = ''; arm.style.transform = ''; ub.classList.remove('on'); db.classList.remove('on'); }
+      return;
+    }
+    const L = Math.min(View.w || innerWidth, (View.h || innerHeight) * 1.4, 900) * 0.2, R = 34 / L;
+    if (!cr.on) { cr.on = true; c.classList.add('held'); c.style.left = (d.x0 - 52).toFixed(1) + 'px'; c.style.top = (d.y0 - 52).toFixed(1) + 'px'; c.style.bottom = 'auto'; }
+    const px = clamp(d.x - d.x0, -L, L) * R, py = faOn() ? clamp(d.y - d.y0, -L, L) * R : 0, len = Math.hypot(px, py);
+    dot.style.transform = 'translate(' + px.toFixed(1) + 'px, ' + py.toFixed(1) + 'px) scale(1.5)';
+    arm.style.transform = 'rotate(' + Math.atan2(py, px).toFixed(3) + 'rad) scaleX(' + len.toFixed(1) + ')';
+    const up = py < -0.08 * 34, dn = py > 0.08 * 34;
+    if (up !== cr.up) { cr.up = up; ub.classList.toggle('on', up); } if (dn !== cr.dn) { cr.dn = dn; db.classList.toggle('on', dn); }
   }
   return U;
 })();

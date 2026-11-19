@@ -52,13 +52,13 @@ const Input = (() => {
   // powder; the old edge lets go twice as fast. (b is the one the owner played and chose, default since 2026-11-18; c twice its delay, tried and not chosen) The carve, its limit, the wash and the scrape heard read the edges; the body's
   // lean, which the pose reads, still leads. Read in step()
   // the phone's tilt (owner 2026-11-19). a: tilt steers, and only steers: the owner tried tilt doing forward and back too and it was too hard
-  // to control, so while the phone steers two buttons at the left (前压 / 后压, Input.btn.fwd / aft) do what ↑ and ↓ do on a keyboard.
-  // b: the phone tipped forward (the top edge away) is the weight on the shovels, tipped back the tails, from however it was held as the run
-  // started, and the buttons go. c: b with forward and back the other way round. In the 小红书 小工具, where the page's own tilt is switched
+  // to control. Forward and back are the left thumb's up and down (前压 / 后压 on the cross, 19_ui.js), which works with the tilt at once:
+  // the thumb's across adds to the tilt's. b: the phone tipped forward (the top edge away) is the weight on the shovels, tipped back the
+  // tails, from however it was held as the run started. c: b with forward and back the other way round. In the 小红书 小工具, where the page's own tilt is switched
   // off, the container's gyroscope (only how fast the phone turns, no angle: see I.onGyro) gives the tilt
-  Variants.def('tilt', '手机倾斜', [['a', '转弯 + 左边按钮'], ['b', '转弯 + 前后倾'], ['c', '前后倾反过来']], 'a');
+  Variants.def('tilt', '手机倾斜', [['a', '只转弯'], ['b', '转弯 + 前后倾'], ['c', '前后倾反过来']], 'a');
   Variants.def('ebite', '换刃咬雪', [['a', '原来'], ['b', '随雪况'], ['c', '两倍延迟']], 'b');
-  const I = { u: 0, fa: 0, faV: 0, faT: 0, faScript: null, btn: { jump: false, tuck: false, fwd: false, aft: false }, jump: false, tuck: false, mode: 'touch', xr: null, tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, pitch: 0, pitch0: 0, gyro: null, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
+  const I = { u: 0, fa: 0, faV: 0, faT: 0, faScript: null, btn: { jump: false, tuck: false }, jump: false, tuck: false, mode: 'touch', xr: null, tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, pitch: 0, pitch0: 0, gyro: null, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
   I.init = function (el) {
     addEventListener('keydown', e => { if (e.code !== I.mute) I.keys[e.code] = true; }); addEventListener('keyup', e => { I.keys[e.code] = false; if (e.code === I.mute) I.mute = null; });
     // (I.mute: a key the interface has used, held down still: a space that confirmed a menu or started the run is not also a jump)
@@ -111,8 +111,6 @@ const Input = (() => {
   }
   // forward and back from the tilt, -1..1, or null where the tilt is not to give it (Variants 'tilt' a, or not tilting)
   I.faTilt = () => Variants.val.tilt !== 'a' && I.tiltLive();
-  // the two buttons at the left are wanted: the phone steering (no finger), fore/aft on, the tilt not doing forward and back itself
-  I.faButtons = () => Variants.val.fa === 'b' && Variants.val.tilt === 'a' && I.tiltLive();
   function tiltFa() {
     const d = (I.pitch - I.pitch0) * (Variants.val.tilt === 'c' ? -1 : 1);
     return clamp(sign(d) * Math.max(0, Math.abs(d) - 0.06) / 0.30, -1, 1);             // (3.5 degrees of play, all of it by 21 degrees)
@@ -148,9 +146,12 @@ const Input = (() => {
     }
     if (!fb) I.kbV = 0;
     let t = 0;
-    if (I.drag) { t = clamp((I.drag.x - I.drag.x0) / (Math.min(View.w || innerWidth, (View.h || innerHeight) * 1.4, 900) * 0.2), -1, 1); if (fb) t = sign(t) * Math.max(0, Math.abs(t) - 0.04) / 0.96; I.mode = 'touch'; }
+    // (the tilt and the thumb together, owner 2026-11-19: the phone tipped steers, and a thumb across adds to it; a thumb only up or down,
+    // for the weight, leaves the tilt's turn as it is)
+    const tl = I.tiltLive() ? (() => { const d = I.gx - I.zero; return clamp(sign(d) * Math.max(0, Math.abs(d) - 0.025) / 0.40, -1, 1); })() : 0;
+    if (I.drag) { t = clamp((I.drag.x - I.drag.x0) / (Math.min(View.w || innerWidth, (View.h || innerHeight) * 1.4, 900) * 0.2), -1, 1); if (fb) t = sign(t) * Math.max(0, Math.abs(t) - 0.04) / 0.96; t = clamp(t + tl, -1, 1); I.mode = 'touch'; }
     else if (I.xr) { t = I.xr.steer; I.mode = 'xr'; }                     // (in a headset: the head leaned or tipped to the side, 21_xr.js)
-    else if (I.tiltLive()) { const d = I.gx - I.zero; t = clamp(sign(d) * Math.max(0, Math.abs(d) - 0.025) / 0.40, -1, 1); I.mode = 'tilt'; }
+    else if (I.tiltLive()) { t = tl; I.mode = 'tilt'; }
     t = clamp(t + I.kb/*native{*/ + (I.pad?.steer || 0)/*}native*/, -1, 1);
     if (I.script != null) t = I.script;
     if (Math.abs(t) > 0.25) I.used = true;
@@ -163,7 +164,7 @@ const Input = (() => {
     // weight, not at a blow: the same critically damped spring as the steering keys, nine tenths of the way in about a third of a second.
     // The steering finger's height from where it came down does the same, at the same scale as across; a script, if set, overrides both)
     I.jump = !!(K.Space || I.btn.jump/*native{*/ || I.pad?.jump/*}native*/); I.tuck = !!(K.ShiftLeft || K.ShiftRight || I.btn.tuck/*native{*/ || I.pad?.tuck/*}native*/);
-    const kf = (K.ArrowUp || K.KeyW || I.btn.fwd ? 1 : 0) - (K.ArrowDown || K.KeyS || I.btn.aft ? 1 : 0);      // (and the two buttons at the left while the phone steers)
+    const kf = (K.ArrowUp || K.KeyW ? 1 : 0) - (K.ArrowDown || K.KeyS ? 1 : 0);
     { const want = kf, w = Math.abs(want) >= Math.abs(I.fa) && want * I.fa >= 0 ? 11 : 15, x = I.fa - want, vv = I.faV, ee = Math.exp(-w * dt), bb = (vv + w * x) * dt; I.fa = want + (x + bb) * ee; I.faV = (vv - w * bb) * ee; }
     let f = I.fa/*native{*/ + (I.pad?.fa || 0)/*}native*/;
     if (I.xr) f += I.xr.fa;                                              // (in a headset: the head over the tips or back over the tails)

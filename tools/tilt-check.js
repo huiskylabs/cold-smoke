@@ -1,4 +1,5 @@
-// Checks the phone's tilt steering and the two buttons at the left (▲ 前压 / ▼ 后压), headless, in a landscape phone frame.
+// Checks the phone's tilt steering, the left thumb's cross (前压 up, 后压 down, across steers, with the tilt at once) and the right buttons,
+// headless, in a landscape phone frame.
 //   node tools/tilt-check.js <dist/index.html> <dist-xhs/index.html> <out dir>
 // web: fake deviceorientation events; xhs: a fake window.xhs.miniTool gyroscope. Writes shots and prints PASS / FAIL lines.
 const { chromium } = require('playwright'), path = require('path'), fs = require('fs');
@@ -35,31 +36,44 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     await page.evaluate(() => UI.go());
     await page.waitForFunction(() => UI.state === 'run', null, { timeout: 60000 });
     await wait(2500);
-    const st = await page.evaluate(() => ({ mode: Input.mode, cls: document.getElementById('app').classList.contains('tiltfa'), fwd: getComputedStyle(document.getElementById('fwd')).display, hint: document.getElementById('hint') && document.getElementById('hint').textContent }));
-    ok(kind + ' buttons shown while the phone steers', st.mode === 'tilt' && st.cls && st.fwd === 'flex', st);
-    await page.screenshot({ path: path.join(out, kind + '_2_run_buttons.png') });
+    await page.screenshot({ path: path.join(out, kind + '_2_run.png') });
+    const st0 = await page.evaluate(() => { const c = document.getElementById('cross'), r = c.getBoundingClientRect(), o = getComputedStyle(c).opacity;
+      const bb = id => { const q = document.getElementById(id).getBoundingClientRect(); return [Math.round(q.width), Math.round(q.height)]; };
+      return { mode: Input.mode, cross: [Math.round(r.left), Math.round(r.bottom), Math.round(r.width)], op: o, jump: bb('jump'), tuck: bb('tuck'), vw: bb('vw'), H: innerHeight }; });
+    ok(kind + ' cross at rest in the bottom-left corner, buttons keep their size', st0.op === '1' && st0.cross[0] < 60 && st0.H - st0.cross[1] < 60 && st0.jump[0] === 72 && st0.tuck[0] === 60 && st0.vw[0] === 44, st0);
     // steer right by tilt
     if (kind === 'web') await page.evaluate(() => { window.__o.gamma = 20; }); else await page.evaluate(() => { window.__w.z = -1.2; });
     await wait(kind === 'web' ? 600 : 350);
     if (kind === 'xhs') await page.evaluate(() => { window.__w.z = 0; });
     const u1 = await page.evaluate(() => Input.u);
     ok(kind + ' tilt right steers right', u1 > 0.3, { u: u1 });
-    if (kind === 'xhs') { await wait(9000); const u2 = await page.evaluate(() => Input.u); ok('xhs steering eases back to centre', Math.abs(u2) < Math.abs(u1) * 0.4, { u: u2 }); }
-    else { await page.evaluate(() => { window.__o.gamma = 0; }); await wait(400); }
-    // press ▲ then ▼ with a touch
-    for (const [id, sgn] of [['fwd', 1], ['aft', -1]]) {
-      const bx = await page.locator('#' + id).boundingBox();
-      const cx = bx.x + bx.width / 2, cy = bx.y + bx.height / 2;
-      await page.evaluate(([id]) => { const e = document.getElementById(id); e.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 7, bubbles: true, cancelable: true, pointerType: 'touch' })); }, [id]);
-      await wait(600);
-      const f = await page.evaluate(() => ({ faT: Input.faT, drag: !!Input.drag }));
-      if (id === 'fwd') await page.screenshot({ path: path.join(out, kind + '_3_fwd_down.png') });
-      await page.evaluate(([id]) => { const e = document.getElementById(id); e.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, bubbles: true, cancelable: true, pointerType: 'touch' })); }, [id]);
-      ok(kind + ' ' + id + ' gives weight ' + (sgn > 0 ? 'forward' : 'back') + ', no steering drag', f.faT * sgn > 0.8 && !f.drag, f);
-      await wait(500);
-      const f2 = await page.evaluate(() => Input.faT); ok(kind + ' ' + id + ' let go: centred again', Math.abs(f2) < 0.1, { faT: f2 });
-    }
-    // a finger steering: tilt no longer counts (buttons may stay; drag wins)
+    // a thumb pushed straight up while the tilt steers: Fore, and the tilt's turn kept
+    const view = await page.locator('#view').boundingBox();
+    const x0 = view.x + 120, y0 = view.y + view.height - 120;
+    await page.evaluate(([x, y]) => { const v = document.getElementById('view'); v.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 9, clientX: x, clientY: y, bubbles: true, pointerType: 'touch' })); }, [x0, y0]);
+    await page.evaluate(([x, y]) => { const v = document.getElementById('view'); v.dispatchEvent(new PointerEvent('pointermove', { pointerId: 9, clientX: x, clientY: y - 90, bubbles: true, pointerType: 'touch' })); }, [x0, y0]);
+    await wait(400);
+    const f = await page.evaluate(() => ({ faT: Input.faT, u: Input.u, up: document.querySelector('#cross .up').classList.contains('on'), held: document.getElementById('cross').classList.contains('held') }));
+    ok(kind + ' thumb up = Fore, lit, tilt still turning', f.faT > 0.8 && f.up && f.held && (kind === 'xhs' || f.u > 0.3), f);
+    await page.screenshot({ path: path.join(out, kind + '_3_thumb_up.png') });
+    // then down and to the right: Aft and a harder turn
+    await page.evaluate(([x, y]) => { const v = document.getElementById('view'); v.dispatchEvent(new PointerEvent('pointermove', { pointerId: 9, clientX: x + 100, clientY: y + 100, bubbles: true, pointerType: 'touch' })); }, [x0, y0]);
+    await wait(400);
+    const g = await page.evaluate(() => ({ faT: Input.faT, u: Input.u, dn: document.querySelector('#cross .dn').classList.contains('on') }));
+    ok(kind + ' thumb down-right = Aft + right turn', g.faT < -0.8 && g.dn && g.u > 0.6, g);
+    await page.screenshot({ path: path.join(out, kind + '_4_thumb_downright.png') });
+    await page.evaluate(() => { const v = document.getElementById('view'); v.dispatchEvent(new PointerEvent('pointerup', { pointerId: 9, bubbles: true, pointerType: 'touch' })); });
+    await wait(500);
+    const h = await page.evaluate(() => ({ faT: Input.faT, held: document.getElementById('cross').classList.contains('held'), drag: !!Input.drag }));
+    ok(kind + ' let go: centred, cross back in the corner', Math.abs(h.faT) < 0.1 && !h.held && !h.drag, h);
+    if (kind === 'web') await page.evaluate(() => { window.__o.gamma = 0; });
+    // the jump button still takes a press
+    await page.evaluate(() => document.getElementById('jump').dispatchEvent(new PointerEvent('pointerdown', { pointerId: 11, bubbles: true, cancelable: true, pointerType: 'touch' })));
+    await wait(200);
+    const jb = await page.evaluate(() => ({ jump: Input.btn.jump, down: document.getElementById('jump').classList.contains('down') }));
+    await page.screenshot({ path: path.join(out, kind + '_5_jump_down.png') });
+    await page.evaluate(() => document.getElementById('jump').dispatchEvent(new PointerEvent('pointerup', { pointerId: 11, bubbles: true, cancelable: true, pointerType: 'touch' })));
+    ok(kind + ' jump button pressed', jb.jump && jb.down, jb);
     await ctx.close();
   }
   await b.close();
