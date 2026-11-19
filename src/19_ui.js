@@ -594,6 +594,12 @@ const UI = (() => {
         }
         const versBtn = el.nav.querySelector('[data-sec="vers"]'); if (versBtn) versBtn.hidden = !defs.length;
       }
+      // how long the start-up took on this device, stage by stage (App.bootT, 99_main.js): for reading off a phone with a screenshot
+      if (!el.vboot && el.vrows.parentNode) { el.vboot = document.createElement('p'); el.vboot.className = 'note'; el.vboot.style.cssText = 'opacity:.7;font-size:11px;line-height:1.5'; el.vrows.parentNode.insertBefore(el.vboot, el.vrows); }
+      if (el.vboot && typeof App !== 'undefined' && App.bootT && App.bootT.length) {
+        const B = App.bootT, r = B.find(x => x[0] === 'ready'), f = ms => (ms / 1000).toFixed(2) + 's';
+        el.vboot.textContent = T('启动用时') + ' ' + (r ? f(r[1]) : '…') + ' · ' + B.map((x, i) => x[0] === 'ready' ? null : T(x[0].replace(/^后补:/, '')) + ' ' + (x[0].startsWith('后补:') ? '+' + f(x[1] - (r ? r[1] : 0)) : f((B[i + 1] ? B[i + 1][1] : x[1]) - x[1]))).filter(Boolean).join(' · ') + ' · ' + (App.gfx ? App.gfx.caps.backend : '');
+      }
       let all = true;
       for (const b of el.vrows.querySelectorAll('button')) { const on = !!V && V.val[b.dataset.vn] === b.dataset.vid; b.classList.toggle('on', on); if (on && !b.classList.contains('rec')) all = false; }
       if (el.vreset) el.vreset.classList.toggle('idle', all);

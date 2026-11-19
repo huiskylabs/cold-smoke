@@ -7,8 +7,17 @@ const DEV = !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (QS.has('dev') || /(?
 // Start-up runs in stages with a breath between them, so the loading page can show where it has got to
 Variants.def('bootq', '开机顺序', [['a', '全部编好再开'], ['b', '先编第一眼要的']], 'b');
 const BOOT_LATER = /^(city|neb|deer|fauna|gate|wind|shaft|fpv)/;
+// what the title page never shows or plays is made once it is up (Variants 'bootlz' b): the deer and the other animals (their meshes are
+// carved from distance fields, 0.7 s of an M3's time) and the sound (every voice synthesised, 0.6 s; it can only start from a tap anyway,
+// and a tap that comes first makes it there and then: Sound.ensure). Nothing on the title page changes; tests (?manual) still make all at boot
+Variants.def('par', '开机多线程', [['a', '只用一个线程'], ['b', '后台线程一起做']], 'b');
+// (inside a background thread: take on the page's versions, mountain and sun before the first job)
+Par.jobs.__init = st => { Object.assign(Variants.val, st.vars); Course.forceType = st.fT; Course.classic = st.cl; Course.setSeed(st.seed); Terrain.setSun(st.az); };
+Variants.def('bootlz', '开机后补', [['a', '开机时全做'], ['b', '标题出来后再做']], 'b');
+App.bootT = [];          // [stage, ms since the page began] for every stage of the start-up (shown in the developer menu as 启动用时)
 async function boot(stage) {
-  const manual = QS.has('manual'), step = async (f, name) => { if (stage) stage(f, name); if (!manual) await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); };
+  const manual = QS.has('manual'), lazy = !manual && Variants.val.bootlz !== 'a';
+  const step = async (f, name) => { if (name) App.bootT.push([name, Math.round(performance.now())]); if (stage) stage(f, name); if (!manual) await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); };
   const canvas = document.getElementById('view');
   await step(0.03, '醒来');
   if (typeof XHS !== 'undefined') await XHS.restore();               // (inside 小红书: the player's settings from the container's own storage)
@@ -30,27 +39,55 @@ async function boot(stage) {
   Course.forceType = QS.get('seg') || null; Course.classic = QS.has('classic');      // dev: a mountain made of one kind of run; the runs in the order the first mountain had them
   Course.setSeed(DEV ? (seedInHash() || Math.floor(+QS.get('seed')) || Course.seed) : Course.seed);      // outside dev: always the home mountain (寒烟山)
   if (QS.get('tod')) { const q = QS.get('tod'); Sky.setClock(q in Sky.times ? Sky.times[q] : +q || 0); }
-  await step(0.08, '磨雪');
-  makeNoiseTextures(gfx); makeSnowTexture(gfx, Sky.az); Terrain.setSun(Sky.az);
-  await step(0.20, '远山与城市');
-  {
-    const t0 = performance.now()/*native{*/, spatial = !!(self.COLD_SMOKE?.spatial && gfx.caps.maxTex >= 4096)/*}native*/;
-    Vista.init(gfx, { farW: +QS.get('vistares') || (/*native{*/spatial ? 4096 : /*}native*/gfx.caps.maxTex >= 4096 ? 3072 : 2048),
-      cityW: +QS.get('cityres') || (/*native{*/spatial ? 1536 : /*}native*/1024), keep: DEV && QS.has('vistadbg') });
-    if (DEV) console.log('vista', Math.round(performance.now() - t0) + 'ms', JSON.stringify(Vista.stats));
+  // background threads (00d_par.js): started now, so they have read the script by the time the first pieces are handed out
+  const pre = {}/*native{*/, spatial = !!(self.COLD_SMOKE?.spatial && gfx.caps.maxTex >= 4096)/*}native*/;
+  const farW = +QS.get('vistares') || (/*native{*/spatial ? 4096 : /*}native*/gfx.caps.maxTex >= 4096 ? 3072 : 2048), cityW = +QS.get('cityres') || (/*native{*/spatial ? 1536 : /*}native*/1024);
+  if (Variants.val.par !== 'a' && (!manual || QS.has('par'))) {          // (tests: ?manual&par to use them too)
+    const hc = navigator.hardwareConcurrency || 4;
+    if (Par.start(Math.max(2, Math.min(4, hc)),          // (the page itself mostly waits on them, so as many threads as cores, up to 4)
+       { vars: Object.assign({}, Variants.val), seed: Course.seed, fT: Course.forceType, cl: Course.classic, az: Sky.az })) {
+      // first what is needed first (the snow and noise textures, the far ranges), then the heights of the mountain round where Game.reset
+      // will stand the skier; the page meanwhile carves the skier, plants the trees and lights the city
+      pre.noise = Par.run('noiseData', {}).catch(() => null); 
+      pre.snow = Promise.all([Par.run('snowData', { az: Sky.az, only: 'fine' }), Par.run('snowData', { az: Sky.az, only: 'snow' })]).then(([f, s]) => ({ snow: s.snow, fine: f.fine }), () => null);
+      pre.skier = Par.run('skierMesh', {}).catch(() => null);
+      pre.far = Par.run('vistaFar', { w: farW }).catch(() => null);
+      const c = Course.at(14, {}); Terrain.setSun(Sky.az); Terrain.prefill(c.cx, -14);
+    }
   }
-  await step(0.36, '立起天空');
-  Render.init(gfx, canvas); Sky.init(gfx); Terrain.init(gfx); Post.init(gfx); Skier.init(gfx);
-  await step(0.40, '林子里有鹿');
-  { const t0 = performance.now(); Deer.init(gfx); if (DEV) console.log('deer', Math.round(performance.now() - t0) + 'ms', Deer.mesh.nv + ' verts'); }
-  await step(0.44, '种树');
-  { const t0 = performance.now(); Trees.init(gfx); if (DEV) console.log('trees', Math.round(performance.now() - t0) + 'ms', Math.round(Trees.stats.tris) + ' tris'); }
-  Gates.init(gfx);
+  // (with the threads the page first does what is its own, the sky and the skier and the trees, while they make the textures, the far
+  // ranges and the mountain; without them, the order it always had)
+  const texs = async () => {
+    await step(0.08, '磨雪');
+    makeNoiseTextures(gfx, await pre.noise); makeSnowTexture(gfx, Sky.az, await pre.snow); Terrain.setSun(Sky.az);
+    await step(0.20, '远山与城市');
+    const t0 = performance.now();
+    Vista.init(gfx, { farW, far: await pre.far, cityW, keep: DEV && QS.has('vistadbg') });
+    if (DEV) console.log('vista', Math.round(performance.now() - t0) + 'ms', JSON.stringify(Vista.stats));
+  };
+  const own = async () => {
+    await step(0.36, '立起天空');
+    Render.init(gfx, canvas); Sky.init(gfx); Terrain.init(gfx); Post.init(gfx);
+    const skier = () => Skier.init(gfx), trees = () => { const t0 = performance.now(); Trees.init(gfx); Gates.init(gfx); if (DEV) console.log('trees', Math.round(performance.now() - t0) + 'ms', Math.round(Trees.stats.tris) + ' tris'); };
+    // (with the threads the skier is being carved in one of them: the trees are planted first, and the body is taken in after)
+    if (pre.skier) { await step(0.44, '种树'); trees(); Skier.adopt(await pre.skier); skier(); }
+    else { skier(); if (!lazy) { await step(0.40, '林子里有鹿'); makeDeer(gfx); } await step(0.44, '种树'); trees(); }
+    if (pre.skier && !lazy) { await step(0.40, '林子里有鹿'); makeDeer(gfx); }
+  };
+  if (Par.ok) { Vista.setRes(farW, cityW); await own(); await texs(); }
+  else { await texs(); await own(); }
+  // (dev, ?parcheck: every piece the threads made, made again here and compared number for number)
+  if (DEV && QS.has('parcheck') && Par.ok) {
+    const same = (a, b) => { let bad = 0; if (!a || !b || a.length !== b.length) return -1; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) bad++; return bad; };
+    const N0 = noiseData(), S0 = snowData(Sky.az), F0 = Vista.farBuild(farW), N1 = await pre.noise, S1 = await pre.snow, F1 = await pre.far;
+    const K0 = Skier.freshMesh(), K1 = Skier.mesh;
+    console.log('parcheck skier', JSON.stringify({ same: K0 !== K1, V: same(K0.V, K1.V), W: same(K0.W, K1.W), I: same(K0.I, K1.I) }));
+    console.log('parcheck tex', JSON.stringify({ noise: same(N0.noise, N1.noise), detail: same(N0.detail, N1.detail), snow: same(S0.snow, S1.snow), fine: same(S0.fine, S1.fine), farA: same(F0.A, F1.A), farB: same(F0.B, F1.B) }));
+  }
   await step(0.56, '点亮星云');
   Spray.init(gfx); Grains.init(gfx); Dust.init(gfx); Nebula.init(gfx, +QS.get('nebres') || (gfx.caps.maxTex >= 4096 && (navigator.deviceMemory || 8) >= 4 ? 1536 : 768)); Clouds.init(gfx, +QS.get('cloudres') || 0); Shafts.init(gfx); Tracks.init(gfx);
   Wind.init(gfx);                                                        // snow the wind carries off the crests and along the ground (11b_wind.js)
-  await step(0.64, '调音');
-  Sound.init();
+  if (!lazy) { await step(0.64, '调音'); Sound.ensure(); }
   Render.onResize.push(Spray.resize); Render.onResize.push(Shafts.resize);
   Render.onOriginShift = d => { Spray.shiftOrigin(d); };
   Render.passes.offscreen.push(R => Spray.offscreen(R));
@@ -70,20 +107,36 @@ async function boot(stage) {
   Render.passes.transparent.push(R => Clouds.draw(R)); Render.passes.transparent.push(R => Trees.drawGhost(R));
   Render.passes.transparent.push(R => Gates.drawOver(R));
   await step(0.70, '调光');
-  const pipes = [].concat(Sky.pipes, Terrain.pipes, Post.pipes, Skier.pipes, Deer.pipes, Trees.pipes, Spray.pipes, Grains.pipes, Dust.pipes, Nebula.pipes, Clouds.pipes, Shafts.pipes, Tracks.pipes, Wind.pipes);
+  const pipes = [].concat(Sky.pipes, Terrain.pipes, Post.pipes, Skier.pipes, Deer.pipes || [], Trees.pipes, Spray.pipes, Grains.pipes, Dust.pipes, Nebula.pipes, Clouds.pipes, Shafts.pipes, Tracks.pipes, Wind.pipes);
   pipes.push(...Gates.pipes);
-  for (let i = 0; i < pipes.length; i++) { const p = pipes[i]; if (p.held) continue; if (gfx.finishPipelineAsync) await gfx.finishPipelineAsync(p); else gfx.finishPipeline(p); if (stage && !manual && i % 6 === 5) await step(0.70 + 0.16 * (i + 1) / pipes.length, null); }
+  for (let i = 0; i < pipes.length; i++) { const p = pipes[i]; if (p.held) continue; if (gfx.finishPipelineAsync) await gfx.finishPipelineAsync(p); else gfx.finishPipeline(p); if (stage && !manual && i % 6 === 5) stage(0.70 + 0.16 * (i + 1) / pipes.length, null); }
   await step(0.87, '铺雪');
   fit();
   Input.init(canvas);
   Game.reset();
   App.skierRoot = Game.root; App.skierPose = Game.pose;
   tick(1 / 60, false);
-  { const t0 = performance.now(); Terrain.update(Render.cam.pos[0], Render.cam.pos[2], true); if (DEV) console.log('terrain', Math.round(performance.now() - t0) + 'ms'); }
+  if (DEV && QS.has('parcheck')) Terrain.check = true;
+  { const t0 = performance.now(); await Terrain.firstFill(Render.cam.pos[0], Render.cam.pos[2]); if (DEV) console.log('terrain', Math.round(performance.now() - t0) + 'ms', Par.ok ? 'par ' + Par.n + ' ' + JSON.stringify(Terrain.fillMs) : '', Terrain.check ? 'parcheck ' + JSON.stringify(Terrain.check) : ''); }
+  if (!lazy) Par.stop();
   // the first picture bakes the nebula and the trees: do it while the loading page still covers the canvas
   if (!manual) { await step(0.96, '第一缕光'); tick(1 / 60, true); await step(1, null); }
-  App.ready = true;
+  App.ready = true; App.bootT.push(['ready', Math.round(performance.now())]);
   App.later = gfx.release ? gfx.release() : Promise.resolve();
+  App.late = lazy ? bootLate(gfx) : Promise.resolve();
+}
+function makeDeer(gfx) { const t0 = performance.now(); Deer.init(gfx); if (DEV) console.log('deer', Math.round(performance.now() - t0) + 'ms', Deer.mesh.nv + ' verts'); }
+// the work held back from the start-up, done one piece at a time once the title page is up, each in a task of its own between frames
+async function bootLate(gfx) {
+  const idle = () => new Promise(r => setTimeout(() => requestAnimationFrame(() => setTimeout(r, 0)), 60));
+  try {
+    await idle(); Sound.ensure(); App.bootT.push(['后补:声音', Math.round(performance.now())]);
+    await idle(); makeDeer(gfx);
+    for (const p of Deer.pipes) { if (gfx.finishPipelineAsync) await gfx.finishPipelineAsync(p); else gfx.finishPipeline(p); }
+    App.bootT.push(['后补:动物', Math.round(performance.now())]);
+    await idle(); App.fpvOK = true;          // (the first-person body: built by its own first tick, 07d_fpv.js)
+    Par.stop();
+  } catch (e) { reportError(e); }
 }
 // one simulation + presentation step. `draw` false: advance everything but skip the GPU frame (tests fast-forward this way)
 function tick(dt, draw) {
@@ -365,7 +418,8 @@ App.redraw = () => {
   try { Render.computeGlobals(App.t, 1 / 60, App.state); for (const f of App.onTick) f(0, true); Render.render(); } catch (e) { }
 };
 addEventListener('resize', () => App.redraw());
-if (QS.has('manual') && !QS.has('ui')) document.getElementById('app').classList.add('bare');
+if (Par.W) { }          // (a background thread of the start-up: it only answers jobs, 00d_par.js)
+else if (QS.has('manual') && !QS.has('ui')) document.getElementById('app').classList.add('bare');
 else {
   UI.init();
   boot(UI.stage).then(() => { UI.ready(); lastT = performance.now(); requestAnimationFrame(loop); if (QS.has('autostart')) UI.go(); }).catch(e => { if (!retryOnWebGL2(e)) reportError(e); });

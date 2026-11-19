@@ -477,11 +477,12 @@ const Vista = (() => {
     gfx.draw(pipeSpot, { u: { p, q: [L.spot, L.glint, 0, 0] }, tex, vb: [V.spotBuf], count: 4, instances: V.nSpot });
   };
 
+  // the sizes of the panoramas, which the sky's shader is written with: set before Sky.init when the panoramas themselves come later
+  V.setRes = function (farW, cityW) { if (farW) V.farW = farW; if (cityW) { V.cityW = cityW; V.cityH = Math.round(cityW * 0.484); } };
   V.init = function (g, opt = {}) {
     gfx = g; const t0 = performance.now();
-    if (opt.farW) V.farW = opt.farW;
-    if (opt.cityW) { V.cityW = opt.cityW; V.cityH = Math.round(opt.cityW * 0.484); }
-    const far = buildFar(V.farW, V.farH), t1 = performance.now();
+    V.setRes(opt.farW, opt.cityW);
+    const far = opt.far || buildFar(V.farW, V.farH), t1 = performance.now();          // (opt.far: made in a background thread, see Par.jobs.vistaFar)
     V.towers = buildCityList();
     const city = renderCity(V.towers, V.cityW, V.cityH), t2 = performance.now();
     const lights = buildLights(V.towers, city.zb, city.BW, city.BH), t3 = performance.now(); lights.Z = city.Z; city.zb = null;
@@ -506,6 +507,7 @@ const Vista = (() => {
     if (cityShadowStep(job, V.towers, now ? 1e9 : 1.2)) { gfx.updateTexture(V.shTex, 0, 0, V.shRes, V.shRes, job.S); job = null; }
   };
   V.farH_ = farH;
+  Par.jobs.vistaFar = a => buildFar(a.w, V.farH); V.farBuild = w => buildFar(w, V.farH);
   V.cores = CORES; V.famc = FAMC;
   return V;
 })();
