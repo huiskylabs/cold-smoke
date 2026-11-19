@@ -65,6 +65,9 @@ const Replay = self.Replay = (() => {
   }
   function record(dt) {
     const r = R.rec; if (!r || !R.recording) return;
+    // (用户 2026-11-18 23:32 UTC: 回放点了没反应) the pause menu and 拍照 hold the game (mode 'hold'): that is a pause, not a run given up.
+    // It used to throw the recording away, so after any pause on the way down 回放 had nothing to play. Now nothing is kept while held
+    if (G.mode === 'hold') return;
     if (G.mode !== 'run' && G.mode !== 'park') { if (!r.fin) { R.rec = null; R.recording = false; } else R.recording = false; return; }      // (the line given up, or the title: a run that did not finish is not kept)
     const buf = new Float64Array(r.lay.N); pack(r.lay, buf);
     r.frames.push(buf); r.rdt.push(App.dtReal || 1 / 60); r.gdt.push(r.lastDt || 1 / 60); r.ts.push(G.timeScale || 1);
