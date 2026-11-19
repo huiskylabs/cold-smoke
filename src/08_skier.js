@@ -1079,7 +1079,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
 `;
     pipe = gfx.pipeline({
       name: 'skier', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SKIN_SSL, SKIER_SSL, headSSL], buffers,
-      varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', bn: 'vec3f', mat: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f' },
+      varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', bn: 'vec3f', mat: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', s: 'vec4f' },
       textures: { tBones: 'fetch', tDetail: '2d', tShadow: 'shadow', tSky: '2d' },
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let s: SkinV = skinVertex(a.pos, a.nrm, a.bw); v.wp = s.wp; v.nrm = s.n; v.bp = a.pos; v.bn = a.nrm; v.mat = a.mat; v.clip = U.viewProj * vec4f(s.wp, 1.0); return v; }`,
       fs: SKIER_FS.replace('/*MARKS*/', marks),
@@ -1299,6 +1299,8 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   K.toWorld = function (p) { return m4.tp(K.world.root, p); };
   K.sec = st.sec;      // (what update last handed to solve besides the pose: tests draw a figure from it)
   const nite = [0, 0, 0, 0];      // (x: how far into the night it is: Sky.night)
+  // (K.lensCut, set by the first-person view (07d_fpv.js): [from, to] m from the lens, the figure fades out inside it; 0: nothing is cut)
+  const CUT0 = [0, 0, 0, 0]; K.lensCut = null;
   // (the body asked for in the panel: built at the first draw that wants it, then swapped in at once)
   const bodyV = () => Variants.val.body === 'a' ? 'a' : 'b';
   function useBody(m) {
@@ -1312,7 +1314,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     clo.q[2] += (want[1] - clo.q[2]) * e; clo.q[3] += (want[0] - clo.q[3]) * e; clo.h += (want[2] - clo.h) * e;
     nite[0] = typeof Sky !== 'undefined' && Sky.night === Sky.night ? smooth(0.35, 1, Sky.night) : 0;
     nite[3] = Variants.val.kit === 'b' && nite[1] > 0 ? 1 : 0;      // (the finer details of the clothes, Variants 'kit' b: new body only)      // (from deep dusk on: dusk itself stays as it was)
-    gfx.draw(pipe, { u: { p: clo.p, q: clo.q, r: nite }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count });
+    gfx.draw(pipe, { u: { p: clo.p, q: clo.q, r: nite, s: K.lensCut || CUT0 }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count });
   };
   K.drawShadow = function () { wantBody(); gfx.draw(pipeShadow, { u: { p: [0, 0, 0, 0] }, tex: { tBones: boneTex }, vb: [vb, vb2], ib, count }); };
   return K;
@@ -1358,6 +1360,9 @@ fn skLine(d: f32, px: f32) -> f32 { let w: f32 = 0.0011 + px * 0.5; return smoot
 const SKIER_FS = (L => { const V = a => 'vec3f(' + a.map(x => x.toFixed(3)).join(', ') + ')', F = x => x.toFixed(3); return `
 fn frag(v: VOut) -> FOut {
   var o: FOut;
+  // (seen from inside its own head, first person: what of the figure is near the lens (head, neck, collar, pack, shoulders) is left out, fading
+  // through a fixed screen-door pattern between M.s.x and M.s.y metres; what is further (legs, skis) stays)
+  if (M.s.y > 0.0) { let dc: f32 = distance(v.wp, U.camPos.xyz); if (dc < M.s.y) { let dz: f32 = fract(52.9829189 * fract(dot(v.clip.xy, vec2f(0.06711056, 0.00583715)))); if (dc < mix(M.s.x, M.s.y, dz)) { discard; } } }
   var id: f32 = floor(v.mat.x + 0.5);
   let qy: f32 = v.mat.z; let qz: f32 = v.mat.w;
   if (id > 3.5 && id < 4.5 && abs(qy - 0.004) < 0.020 && qz > -0.09) { id = 6.0; }
