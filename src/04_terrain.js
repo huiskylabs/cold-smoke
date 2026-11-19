@@ -758,7 +758,7 @@ fn frag(v: VOut) -> FOut {
   // ridge where two meet
   var groom: f32 = 0.0; var lane: f32 = 1.0;
   let fu: f32 = abs(dpdx(v.snw.x)) + abs(dpdy(v.snw.x));       // (how far across the run a pixel reaches)
-  if (M.sg.x > 0.5 && M.sg.w < 1.5) {
+  if (M.sg.x > 0.5 && M.sg.w < 1.5 && !(${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b' && Variants.val.dsea === 'b') ? 'true' : 'false'} && U.world.x > 2.5)) {      // (视频雪道: nobody grooms these, the snow is ridden soft)
     groom = (1.0 - smoothstep(-1.0, 6.0, abs(v.snw.x) - v.snw.y)) * (1.0 - smoothstep(0.02, 0.12, mnt)) * (1.0 - v.snw.z) * (1.0 - v.snw.w) * (1.0 - rock);
     slope -= (g1 * 0.6 + g2) * (0.85 * groom);
     let gk: f32 = groom * smoothstep(320.0, 60.0, dist);

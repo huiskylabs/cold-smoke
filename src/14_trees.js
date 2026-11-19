@@ -1211,6 +1211,7 @@ fn treeSurface(mat: vec4f, tx: vec4f, N: vec3f, n1: vec4f, n2: vec4f, line: f32,
   if (isTwig > 0.5) { dust = smoothstep(0.45, 0.85, N.y) * smoothstep(0.64, 0.82, n2.z * 0.55 + n1.z * 0.25 + 0.20 * s.open + 0.25 * (load - 0.8)); }
   snow = max(snow, (1.0 - isSnow) * dust * 0.88);
   snow = max(snow, isBark * (1.0 - isTwig) * smoothstep(0.35, 0.75, plast + (nd - 0.5) * 0.6) * 0.9);
+  ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b' && Variants.val.dsea === 'b') ? 'snow = snow * select(1.0, 0.06, U.world.x > 2.5);      // (春雪: the snow is gone from the boughs)' : ''}
   s.snow = snow;
   s.bark = isBark * (1.0 - snow);
   s.thin = (1.0 - isSnow) * (1.0 - isBark);

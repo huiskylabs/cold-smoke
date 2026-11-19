@@ -224,14 +224,14 @@ const Course = ((vn1, vn2, h2U) => {
   // forest, a berm along each side. p: the run's own numbers; wall: the side wall's height (m); drops: how many small drops
   const ROUTE_F = [
     { type: 'bowl', wind: 0.35, lam: 420 },                                                                   // 起点
-    { type: 'ridge', aim: 1, sec: 30, p: { rollA: 2.4, rollL: 44, lip: 2.4, hw: 24 } },                        // A 山脊开阔坡：圆包、翘边
-    { type: 'steeps', enc: 0.6, wind: 0.30, lam: 300, wall: 4.0, drops: 3, p: { hw: 17, forest: 1, slope: 0.5 } },  // B 陡林间坡：侧雪墙、树根小台阶
+    { type: 'ridge', aim: 1, sec: 30, p: { rollA: 3.2, rollL: 64, lip: 3.5, hw: 24 } },                        // A 山脊开阔坡：圆包、翘边
+    { type: 'steeps', enc: 0.6, wind: 0.30, lam: 300, wall: 4.0, drops: 3, p: { hw: 13, forest: 1, slope: 0.56, enc: 1 } },  // B 陡林间坡：侧雪墙、树根小台阶
     { type: 'corridor', sec: 30, wind: 0.60, lam: 230, p: { hw: 7.5, lip: 1.4, slope: 0.22 } },                // C 林间窄道：两边雪埂
     { type: 'rollers', aim: 1, sec: 28, p: { rollA: 2.2, rollL: 40, lip: 1.3, hw: 26, ridge: 0.5, forest: 0.3 } },  // A 再来一次
-    { type: 'steeps', enc: 0.6, wind: 0.35, lam: 280, wall: 4.5, drops: 4, p: { hw: 16, forest: 1, slope: 0.52 } },
+    { type: 'steeps', enc: 0.6, wind: 0.35, lam: 280, wall: 4.5, drops: 4, p: { hw: 12, forest: 1, slope: 0.58, enc: 1 } },
     { type: 'corridor', sec: 32, wind: 0.70, lam: 210, p: { hw: 7, lip: 1.5, slope: 0.21 } },
     { type: 'powder', aim: 1, sec: 28, p: { rollA: 1.8, rollL: 50, lip: 1.4 } },                               // 开阔：看湖
-    { type: 'steeps', enc: 0.6, wind: 0.30, lam: 320, wall: 4.0, drops: 3, p: { hw: 18, forest: 1, slope: 0.48 } },
+    { type: 'steeps', enc: 0.6, wind: 0.30, lam: 320, wall: 4.0, drops: 3, p: { hw: 14, forest: 1, slope: 0.54, enc: 1 } },
     { type: 'corridor', sec: 30, wind: 0.65, lam: 240, p: { hw: 7.5, lip: 1.4, slope: 0.22 } },
     { type: 'kickers' },
   ];
@@ -927,7 +927,7 @@ const Course = ((vn1, vn2, h2U) => {
       if (Variants.val.dalp === 'b') {
         const sparse = 0.62 * smooth(700, 1500, s + 300 * vnoise2(x / 260, z / 260, 34)) * smooth(-0.15, 0.25, vnoise2(x / 90, z / 90, 35));
         // (春雪: past the run's own edge the lower walls are one dark wood, as in the owner's video; the run keeps its sparse stands)
-        d *= Variants.val.dsea === 'b' ? lerp(sparse, 1.6, smooth(140, 320, e)) : sparse;
+        d *= Variants.val.dsea === 'b' ? lerp(sparse, 1.6, Math.max(smooth(140, 320, e), _enc)) : sparse;      // (and a run through the woods (enc) keeps its wood right to the edge)
       }      // (round 20, against Okuhida C08: no spruce stands on a face too steep to hold snow; the walls had trees up their cliffs)
       if (Variants.val.dalp === 'b' && d > 0.001 && e > 60) {
         const q = 6, gx = (C.height(x + q, z, 8) - C.height(x - q, z, 8)) / (2 * q), gz = (C.height(x, z + q, 8) - C.height(x, z - q, 8)) / (2 * q);
