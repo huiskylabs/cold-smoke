@@ -83,7 +83,7 @@ const UI = (() => {
   U.layout = function () {
     if (!el) return;
     const V = View.measure(), c = el.app.classList, hh = handheld();
-    c.toggle('rot', V.forced); c.toggle('flip', V.forced && V.flip); c.toggle('wide', V.wide); c.toggle('short', V.short); c.toggle('desk', !hh);
+    c.toggle('rot', V.forced); c.toggle('flip', V.forced && V.flip); c.toggle('wide', V.wide); c.toggle('short', V.short); c.toggle('midh', V.h < 780); c.toggle('desk', !hh);          // (panels size themselves by these and by --cw / --ch, never by the browser's own vw / vh or @media height: with the picture turned by the game those are the other way round)
     c.toggle('hasfs', !hh && fsAvail());          // (a third glyph in the corner: the pill stands clear of it)
     el.app.style.width = V.forced ? V.w + 'px' : ''; el.app.style.height = V.forced ? V.h + 'px' : '';
     el.app.style.setProperty('--cw', V.w + 'px'); el.app.style.setProperty('--ch', V.h + 'px');
@@ -91,7 +91,30 @@ const UI = (() => {
     let framed = !!(self.COLD_SMOKE && self.COLD_SMOKE.noTilt); try { framed = framed || window.self !== window.top; } catch (e) { framed = true; }      // (no tilt in a frame, nor in the 小红书 小工具 container)
     U.hh = hh; U.framed = framed; howText();
     if (typeof XHS !== 'undefined') XHS.layout();
+    fitTitle(); requestAnimationFrame(fitTitle);
   };
+  // (用户 2026-11-19 19:29 UTC，iPhone 竖拿、小红书里: 标题页的按钮、说明挤在一起，最下一行被切掉) The title's column (name, buttons, the line on how
+  // to ski) must stand between the top of the frame and the fine print at its foot. On a low frame (a phone on its side, most of all with
+  // the host's buttons along one side) it is taller than that: then the name and the line under the buttons are drawn smaller, by one
+  // factor, until it fits (the buttons keep their size). Measured in the frame's own px (offsets, which the quarter turn does not touch).
+  function fitTitle() {
+    if (!el || !el.title) return;
+    const t = el.title, mk = t.querySelector('.mark'), cta = t.querySelector('.cta'); if (!mk || !cta) return;
+    const parts = [mk, ...cta.children].filter(e => !e.classList.contains('fine') && !e.classList.contains('keys') && !e.classList.contains('act'));          // (the buttons are never shrunk: a finger needs them their full size)
+    for (const e of parts) e.style.zoom = '';
+    const off = e => { let y = 0; for (let q = e; q && q !== el.app; q = q.offsetParent) y += q.offsetTop; return y; };
+    const vis = parts.filter(e => e.offsetHeight > 0); if (!vis.length) return;
+    const fine = cta.querySelector('.fine'), cs = getComputedStyle(el.app);
+    const foot = fine && fine.offsetHeight && getComputedStyle(fine).position === 'absolute' ? off(fine) - 10 : el.app.offsetHeight - (parseFloat(cs.getPropertyValue('--gb')) || 18);
+    for (let k = 0; k < 3; k++) {
+      const last = vis[vis.length - 1], over = off(last) + last.offsetHeight - foot; if (over <= 0.5) break;
+      const z0 = parseFloat(vis[0].style.zoom) || 1, tall = vis.reduce((a, e) => a + e.offsetHeight, 0);
+      const z = Math.max(0.62, z0 * (tall - over) / tall);
+      for (const e of vis) e.style.zoom = z.toFixed(3);
+    }
+    // (how wide the column of buttons now is, in the frame: panels that open beside it, like the challenge's, stand clear of it)
+    const act = cta.querySelector('.act'); if (act) { const r = act.getBoundingClientRect(); el.app.style.setProperty('--actw', Math.round(el.app.classList.contains('rot') ? r.height : r.width) + 'px'); }
+  }
   // (the title's line of controls, and the controls page: with fore/aft on (Variants 'fa' b) up and down are the shovels and the tails, the tuck is Shift)
   const faOn = () => typeof Variants !== 'undefined' && Variants.val.fa === 'b';
   function howText() {

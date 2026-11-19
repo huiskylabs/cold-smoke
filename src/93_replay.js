@@ -370,9 +370,9 @@ const Replay = self.Replay = (() => {
       + '#replay kbd{font-family:var(--f-lat);font-size:.85em;letter-spacing:.04em;opacity:.55}#replay .sp{display:flex;gap:4px}#replay .sp button{padding:0 9px}#replay .sep{width:1px;height:20px;background:var(--hair);margin:0 4px;flex:none}'
       + '#replay .cams{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;min-width:0}#replay .cams::-webkit-scrollbar{display:none}#replay .cams button,#replay .camc button{font-family:var(--f-song);letter-spacing:.2em}#replay .camc{display:none}'
       // (a phone on its side: the cameras stand down the right edge, under the thumb, the six most used; the rest behind 更多)
-      + '@media (max-height:520px){#replay .cams,#replay .row .sep.c,#replay .row kbd{display:none}#replay .t{min-width:0}'
-      + '#replay .camc{display:flex;position:absolute;right:var(--gr);top:calc(var(--gt) + 44px);bottom:calc(var(--gb) + 76px);flex-direction:column;align-items:flex-end;gap:5px;overflow-y:auto;scrollbar-width:none;pointer-events:auto;text-shadow:none}'
-      + '#replay .camc button{background:rgba(5,8,13,.42);height:28px;padding:0 10px;flex:none}#replay .camc button.on{background:rgba(5,8,13,.55)}#replay .camc button.x6{display:none}#replay .camc.all button.x6{display:inline-flex}#replay.idle .camc{opacity:0;pointer-events:none}#replay .camc{transition:opacity .45s}}'
+      + '#app.short #replay .cams,#app.short #replay .row .sep.c,#app.short #replay .row kbd{display:none}#app.short #replay .t{min-width:0}'
+      + '#app.short #replay .camc{display:flex;position:absolute;right:var(--gr);top:calc(var(--gt) + 52px);bottom:calc(var(--gb) + 128px);flex-direction:column;align-items:flex-end;gap:5px;overflow-y:auto;scrollbar-width:none;pointer-events:auto;text-shadow:none}'
+      + '#app.short #replay .camc button{background:rgba(5,8,13,.42);height:28px;padding:0 10px;flex:none}#app.short #replay .camc button.on{background:rgba(5,8,13,.55)}#app.short #replay .camc button.x6{display:none}#app.short #replay .camc.all button.x6{display:inline-flex}#app.short #replay.idle .camc{opacity:0;pointer-events:none}#app.short #replay .camc{transition:opacity .45s}'
       + '</style>'
       + '<div class="surf"></div>'
       + '<div class="ui"><div class="tag"><i></i><em>' + RP_T('回放') + '</em>REPLAY</div><button class="x" data-a="x" aria-label="' + RP_T('退出回放') + '"><svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg></button>'

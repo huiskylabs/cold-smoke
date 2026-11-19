@@ -33,6 +33,15 @@ const Rank = self.Rank = (() => {
     ...CHAL.map(c => ({ id: 'c-' + c.map + '-' + c.line, name: c.name, boards: { day: c.board, week: c.board, all: c.board }, fmt: tfmt, ok: tok, chal: true })),
     { id: 'time', name: '滑雪时长', boards: { all: 5 }, fmt: mins },
   ];
+  // (用户 2026-11-19 19:23 UTC: 在排行榜底下说清楚速降线、越野线是怎么算的) the note under a challenge board: how its time is made, with
+  // this line's own numbers (the ring bonus and each level's added time, from 92_rings.js RG.rules, so the note never drifts from the code)
+  const chalNote = bd => {
+    const c = CHAL.find(q => 'c-' + q.map + '-' + q.line === bd.id), ru = self.__rings && self.__rings.rules, hc = (ru && c && ru.HC[c.line]) || {}, bon = (ru && ru.BON.b) || 1.5;
+    const add = d => hc[d] ? '+' + hc[d] + (EN() ? ' s' : ' 秒') : (EN() ? 'nothing' : '不加');
+    return EN()
+      ? 'How it is scored: your time, less ' + bon + ' s for every ring you go through. Easy, Standard and Hard share one board: Easy ' + add('a') + ', Standard ' + add('b') + ', Hard ' + add('c') + '. Lowest wins. Today and This week restart at Beijing midnight; All time stays. Only your best run counts.'
+      : '怎么算：用时，每穿过一个圈减 ' + bon + ' 秒。轻松、标准、难一起排：轻松 ' + add('a') + '，标准 ' + add('b') + '，难' + (hc.c ? ' ' : '') + add('c') + '。越少越靠前。今日和本周按北京时间零点重新开始，总榜一直保留。每人只留最好的一次。';
+  };
   const views = () => VIEWS;          // (用户 2026-11-19 00:39 UTC: 挑战直接上线) the challenge boards show for everyone in 小红书
   R.chalBoard = (map, line) => { const c = CHAL.find(q => q.map === map && q.line === line); return c ? c.board : 0; };
   const PERIODS = [['day', '今日'], ['week', '本周'], ['all', '总榜']];
@@ -183,7 +192,7 @@ const Rank = self.Rank = (() => {
       if (fatal(code(e))) { off(e); return; }
       me.textContent = T(code(e) === 2002 ? '榜单还在准备，稍后再看' : '暂时读不到榜单，稍后再看');
     }
-    s.appendChild(node('p', 'note', T(bd.chal ? '挑战：这张地图的这条线，轻松、标准、难一起排，用时越短越好（含罚时）。轻松和标准各加一点时间，难不加。今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。' : view === 'd3' ? '今日之山：从山顶一口气滑完前三段的平均速度，北京时间零点换山。每人只留最好的一次。' : view === 'time' ? '滑雪时长只算总榜，一直累计。' : '今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。')));
+    s.appendChild(node('p', 'note', (bd.chal ? chalNote(bd) : T(view === 'd3' ? '今日之山：从山顶一口气滑完前三段的平均速度，北京时间零点换山。每人只留最好的一次。' : view === 'time' ? '滑雪时长只算总榜，一直累计。' : '今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。'))));
   }
   // ---- 光圈速降线 (dev, 用户 18:54 UTC 成绩页跟个人最好、全部最好比，还有排名): board 4, all time, the 标准 line only. A shorter time is
   // better but the platform keeps each player's highest, so a time goes up as 6000 − seconds (to a tenth) and comes back the same way.

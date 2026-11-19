@@ -420,6 +420,16 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #app.vbtn:not(.desk) .cta .act, #app.vbtn:not(.desk) .cta .more { gap: 6px; }
 #app.vbtn.wide:not(.desk) .cta .how { margin-top: 10px; }
 #app.en.vbtn #go { letter-spacing: .3em; text-indent: .3em; }
+/* (用户 2026-11-19 19:29 / 19:56 UTC: 竖拿手机时标题页挤在一起被切掉、按钮太小看不清点不到) A phone on its side is low: there the column of buttons
+   under the name keeps 出发 on its own line and puts the other three side by side under it, so the whole column fits the height without
+   making any button smaller. And held in the hands no button anywhere is less than a fingertip (44 px) on its short side. */
+#app.vbtn.short:not(.desk) .cta .act { width: clamp(250px, 40vmin, 300px); }
+#app.vbtn.short:not(.desk) .cta .more { flex-direction: row; }
+#app.vbtn.short:not(.desk) .cta .more button { flex: 1 1 0; height: 44px; padding: 0 8px; gap: 6px; letter-spacing: .1em; }
+#app.vbtn.short:not(.desk) #go { height: 46px; }
+#app.vbtn.wide.short:not(.desk) #title { padding-top: calc(var(--gt) + clamp(16px, calc(var(--ch) - 330px), 50px)); }
+#app:not(.desk) button { min-height: 44px; min-width: 44px; }
+#app:not(.desk) #menu nav button { padding: 6px 0; }
 #app.en .cta .how, #app.en .cta .fine, #app.en #hint span, #app.en #say b { letter-spacing: .06em; }
 #app.en #seg b { letter-spacing: .04em; font-weight: 500; font-size: clamp(30px, 8.6vmin, 42px); }
 #app.en.wide #seg b { font-size: clamp(28px, 7vmin, 52px); }

@@ -695,7 +695,7 @@ const Rings = (() => {
       + '#rline .ban{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;text-align:center;opacity:0;transition:opacity .5s}'
       + '#rline .ban.on{opacity:1}#rline .ban b{display:block;font-family:var(--f-lat);font-weight:300;font-size:clamp(46px,12vmin,84px);line-height:1;font-variant-numeric:tabular-nums}'
       + '#rline .ban .rule{width:26px;height:1px;background:var(--sun);margin:14px 0 12px}#rline .ban i{display:block;font-family:var(--f-song);font-weight:300;font-style:normal;font-size:clamp(13px,3.4vmin,16px);letter-spacing:.34em;margin-right:-.34em}'
-      + '#rline .card{position:absolute;top:50%;right:var(--gr);width:min(330px,44vw);max-height:calc(100% - var(--gt) - var(--gb));overflow:auto;scrollbar-width:none;transform:translate(calc(100% + var(--gr) + 20px),-50%);transition:transform .6s cubic-bezier(.2,.6,.2,1);background:rgba(5,8,13,.52);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:18px 20px;pointer-events:auto;text-shadow:none;font-size:12px}'
+      + '#rline .card{position:absolute;top:50%;right:var(--gr);width:min(330px,calc(var(--cw) * .44));max-height:calc(100% - var(--gt) - var(--gb));overflow:auto;scrollbar-width:none;transform:translate(calc(100% + var(--gr) + 20px),-50%);transition:transform .6s cubic-bezier(.2,.6,.2,1);background:rgba(5,8,13,.52);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:18px 20px;pointer-events:auto;text-shadow:none;font-size:12px}'
       + '#rline .card::-webkit-scrollbar{display:none}#rline .card.on{transform:translate(0,-50%)}'
       + '#rline .card h3{margin:0;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.4em;color:var(--dim);white-space:nowrap}#rline .card h3 em{font-family:var(--f-song);font-style:normal;font-size:12px;letter-spacing:.24em;color:var(--snow);margin-right:.6em}'
       + '#rline .card .big{margin-top:10px;font-family:var(--f-lat);font-weight:300;font-size:clamp(34px,7vmin,46px);line-height:1;font-variant-numeric:tabular-nums}'
@@ -713,9 +713,10 @@ const Rings = (() => {
       // next, never broken; the buttons stay pinned to the card's foot while the splits scroll under them, and on a low screen the card packs tighter. The
       // card's own width and padding are unchanged: the route card docks beside it by them)
       + '#rline .bt{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}#rline .bt button{flex:1 1 auto;white-space:nowrap;padding:0 10px}#rline .bt button.p{flex-basis:100%}'
-      + '@media (max-height:520px){#rline .card .big{margin-top:6px;font-size:clamp(28px,6vmin,36px)}#rline .card .rule{margin:8px 0 6px}#rline .fs{margin-top:8px}#rline table{margin-top:8px}#rline td,#rline th{padding:2px 2px;font-size:11px}#rline .bt{gap:6px}#rline .bt button{height:32px}}'
-      + '@media (max-height:780px){#rline td,#rline th{padding:3px 2px}}'
-      + '#rline .bt{position:sticky;bottom:-18px;margin:12px -20px -18px;padding:10px 20px 14px;background:linear-gradient(rgba(5,8,13,0),rgba(5,8,13,.86) 30%)}'
+      + '#app.short #rline .card .big{margin-top:6px;font-size:clamp(28px,6vmin,36px)}#app.short #rline .card .rule{margin:8px 0 6px}#app.short #rline .fs{margin-top:8px}#app.short #rline table{margin-top:8px}#app.short #rline td,#app.short #rline th{padding:2px 2px;font-size:11px}#app.short #rline .bt{gap:6px}#app.short #rline .bt button{height:32px}'
+      + '#app.midh #rline td,#app.midh #rline th{padding:3px 2px}'
+      + '#app.rcardon #hud>:not(#pad),#app.rcardon #rline .tm,#app.rcardon #rline .sub{opacity:0!important;transition:opacity .3s}'          // (用户 2026-11-19: 手机上成绩卡压在速度、路段名、计时上)
+      + '#rline .bt{position:sticky;bottom:-18px;margin:12px -20px -18px;padding:10px 20px 14px;background:linear-gradient(rgba(8,11,17,0),rgba(8,11,17,.95) 14px)}'
       + '#rline kbd{margin-left:.5em;font-family:var(--f-lat);font-size:.85em;letter-spacing:.04em;opacity:.6}</style>'
       + '<div class="tm"></div><div class="sub"></div><div class="pop"></div><div class="spl"></div><div class="cd"></div><div class="ban"><b></b><span class="rule"></span><i></i></div><div class="card"></div>';
     (document.getElementById('app') || document.body).appendChild(d); L.el = d;
@@ -953,8 +954,9 @@ const Rings = (() => {
   function pickUI() {
     if (RG.pk) return RG.pk;
     const d = document.createElement('div'); d.id = 'rpick';
-    d.innerHTML = '<style>#rpick{position:absolute;left:calc(var(--col) + clamp(200px,24vw,300px));top:50%;transform:translate(-8px,-50%);opacity:0;width:min(320px,40vw);z-index:5;pointer-events:none;background:rgba(5,8,13,.52);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:18px 18px 16px;color:var(--snow);font-family:var(--f-ui);font-size:12px;transition:opacity .35s ease,transform .45s cubic-bezier(.2,.6,.2,1)}'
-      + '#rpick.on{opacity:1;transform:translate(0,-50%);pointer-events:auto}'
+    d.innerHTML = '<style>#rpick{--pkl:calc(var(--col) + max(clamp(200px,calc(var(--cw) * .24),300px),calc(var(--actw,190px) + 24px)));position:absolute;left:var(--pkl);top:calc(var(--gt) + (var(--ch) - var(--gt) - var(--gb)) / 2);transform:translate(-8px,-50%);opacity:0;width:min(320px,calc(var(--cw) - var(--pkl) - var(--gr) - 56px));box-sizing:border-box;max-height:calc(var(--ch) - var(--gt) - var(--gb));overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain;z-index:5;pointer-events:none;background:rgba(5,8,13,.52);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:18px 18px 16px;color:var(--snow);font-family:var(--f-ui);font-size:12px;transition:opacity .35s ease,transform .45s cubic-bezier(.2,.6,.2,1)}'
+      + '#rpick.on{opacity:1;transform:translate(0,-50%);pointer-events:auto}#rpick::-webkit-scrollbar{display:none}'
+      + '#app.pkopen #title .how,#app.pkopen #title .fine{opacity:0;visibility:hidden;transition:none}'          // (the title's foot lines run under the panel: they step aside while it is up)
       + '#rpick h4{margin:0 0 12px;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.4em;color:var(--dim);white-space:nowrap}#rpick .l{display:flex;flex-direction:column;gap:6px}'
       + '#rpick button{appearance:none;-webkit-appearance:none;margin:0;border:0;font:inherit;color:var(--dim);cursor:pointer;box-sizing:border-box;text-align:left;border-radius:10px;padding:9px 12px;background:rgba(5,8,13,.25);box-shadow:inset 0 0 0 1px var(--hair);transition:color .2s,box-shadow .2s}'
       + '#rpick button.on{color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun)}@media (hover:hover){#rpick button:not(.on):hover{color:var(--snow);box-shadow:inset 0 0 0 1px rgba(244,247,251,.5)}}'
@@ -962,9 +964,10 @@ const Rings = (() => {
       + '#rpick .l button i{display:block;margin-top:2px;font-style:normal;font-size:11px;letter-spacing:.1em;color:var(--faint)}#rpick .l button em{font-family:var(--f-lat);font-style:normal;font-weight:300;font-size:13px;letter-spacing:.02em;font-variant-numeric:tabular-nums;color:var(--dim)}'
       + '#rpick .r{display:flex;gap:6px;margin-top:10px}#rpick .r button{flex:1;text-align:center;padding:0;height:32px;border-radius:10px;letter-spacing:.2em}'
       + '#rpick .t{margin-top:12px;font-size:11px;line-height:1.7;letter-spacing:.1em;color:var(--dim)}'
-      + '#rpick .bt{display:flex;gap:8px;margin-top:14px}#rpick .bt button{flex:1;text-align:center;height:40px;padding:0;border-radius:12px;letter-spacing:.2em}'
+      + '#rpick .bt{display:flex;gap:8px;position:sticky;bottom:-16px;margin:14px -18px -16px;padding:10px 18px 16px;background:linear-gradient(rgba(8,11,17,0),rgba(8,11,17,.95) 14px)}#rpick .bt button{flex:1;text-align:center;height:40px;padding:0;border-radius:12px;letter-spacing:.2em}'
       + '#rpick .bt .go{flex:1.6;color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun);font-family:var(--f-song);font-size:15px;letter-spacing:.5em;text-indent:.5em}'
       + '#rpick .l button i .rk{display:block;margin-top:3px;color:var(--dim);letter-spacing:.06em}#rpick .no{padding:14px 4px;font-size:13px;line-height:1.8;letter-spacing:.12em;color:var(--dim)}#rpick.none .r,#rpick.none .t,#rpick.none .go{display:none}'
+      + '#app.short #rpick{padding:12px 14px 12px}#app.short #rpick h4{margin-bottom:8px}#app.short #rpick .l{gap:5px}#app.short #rpick .l button{padding:6px 10px}#app.short #rpick .r{margin-top:8px}#app.short #rpick .r button{height:30px}#app.short #rpick .t{margin-top:8px;line-height:1.55}#app.short #rpick .bt{bottom:-12px;margin:10px -14px -12px;padding:8px 14px 12px}#app.short #rpick .bt button{height:36px}'
       + '#rpick kbd{margin-left:.4em;font-family:var(--f-lat);font-size:.75em;letter-spacing:.04em;opacity:.6;text-indent:0}</style>'
       + '<h4></h4><div class="l"></div><div class="r d"></div><div class="t"></div><div class="bt"><button class="go" data-go="1">开始挑战</button><button data-x="1">取消<kbd>Esc</kbd></button></div>';
     (document.getElementById('app') || document.body).appendChild(d); RG.pk = d;
@@ -1004,7 +1007,7 @@ const Rings = (() => {
   if (typeof I18N !== 'undefined' && I18N.on) I18N.on(() => { if (RG.pkOpen) pickDraw(); });          // (the language changed while the panel is up)
   function pickOpen(on) {
     if (on && !(typeof UI !== 'undefined' && UI.state === 'title' && !UI.open)) return;
-    RG.pkOpen = !!on; const d = pickUI(); if (on) pickDraw(); d.classList.toggle('on', !!on);
+    RG.pkOpen = !!on; const d = pickUI(); if (on) pickDraw(); d.classList.toggle('on', !!on); const app = document.getElementById('app'); if (app) app.classList.toggle('pkopen', !!on);
   }
   function chalGo() {
     const ids = mapLines(); if (!ids.length) return;
@@ -1034,6 +1037,8 @@ const Rings = (() => {
   }
   RG.share = shareOn();          // (19b_rank.js: the challenge boards show on the share link too)
   RG.lipOf = lipOf; RG.kickerIn = kickerIn;          // (for test scripts)
+  RG.rules = { BON, HC };          // (the board's own note says how a time is scored, from these: 19b_rank.js)
+  RG.pickOpen = on => pickOpen(on); RG.finishNow = () => lineFinish();          // (for tools/layout-check.js: the panel and the result card without skiing a whole line)
   RG.line = L; if (typeof window !== 'undefined') window.__rings = RG;          // (for test scripts)
   const GS0 = typeof Game !== 'undefined' ? Game.start : null;
   if (GS0) Game.start = function () { if (L.id && Game.s) { if (L.st !== 'count') lineArm(); return; } return GS0.apply(this, arguments); };
@@ -1045,6 +1050,7 @@ const Rings = (() => {
     if (e.code === 'Backspace' && typeof UI !== 'undefined' && UI.state === 'run' && !UI.open) { e.preventDefault(); e.stopImmediatePropagation(); lineRestart(); }
   }, true);
   RG.frame = function () {
+    { const c = L.el && L.q('card'), app = document.getElementById('app'); if (app) app.classList.toggle('rcardon', !!(c && c.classList.contains('on'))); }
     if (typeof document !== 'undefined') try { pickFrame(); } catch (e) { if (!RG.perr) { RG.perr = 1; console.warn('pick:', e); } }
     const lid = typeof Variants !== 'undefined' && chalOn() && LINES[Variants.val.rline] ? Variants.val.rline : null;
     if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); }
