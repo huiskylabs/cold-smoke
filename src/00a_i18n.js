@@ -48,6 +48,16 @@ const I18N = (() => {
     '上下拖动': 'Drag up / down', '转弯时往下拖压刃拐急，往上拖搓雪减速': 'Down in a turn carves tighter, up skids to slow you', '前后重心': 'Fore / aft',
     '空格 跳（按住蓄力） · ↓ 加速': 'Space to jump (hold to load up) · ↓ to tuck', '← →  或  A D  转弯': '← →  or  A D  to turn',
     '画面断开了': 'THE PICTURE WAS LOST', '点一下重新上山': 'Tap to ski again',
+    // ---- 光圈挑战, its replay and its route card (92_rings.js, 93_replay.js, 94_routecard.js; 用户 2026-11-19 00:52 UTC: 中文模式出现了 Challenge)
+    '轻松': 'Easy', '标准': 'Standard', '难': 'Hard', '速降线': 'Downhill line', '越野线': 'Backcountry line',
+    '沿主路，从山顶到山脚': 'Down the main run, top to bottom', '钻树林、走侧道，从山顶到山脚': 'Through the trees and side trails, top to bottom',
+    '回放': 'Replay', '上一场回放': 'Last replay', '路线卡': 'Route card', '退出回放': 'Leave replay', '播放/暂停': 'Play / pause', '从头': 'From the start',
+    '隐藏': 'Hide', '更多': 'More', '侧面': 'Side', '环绕': 'Orbit', '转播': 'Broadcast', '终点': 'Finish',
+    '光圈': 'Rings', '奖励': 'bonus', '罚时': 'penalty', ' 秒': ' s', '用时': 'Time', '光圈奖励': 'Ring bonus', '最快': 'Top',
+    '最快 km/h': 'Top km/h', '滑行 km': 'Distance km', '落差 m': 'Drop m', '腾空 s': 'Air s', '腾空': 'Air', '线宽 = 速度 km/h': 'Line width = speed km/h',
+    '漏掉的圈': 'Missed rings', '最快的一站': 'Fastest stage', '一路的速度': 'Speed along the run', '雪友': 'Skier',
+    '正在画这条线…': 'Drawing your line…', '截图或保存，发给朋友': 'Take a screenshot or save it, and send it to a friend', '这张卡没画出来': 'This card could not be drawn',
+    '这里存不了图，截图就好': 'Saving is not possible here: take a screenshot instead', '保存图片': 'Save image', '关闭': 'Close',
     // ---- the runs (Course: SEG_NAMES), the hours, the weather, the views, the animals
     '开阔大坡': 'Open Bowl', '陡坡': 'The Steeps', '树林': 'Glade', '起伏': 'Rollers', '雪槽': 'Gully', '跳台': 'Kickers', '深粉雪': 'Deep Powder', '山脊': 'Ridge', '蘑菇': 'Moguls', '林道': 'Forest Lane',
     '自动': 'Auto', '白天': 'Day', '傍晚': 'Golden hour', '黄昏': 'Dusk', '夜晚': 'Night', '黎明': 'Dawn',
@@ -144,7 +154,12 @@ const I18N = (() => {
     const r = document.documentElement; r.lang = L.lang === 'en' ? 'en' : 'zh-CN';
     const app = document.getElementById('app'); if (app) app.classList.toggle('en', L.lang === 'en');
     for (const f of fixed || []) { if (f.n) f.n.nodeValue = L.t(f.zh); else f.e.setAttribute(f.a, L.t(f.zh)); }
+    for (const e of live) if (e.isConnected || e.parentNode) e.textContent = L.t(e.dataset.zh);
   };
+  // (用户 2026-11-19 00:52 UTC: 为什么中文模式出现了 challenge？) words put on the page after capture() (the 挑战 buttons, the replay's) are
+  // marked here with their Chinese, so a later language change (the menu, or the 小红书 container's saved pick) relabels them too
+  const live = [];
+  L.live = function (e, zh) { e.dataset.zh = zh; e.textContent = L.t(zh); if (!live.includes(e)) live.push(e); return e; };
   // the player's own pick (kept for next time); whoever shows words is told
   L.set = function (lang) {
     lang = norm(lang); if (!lang || lang === L.lang) return; L.lang = lang;

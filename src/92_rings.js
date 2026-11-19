@@ -343,7 +343,7 @@ const Rings = (() => {
   function hud() {
     if (!RG.hud) { RG.hud = document.createElement('div'); RG.hud.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);font:500 13px/1 system-ui,sans-serif;letter-spacing:.12em;color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(0,0,0,.45);pointer-events:none;z-index:3'; document.body.appendChild(RG.hud); }
     RG.hud.style.display = RG.on && !L.id ? '' : 'none'; if (L.id) return;
-    const cur = RG.rings.find(r => r.pass < 0 && !r.skip), dn = { a: '轻松', b: '标准', c: '难' }[(typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b'] || '标准', t = '光圈（' + dn + '） ' + RG.passed + ' / ' + (RG.passed + RG.missed) + (cur && cur.tag ? '　·　这个圈直径 ' + cur.tag : ''); if (RG.hud.textContent !== t) RG.hud.textContent = t;
+    const cur = RG.rings.find(r => r.pass < 0 && !r.skip), dn = T({ a: '轻松', b: '标准', c: '难' }[(typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b'] || '标准'), t = tx('光圈（' + dn + '） ', 'Rings (' + dn + ') ') + RG.passed + ' / ' + (RG.passed + RG.missed) + (cur && cur.tag ? tx('　·　这个圈直径 ' + cur.tag, '　·　this ring ' + cur.tag.replace(' 米', ' m').replace('终点', 'finish')) : ''); if (RG.hud.textContent !== t) RG.hud.textContent = t;
   }
 
   // ---- the GPU side
@@ -469,7 +469,7 @@ const Rings = (() => {
   const L = { id: null, diff: null, st: 'idle', seed: 1, fin: false, sEnd: 0, segs: null, cut: [], names: [], split: [], ci: 0, pen: 0, missSeen: 0, cT: 0, lastF: 0, el: null, rec: null };
   const diffKey = () => (typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b';
   const fmt = t => { t = Math.max(0, t); const m = Math.floor(t / 60), r = t - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(2); };          // (用户 21:25 UTC: 计时精确到 2 位)
-  const sgn = d => Math.abs(d) < 0.005 ? '持平' : (d < 0 ? '−' : '+') + Math.abs(d).toFixed(2);
+  const sgn = d => Math.abs(d) < 0.005 ? tx('持平', 'even') : (d < 0 ? '−' : '+') + Math.abs(d).toFixed(2);
   function lineEnd() {
     if (L.sEnd && L.segs === Course.segs && L.seg0 === Course.segs[0]) return L.sEnd;
     const n = LINES[L.id].n, segs = Course.segs;
@@ -692,7 +692,7 @@ const Rings = (() => {
   function lineArm() {
     lineSetup(); ui(); show(true); hideAll();
     L.st = 'count'; L.cT = 0; L.lastK = 4; Game.mode = 'hold';
-    setTxt('tm', fmt(0)); setTxt('sub', LINES[L.id].name + ' · ' + DNAME[L.diff]);
+    setTxt('tm', fmt(0)); setTxt('sub', T(LINES[L.id].name) + ' · ' + T(DNAME[L.diff]));
   }
   function lineGo() {
     L.st = 'go'; L.pen = 0; L.split = []; L.ci = 0; L.missSeen = 0; L.rec = recLoad();
@@ -715,9 +715,9 @@ const Rings = (() => {
     const rec = { best: isNew ? { score, t: L.tEnd, miss, tot, date: Date.now() } : best, seg: seg.map((d, i) => segBest[i] != null ? Math.min(segBest[i], d) : d), runs: ((old && old.runs) || 0) + 1 };
     recSave(rec);
     try { if (typeof Cards !== 'undefined' && Cards.emit) Cards.emit('ring.line', { line: L.id === 'x' ? 'cross' : 'speed', full: miss === 0, t: L.tEnd, missed: miss }); } catch (e) { }          // (集卡: the card system picks it up when it is there)
-    setTxt('tm', fmt(score)); L.q('tm').classList.add('fin'); setTxt('sub', '光圈 ' + RG.passed + ' / ' + tot + ' · 奖励 −' + bonus + ' 秒' + (miss ? '' : ' · 全部穿过'));
+    setTxt('tm', fmt(score)); L.q('tm').classList.add('fin'); setTxt('sub', tx('光圈 ', 'Rings ') + RG.passed + ' / ' + tot + tx(' · 奖励 −' + bonus + ' 秒', ' · bonus −' + bonus + ' s') + (miss ? '' : tx(' · 全部穿过', ' · all rings')));
     const ban = L.q('ban'); ban.querySelector('b').textContent = fmt(score);
-    ban.querySelector('i').textContent = isNew ? (best ? '新纪录！快了 ' + (best.score - score).toFixed(2) + ' 秒' : '第一次完成') : '比最好慢 ' + (score - best.score).toFixed(2) + ' 秒';
+    ban.querySelector('i').textContent = isNew ? (best ? tx('新纪录！快了 ' + (best.score - score).toFixed(2) + ' 秒', 'New record! ' + (best.score - score).toFixed(2) + ' s faster') : tx('第一次完成', 'First finish')) : tx('比最好慢 ' + (score - best.score).toFixed(2) + ' 秒', (score - best.score).toFixed(2) + ' s off your best');
     ban.classList.add('on'); setTimeout(() => ban.classList.remove('on'), 1400);          // (gone before the card slides in)
     beep(880, 0.25, 0.18); setTimeout(() => beep(1320, 0.6, 0.16), 140);
     // the card: what this run was, against the best before it
@@ -725,14 +725,14 @@ const Rings = (() => {
     const rows = seg.map((d, i) => { const b = segBest[i]; const df = b != null ? d - b : null; if (df != null && df >= 0.3 && df > wd) { wd = df; worst = i; } return { n: L.names[i] || (i + 1) + '', d, b, df }; });
     const td = r => '<td>' + (r.b != null ? fmt(r.b) : '—') + '</td><td class="' + (r.df == null || Math.abs(r.df) < 0.005 ? '' : r.df < 0 ? 'g' : 'r') + '">' + (r.df == null ? '' : sgn(r.df)) + '</td>';
     const fs = items => '<div class="fs">' + items.map(([v, k, c]) => '<div><b' + (c ? ' class="' + c + '"' : '') + '>' + v + '</b><span>' + k + '</span></div>').join('') + '</div>';
-    L.q('card').innerHTML = '<h3><em>' + LINES[L.id].name + '</em>' + DNAME[L.diff] + '</h3><div class="big">' + fmt(score) + '</div><div class="rule"></div>'
-      + '<div class="dl ' + (isNew ? 'g' : 'r') + '">' + (isNew ? (best ? '新纪录，快了 ' + (best.score - score).toFixed(2) + ' 秒' : '第一次完成，这就是你的纪录') : '比最好慢 ' + (score - best.score).toFixed(2) + ' 秒') + '</div>'
-      + fs([[fmt(L.tEnd), '用时'], [RG.passed + ' / ' + tot, '光圈'], ['−' + bonus, '光圈奖励（秒）', 'g']])
-      + '<table><tr><th>分站</th><th>本局</th><th>之前最好</th><th></th></tr>' + rows.map((r, i) => '<tr' + (i === worst ? ' class="worst"' : '') + '><td>' + r.n + '</td><td>' + fmt(r.d) + '</td>' + td(r) + '</tr>').join('') + '</table>'
-      + '<div class="tip">' + [miss ? '漏了 ' + miss + ' 个圈，少减 ' + +(miss * p).toFixed(1) + ' 秒' : '', worst >= 0 ? '最慢的一站：' + rows[worst].n + '，比最好慢 ' + wd.toFixed(2) + ' 秒' : ''].filter(Boolean).join('；') + '</div>'
-      + (rankOn() ? fs([[fmt(rec.best.score), '个人最好'], ['…', '全部最好', 'gtop'], ['…', '排名', 'grank']])
-      + '<div class="tip">' + (hcOf(L.id, L.diff) ? '排行榜成绩 ' + fmt(score + hcOf(L.id, L.diff)) + '（' + DNAME[L.diff] + '加时 +' + hcOf(L.id, L.diff) + ' 秒，三档一起排）' : '排行榜成绩 ' + fmt(score) + '（难不加时，三档一起排）') + '</div>' : fs([[fmt(rec.best.score), '个人最好']]))
-      + '<div class="bt"><button class="p" data-a="again">再来一局<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">增加难度</button>' : '') + '' + RG.cardButtons.map((b, i) => '<button data-cb="' + i + '">' + b.label + (b.key ? '<kbd>' + b.key + '</kbd>' : '') + '</button>').join('') + '<button data-a="free">继续滑<kbd>Esc</kbd></button></div>';
+    L.q('card').innerHTML = '<h3><em>' + T(LINES[L.id].name) + '</em>' + T(DNAME[L.diff]) + '</h3><div class="big">' + fmt(score) + '</div><div class="rule"></div>'
+      + '<div class="dl ' + (isNew ? 'g' : 'r') + '">' + (isNew ? (best ? tx('新纪录，快了 ' + (best.score - score).toFixed(2) + ' 秒', 'New record, ' + (best.score - score).toFixed(2) + ' s faster') : tx('第一次完成，这就是你的纪录', 'First finish: this is your record')) : tx('比最好慢 ' + (score - best.score).toFixed(2) + ' 秒', (score - best.score).toFixed(2) + ' s off your best')) + '</div>'
+      + fs([[fmt(L.tEnd), tx('用时', 'Time')], [RG.passed + ' / ' + tot, tx('光圈', 'Rings')], ['−' + bonus, tx('光圈奖励（秒）', 'Ring bonus (s)'), 'g']])
+      + '<table><tr><th>' + tx('分站', 'Stage') + '</th><th>' + tx('本局', 'This run') + '</th><th>' + tx('之前最好', 'Best before') + '</th><th></th></tr>' + rows.map((r, i) => '<tr' + (i === worst ? ' class="worst"' : '') + '><td>' + TN(r.n) + '</td><td>' + fmt(r.d) + '</td>' + td(r) + '</tr>').join('') + '</table>'
+      + '<div class="tip">' + [miss ? tx('漏了 ' + miss + ' 个圈，少减 ' + +(miss * p).toFixed(1) + ' 秒', miss + ' rings missed: ' + +(miss * p).toFixed(1) + ' s of bonus lost') : '', worst >= 0 ? tx('最慢的一站：' + rows[worst].n + '，比最好慢 ' + wd.toFixed(2) + ' 秒', 'Slowest stage: ' + TN(rows[worst].n) + ', ' + wd.toFixed(2) + ' s off its best') : ''].filter(Boolean).join(tx('；', '; ')) + '</div>'
+      + (rankOn() ? fs([[fmt(rec.best.score), tx('个人最好', 'Your best')], ['…', tx('全部最好', 'Best of all'), 'gtop'], ['…', tx('排名', 'Place'), 'grank']])
+      + '<div class="tip">' + (hcOf(L.id, L.diff) ? tx('排行榜成绩 ' + fmt(score + hcOf(L.id, L.diff)) + '（' + DNAME[L.diff] + '加时 +' + hcOf(L.id, L.diff) + ' 秒，三档一起排）', 'Board time ' + fmt(score + hcOf(L.id, L.diff)) + ' (' + T(DNAME[L.diff]) + ' +' + hcOf(L.id, L.diff) + ' s; all three levels on one board)') : tx('排行榜成绩 ' + fmt(score) + '（难不加时，三档一起排）', 'Board time ' + fmt(score) + ' (Hard: nothing added; all three levels on one board)')) + '</div>' : fs([[fmt(rec.best.score), tx('个人最好', 'Your best')]]))
+      + '<div class="bt"><button class="p" data-a="again">' + tx('再来一局', 'Again') + '<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">' + tx('增加难度', 'Harder') + '</button>' : '') + '' + RG.cardButtons.map((b, i) => '<button data-cb="' + i + '">' + T(b.label) + (b.key ? '<kbd>' + b.key + '</kbd>' : '') + '</button>').join('') + '<button data-a="free">' + tx('继续滑', 'Ski on') + '<kbd>Esc</kbd></button></div>';
     emit('finish', { line: L.id, name: LINES[L.id].name, diff: L.diff, score, t: L.tEnd, bonus: p, missed: miss, passed: RG.passed, splits: L.split.slice(), names: L.names.slice(), isNew });
     board(score + hcOf(L.id, L.diff));
     clearTimeout(L.cardT); L.cardT = setTimeout(() => { if (L.st === 'done') L.q('card').classList.add('on'); }, 350);          // (用户 21:25 UTC: 停下来那一瞬间菜单就弹出来)
@@ -742,7 +742,7 @@ const Rings = (() => {
     const set = (a, b) => { const c = L.q('card'), x = c.querySelector('.gtop'), y = c.querySelector('.grank'); if (x) x.textContent = a; if (y) y.textContent = b; };
     const bd = boardOf(L.id, L.diff);
     if (typeof Rank === 'undefined' || !Rank.line || !Rank.on || !bd) { set('—', '—'); return; }
-    Rank.line(score, bd).then(r => { if (L.st !== 'done') return; if (!r) { set('—', '—'); return; } set(r.top != null ? fmt(r.top) : '—', r.rank != null ? (typeof r.rank === 'number' ? '第 ' + r.rank + ' 名' : r.rank) : '—'); });
+    Rank.line(score, bd).then(r => { if (L.st !== 'done') return; if (!r) { set('—', '—'); return; } set(r.top != null ? fmt(r.top) : '—', r.rank != null ? (typeof r.rank === 'number' ? tx('第 ' + r.rank + ' 名', '#' + r.rank) : r.rank) : '—'); });
   }
   // (用户 18:54 UTC: 结束后就可以停下来): through the finish the skier stops by himself, the way a skier does: held right over into a turn
   // across the hill until the skis stand still (the game's own turning brake, nothing pulls him), until 继续滑 or 再来一局 gives the skis back
@@ -799,7 +799,7 @@ const Rings = (() => {
       if (k !== L.lastK) {
         L.lastK = k;
         if (k >= 1) { cd.textContent = k; cd.classList.remove('w'); cd.classList.add('on'); beep(660, 0.14, 0.16); }
-        else { cd.textContent = '出发'; cd.classList.add('on', 'w'); beep(1320, 0.35, 0.18); clearTimeout(cd._t); cd._t = setTimeout(() => cd.classList.remove('on'), 700); lineGo(); }
+        else { cd.textContent = tx('出发', 'GO'); cd.classList.add('on', 'w'); beep(1320, 0.35, 0.18); clearTimeout(cd._t); cd._t = setTimeout(() => cd.classList.remove('on'), 700); lineGo(); }
       }
       return;
     }
@@ -810,12 +810,12 @@ const Rings = (() => {
       while (L.ci < L.cut.length - 1 && s >= L.cut[L.ci]) {
         const t = G.runT, d = t - (L.ci ? L.split[L.ci - 1] : 0), b = L.rec && L.rec.seg && L.rec.seg[L.ci];
         L.split.push(t);
-        flash('spl', '<span class="k">' + (L.names[L.ci] || '') + '</span>　' + fmt(d) + (b != null ? '　<span class="' + (d <= b ? 'g' : 'r') + '">' + sgn(d - b) + '</span>' : ''), 2200);
+        flash('spl', '<span class="k">' + TN(L.names[L.ci] || '') + '</span>　' + fmt(d) + (b != null ? '　<span class="' + (d <= b ? 'g' : 'r') + '">' + sgn(d - b) + '</span>' : ''), 2200);
         L.ci++;
       }
       setTxt('tm', fmt(Math.max(0, G.runT + L.pen)));
       const cur = RG.rings.find(r => r.pass < 0 && !r.skip);
-      setTxt('sub', '穿过 ' + RG.passed + (RG.passed ? ' · 奖励 −' + +(-L.pen).toFixed(1) + ' 秒' : '') + (RG.missed ? ' · 漏 ' + RG.missed : '') + (cur && cur.fin ? ' · 前方终点' : ''));
+      setTxt('sub', tx('穿过 ', 'Rings ') + RG.passed + (RG.passed ? tx(' · 奖励 −' + +(-L.pen).toFixed(1) + ' 秒', ' · bonus −' + +(-L.pen).toFixed(1) + ' s') : '') + (RG.missed ? tx(' · 漏 ', ' · missed ') + RG.missed : '') + (cur && cur.fin ? tx(' · 前方终点', ' · finish ahead') : ''));
     }
   }
   // ---- 挑战 on the title page (dev). (用户 21:31 UTC: 出发就是普通地滑；出发底下加一个「挑战」，点开以后再选路线这些.) 出发 and Enter are always
@@ -829,12 +829,17 @@ const Rings = (() => {
   const mapLines = () => { const m = mapNow(); return m && MAP_LINES[m.id] ? MAP_LINES[m.id] : []; };
   // the ranked line's board (小红书): the 标准 run of a map's ranked line only (用户 02:40 UTC: 每张地图一条长线上榜)
   const boardOf = (id, df) => { const m = mapNow(); return m && typeof Rank !== 'undefined' && Rank.chalBoard ? Rank.chalBoard(m.id, id) : 0; };
+  // (用户 2026-11-19 00:52 UTC: 中文模式出现了 Challenge) every word of the challenge in the language of the moment: T for names that are in
+  // the dictionary (00a_i18n.js), tx(zh, en) for sentences built round numbers
+  const T = s => typeof I18N !== 'undefined' ? I18N.t(s) : s, isEN = () => typeof I18N !== 'undefined' && I18N.en(), tx = (zh, en) => isEN() ? en : zh;
+  const TN = s => { const m = /^(\d+ )(.+)$/.exec(s || ''); return m ? m[1] + T(m[2]) : T(s); };          // (a station: '3 陡坡')
+  const lab = (e, zh) => { if (typeof I18N !== 'undefined' && I18N.live) I18N.live(e, zh); else e.textContent = zh; };          // (words that follow a language change)
   const RING_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5.6"/><path d="M10 1.8v1.6M10 16.6v1.6M1.8 10h1.6M16.6 10h1.6"/></svg>';
   function syncLine() { const lid = chalOn() && LINES[Variants.val.rline] ? Variants.val.rline : null; if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); } }
   function chalButton() {
     if (RG.cb || typeof document === 'undefined') return;
     const more = document.getElementById('more'); if (!more) return;
-    const b = document.createElement('button'); b.type = 'button'; b.className = devOn() ? 'dev-only' : ''; b.innerHTML = RING_ICON + (typeof I18N !== 'undefined' ? I18N.t('挑战') : '挑战');
+    const b = document.createElement('button'); b.type = 'button'; b.className = devOn() ? 'dev-only' : ''; b.innerHTML = RING_ICON + '<span></span>'; lab(b.lastChild, '挑战');
     b.addEventListener('click', e => { e.stopPropagation(); pickOpen(true); });
     more.insertBefore(b, more.firstChild); RG.cb = b;
   }
@@ -843,7 +848,7 @@ const Rings = (() => {
   function chalMenuButton() {
     if (RG.cmb || typeof document === 'undefined') return;
     const ph = document.getElementById('m-photo'); if (!ph || !ph.parentNode) return;
-    const b = document.createElement('button'); b.type = 'button'; b.id = 'm-chal'; b.textContent = typeof I18N !== 'undefined' ? I18N.t('挑战') : '挑战'; b.hidden = true;
+    const b = document.createElement('button'); b.type = 'button'; b.id = 'm-chal'; lab(b, '挑战'); b.hidden = true;
     b.addEventListener('click', e => {
       e.stopPropagation(); if (typeof UI === 'undefined' || !UI.toTop || UI.toTop() === false) return;
       const t0 = Date.now(), wait = () => { if (UI.state === 'title' && !UI.open) pickOpen(true); else if (Date.now() - t0 < 20000) setTimeout(wait, 100); };
@@ -867,7 +872,7 @@ const Rings = (() => {
       + '#rpick .bt .go{flex:1.6;color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun);font-family:var(--f-song);font-size:15px;letter-spacing:.5em;text-indent:.5em}'
       + '#rpick .l button i .rk{display:block;margin-top:3px;color:var(--dim);letter-spacing:.06em}#rpick .no{padding:14px 4px;font-size:13px;line-height:1.8;letter-spacing:.12em;color:var(--dim)}#rpick.none .r,#rpick.none .t,#rpick.none .go{display:none}'
       + '#rpick kbd{margin-left:.4em;font-family:var(--f-lat);font-size:.75em;letter-spacing:.04em;opacity:.6;text-indent:0}</style>'
-      + '<h4>挑战 · CHALLENGE</h4><div class="l"></div><div class="r d"></div><div class="t"></div><div class="bt"><button class="go" data-go="1">开始挑战</button><button data-x="1">取消<kbd>Esc</kbd></button></div>';
+      + '<h4></h4><div class="l"></div><div class="r d"></div><div class="t"></div><div class="bt"><button class="go" data-go="1">开始挑战</button><button data-x="1">取消<kbd>Esc</kbd></button></div>';
     (document.getElementById('app') || document.body).appendChild(d); RG.pk = d;
     d.addEventListener('click', e => {
       e.stopPropagation();          // (a click anywhere on the title page is 出发: never from inside this panel)
@@ -884,22 +889,25 @@ const Rings = (() => {
     const d = pickUI(), df = diffKey(), ids = mapLines(), m = mapNow();
     if (!ids.includes(RG.pkSel)) RG.pkSel = ids.includes(Variants.val.rline) ? Variants.val.rline : ids[0];
     const cur = RG.pkSel;
-    d.querySelector('h4').textContent = '挑战 · ' + (m ? m.zh : '这张地图');
+    d.querySelector('h4').textContent = tx('挑战 · ' + (m ? m.zh : '这张地图'), 'Challenge · ' + (m ? m.en || m.zh : 'this mountain'));
+    d.querySelector('.go').textContent = tx('开始挑战', 'Start'); d.querySelector('[data-x]').innerHTML = tx('取消', 'Cancel') + '<kbd>Esc</kbd>';
     d.classList.toggle('none', !ids.length);
-    d.querySelector('.l').innerHTML = !ids.length ? '<div class="no">这张地图还没有挑战。<br>回到寒烟山就有。</div>' : PICK.filter(p => ids.includes(p[0])).map(([id, n, t]) => {
+    d.querySelector('.l').innerHTML = !ids.length ? tx('<div class="no">这张地图还没有挑战。<br>回到寒烟山就有。</div>', '<div class="no">No challenge on this mountain yet.<br>Mount Cold Smoke has them.</div>') : PICK.filter(p => ids.includes(p[0])).map(([id, n, t]) => {
       const b = bestOf(id, df), bd = boardOf(id, df);
-      return '<button data-l="' + id + '" class="' + (cur === id ? 'on' : '') + '"><b>' + n + (b != null ? '<em>最好 ' + fmt(b) + '</em>' : '') + '</b><i>' + t + (bd ? '<span class="rk" data-rk="' + id + '">排行榜 · 读取中…</span>' : '') + '</i></button>';
+      return '<button data-l="' + id + '" class="' + (cur === id ? 'on' : '') + '"><b>' + T(n) + (b != null ? '<em>' + tx('最好 ', 'Best ') + fmt(b) + '</em>' : '') + '</b><i>' + T(t) + (bd ? '<span class="rk" data-rk="' + id + '">' + tx('排行榜 · 读取中…', 'Board · loading…') + '</span>' : '') + '</i></button>';
     }).join('');
     // the place and the best of everyone, for the ranked line (小红书 only; elsewhere the line just says 排行榜 in the 小红书 version)
     const sig = RG.pkSig = (RG.pkSig || 0) + 1;
     for (const sp of d.querySelectorAll('[data-rk]')) {
       const id = sp.dataset.rk, bd = boardOf(id, df);
       if (!rankOn()) { sp.remove(); continue; }
-      Rank.line(null, bd).then(r => { if (RG.pkSig !== sig || !sp.isConnected) return; sp.textContent = !r ? '排行榜暂时读不到' : (r.top != null ? '第一 ' + fmt(r.top) : '还没有人上榜') + (r.rank != null ? ' · 我 ' + (typeof r.rank === 'number' ? '第 ' + r.rank + ' 名' : r.rank) : ''); });
+      Rank.line(null, bd).then(r => { if (RG.pkSig !== sig || !sp.isConnected) return; sp.textContent = !r ? tx('排行榜暂时读不到', 'Board unavailable for now') : (r.top != null ? tx('第一 ', 'Top ') + fmt(r.top) : tx('还没有人上榜', 'No one on the board yet')) + (r.rank != null ? tx(' · 我 ', ' · me ') + (typeof r.rank === 'number' ? tx('第 ' + r.rank + ' 名', '#' + r.rank) : r.rank) : ''); });
     }
-    d.querySelector('.d').innerHTML = ['a', 'b', 'c'].map(k => '<button data-d="' + k + '" class="' + (df === k ? 'on' : '') + '">' + DNAME[k] + '</button>').join('');
-    d.querySelector('.t').textContent = '每穿过一个圈减 ' + BON[df] + ' 秒' + (rankOn() ? ' · 排行榜三档一起排，' + (df === 'c' ? '难不加时' : DNAME[df] + '加时 ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => LINES[k].name + ' +' + hcOf(k, df) + ' 秒').join('、')) : '') + ' · 开始后倒数 3、2、1 · 途中 Backspace 重来';
+    d.querySelector('.d').innerHTML = ['a', 'b', 'c'].map(k => '<button data-d="' + k + '" class="' + (df === k ? 'on' : '') + '">' + T(DNAME[k]) + '</button>').join('');
+    d.querySelector('.t').textContent = isEN() ? 'Each ring passed takes ' + BON[df] + ' s off' + (rankOn() ? ' · all three levels share one board, ' + (df === 'c' ? 'Hard adds nothing' : T(DNAME[df]) + ' adds ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => T(LINES[k].name) + ' +' + hcOf(k, df) + ' s').join(', ')) : '') + ' · counts down 3, 2, 1 · Backspace to restart'
+      : '每穿过一个圈减 ' + BON[df] + ' 秒' + (rankOn() ? ' · 排行榜三档一起排，' + (df === 'c' ? '难不加时' : DNAME[df] + '加时 ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => LINES[k].name + ' +' + hcOf(k, df) + ' 秒').join('、')) : '') + ' · 开始后倒数 3、2、1 · 途中 Backspace 重来';
   }
+  if (typeof I18N !== 'undefined' && I18N.on) I18N.on(() => { if (RG.pkOpen) pickDraw(); });          // (the language changed while the panel is up)
   function pickOpen(on) {
     if (on && !(typeof UI !== 'undefined' && UI.state === 'title' && !UI.open)) return;
     RG.pkOpen = !!on; const d = pickUI(); if (on) pickDraw(); d.classList.toggle('on', !!on);

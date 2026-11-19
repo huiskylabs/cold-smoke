@@ -13,6 +13,8 @@
 // scattered and was passed, and at each moment of the replay the ones alive then are handed back, their clocks shifted to the replay's.
 //   keyboard   Space pause · ← → 5 s · - = slower / faster · 1-9 0 cameras, V the next one · drag the 环绕 view · H hide everything · Esc back
 //   phone      tap the cameras on the right · the bar at the foot · tap the picture to bring the words back
+// (用户 2026-11-19 00:52 UTC: 中文模式出现了 Challenge → every word in the language of the moment) through the dictionary (00a_i18n.js)
+const RP_T = s => typeof I18N !== 'undefined' ? I18N.t(s) : s, RP_N = s => { const m = /^(\d+ )(.+)$/.exec(s || ''); return m ? m[1] + RP_T(m[2]) : RP_T(s); };
 const Replay = self.Replay = (() => {
   const R = { on: false, rec: null, recording: false };
   const RG = () => (typeof window !== 'undefined' && window.__rings) || null;
@@ -302,7 +304,7 @@ const Replay = self.Replay = (() => {
   function menuBtn() {
     if (typeof document === 'undefined') return;
     if (!mBtn) { const ph = document.getElementById('m-chal') || document.getElementById('m-photo'); if (!ph || !ph.parentNode) return;
-      mBtn = document.createElement('button'); mBtn.type = 'button'; mBtn.id = 'm-replay'; mBtn.textContent = '上一场回放'; mBtn.hidden = true;
+      mBtn = document.createElement('button'); mBtn.type = 'button'; mBtn.id = 'm-replay'; if (typeof I18N !== 'undefined' && I18N.live) I18N.live(mBtn, '上一场回放'); else mBtn.textContent = '上一场回放'; mBtn.hidden = true;
       mBtn.addEventListener('click', e => { e.stopPropagation(); if (typeof UI !== 'undefined' && UI.menu) UI.menu(false); setTimeout(() => R.start({ last: true }), 60); });
       ph.parentNode.insertBefore(mBtn, ph.nextSibling); }
     const sh = !R.on && typeof UI !== 'undefined' && UI.state === 'run' && R.hasLast(); if (mBtn.hidden === sh) mBtn.hidden = !sh;
@@ -356,16 +358,21 @@ const Replay = self.Replay = (() => {
       + '#replay .camc button{background:rgba(5,8,13,.42);height:28px;padding:0 10px;flex:none}#replay .camc button.on{background:rgba(5,8,13,.55)}#replay .camc button.x6{display:none}#replay .camc.all button.x6{display:inline-flex}#replay.idle .camc{opacity:0;pointer-events:none}#replay .camc{transition:opacity .45s}}'
       + '</style>'
       + '<div class="surf"></div>'
-      + '<div class="ui"><div class="tag"><i></i><em>回放</em>REPLAY</div><button class="x" data-a="x" aria-label="退出回放"><svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg></button>'
+      + '<div class="ui"><div class="tag"><i></i><em>' + RP_T('回放') + '</em>REPLAY</div><button class="x" data-a="x" aria-label="' + RP_T('退出回放') + '"><svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg></button>'
       + '<div class="tm"></div><div class="sub"></div><div class="spl"></div>'
       + '<div class="bt0"><div class="tl"><div class="rail"></div><div class="done"></div><div class="mk"></div><div class="kn"></div></div>'
-      + '<div class="row"><button class="pp" data-a="pp" aria-label="播放/暂停"></button><button data-a="re" aria-label="从头"><svg viewBox="0 0 20 20"><path d="M4.5 10a5.5 5.5 0 1 0 1.8-4.1"/><path d="M4.2 3.6v3h3"/></svg></button><span class="t"></span>'
+      + '<div class="row"><button class="pp" data-a="pp" aria-label="' + RP_T('播放/暂停') + '"></button><button data-a="re" aria-label="' + RP_T('从头') + '"><svg viewBox="0 0 20 20"><path d="M4.5 10a5.5 5.5 0 1 0 1.8-4.1"/><path d="M4.2 3.6v3h3"/></svg></button><span class="t"></span>'
       + '<span class="sp">' + SPEEDS.map(s => '<button data-sp="' + s + '">' + (s === 0.25 ? '¼' : s === 0.5 ? '½' : s) + '×</button>').join('') + '</span><span class="sep c"></span>'
-      + '<span class="cams">' + CAMS.map(([id, n], i) => '<button data-cam="' + id + '">' + n + '<kbd>' + ((i + 1) % 10) + '</kbd></button>').join('') + '</span>'
-      + '<span class="gap"></span><button data-a="hide">隐藏<kbd>H</kbd></button></div></div>'
-      + '<div class="camc">' + CAMS.map(([id, n]) => '<button data-cam="' + id + '"' + (PHONE5.includes(id) ? '' : ' class="x6"') + '>' + n + '</button>').join('') + '<button class="more" data-a="more">更多</button></div></div>';
+      + '<span class="cams">' + CAMS.map(([id, n], i) => '<button data-cam="' + id + '">' + RP_T(n) + '<kbd>' + ((i + 1) % 10) + '</kbd></button>').join('') + '</span>'
+      + '<span class="gap"></span><button data-a="hide">' + RP_T('隐藏') + '<kbd>H</kbd></button></div></div>'
+      + '<div class="camc">' + CAMS.map(([id, n]) => '<button data-cam="' + id + '"' + (PHONE5.includes(id) ? '' : ' class="x6"') + '>' + RP_T(n) + '</button>').join('') + '<button class="more" data-a="more">' + RP_T('更多') + '</button></div></div>';
     appEl().appendChild(d);
     el = { root: d, q: s => d.querySelector(s) };
+    // a language change while the replay's controls exist: the words are put back in the new language (the first text of each)
+    const relabel = () => { const zh = {}; for (const [id, n] of CAMS) zh[id] = n; const put = (e, w) => { if (e && e.firstChild && e.firstChild.nodeType === 3) e.firstChild.nodeValue = RP_T(w); };
+      for (const b of d.querySelectorAll('[data-cam]')) put(b, zh[b.dataset.cam]); put(d.querySelector('.tag em'), '回放'); put(d.querySelector('[data-a=hide]'), '隐藏'); put(d.querySelector('[data-a=more]'), '更多');
+      for (const [k, w] of [['x', '退出回放'], ['pp', '播放/暂停'], ['re', '从头']]) { const b = d.querySelector('[data-a=' + k + ']'); if (b) b.setAttribute('aria-label', RP_T(w)); } };
+    if (typeof I18N !== 'undefined' && I18N.on) I18N.on(relabel);
     // the camera buttons move to the edge of a phone on its side: they are taken out of the bar there, so the bar's own hiding does not take them
     d.addEventListener('click', e => {
       const b = e.target.closest && e.target.closest('button'); if (!b) return;
@@ -429,11 +436,11 @@ const Replay = self.Replay = (() => {
     const done = G.runT >= (f.t || Infinity) - 1e-6;
     const tm = done ? fmt(f.score) : fmt(Math.max(0, G.runT + c.miss * pen - c.pass * bo));
     const T = el.q('.tm'); if (T.textContent !== tm) T.textContent = tm; T.style.color = done ? 'var(--sun)' : '';
-    const sub = (f.name || '') + '　光圈 ' + c.pass + ' / ' + (c.pass + c.miss) + (bo ? (c.pass ? '　奖励 −' + Math.round(c.pass * bo * 10) / 10 + ' 秒' : '') : c.miss ? '　罚时 +' + Math.round(c.miss * pen * 10) / 10 + ' 秒' : ''), sb = el.q('.sub'); if (sb.textContent !== sub) sb.textContent = sub;
+    const sub = RP_T(f.name || '') + '　' + RP_T('光圈') + ' ' + c.pass + ' / ' + (c.pass + c.miss) + (bo ? (c.pass ? '　' + RP_T('奖励') + ' −' + Math.round(c.pass * bo * 10) / 10 + RP_T(' 秒') : '') : c.miss ? '　' + RP_T('罚时') + ' +' + Math.round(c.miss * pen * 10) / 10 + RP_T(' 秒') : ''), sb = el.q('.sub'); if (sb.textContent !== sub) sb.textContent = sub;
     const sp = f.splits || [], nm = f.names || [];
     if (P.play && P.splitI < sp.length && G.runT >= sp[P.splitI]) {
       const i = P.splitI, d = sp[i] - (i ? sp[i - 1] : 0), e = el.q('.spl');
-      e.innerHTML = '<span class="k">' + (i === sp.length - 1 ? '终点' : (nm[i] || i + 1)) + '</span>' + fmt(d); e.classList.add('on'); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove('on'), 2200);
+      e.innerHTML = '<span class="k">' + (i === sp.length - 1 ? RP_T('终点') : RP_N(nm[i] || String(i + 1))) + '</span>' + fmt(d); e.classList.add('on'); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove('on'), 2200);
       P.splitI++;
     }
     const t = el.q('.t'), tt = fmt(P.t) + ' / ' + fmt(r.dur); if (t.textContent !== tt) t.textContent = tt;

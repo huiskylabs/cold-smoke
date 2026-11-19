@@ -15,6 +15,8 @@
 //   track [[x, s, y, speed, air], ...] every 0.1 s from 出发 (s = metres down the course, x across, y height), rings [{ s, x, y, pass }],
 //   segs [{ s0, len, type }], names ['1 开阔大坡', ...], H(x, s) the height of the mountain, line '越野线', diff '标准', mountain '寒烟山',
 //   score (= t − ring bonus), t, bonus (s per ring passed), date (ms), seed (a number: the player and the moment)
+// (用户 2026-11-19 00:52 UTC: 中文模式出现了 Challenge → every word in the language of the moment) W: a word through the dictionary (00a_i18n.js)
+const RC_W = s => typeof I18N !== 'undefined' ? I18N.t(s) : s, RC_EN = () => typeof I18N !== 'undefined' && I18N.en();
 const RouteCard = self.RouteCard = (() => {
   const RC = {};
   const SONG = '"Noto Serif SC","Songti SC","STSong","Source Han Serif SC","Noto Serif CJK SC",serif';
@@ -388,7 +390,7 @@ const RouteCard = self.RouteCard = (() => {
       const note = (i, txt) => { const p = P(i), C = cols[p[2]], right = p[0] < C.mid, x2 = right ? C.left + cw - 6 * u : C.left + 6 * u, y2 = p[1] > cY1 - 60 * u ? p[1] - 46 * u : p[1] + 26 * u;
         g.strokeStyle = TH.label; g.lineWidth = 0.8 * u; g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(x2, y2); g.stroke();
         g.font = '500 ' + 11 * u + 'px ' + LAT; g.textAlign = right ? 'right' : 'left'; g.lineWidth = 4 * u; g.strokeStyle = TH.halo; g.strokeText(txt, x2, y2 + 13 * u); g.fillStyle = TH.label; g.fillText(txt, x2, y2 + 13 * u); };
-      note(im, '最快 ' + (T[im][3] * 3.6).toFixed(0) + ' KM/H'); if (lb - la >= 5) note(Math.round((la + lb) / 2), '腾空 ' + ((lb - la) * 0.1).toFixed(1) + ' S'); }
+      note(im, (RC_W('最快') + ' ' + (T[im][3] * 3.6).toFixed(0) + ' KM/H').toUpperCase()); if (lb - la >= 5) note(Math.round((la + lb) / 2), (RC_W('腾空') + ' ' + ((lb - la) * 0.1).toFixed(1) + ' S').toUpperCase()); }
     // start and finish
     { const p0 = P(0), p1 = P(n - 1); g.fillStyle = TH.label; g.beginPath(); g.moveTo(p0[0] - 7 * u, p0[1] - 9 * u); g.lineTo(p0[0] + 7 * u, p0[1] - 9 * u); g.lineTo(p0[0], p0[1] + 2 * u); g.closePath(); g.fill();
       g.beginPath(); g.arc(p1[0], p1[1], 7 * u, 0, 6.2832); g.strokeStyle = TH.label; g.lineWidth = 2 * u; g.stroke(); g.beginPath(); g.arc(p1[0], p1[1], 3 * u, 0, 6.2832); g.fillStyle = RED; g.fill(); }
@@ -402,28 +404,28 @@ const RouteCard = self.RouteCard = (() => {
     g.fillStyle = GREY; g.font = '400 ' + 17 * u * (PT ? 1.2 : 1) + 'px ' + SONG; spaced(g, d.diff + ' · ' + d.mountain, at2('diff', 0), at2('diff', 1), 0.3 * 17 * u);
     g.fillStyle = RED; g.fillRect(at2('rule', 0), at2('rule', 1), 34 * u, 3 * u);
     g.fillStyle = INK; g.font = '300 ' + at2('time', 2) + 'px ' + LAT; g.fillText(fmt(d.score), at2('time', 0), at2('time', 1));
-    const bon = d.t - d.score; if (bon > 0.01) { g.fillStyle = GREY; g.font = '400 ' + 13 * u * (PT ? 1.25 : 1) + 'px ' + SONG; spaced(g, '用时 ' + fmt(d.t) + '  光圈奖励 −' + (+bon.toFixed(1)) + ' 秒', at2('pen', 0), at2('pen', 1), 0.1 * 13 * u); }   // (rings 2026-11-19: score = time − ring bonus, no more penalty)
+    const bon = d.t - d.score; if (bon > 0.01) { g.fillStyle = GREY; g.font = '400 ' + 13 * u * (PT ? 1.25 : 1) + 'px ' + SONG; spaced(g, RC_W('用时') + ' ' + fmt(d.t) + '  ' + RC_W('光圈奖励') + ' −' + (+bon.toFixed(1)) + (RC_EN() ? ' s' : ' 秒'), at2('pen', 0), at2('pen', 1), 0.1 * 13 * u); }   // (rings 2026-11-19: score = time − ring bonus, no more penalty)
     // who skied it and where it stands (小红书: the player's nickname from the boards, later the login; the place on this line's board)
-    { const who = d.player || '雪友', rk = d.rank != null ? (typeof d.rank === 'number' ? '第 ' + d.rank + ' 名' : String(d.rank)) : '', fs = at2('who', 2);
+    { const who = d.player || RC_W('雪友'), rk = d.rank != null ? (typeof d.rank === 'number' ? (RC_EN() ? '#' + d.rank : '第 ' + d.rank + ' 名') : String(d.rank)) : '', fs = at2('who', 2);
       g.fillStyle = INK; g.font = '400 ' + fs + 'px ' + SONG; const ex = spaced(g, who, at2('who', 0), at2('who', 1), 0.12 * fs);
       if (rk) { g.fillStyle = RED; spaced(g, rk, ex + 14 * u, at2('who', 1), 0.12 * fs); } }
-    const items = [[st.passed + '/' + st.tot, '光圈'], [(st.vmax * 3.6).toFixed(0), '最快 km/h'], [(st.dist / 1000).toFixed(2), '滑行 km'], [Math.round(st.drop).toLocaleString('en-US'), '落差 m'], [st.air.toFixed(1), '腾空 s']];
+    const items = [[st.passed + '/' + st.tot, RC_W('光圈')], [(st.vmax * 3.6).toFixed(0), RC_W('最快 km/h')], [(st.dist / 1000).toFixed(2), RC_W('滑行 km')], [Math.round(st.drop).toLocaleString('en-US'), RC_W('落差 m')], [st.air.toFixed(1), RC_W('腾空 s')]];
     { const [sx, sy, dx, dy, nc, vs] = Lo.stats;
       items.forEach(([v, k2], i) => { const x = (sx + (i % nc) * dx) * u, y = (sy + Math.floor(i / nc) * dy) * u; g.fillStyle = INK; g.font = '300 ' + vs * u + 'px ' + LAT; g.fillText(v, x, y); g.fillStyle = GREY; g.font = '400 ' + (PT ? 14 : 12) * u + 'px ' + SONG; spaced(g, k2, x, y + (PT ? 26 : 20) * u, 0.12 * 12 * u); }); }
     // the key
     const L = at2('legend', 0); let ky = at2('legend', 1); g.fillStyle = GREY; g.font = '500 ' + 10.5 * u + 'px ' + LAT; spaced(g, 'LEGEND', L, ky, 0.4 * 10.5 * u); ky += 24 * u;
     g.lineCap = 'round'; [30, 70, 110].forEach((kmh, i) => { const x = L + i * 70 * u; g.strokeStyle = RED; g.lineWidth = wv(kmh / 3.6); g.beginPath(); g.moveTo(x, ky); g.lineTo(x + 34 * u, ky); g.stroke(); g.fillStyle = GREY; g.font = '400 ' + 10.5 * u + 'px ' + LAT; g.fillText(kmh, x + 38 * u, ky + 4 * u); });
-    g.fillStyle = INK; g.font = '400 ' + 12 * u + 'px ' + SONG; g.fillText('线宽 = 速度 km/h', L + 214 * u, ky + 4 * u); ky += 28 * u;
-    g.strokeStyle = TH.air; g.lineWidth = 1.2 * u; g.setLineDash([2 * u, 2.6 * u]); g.beginPath(); g.moveTo(L, ky); g.lineTo(L + 34 * u, ky); g.stroke(); g.setLineDash([]); g.fillText('腾空', L + 42 * u, ky + 4 * u);
-    g.beginPath(); g.arc(L + 102 * u, ky, 2.6 * u, 0, 6.2832); g.strokeStyle = TH.miss; g.lineWidth = 1 * u; g.stroke(); g.fillText('漏掉的圈', L + 110 * u, ky + 4 * u);
-    g.beginPath(); g.arc(L + 190 * u, ky, 8 * u, 0, 6.2832); g.fillStyle = TH.bestDisc; g.fill(); g.fillStyle = INK; g.fillText('最快的一站', L + 203 * u, ky + 4 * u); ky += 26 * u;
+    g.fillStyle = INK; g.font = '400 ' + 12 * u + 'px ' + SONG; g.fillText(RC_W('线宽 = 速度 km/h'), L + 214 * u, ky + 4 * u); ky += 28 * u;
+    g.strokeStyle = TH.air; g.lineWidth = 1.2 * u; g.setLineDash([2 * u, 2.6 * u]); g.beginPath(); g.moveTo(L, ky); g.lineTo(L + 34 * u, ky); g.stroke(); g.setLineDash([]); g.fillText(RC_W('腾空'), L + 42 * u, ky + 4 * u);
+    g.beginPath(); g.arc(L + 102 * u, ky, 2.6 * u, 0, 6.2832); g.strokeStyle = TH.miss; g.lineWidth = 1 * u; g.stroke(); g.fillText(RC_W('漏掉的圈'), L + 110 * u, ky + 4 * u);
+    g.beginPath(); g.arc(L + 190 * u, ky, 8 * u, 0, 6.2832); g.fillStyle = TH.bestDisc; g.fill(); g.fillStyle = INK; g.fillText(RC_W('最快的一站'), L + 203 * u, ky + 4 * u); ky += 26 * u;
     // speed over the run, Minard's lower strip: the filled area is the speed, the station marks under it
     const sxA = at2('speed', 0), sy0 = PT ? at2('speed', 1) + 20 * u : ky + 26 * u, sh2 = at2('speed', 3) * (PT ? 0.8 : 1), sx1 = sxA + at2('speed', 2), sxL = sx1 - sxA;
     { let acc = 0; const Dd = [0]; for (let i = 1; i < n; i++) { acc += Math.hypot(T[i][0] - T[i - 1][0], T[i][1] - T[i - 1][1]); Dd.push(acc); }
       g.fillStyle = TH.speedFill; g.beginPath(); g.moveTo(sxA, sy0 + sh2); for (let i = 0; i < n; i += 3) g.lineTo(sxA + Dd[i] / acc * sxL, sy0 + sh2 - T[i][3] / st.vmax * sh2); g.lineTo(sx1, sy0 + sh2); g.closePath(); g.fill();
       g.strokeStyle = INK; g.lineWidth = 0.8 * u; g.beginPath(); g.moveTo(sxA, sy0 + sh2); g.lineTo(sx1, sy0 + sh2); g.stroke();
       stations(d).forEach((q, i) => { const j = at(T, Math.max(sA + 3, q.s)), x = sxA + Dd[j] / acc * sxL; g.beginPath(); g.moveTo(x, sy0 + sh2); g.lineTo(x, sy0 + sh2 + 5 * u); g.stroke(); g.fillStyle = GREY; g.font = '500 ' + 8.5 * u + 'px ' + LAT; g.textAlign = 'center'; g.fillText(String(i + 1), x + 0, sy0 + sh2 + 15 * u); });
-      g.textAlign = 'left'; g.fillStyle = GREY; g.font = '400 ' + 11 * u + 'px ' + SONG; g.fillText('一路的速度', sxA, sy0 - 8 * u); }
+      g.textAlign = 'left'; g.fillStyle = GREY; g.font = '400 ' + 11 * u + 'px ' + SONG; g.fillText(RC_W('一路的速度'), sxA, sy0 - 8 * u); }
     // the foot: the game, the card's code and the date
     const dt = new Date(d.date || Date.now()), ds = dt.getFullYear() + '.' + String(dt.getMonth() + 1).padStart(2, '0') + '.' + String(dt.getDate()).padStart(2, '0') + ' ' + String(dt.getHours()).padStart(2, '0') + ':' + String(dt.getMinutes()).padStart(2, '0');
     g.fillStyle = INK; g.font = '500 ' + 22 * u + 'px ' + SONG; spaced(g, '雪迹', at2('brand', 0), at2('brand', 1), 0.3 * 22 * u); g.fillStyle = GREY; g.font = '500 ' + 10 * u + 'px ' + LAT; spaced(g, 'COLD SMOKE', at2('brand', 0) + 74 * u, at2('brand', 1) - 1 * u, 0.4 * 10 * u);
@@ -496,8 +498,8 @@ const RouteCard = self.RouteCard = (() => {
     const HG = { x0: Math.floor((xa - 420) / 10) * 10, s0: Math.floor(sA / 10) * 10, step: 10, rows: [] }, NX = Math.ceil((xb + 420 - HG.x0) / 10) + 1;
     const TG = { x0: Math.floor((xa - 360) / 8) * 8, s0: Math.floor(sA / 8) * 8, step: 8, rows: [] }, TX = Math.ceil((xb + 360 - TG.x0) / 8) + 1;
     const cx = []; for (let s = Math.max(0, sA); s <= sB; s += 10) { const c = C.at(s); cx.push([s, c.cx, c.hw]); }
-    const d = { track: T, rings, segs, names: o.names || [], cx, line: o.name || '', diff: ({ a: '轻松', b: '标准', c: '难' })[o.diff] || '', mountain: (C.mountainName && C.mountainName()) || '',
-      score: o.score, t: o.t, split: o.splits || [], date: r.date, seed: (Math.random() * 1e9) | 0, player: '雪友', rank: null, ready: false };
+    const mt = C.mountainBySeed && C.mountainBySeed(), d = { track: T, rings, segs, names: (o.names || []).map(s => { const m = /^(\d+ )(.+)$/.exec(s); return m ? m[1] + RC_W(m[2]) : RC_W(s); }), cx, line: RC_W(o.name || ''), diff: RC_W(({ a: '轻松', b: '标准', c: '难' })[o.diff] || ''), mountain: mt ? (RC_EN() ? mt.en || mt.zh : mt.zh) : '',
+      score: o.score, t: o.t, split: o.splits || [], date: r.date, seed: (Math.random() * 1e9) | 0, player: RC_W('雪友'), rank: null, ready: false };
     RCg.data = d; RCg.rec = null;
     let js = HG.s0, jt = TG.s0;
     const step = () => {
@@ -534,22 +536,23 @@ const RouteCard = self.RouteCard = (() => {
       + '#rcard .side{display:flex;flex-direction:column;gap:8px;min-width:120px}#rcard .msg{font-family:var(--f-song);font-size:12px;letter-spacing:.14em;color:var(--dim);line-height:1.7;max-width:150px}'
       + '#rcard button{appearance:none;-webkit-appearance:none;margin:0;border:0;height:38px;padding:0 16px;border-radius:12px;font-family:var(--f-ui);font-size:12px;letter-spacing:.14em;cursor:pointer;color:var(--dim);background:rgba(5,8,13,.25);box-shadow:inset 0 0 0 1px var(--hair)}'
       + '#rcard button.p{color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun);font-family:var(--f-song);letter-spacing:.3em}#rcard kbd{margin-left:.5em;font-family:var(--f-lat);font-size:.85em;opacity:.6}'
-      + '</style><canvas width="1200" height="1600"></canvas><div class="side"><button class="p" data-a="save">保存图片</button><button data-a="close">关闭<kbd>Esc</kbd></button><div class="msg">截图或保存，发给朋友</div></div>';
+      + '</style><canvas width="1200" height="1600"></canvas><div class="side"><button class="p" data-a="save"></button><button data-a="close"></button><div class="msg"></div></div>';
     (document.getElementById('app') || document.body).appendChild(d);
     d.addEventListener('click', e => { const a = e.target && e.target.closest && e.target.closest('[data-a]'); if (!a) { if (e.target === d) close(); return; } if (a.dataset.a === 'save') save(); else close(); });
     RCg.el = d; return d;
   }
   function paint() {
     const d = RCg.data, cv = RCg.el.querySelector('canvas'), g = cv.getContext('2d'), msg = RCg.el.querySelector('.msg');
-    if (!d || !d.ready) { g.fillStyle = '#141c2b'; g.fillRect(0, 0, cv.width, cv.height); g.fillStyle = 'rgba(244,247,251,.62)'; g.font = '400 32px "Noto Serif SC","Songti SC",serif'; g.textAlign = 'center'; g.fillText('正在画这条线…', cv.width / 2, cv.height / 2); return; }
-    try { RouteCard.draw(cv, d, 'e'); msg.textContent = '截图或保存，发给朋友'; } catch (e) { console.warn('route card:', e); msg.textContent = '这张卡没画出来'; }
+    RCg.el.querySelector('[data-a=save]').textContent = RC_W('保存图片'); RCg.el.querySelector('[data-a=close]').innerHTML = RC_W('关闭') + '<kbd>Esc</kbd>';
+    if (!d || !d.ready) { g.fillStyle = '#141c2b'; g.fillRect(0, 0, cv.width, cv.height); g.fillStyle = 'rgba(244,247,251,.62)'; g.font = '400 32px "Noto Serif SC","Songti SC",serif'; g.textAlign = 'center'; g.fillText(RC_W('正在画这条线…'), cv.width / 2, cv.height / 2); return; }
+    try { RouteCard.draw(cv, d, 'e'); msg.textContent = RC_W('截图或保存，发给朋友'); } catch (e) { console.warn('route card:', e); msg.textContent = RC_W('这张卡没画出来'); }
   }
   function open() { if (!RCg.data) return; ui().classList.add('on'); RG.cardShow(false); paint(); }
   function close() { if (!RCg.el || !RCg.el.classList.contains('on')) return; RCg.el.classList.remove('on'); RG.cardShow(true); }
   function save() {
     const cv = RCg.el.querySelector('canvas'), d = RCg.data, name = '雪迹_' + (d ? d.line : '路线') + '_' + new Date().toISOString().slice(0, 10) + '.png';
     try { cv.toBlob(b => { if (!b) return; const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); }, 'image/png'); }
-    catch (e) { RCg.el.querySelector('.msg').textContent = '这里存不了图，截图就好'; }
+    catch (e) { RCg.el.querySelector('.msg').textContent = RC_W('这里存不了图，截图就好'); }
   }
   RCg.open = open; RCg.close = close;
   RG.cardButtons.push({ label: '路线卡', key: 'C', on: open });
