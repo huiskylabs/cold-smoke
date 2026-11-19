@@ -1594,7 +1594,7 @@ fn frag(v: VOut) -> FOut {
   var lace: f32 = 0.5; var edge: f32 = 0.0;
   if (v.vw.w > 9.5) {
     let pxm: f32 = dist * 2.0 * U.camRight.w / U.res.y;
-    let cm: vec2f = vec2f((v.uv.x * 2.0 - 1.0) * v.fx.y, v.uv.y * ${(V1 - V0).toFixed(2)} * v.fx.x) / max(0.16, 2.0 * pxm) + vec2f(v.gp.w * 97.0, v.gp.w * 41.0);
+    let cm: vec2f = vec2f((v.uv.x * 2.0 - 1.0) * v.fx.y, v.uv.y * 11.35 * v.fx.x) / max(0.16, 2.0 * pxm) + vec2f(v.gp.w * 97.0, v.gp.w * 41.0);
     lace = cardVN(cm) * 0.6 + cardVN(cm * 2.07 + vec2f(5.3, 1.7)) * 0.4;
     edge = 1.0 - smoothstep(cut0, cut0 + 0.4, al);
     if (lace < edge * 0.85 + 0.12 * smoothstep(0.6, 1.0, v.uv.y)) { discard; }
