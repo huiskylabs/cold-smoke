@@ -14,6 +14,10 @@ const CASES = [
   // hard: the last so many seconds the stick is held hard over (a hockey stop: the skis and the body swing across under the eyes)
   { id: '7_急转刹车左', seed: 0, t: 12, hard: [-0.85, 1.6] },
   { id: '8_急转刹车右', seed: 0, t: 20, hard: [0.85, 2.2] },
+  // (the knee came nearest the lens here: 0.73 m, tools/fpv/figview.js)
+  { id: '9_急转膝盖', seed: 0, t: 13.75, hard: [-0.85, 3.35] },
+  // photo: then into the photo mode, the lens where it was (a photo taken in first person showed the figure from inside its head)
+  { id: '10_急转拍照', seed: 0, t: 13.75, hard: [-0.85, 3.35], photo: 1 },
 ];
 (async () => {
   const args = process.env.REALGPU ? ['--enable-unsafe-webgpu', '--ignore-gpu-blocklist', '--enable-gpu', '--use-angle=metal'] : ['--use-angle=swiftshader', '--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader'];
@@ -39,10 +43,12 @@ const CASES = [
       // (in the air nothing is taken: run on until the skis are on the snow)
       const n = c.t * 60; let i = 0;
       for (; i < n || (G.flight && G.flight.w > 0.05) || G.s.air; i++) { M.Input.script = c.hard && i > n - c.hard[1] * 60 ? c.hard[0] : pilot(G.runT); if (c.tuck) M.Input.btn.tuck = i > n - c.tuck * 60; ski.frame(1 / 60); if (i > n + 600) break; }
-      return { fpv: fpvReady && G.fpv.vis, sp: +G.s.speed.toFixed(1), lean: +(G.pose.lean || 0).toFixed(2), tuck: +(G.pose.tuck || 0).toFixed(2), backend: M.App.gfx.caps.backend + ' / ' + (M.App.gfx.caps.renderer || ''), png: nodraw ? null : await ski.shot() };
+      let ph = '';
+      if (c.photo) { try { if (M.UI) M.UI.open = true; const PH = M.Photo || window.Photo; ph = PH.enter() ? ' 拍照模式' : ' 拍照模式没进去(' + [M.UI.open, M.UI.state, M.UI.gone, M.App.swapping, M.App.ready, M.App.gfx.lost].join(',') + ')'; M.App.photoFrame && M.App.photoFrame(1 / 60); ph += ' fpv.vis=' + G.fpv.vis + ' cut=' + JSON.stringify(M.Skier.lensCut); } catch (e) { ph = ' 拍照出错 ' + e.message; } }
+      return { ph, fpv: fpvReady && G.fpv.vis, sp: +G.s.speed.toFixed(1), lean: +(G.pose.lean || 0).toFixed(2), tuck: +(G.pose.tuck || 0).toFixed(2), backend: M.App.gfx.caps.backend + ' / ' + (M.App.gfx.caps.renderer || ''), png: nodraw ? null : await ski.shot() };
     }, [c, !!process.env.NODRAW]);
     if (r.png) fs.writeFileSync(path.join(OUT, `${TAG}_${c.id}.png`), Buffer.from(r.png.split(',')[1], 'base64'));
-    console.log(`${TAG} ${c.id}: 第一视角手臂${r.fpv ? '在画' : '没在画！'} 速度 ${r.sp} m/s 倾斜 ${r.lean} 压低 ${r.tuck}  ${r.backend}`);
+    console.log(`${TAG} ${c.id}: 第一视角手臂${r.fpv ? '在画' : '没在画！'} 速度 ${r.sp} m/s 倾斜 ${r.lean} 压低 ${r.tuck}  ${r.backend}${r.ph || ''}`);
     await page.close();
   }
   await browser.close();
