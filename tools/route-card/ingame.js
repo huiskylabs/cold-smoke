@@ -6,7 +6,7 @@ const path = require('path'), fs = require('fs'); const { chromium } = require('
 const outDir = path.resolve(process.argv[2] || 'route-card-ingame'), line = process.argv[3] || 'a', diffs = [(process.argv[4] || 'b')]; fs.mkdirSync(outDir, { recursive: true });
 (async () => {
   const b = await chromium.launch({ headless: true, args: process.env.GPU ? ['--enable-unsafe-webgpu', '--enable-gpu', '--ignore-gpu-blocklist'] : [] });
-  const pg = await b.newPage({ viewport: { width: 1280, height: 720 }, locale: 'zh-CN' });
+  const pg = await b.newPage({ viewport: { width: +(process.env.VW || 1280), height: +(process.env.VH || 720) }, locale: 'zh-CN' });
   const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => { if (m.type() === 'error' || /line:|pick:/.test(m.text())) errs.push(m.text().slice(0, 200)); });
   await pg.goto('file://' + path.resolve(__dirname, '../../dist/dev.html') + '?dev');
   await pg.waitForFunction(() => window.__ski && window.__rings && __ski.ui().state === 'title', null, { timeout: 300000 });
@@ -48,12 +48,38 @@ const outDir = path.resolve(process.argv[2] || 'route-card-ingame'), line = proc
     const info = await pg.evaluate(() => { const D = RouteCardGame.data, btn = [...document.querySelectorAll('#rline .card button')].map(b => b.textContent);
       return { track: D.track.length, rings: D.rings.length, passed: D.rings.filter(q => q.pass).length, segs: D.segs.length, line: D.line, diff: D.diff, score: D.score, player: D.player, rank: D.rank, buttons: btn }; });
     console.log('card data', JSON.stringify(info));
-    await pg.evaluate(() => { const b = [...document.querySelectorAll('#rline .card button')].find(x => /路线卡/.test(x.textContent)); if (b) b.click(); else RouteCardGame.open(); });
+    // 1) beside the result: the small card came in with the result card (用户 2026-11-19: 弹统计时路线卡要一起出来)
+    await pg.evaluate(() => __ski.frame());
+    await pg.screenshot({ path: path.join(outDir, 'result_' + line + '.png') });
+    const dk = await pg.evaluate(() => { const c = document.querySelector('#rline .rcdock'); if (!c) return null; const r = c.getBoundingClientRect(), k = document.querySelector('#rline .card').getBoundingClientRect();
+      return { opacity: getComputedStyle(c).opacity, w: Math.round(r.width), h: Math.round(r.height), right: Math.round(r.right), cardLeft: Math.round(k.left), overlap: r.right > k.left + 1 }; });
+    console.log('dock', JSON.stringify(dk));
+    // 2) tap it: the card large
+    await pg.evaluate(() => document.querySelector('#rline .rcdock').click());
     await pg.waitForTimeout(600);
     const png = await pg.evaluate(() => document.querySelector('#rcard canvas').toDataURL('image/png'));
     fs.writeFileSync(path.join(outDir, 'card_' + line + '.png'), Buffer.from(png.split(',')[1], 'base64'));
     await pg.evaluate(() => __ski.frame());
     await pg.screenshot({ path: path.join(outDir, 'screen_' + line + '.png') });
+    // 3) close, 继续滑, and find it again in the pause menu (用户 2026-11-19: 关了继续滑以后找不到之前的路线卡)
+    await pg.keyboard.press('Escape'); await pg.waitForTimeout(300);
+    await pg.evaluate(() => document.querySelector('#rline .card [data-a=free]').click()); await pg.waitForTimeout(1500);
+    const after = await pg.evaluate(() => ({ dockOpacity: getComputedStyle(document.querySelector('#rline .rcdock')).opacity, hist: RouteCardGame.hist.length, kept: RouteCardGame.hist.filter(e => e.blob).length }));
+    await pg.evaluate(() => __ski.ui().menu()); await pg.waitForTimeout(800);
+    const mb = await pg.evaluate(() => { const b = document.getElementById('m-rcard'); return b ? { hidden: b.hidden, text: b.textContent, shown: !!(b.offsetWidth || b.offsetHeight) } : null; });
+    await pg.evaluate(() => document.getElementById('m-rcard').click()); await pg.waitForTimeout(600);
+    await pg.evaluate(() => __ski.frame());
+    await pg.screenshot({ path: path.join(outDir, 'menu_' + line + '.png') });
+    const big = await pg.evaluate(() => ({ on: document.getElementById('rcard').classList.contains('on'), n: document.querySelector('#rcard .n').textContent }));
+    console.log('after free ski', JSON.stringify({ after, menuButton: mb, big }));
+    // 4) the next day: a fresh page still has it (IndexedDB)
+    await pg.reload(); await pg.waitForFunction(() => window.__ski && window.RouteCardGame && __ski.ui().state === 'title', null, { timeout: 300000 });
+    await pg.waitForTimeout(1500);
+    const kept = await pg.evaluate(async () => { __ski.ui().menu(); await new Promise(q => setTimeout(q, 800)); const b = document.getElementById('m-rcard'); if (b) b.click(); await new Promise(q => setTimeout(q, 800));
+      return { hist: RouteCardGame.hist.length, button: b ? !b.hidden : null, open: document.getElementById('rcard').classList.contains('on'), n: document.querySelector('#rcard .n') && document.querySelector('#rcard .n').textContent }; });
+    await pg.evaluate(() => __ski.frame());
+    await pg.screenshot({ path: path.join(outDir, 'reload_' + line + '.png') });
+    console.log('after reload', JSON.stringify(kept));
     console.log('wrote', outDir);
   }
   console.log('errors:', errs.length ? errs.join(' | ') : 'none');

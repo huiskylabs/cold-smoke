@@ -387,7 +387,7 @@ window.__ski = {
   },
   async shot() { const cap = await App.gfx.capture(); const c2 = document.createElement('canvas'); c2.width = cap.w; c2.height = cap.h; c2.getContext('2d').putImageData(new ImageData(cap.data, cap.w, cap.h), 0, 0); return c2.toDataURL('image/png'); },
   height: (x, z) => Course.height(x, z, 0.5),
-  mod: n => ({ Trees, TreeModel, Game, Course, Render, Spray })[n],        // test hook: a module by name (tree checks)
+  mod: n => ({ Trees, TreeModel, Game, Course, Render, Spray, Sound })[n],        // test hook: a module by name (tree checks)
   set(path, v) { const parts = path.split('.'); let o = { Sky, Render, Post, App, Terrain, Course, Spray, Game, Input, Dust, Nebula, Clouds, Trees, Shafts, Vista, Tracks, Sound, Deer }; for (let i = 0; i < parts.length - 1; i++) o = o[parts[i]]; o[parts[parts.length - 1]] = v; },
   err: () => App.gfx && App.gfx.lastError,
   // fast-forward the game: fn(t) returns the steering input (-1..1) for that moment; the last step is drawn
@@ -399,6 +399,7 @@ window.__ski = {
     const S = Game.s; return { p: S.p.map(v => +v.toFixed(2)), speed: +S.speed.toFixed(2), lean: +S.lean.toFixed(3), beta: +S.beta.toFixed(3), air: S.air, e: +S.e.toFixed(3), seg: Course.segAt(-S.p[2]).type };
   },
   frame(dt) { tick(dt == null ? 1 / 60 : dt, true); },
+  step(dt) { tick(dt == null ? 1 / 60 : dt, false); },          // (a frame with nothing drawn: tests that only read numbers)
   // the sound of a stretch of skiing, rendered offline: the same instrument, fed the same states, on a clock that advances 1/60 s a step.
   // Returns a 16-bit WAV (base64) and a log of what the skier was doing
   async audioTest(seconds, fn, opt = {}) {

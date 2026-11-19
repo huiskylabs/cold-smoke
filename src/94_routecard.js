@@ -474,7 +474,7 @@ const RouteCard = self.RouteCard = (() => {
   if (typeof window === 'undefined' || typeof Game === 'undefined') return;
   const RG = window.__rings; if (!RG || !RG.hooks) return;
   const G = Game, S = G.s;
-  const RCg = { rec: null, data: null, el: null, busy: false };
+  const RCg = { rec: null, data: null, el: null, busy: false, hist: [], view: 0 };          // hist: this player's cards, newest first
   self.RouteCardGame = RCg;          // (for test scripts)
 
   function begin(info) { RCg.rec = { info, track: [], rings: new Map(), nextT: 0, date: Date.now() }; RCg.data = null; }
@@ -501,6 +501,8 @@ const RouteCard = self.RouteCard = (() => {
     const mt = C.mountainBySeed && C.mountainBySeed(), d = { track: T, rings, segs, names: (o.names || []).map(s => { const m = /^(\d+ )(.+)$/.exec(s); return m ? m[1] + RC_W(m[2]) : RC_W(s); }), cx, line: RC_W(o.name || ''), diff: RC_W(({ a: '轻松', b: '标准', c: '难' })[o.diff] || ''), mountain: mt ? (RC_EN() ? mt.en || mt.zh : mt.zh) : typeof App !== 'undefined' && App.isDaily && App.isDaily() ? RC_W('今日之山') : '',
       score: o.score, t: o.t, split: o.splits || [], date: r.date, seed: (Math.random() * 1e9) | 0, player: RC_W('雪友'), rank: null, ready: false };
     RCg.data = d; RCg.rec = null;
+    const ent = { id: r.date + '_' + d.seed, line: d.line, diff: d.diff, score: d.score, date: r.date, data: d };
+    RCg.hist.unshift(ent); RCg.view = 0; prune(); dockPaint(); menuBtn();
     let js = HG.s0, jt = TG.s0;
     const step = () => {
       if (RCg.data !== d) return;
@@ -514,19 +516,84 @@ const RouteCard = self.RouteCard = (() => {
         const i = fi | 0, j = fj | 0, u = fi - i, v = fj - j, A = HG.rows[j], B = HG.rows[j + 1]; return (A[i] * (1 - u) + A[i + 1] * u) * (1 - v) + (B[i] * (1 - u) + B[i + 1] * u) * v; };
       const tv = (i, j) => { const row = TG.rows[j]; return row && i >= 0 && i < TX ? row[i] / 100 : 0; };
       d.T = (x, s) => { const fi = (x - TG.x0) / 8, fj = (s - TG.s0) / 8, i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j; return (tv(i, j) * (1 - u) + tv(i + 1, j) * u) * (1 - v) + (tv(i, j + 1) * (1 - u) + tv(i + 1, j + 1) * u) * v; };
-      d.ready = true; if (RCg.el && RCg.el.classList.contains('on')) paint();
+      d.ready = true; render(ent);
     };
     setTimeout(step, 400);          // (after the finish's own burst and the card sliding in)
     // who and the place: the board answers a moment after the finish (92_rings.js submits the time first)
     if (typeof Rank !== 'undefined' && Rank.me && Rank.on && Rank.chalBoard) {   // all three difficulties share one board since 2026-11-19
       const m = C.mountainBySeed && C.mountainBySeed(), b = m ? Rank.chalBoard(m.id, o.line) : 0;
-      if (b) setTimeout(() => Rank.me(b).then(w => { if (!w || RCg.data !== d) return; if (w.nick) d.player = w.nick; if (w.rank != null) d.rank = w.rank; if (RCg.el && RCg.el.classList.contains('on')) paint(); }).catch(() => { }), 2500);
+      if (b) setTimeout(() => Rank.me(b).then(w => { if (!w || RCg.data !== d) return; if (w.nick) d.player = w.nick; if (w.rank != null) d.rank = w.rank; if (d.ready) render(ent); }).catch(() => { }), 2500);
     }
   }
   const cl01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
   RG.hooks.go.push(begin); RG.hooks.finish.push(finish);
 
-  // ---- the card over the game
+  // ---- every card is kept (用户 2026-11-19 06:50 UTC: 关了继续滑以后，就找不到之前的路线卡了): once drawn, the card goes as a picture into
+  // the browser's own store (IndexedDB, the last HMAX cards), so it is still there after 继续滑, the next run, or the next day. The pause
+  // menu has 路线卡 whenever there is one, and the card shows them all, newest first (‹ › or the arrow keys)
+  const HMAX = 12;
+  const DB = (() => {
+    let p = null;
+    const open = () => p || (p = new Promise((res, rej) => {
+      try { const q = indexedDB.open('coldsmoke-routecards', 1); q.onupgradeneeded = () => q.result.createObjectStore('c', { keyPath: 'id' }); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }
+      catch (e) { rej(e); }
+    }));
+    const run = (mode, f) => open().then(db => new Promise((res, rej) => { const t = db.transaction('c', mode), q = f(t.objectStore('c')); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); }));
+    return { all: () => run('readonly', s => s.getAll()), put: o => run('readwrite', s => s.put(o)), del: id => run('readwrite', s => s.delete(id)) };
+  })();
+  const keep = e => DB.put({ id: e.id, line: e.line, diff: e.diff, score: e.score, date: e.date, blob: e.blob }).then(prune).catch(() => { });
+  function prune() { while (RCg.hist.length > HMAX) { const e = RCg.hist.pop(); DB.del(e.id).catch(() => { }); if (e.url) URL.revokeObjectURL(e.url); } }
+  try { DB.all().then(list => {
+    const have = new Set(RCg.hist.map(e => e.id));
+    for (const o of list || []) if (o && o.blob && !have.has(o.id)) RCg.hist.push({ id: o.id, line: o.line, diff: o.diff, score: o.score, date: o.date, blob: o.blob });
+    RCg.hist.sort((a, b) => b.date - a.date); prune(); menuBtn();
+  }).catch(() => { }); } catch (e) { }
+
+  // one full-size drawing per card (1200×1600): the card, the thumbnail beside the result and the kept picture all come from it
+  function render(e) {
+    const d = e.data; if (!d || !d.ready) return;
+    const cv = e.full || (e.full = document.createElement('canvas')); cv.width = 1200; cv.height = 1600;
+    try { RouteCard.draw(cv, d, 'e'); e.ok = true; } catch (err) { console.warn('route card:', err); e.ok = false; }
+    if (e.ok) try { cv.toBlob(b => { if (!b) return; e.blob = b; if (e.url) { URL.revokeObjectURL(e.url); e.url = null; } keep(e); }, 'image/jpeg', 0.9); } catch (err) { }
+    if (RCg.hist[0] === e) dockPaint();
+    if (RCg.el && RCg.el.classList.contains('on') && RCg.hist[RCg.view] === e) paint();
+    menuBtn();
+  }
+  function pic(e, cb) {          // a kept card (from an earlier day): its picture
+    if (e.img) { cb(e.img); return; }
+    if (!e.blob) { cb(null); return; }
+    const im = new Image(); e.url = e.url || URL.createObjectURL(e.blob);
+    im.onload = () => { e.img = im; cb(im); }; im.onerror = () => cb(null); im.src = e.url;
+  }
+  function placeholder(cv, text) {
+    const g = cv.getContext('2d'); g.fillStyle = '#141c2b'; g.fillRect(0, 0, cv.width, cv.height);
+    g.fillStyle = 'rgba(244,247,251,.62)'; g.font = '400 ' + Math.round(cv.width / 37) + 'px "Noto Serif SC","Songti SC",serif'; g.textAlign = 'center'; g.fillText(RC_W(text), cv.width / 2, cv.height / 2);
+  }
+  function drawEntry(cv, e, done) {
+    if (!e) { placeholder(cv, '还没有路线卡'); done && done(false); return; }
+    const g = cv.getContext('2d');
+    if (e.full && e.ok) { g.drawImage(e.full, 0, 0, cv.width, cv.height); done && done(true); return; }
+    if (e.data) { placeholder(cv, e.data.ready ? '这张卡没画出来' : '正在画这条线…'); done && done(false); return; }
+    pic(e, im => { if (im) { g.drawImage(im, 0, 0, cv.width, cv.height); done && done(true); } else { placeholder(cv, '这张卡没画出来'); done && done(false); } });
+  }
+
+  // ---- beside the result (用户 2026-11-19 06:50 UTC: 弹出统计的时候，路线卡没有一起弹出来): the card itself, small, to the left of the result
+  // card, coming in with it and going with it (CSS: it follows .card.on, so 回放, 继续滑 and a new run take it away too). A tap opens it large
+  // (below the time and its line at the top middle, so they stay readable on a phone turned sideways)
+  // (the result card is min(330px,44vw) wide plus its 20 px padding each side, so the card sits 40 + 12 px further left than that)
+  function dock() {
+    const L = RG.line; if (!L || !L.el) return null;
+    if (RCg.dk && RCg.dk.parentNode === L.el) return RCg.dk;
+    const st = document.createElement('style');
+    st.textContent = '#rline .rcdock{position:absolute;top:calc(50% + 36px);right:calc(var(--gr) + min(330px,44vw) + 52px);height:min(calc(100% - var(--gt) - var(--gb) - 72px),560px);max-width:calc(100% - var(--gr) - min(330px,44vw) - 64px);aspect-ratio:3/4;object-fit:contain;transform:translate(12px,-50%);opacity:0;transition:opacity .5s .2s,transform .6s .2s cubic-bezier(.2,.6,.2,1);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.45),inset 0 0 0 1px rgba(244,247,251,.22);cursor:pointer;pointer-events:none}'
+      + '#rline .card.on ~ .rcdock{opacity:1;transform:translate(0,-50%);pointer-events:auto}';
+    const cv = document.createElement('canvas'); cv.className = 'rcdock'; cv.width = 600; cv.height = 800; cv.title = RC_W('路线卡');
+    cv.addEventListener('click', e => { e.stopPropagation(); RCg.view = 0; open(); });
+    L.el.appendChild(st); L.el.appendChild(cv); RCg.dk = cv; return cv;
+  }
+  function dockPaint() { const cv = dock(); if (cv) drawEntry(cv, RCg.hist[0]); }
+
+  // ---- the card large, over the game
   function ui() {
     if (RCg.el) return RCg.el;
     const d = document.createElement('div'); d.id = 'rcard';
@@ -535,32 +602,68 @@ const RouteCard = self.RouteCard = (() => {
       + '#rcard.on{display:flex}#rcard canvas{height:min(calc(100% - 32px),calc((100vw - 200px) * 4 / 3));aspect-ratio:3/4;border-radius:12px;box-shadow:0 18px 60px rgba(0,0,0,.5),inset 0 0 0 1px rgba(244,247,251,.22)}'
       + '#rcard .side{display:flex;flex-direction:column;gap:8px;min-width:120px}#rcard .msg{font-family:var(--f-song);font-size:12px;letter-spacing:.14em;color:var(--dim);line-height:1.7;max-width:150px}'
       + '#rcard button{appearance:none;-webkit-appearance:none;margin:0;border:0;height:38px;padding:0 16px;border-radius:12px;font-family:var(--f-ui);font-size:12px;letter-spacing:.14em;cursor:pointer;color:var(--dim);background:rgba(5,8,13,.25);box-shadow:inset 0 0 0 1px var(--hair)}'
+      + '#rcard button:disabled{opacity:.3;cursor:default}#rcard .nav{display:flex;gap:8px;align-items:center}#rcard .nav button{flex:1;padding:0;font-family:var(--f-lat);font-size:16px;letter-spacing:0}#rcard .n{font-family:var(--f-lat);font-size:11px;letter-spacing:.1em;color:var(--faint);text-align:center}'
       + '#rcard button.p{color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun);font-family:var(--f-song);letter-spacing:.3em}#rcard kbd{margin-left:.5em;font-family:var(--f-lat);font-size:.85em;opacity:.6}'
-      + '</style><canvas width="1200" height="1600"></canvas><div class="side"><button class="p" data-a="save"></button><button data-a="close"></button><div class="msg"></div></div>';
+      + '</style><canvas width="1200" height="1600"></canvas><div class="side"><button class="p" data-a="save"></button><button data-a="close"></button>'
+      + '<div class="nav"><button data-a="newer">‹</button><button data-a="older">›</button></div><div class="n"></div><div class="msg"></div></div>';
     (document.getElementById('app') || document.body).appendChild(d);
-    d.addEventListener('click', e => { const a = e.target && e.target.closest && e.target.closest('[data-a]'); if (!a) { if (e.target === d) close(); return; } if (a.dataset.a === 'save') save(); else close(); });
+    d.addEventListener('click', e => {
+      e.stopPropagation();
+      const a = e.target && e.target.closest && e.target.closest('[data-a]'); if (!a) { if (e.target === d) close(); return; }
+      const k = a.dataset.a; if (k === 'save') save(); else if (k === 'newer') step(-1); else if (k === 'older') step(1); else close();
+    });
     RCg.el = d; return d;
   }
+  const when = t => { const x = new Date(t), p = n => (n < 10 ? '0' : '') + n; return (x.getMonth() + 1) + '/' + x.getDate() + ' ' + p(x.getHours()) + ':' + p(x.getMinutes()); };
   function paint() {
-    const d = RCg.data, cv = RCg.el.querySelector('canvas'), g = cv.getContext('2d'), msg = RCg.el.querySelector('.msg');
-    RCg.el.querySelector('[data-a=save]').textContent = RC_W('保存图片'); RCg.el.querySelector('[data-a=close]').innerHTML = RC_W('关闭') + '<kbd>Esc</kbd>';
-    if (!d || !d.ready) { g.fillStyle = '#141c2b'; g.fillRect(0, 0, cv.width, cv.height); g.fillStyle = 'rgba(244,247,251,.62)'; g.font = '400 32px "Noto Serif SC","Songti SC",serif'; g.textAlign = 'center'; g.fillText(RC_W('正在画这条线…'), cv.width / 2, cv.height / 2); return; }
-    try { RouteCard.draw(cv, d, 'e'); msg.textContent = RC_W('截图或保存，发给朋友'); } catch (e) { console.warn('route card:', e); msg.textContent = RC_W('这张卡没画出来'); }
+    const el = RCg.el, cv = el.querySelector('canvas'), msg = el.querySelector('.msg'), H = RCg.hist, i = RCg.view, e = H[i];
+    el.querySelector('[data-a=save]').textContent = RC_W('保存图片'); el.querySelector('[data-a=close]').innerHTML = RC_W('关闭') + '<kbd>Esc</kbd>';
+    el.querySelector('[data-a=newer]').disabled = i <= 0; el.querySelector('[data-a=older]').disabled = i >= H.length - 1;
+    el.querySelector('.nav').style.display = H.length > 1 ? '' : 'none';
+    el.querySelector('.n').textContent = e ? (H.length > 1 ? (i + 1) + ' / ' + H.length + ' · ' : '') + when(e.date) : '';
+    drawEntry(cv, e, ok => { if (RCg.hist[RCg.view] === e) msg.textContent = ok ? RC_W('截图或保存，发给朋友') : ''; });
   }
-  function open() { if (!RCg.data) return; ui().classList.add('on'); RG.cardShow(false); paint(); }
-  function close() { if (!RCg.el || !RCg.el.classList.contains('on')) return; RCg.el.classList.remove('on'); RG.cardShow(true); }
+  function step(k) { const n = RCg.view + k; if (n < 0 || n >= RCg.hist.length) return; RCg.view = n; paint(); }
+  // (opened from the result: the result card steps aside and comes back after; from the pause menu: the menu stays under it, paused)
+  function open() { if (!RCg.hist.length) return; RCg.view = cl(RCg.view, 0, RCg.hist.length - 1); ui().classList.add('on'); RCg.fromCard = !!(RG.line && RG.line.st === 'done'); if (RCg.fromCard) RG.cardShow(false); paint(); }
+  function close() { if (!RCg.el || !RCg.el.classList.contains('on')) return; RCg.el.classList.remove('on'); if (RCg.fromCard) RG.cardShow(true); RCg.fromCard = false; }
+  const cl = (v, a, b) => v < a ? a : v > b ? b : v;
   function save() {
-    const cv = RCg.el.querySelector('canvas'), d = RCg.data, name = '雪迹_' + (d ? d.line : '路线') + '_' + new Date().toISOString().slice(0, 10) + '.png';
+    const el = RCg.el, cv = el.querySelector('canvas'), e = RCg.hist[RCg.view], msg = el.querySelector('.msg');
+    const name = '雪迹_' + (e && e.line ? e.line : '路线') + '_' + new Date(e ? e.date : Date.now()).toISOString().slice(0, 10) + '.png';
+    if (typeof XHS !== 'undefined' && XHS.on && XHS.saveShot) {          // inside 小红书: a download link does nothing there, so straight into the album
+      msg.textContent = RC_W('正在存…');
+      XHS.saveShot(cv.toDataURL('image/jpeg', 0.92)).then(ok => { msg.textContent = RC_W(ok ? '已存到相册' : '没能存到相册，截图就好'); }, () => { msg.textContent = RC_W('没能存到相册，截图就好'); });
+      return;
+    }
     try { cv.toBlob(b => { if (!b) return; const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); }, 'image/png'); }
-    catch (e) { RCg.el.querySelector('.msg').textContent = RC_W('这里存不了图，截图就好'); }
+    catch (err) { msg.textContent = RC_W('这里存不了图，截图就好'); }
   }
   RCg.open = open; RCg.close = close;
-  RG.cardButtons.push({ label: '路线卡', key: 'C', on: open });
+  RG.cardButtons.push({ label: '路线卡', key: 'C', on: () => { RCg.view = 0; open(); } });
+
+  // ---- the pause menu's 路线卡 (under 拍照 / 挑战 / 上一场回放): whenever there is a card, in a run or at the top
+  function menuBtn() {
+    if (typeof document === 'undefined') return;
+    if (!RCg.mb) {
+      const ph = document.getElementById('m-replay') || document.getElementById('m-chal') || document.getElementById('m-photo'); if (!ph || !ph.parentNode) return;
+      const b = document.createElement('button'); b.type = 'button'; b.id = 'm-rcard'; if (typeof I18N !== 'undefined' && I18N.live) I18N.live(b, '路线卡'); else b.textContent = '路线卡'; b.hidden = true;
+      b.addEventListener('click', e => { e.stopPropagation(); RCg.view = 0; open(); if (e.detail) b.blur(); });
+      ph.parentNode.insertBefore(b, ph.nextSibling); RCg.mb = b;
+    }
+    const sh = RCg.hist.length > 0 && !(G.mode === 'replay'); if (RCg.mb.hidden === sh) RCg.mb.hidden = !sh;
+  }
+  setInterval(menuBtn, 500);          // (the menu's own buttons come and go with the state; this one only needs a card to exist)
+
   addEventListener('keydown', e => {
     const on = RCg.el && RCg.el.classList.contains('on');
-    if (on && (e.code === 'Escape' || e.code === 'KeyC')) { e.preventDefault(); e.stopImmediatePropagation(); close(); return; }
-    if (!on && e.code === 'KeyC' && RG.line && RG.line.st === 'done' && RCg.data && !(G.mode === 'replay')) { e.preventDefault(); open(); }
+    if (on) {
+      if (e.code === 'Escape' || e.code === 'KeyC') { e.preventDefault(); e.stopImmediatePropagation(); close(); return; }
+      if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') { e.preventDefault(); e.stopImmediatePropagation(); step(e.code === 'ArrowLeft' ? -1 : 1); return; }
+      e.stopImmediatePropagation(); return;          // (nothing else reaches the game while the card is up)
+    }
+    if (e.code === 'KeyC' && RG.line && RG.line.st === 'done' && RCg.hist.length && !(G.mode === 'replay')) { e.preventDefault(); RCg.view = 0; open(); }
   }, true);
-  // a new run or the title: the card goes
+  // a new run or the title: the large card goes
   RG.hooks.go.push(() => close());
 })();

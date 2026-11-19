@@ -65,7 +65,11 @@ const Rings = (() => {
     rollers: { lv: 1, gap: [45, 60], how: 'crest' },
   };
   if (typeof Variants !== 'undefined') Variants.def('ringdiff', '光圈难度', [['a', '轻松'], ['b', '标准'], ['c', '难']], 'b');
-  const DIFF = { a: { off: -1, side: 0.6, gap: 1.15 }, b: { off: 0, side: 1, gap: 1 }, c: { off: 1, side: 1.35, gap: 0.85 } };
+  const DIFF = { z: { off: -2, side: 0.45, gap: 1.35 }, a: { off: -1, side: 0.6, gap: 1.15 }, b: { off: 0, side: 1, gap: 1 }, c: { off: 1, side: 1.35, gap: 0.85 } };
+  // (用户 2026-11-19 06:00 UTC: 标准非常密、非常难 → 06:02 选「整体降一档」) the layout each difficulty the player picks is laid out with:
+  // the whole scale one step down (06:07 UTC: 难是现在的标准): 难 gets what 标准 had, 标准 what 轻松 had, 轻松 a sparser one still (z: bigger
+  // rings, smaller swings, gaps a third longer); the old 难 layout (c) is kept in the tables, unused
+  const lay = d => ({ a: 'z', b: 'a', c: 'b' })[d] || 'a';
   function station(s) {
     Course.at(s, pc);
     const segs = Course.segs || []; let sg = null; for (const g of segs) { if (g.s0 <= s) sg = g; else break; }
@@ -83,7 +87,7 @@ const Rings = (() => {
   // wallU: across the run, the point a share k of the way up the gully's wall on one side (side ±1); the wall is the gully's own shape
   // (Course.uWall for the U, the trough's bell otherwise), measured from the trough's line. null where there is no gully
   // (用户 19:08 UTC: 圈还是太靠上，放在斜坡中间，S 型滑的时候正好穿过去): the ring floats (r + gap, more on a slope), so the point it stands over is low on the wall
-  const WALLK = { a: 0.3, b: 0.38, c: 0.48 };
+  const WALLK = { z: 0.24, a: 0.3, b: 0.38, c: 0.48 };
   function wallU(s, side, k) {
     const c = Course.at(s, pc); if (!(c.gul > 0.6)) return null;
     for (let a = 0; a <= 34; a += 0.25) {
@@ -105,15 +109,25 @@ const Rings = (() => {
     let best = t, bh = 1e9; for (let u = t - M.W * 0.5; u <= t + M.W * 0.5; u += 0.25) { if (u < z[0] || u > z[1]) continue; const h = Course.height(cr.cx + u, -sr, 0.5); if (h < bh) { bh = h; best = u; } }
     return { s: sr, u: best };
   }
-  const ZIPROWS = { a: 4, b: 3, c: 2 };          // (rows of bumps from one ring to the next: 标准 3 = 17 m, the closest an expert links smoothly)
-  let wallSide = 1, cursor = null;
+  const ZIPROWS = { z: 5, a: 4, b: 3, c: 2 };          // (rows of bumps from one ring to the next: 标准 3 = 17 m, the closest an expert links smoothly)
+  let wallSide = 1, cursor = null, lastHow = '';
+  // ---- (用户 2026-11-19 06:08 UTC: 难度必须是选手用我们可用的这些手段跑得到的; 直线降速时就算铲雪转也转不过来) every ring must be one a
+  // player can reach from the ring before with the game's own controls. Measured with tools/ring-reach.js (a pilot that, before each ring,
+  // tries 48 ways of skiing to it in the game's physics: braking by skidding, how hard it steers, jumps, and keeps the quickest that also
+  // makes the next): of 835 rings on both lines at all three levels, the 12 that no way reached were all rings too close in time to the
+  // one before for the speed the slope gives there (steep pitches at 90-125 km/h, rings 9-32 m apart), or too far across for that time.
+  // So: how fast a skier comes down here (the pilot's speeds against the fall of the run over the last 250 m, the faster tenth), at least
+  // RT_T seconds from the ring before (0.6 s was the least that left out all 12; the owner: at least 1 s), and at most RT_U t^2 metres across from it in that time
+  const RT_T = 1.0, RT_U = 8;          // (用户 07:14 UTC: 0.6 秒也很紧，至少 1 秒)
+  function vEst(s) { const a = Math.max(0, s - 250), w = Math.max(30, s - a), c0 = Course.at(a, pc), c1 = Course.at(s, pc); const g = (Course.height(c0.cx, -a, 0.5) - Course.height(c1.cx, -s, 0.5)) / w; return cl(50 + 140 * g, 60, 150) / 3.6; }          // (07:2x-09:3x UTC checks at 1 s: steep rings met at 106-134 km/h, faster than this said: the upper end raised)
+  const reachOK = (s0, u0, s, u) => { const t = (s - s0) / vEst(s); return t >= RT_T && Math.abs(u - u0) <= RT_U * t * t; };
+  RG.reachOK = reachOK; RG.vEst = vEst; RG.reachStat = { moved: 0, dropped: 0 };          // (for test scripts)
   function spawn() {
     // (where the last ring, or the last place passed over without one, stood: a stretch with no ground rings is still walked through)
     const first = !!L.id && !cursor;
     if (!cursor) cursor = { s: -Game.s.p[2] + 25, u: Game.s.p[0] - Course.at(-Game.s.p[2], pc).cx };
     const s0 = cursor.s, u0 = cursor.u;
-    const D = DIFF[(typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b'] || DIFF.b;
-    const dk = (typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b';
+    const dk = lay((typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b'), D = DIFF[dk] || DIFF.a;
     let { pl } = station(s0 + 40);
     if (pl.how !== 'zip' && station(s0 + 12).pl.how === 'zip') pl = station(s0 + 12).pl;          // (the bumps start before the 40 m look-ahead says so)
     let s = pl.how === 'zip' ? s0 + (ZIPROWS[dk] || 2) * Course.mogShape().L : s0 + (pl.gap[0] + (pl.gap[1] - pl.gap[0]) * rand()) * D.gap;
@@ -158,6 +172,17 @@ const Rings = (() => {
     const c = Course.at(s, pc), hw2 = c.hw || 14;
     if (!tech) u = cl(u, -hw2 * 0.6, hw2 * 0.6);
     if (first && !tech) u = u0;          // (用户 18:08/18:11 UTC: 第一个圈在正前方，慢慢预热；只要第一个)
+    // (reachable from the ring before: later down the hill until there is time for it, then, if still too far across, nearer; the
+    // technique rings keep their place on the wall or in the trough and only move down the hill. The bumps are skied slowly: not them)
+    // (in the bumps: a row further on at a time, the ring still in its trough. 07:5x UTC check: the field's rings 17 m apart were met at
+    // 65-71 km/h and no way through them was found; the bumps do not slow a skier as much as was thought)
+    if (pl.how === 'zip' && !first) { const L2 = Course.mogShape().L; for (let k = 0; k < 6 && !reachOK(s0, u0, s, u); k++) { s += L2; const z = zipU(s, wallSide); if (z) { s = z.s; u = z.u; } } }
+    if (!first && !reachOK(s0, u0, s, u)) {          // (the bumps too, once a few rows on still left it too far across: 08:3x UTC check)
+      RG.reachStat.moved++;
+      const v = vEst(s); if (s - s0 < RT_T * v) s = s0 + RT_T * v;
+      if (tech && pl.how === 'wall') { for (let k = 0; k < 12 && !reachOK(s0, u0, s, u); k++) { s += 4; const w2 = wallU(s, wallSide, WALLK[dk] || 0.6); if (w2 !== null) u = w2; } }
+      if (!reachOK(s0, u0, s, u)) { const t = (s - s0) / vEst(s), dm = RT_U * t * t; u = u0 + cl(u - u0, -dm, dm); tech = false; }
+    }
     let uu = tech ? clear(s, u, hw2, 40) : clear(s, u, hw2); if (uu === null) { cursor = { s, u: u0 }; RG.rings.push({ id: serial++, s, skip: true }); return; }
     // (用户 04:47 UTC 一整个圈; 16:55 UTC 不要接到雪地上，留一点空间，悬浮起来): the whole ring floats, its lowest point a little above the snow
     const lv = cl(Math.round(pl.lv + D.off + (pl.how === 'zip' ? 0.4 : (rand() - 0.5) * 1.3)), 0, 2), pick = SIZES[lv], r = pick[0];
@@ -167,11 +192,11 @@ const Rings = (() => {
     { const live = RG.rings.filter(q => !q.skip), cr = live[live.length - 1], pr = live[live.length - 2];
       if (cr && !cr.air && !cr.fin) {
         const P = pr ? { x: pr.x0 !== undefined ? pr.x0 : pr.x, s: pr.s } : { x: cr.x, s: cr.s - 30 }, Cq = { x: cr.x0 !== undefined ? cr.x0 : cr.x, s: cr.s }, st = RG.sightStat; st.tried++;
-        const okA = (s2, u2) => { const c2 = Course.at(s2, pc); return Math.abs(u2) <= (c2.hw || 14) - 3 && clear(s2, u2, c2.hw || 14, 40) !== null && Math.abs(clear(s2, u2, c2.hw || 14, 40) - u2) < 0.01; };
+        const okA = (s2, u2) => { const c2 = Course.at(s2, pc); return (pl.how === 'zip' || reachOK(s0, u0, s2, u2)) && Math.abs(u2) <= (c2.hw || 14) - 3 && clear(s2, u2, c2.hw || 14, 40) !== null && Math.abs(clear(s2, u2, c2.hw || 14, 40) - u2) < 0.01; };
         const f = sightFix(P, Cq, { s, u: uu, r }, okA, tech ? 3 : 8);
         if (f) { if (f.moved) { st.moved++; s = f.s; uu = f.u; x = Course.at(s, pc).cx + uu; } } else st.failed++;
       } }
-    cursor = { s, u: uu };
+    cursor = { s, u: uu }; lastHow = pl.how;
     RG.rings.push({ id: serial++, s, u: uu, x, y: floatY(x, s, r, -1e9), r, tag: pick[1], air: false, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 });
   }
 
@@ -225,7 +250,7 @@ const Rings = (() => {
     let top = -1e9; for (let i = -6; i <= 6; i++) { const a = i / 6 * 1.2, dx = Math.sin(a) * r, dy = -Math.cos(a) * r; top = Math.max(top, Course.height(x + dx * cy, -(s - dx * sy), 0.5) - dy); }
     return Math.max(y, top + GAP);
   }
-  function reset() { RG.rings.length = 0; RG.passed = RG.missed = 0; RG.streak = 0; rnd = L.id ? L.seed : 1 + Math.floor((Date.now() % 100000)); lastS = null; drawList = []; cursor = null; L.fin = false; }
+  function reset() { RG.rings.length = 0; RG.passed = RG.missed = 0; RG.streak = 0; rnd = L.id ? L.seed : 1 + Math.floor((Date.now() % 100000)); lastS = null; drawList = []; cursor = null; lastHow = ''; L.fin = false; }
 
   // ---- each frame, before the game draws
   function update(T) {
@@ -460,9 +485,11 @@ const Rings = (() => {
   const BON = { a: 1.5, b: 1.5, c: 1.5 },          // (one value for all three: with 2 or 3 on 难, a clean run there would come out below zero)
   DNAME = { a: '轻松', b: '标准', c: '难' }, DNEXT = { a: 'b', b: 'c' };
   // (用户 2026-11-19 00:18 UTC: 简单、中等、难都上同一个排行榜，简单的加一些时间，中等少加一些，难的不加，放到一起比) the board time is
-  // the run's score (time + missed rings) plus this, per line: how much slower the same skier is on 难 than on this difficulty, measured
-  // by riding each line at each difficulty with the same pilot at two skill levels (tools/ring-handicap.js)
-  const HC = { a: { a: 85, b: 65, c: 0 }, x: { a: 40, b: 5, c: 0 } };
+  // the run's score (time less the rings' bonus) plus this, per line. 2026-11-19, after the levels moved down a step and every ring was
+  // made reachable: tools/ring-reach.js (the searching pilot, one skier for all three) rode each line at each level three times; its score
+  // with every ring through came out 速降线 难 127.5 / 标准 122.6 / 轻松 126.8 s, 越野线 152.6 / 120.3 / 150.4 s (the bonus for the
+  // extra rings all but pays for the extra time). So: what the same skier gains on that level over 难, plus 5 s for each step easier
+  const HC = { a: { a: 10, b: 10, c: 0 }, x: { a: 10, b: 35, c: 0 } };
   const hcOf = (id, df) => (HC[id] && HC[id][df]) || 0;
   // (用户 2026-11-19 00:39-00:40 UTC: 电脑上玩存 localStorage，没有排名就不显示；小红书才加排名；网站以后能登录再排) nothing about the boards
   // is shown where there are none: no 全部最好 / 排名, no handicap line, no 排行榜 note
@@ -486,7 +513,7 @@ const Rings = (() => {
   // the trees beside it cheap, a lane through the forest cheapest; beyond 40 m off the run and not in a lane it climbs the banks, very dear.
   // It starts and ends on the run (the gate, the finish ring), and goes at most 3 m across for 4 m down. Rings every 34-48 m along it
   // (further apart on 轻松, closer on 难), sized by 光圈难度 and made smaller where the trees leave no room. tools/ring-plan.js draws it.
-  const XSZ = { a: [[2.5, 1.5], 1.2], b: [[1.5, 1.0], 1.0], c: [[1.0, 1.0], 0.85] };
+  const XSZ = { z: [[2.5, 2.5], 1.4], a: [[2.5, 1.5], 1.2], b: [[1.5, 1.0], 1.0], c: [[1.0, 1.0], 0.85] };
   function xPlan() {
     const sE = lineEnd(), df = L.diff || 'b';
     if (L.xp && L.xp.sE === sE && L.xp.df === df) return L.xp;
@@ -541,7 +568,7 @@ const Rings = (() => {
     for (let k = n - 1; k > 0; k--) path[k - 1] = path[k] - back[k * NU + path[k]];
     const pu = []; for (let k = 0; k < n; k++) { let a = 0; for (let m = -2; m <= 2; m++) a += path[Math.min(n - 1, Math.max(0, k + m))] + U0; pu.push(a / 5); }
     // the rings along it
-    const [sz, gk] = XSZ[df] || XSZ.b; let r0 = 1 + { a: 11, b: 12, c: 13 }[df] * 7919;
+    const lyk = lay(df), [sz, gk] = XSZ[lyk] || XSZ.a; let r0 = 1 + { z: 10, a: 11, b: 12, c: 13 }[lyk] * 7919;
     const rr = () => { r0 = (r0 * 16807) % 2147483647; return (r0 - 1) / 2147483646; };
     const rings = []; let s = 40, side = 1;
     for (;;) {
@@ -570,7 +597,7 @@ const Rings = (() => {
       if (lg) {
         // (the lane's own gully: its bell is 1.35 w wide, steepest at about 0.95 w out from its middle; trees stand only beyond that)
         side = -side; const kq = Math.min(n - 1, Math.round(s / 4)), w = lk[kq].find(q => q.kind === 'gully' && Math.abs(pu[kq] - q.u) < q.w * 1.6) || lg;
-        const tu = w.u + side * w.w * (0.6 + 0.5 * (WALLK[df] || 0.6)), R = rows[kq], xr = R.cx + tu; let room = 1e9; for (const tt of R.tr) room = Math.min(room, Math.hypot(tt[0] - xr, tt[1] - R.s) - tt[2]);
+        const tu = w.u + side * w.w * (0.6 + 0.5 * (WALLK[lyk] || 0.6)), R = rows[kq], xr = R.cx + tu; let room = 1e9; for (const tt of R.tr) room = Math.min(room, Math.hypot(tt[0] - xr, tt[1] - R.s) - tt[2]);
         if (room > sz[1] + 0.8) { rings.push({ s: R.s, u: tu, r: sz[1], off: true, how: 'lane' }); continue; }
       }
       const k = Math.min(n - 1, Math.round(s / 4)), R = rows[k];
@@ -620,6 +647,17 @@ const Rings = (() => {
         }
         if (!f) { st.failed++; continue; }
         if (f.moved) { st.moved++; q.s = f.s; q.u = f.u; q.off = Math.abs(q.u) > (Course.at(q.s, pc).hw || 14); }
+      } }
+    // (用户 2026-11-19 06:08 UTC: 每个圈都要跑得到) each ring reachable from the one before (reachOK above): else it moves on down the way,
+    // up to 40 m, to where it is (with room round it among the trees), or it is left out. Not the drop's two rings: the line there is the drop
+    { const tn3 = {};
+      const room = (s2, u2, r) => { const c2 = Course.at(s2, pc); if (c2.gul > 0.3 && Math.abs(u2 - c2.goff) < (c2.gU > 0.5 ? 1.75 : 1.3) * c2.gw + 6) return false; Course.nearTree(c2.cx + u2, -s2, tn3); return !(tn3.ok && !tn3.soft && tn3.d < Math.max(2, r + 0.8)); };
+      for (let i = 1; i < rings.length; i++) {
+        const q = rings[i], c = rings[i - 1]; if (q.how === 'drop' || c.how === 'drop' || reachOK(c.s, c.u, q.s, q.u)) continue;
+        let ok = false; const nx = rings[i + 1];
+        for (let s2 = q.s + 3; s2 <= q.s + 40 && (!nx || s2 < nx.s - 8) && s2 <= sE - 70; s2 += 3) {
+          const u2 = pu[Math.min(n - 1, Math.round(s2 / 4))]; if (reachOK(c.s, c.u, s2, u2) && room(s2, u2, q.r)) { q.s = s2; q.u = u2; q.off = Math.abs(u2) > (Course.at(s2, pc).hw || 14); ok = true; break; } }
+        if (ok) RG.reachStat.moved++; else { rings.splice(i, 1); i--; RG.reachStat.dropped++; }
       } }
     let off = 0; for (let k = 0; k < n; k++) if (Math.abs(pu[k]) > rows[k].hw) off++;
     L.xp = { sE, df, rings, path: pu, off: off / n, ms: Date.now() - t0 };
@@ -671,6 +709,14 @@ const Rings = (() => {
       + '#rline .bt{display:flex;gap:8px;margin-top:16px}#rline button{flex:1;appearance:none;-webkit-appearance:none;margin:0;border:0;height:38px;border-radius:12px;font-family:var(--f-ui);font-size:12px;letter-spacing:.14em;cursor:pointer;color:var(--dim);background:rgba(5,8,13,.25);box-shadow:inset 0 0 0 1px var(--hair);transition:color .2s,box-shadow .2s}'
       + '#rline button.p{color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun);font-family:var(--f-song);letter-spacing:.3em}'
       + '@media (hover:hover){#rline button:hover{color:var(--snow);box-shadow:inset 0 0 0 1px rgba(244,247,251,.5)}#rline button.p:hover{color:#ffe2b5;box-shadow:inset 0 0 0 1px #ffe2b5}}'
+      // (路线卡线程 2026-11-19 06:59 UTC, measured on the Mac: at 1280x720 「再来一局 ⏎」 broke onto two lines, five buttons in 330 px; at
+      // 844x390 only 7 stations showed and every button was below the card's edge. Now: 再来一局 has its own row and the rest share the
+      // next, never broken; the buttons stay pinned to the card's foot while the splits scroll under them, and on a low screen the card packs tighter. The
+      // card's own width and padding are unchanged: the route card docks beside it by them)
+      + '#rline .bt{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}#rline .bt button{flex:1 1 auto;white-space:nowrap;padding:0 10px}#rline .bt button.p{flex-basis:100%}'
+      + '@media (max-height:520px){#rline .card .big{margin-top:6px;font-size:clamp(28px,6vmin,36px)}#rline .card .rule{margin:8px 0 6px}#rline .fs{margin-top:8px}#rline table{margin-top:8px}#rline td,#rline th{padding:2px 2px;font-size:11px}#rline .bt{gap:6px}#rline .bt button{height:32px}}'
+      + '@media (max-height:780px){#rline td,#rline th{padding:3px 2px}}'
+      + '#rline .bt{position:sticky;bottom:-18px;margin:12px -20px -18px;padding:10px 20px 14px;background:linear-gradient(rgba(5,8,13,0),rgba(5,8,13,.86) 30%)}'
       + '#rline kbd{margin-left:.5em;font-family:var(--f-lat);font-size:.85em;letter-spacing:.04em;opacity:.6}</style>'
       + '<div class="tm"></div><div class="sub"></div><div class="pop"></div><div class="spl"></div><div class="cd"></div><div class="ban"><b></b><span class="rule"></span><i></i></div><div class="card"></div>';
     (document.getElementById('app') || document.body).appendChild(d); L.el = d;
@@ -982,11 +1028,12 @@ const Rings = (() => {
     const counting = L.st === 'count';
     if (RG.on && typeof Game !== 'undefined' && Game.mode === 'hold' && !counting) return;
     // (the replay, 93_replay.js: Game.mode 'replay'; RG.replay(T) sets RG.rings to how they stood at that moment of the run, then they are drawn)
-    if (RG.on && typeof Game !== 'undefined' && Game.mode === 'replay') { if (RG.replay) try { RG.replay(T); prep(T); } catch (e) { drawList = []; } else drawList = []; return; }
+    if (RG.on && typeof Game !== 'undefined' && Game.mode === 'replay') { if (RG.replay) try { const tr = RG.replay(T), t = typeof tr === 'number' ? tr : T; prep(t); lastT = t; } catch (e) { drawList = []; } else drawList = []; return; }          // (the replay hands back the run's own clock: the rings flow on it, and stand still with its pause)
     if (!RG.on || typeof Game === 'undefined' || !Game.s || (Game.mode !== 'run' && Game.mode !== 'park' && !counting)) { drawList = []; if (RG.hud) RG.hud.style.display = 'none'; return; }
     lastT = T;          // (park: stopped past the finish, the rings stay where they are and keep moving)
     RG.n++; try { update(T); prep(T); hud(); trail(); } catch (e) { drawList = []; if (!RG.err) { RG.err = 1; console.warn('rings:', e); } }
   };
+  RG.clock = () => lastT;          // (for test scripts: the clock the rings are drawn with this frame)
   // Shared work runs once before the shadow map and both eye views.
   if (typeof Render !== 'undefined') {
     const R0 = Render.renderShared; Render.renderShared = function () { RG.frame(); order(); return R0.apply(this, arguments); };
