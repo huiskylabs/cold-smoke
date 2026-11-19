@@ -8,6 +8,9 @@
   const byID = id => document.getElementById(id);
   const root = document.documentElement, app = byID('app');
   const title = byID('title'), cta = title.querySelector('.cta');
+  const shortcuts = byID('more');
+  shortcuts.querySelector('[data-sec="view"]').remove();
+  for (const button of shortcuts.querySelectorAll('[data-sec="sky"], [data-daily]')) button.classList.remove('dev-only');
   const menu = byID('menu'), nav = menu.querySelector('nav'), pane = byID('mpane');
   const bar = byID('bar'), hud = byID('hud'), pad = byID('pad'), pause = byID('pause');
   const photo = byID('photo'), preview = byID('ph-card');
@@ -33,16 +36,128 @@
     go: 'figure.skiing.downhill', shoot: 'camera',
     'ph-back': 'chevron.backward', 'ph-reset': 'arrow.counterclockwise', 'ph-hide': 'eye.slash', 'ph-shut': 'camera.shutter.button',
     'ph-up': 'chevron.up', 'ph-dn': 'chevron.down', 'ph-again': 'chevron.backward', 'ph-save': 'square.and.arrow.down',
-    sky: 'sun.max', view: 'video', keys: 'gamecontroller', daily: 'mountain.2', fs: 'arrow.up.left.and.arrow.down.right'
+    sky: 'sun.max', keys: 'gamecontroller', daily: 'mountain.2', fs: 'arrow.up.left.and.arrow.down.right'
   };
-  // Keep the simulation authoritative. Navigation and choices use stable ids, never translated labels.
-  let directEntry = false;
-  byID('more').addEventListener('click', e => { directEntry = !!e.target.closest('button[data-sec]'); }, true);
+  const quickPanel = document.createElement('section');
+  quickPanel.id = 'home-panel';
+  quickPanel.hidden = true;
+  quickPanel.setAttribute('role', 'dialog');
+  quickPanel.setAttribute('aria-labelledby', 'home-panel-title');
+  quickPanel.innerHTML = '<h4 id="home-panel-title"></h4><div class="home-options"></div>';
+  app.appendChild(quickPanel);
+  const panelTitle = byID('home-panel-title'), panelBody = quickPanel.querySelector('.home-options');
+  let panelTrigger = null;
+  function closeQuickPanel() {
+    panelTrigger?.classList.remove('on');
+    panelTrigger?.setAttribute('aria-expanded', 'false');
+    panelTrigger = null;
+    quickPanel.hidden = true;
+    app.classList.remove('quick-open');
+  }
+  function sceneSection(label, buttons, kind, autoRow) {
+    const section = document.createElement('section');
+    const heading = document.createElement('h5');
+    const choices = document.createElement('div');
+    heading.textContent = label;
+    choices.className = 'scene-choices ' + kind;
+    choices.setAttribute('role', 'group');
+    choices.setAttribute('aria-label', label);
+    choices.append(...buttons);
+    section.append(heading);
+    if (autoRow) section.appendChild(autoRow);
+    section.appendChild(choices);
+    return section;
+  }
+  function refreshSceneSelection() {
+    panelBody.querySelector('[data-auto-time]').checked = UI.tod === 'auto';
+    for (const b of panelBody.querySelectorAll('button[data-time], button[data-wx]')) {
+      const active = b.dataset.time ? UI.tod === b.dataset.time : b.dataset.wx === (Weather.auto ? 'auto' : Weather.level);
+      b.classList.toggle('on', active);
+      b.setAttribute('aria-pressed', String(active));
+    }
+  }
+  function openQuickPanel(trigger) {
+    Rings.closePicker();
+    panelTrigger = trigger;
+    panelTitle.textContent = trigger.textContent.trim();
+    if (trigger.dataset.sec === 'sky') {
+      const autoRow = document.createElement('label');
+      const autoLabel = document.createElement('span');
+      const auto = document.createElement('input');
+      autoRow.className = 'auto-time';
+      auto.type = 'checkbox';
+      auto.dataset.autoTime = '';
+      auto.setAttribute('role', 'switch');
+      autoLabel.textContent = I18N.en() ? 'Automatic daylight' : '自动昼夜变化';
+      autoRow.append(autoLabel, auto);
+      const times = Array.from(byID('sw-time').querySelectorAll('button:not([data-time="auto"])'), b => b.cloneNode(true));
+      const weather = [['auto', '自动'], ...Weather.levels].map(([id, label]) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.wx = id;
+        b.textContent = I18N.t(label);
+        return b;
+      });
+      panelBody.replaceChildren(sceneSection(I18N.en() ? 'Time of day' : '天色', times, 'times', autoRow),
+        sceneSection(I18N.en() ? 'Snowfall' : '降雪', weather, 'weather'));
+      refreshSceneSelection();
+    } else {
+      const list = document.createElement('dl');
+      for (const { title, detail } of readTouchHelp(pane, app.classList.contains('fa'))) {
+        const term = document.createElement('dt'), description = document.createElement('dd');
+        term.textContent = title; description.textContent = detail;
+        list.append(term, description);
+      }
+      panelBody.replaceChildren(list);
+    }
+    trigger.setAttribute('aria-expanded', 'true');
+    trigger.classList.add('on');
+    quickPanel.hidden = false;
+    quickPanel.scrollTop = 0;
+    app.classList.add('quick-open');
+  }
+  shortcuts.addEventListener('click', e => {
+    const trigger = e.target.closest('button');
+    if (!trigger) return;
+    const alreadyOpen = trigger === panelTrigger;
+    closeQuickPanel();
+    if (trigger.dataset.sec !== 'sky' && trigger.dataset.sec !== 'keys') return;
+    e.stopImmediatePropagation();
+    if (!alreadyOpen && UI.state === 'title' && !UI.open) openQuickPanel(trigger);
+  }, true);
+  quickPanel.addEventListener('click', e => {
+    e.stopPropagation();
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.time) UI.setTime(b.dataset.time);
+    else if (b.dataset.wx) UI.setWeather(b.dataset.wx);
+    refreshSceneSelection();
+  });
+  quickPanel.addEventListener('change', e => {
+    if (!e.target.matches('[data-auto-time]')) return;
+    UI.setTime(e.target.checked ? 'auto' : UI.currentTime());
+    refreshSceneSelection();
+  });
+  app.addEventListener('click', e => {
+    if (!app.matches('.quick-open, .challenge-open') || e.target.closest('.cta, #bar, #home-panel, #rpick')) return;
+    e.stopPropagation();
+    closeQuickPanel();
+    Rings.closePicker();
+  }, true);
+  document.addEventListener('keydown', e => {
+    if (!panelTrigger || e.code !== 'Escape') return;
+    e.preventDefault(); e.stopPropagation();
+    closeQuickPanel();
+  }, true);
+  app.addEventListener('touchmove', e => {
+    if (e.target.closest('#home-panel, #rpick')) e.stopPropagation();
+  }, { capture: true, passive: true });
   function schedule() {
     if (!pending) { pending = true; requestAnimationFrame(sync); }
   }
   function sync() {
     pending = false;
+    if (panelTrigger && (!title.classList.contains('on') || UI.open)) closeQuickPanel();
     const controls = [], groups = [];
     let camera = null, settings = null;
     elements.clear();
@@ -82,14 +197,13 @@
       else if (!photo.classList.contains('bare')) add(photoRail);
     } else if (!pause.classList.contains('on') && !app.classList.contains('bare')) {
       if (menu.classList.contains('on')) {
-        settings = readPauseSettings(elements, directEntry);
+        settings = readPauseSettings(elements, false);
         settings.advancedMenu = UI.dev;
       }
       else if (title.classList.contains('on')) add(cta, cta.scrollHeight > cta.clientHeight + 1 ? 'cta' : '');
       else if (hud.classList.contains('on')) add(pad);
       if (!settings && bar.classList.contains('on')) add(bar);
     }
-    if (!menu.classList.contains('on')) directEntry = false;
     const payload = { controls, groups, camera, settings, lang: I18N.en() ? 'en' : 'zh-Hans' };
     const current = JSON.stringify(payload);
     if (current !== previous) { previous = current; host.postMessage(payload); }

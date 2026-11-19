@@ -507,6 +507,7 @@ const UI = (() => {
   function flash(b) { if (!b) return; b.classList.add('hit'); clearTimeout(b._t); b._t = setTimeout(() => b.classList.remove('hit'), 1500); }
   // which of the named hours the clock is nearest to
   function hour() { const C = Sky.cycle, c = ((Sky.clock % C) + C) % C; let best = TIMES[0][0], bd = 1e9; for (const [id] of TIMES) { let d = Math.abs(c - Sky.times[id]); d = Math.min(d, C - d); if (d < bd) { bd = d; best = id; } } return best; }
+  /*native{*/U.currentTime = hour;/*}native*/
   const views = () => Game.views && Game.views.length && Game.setView ? Game.views : null;
   const viewName = () => { const vs = views(); if (!vs) return ''; const v = vs.find(q => q.id === Game.view) || vs[0]; return v.name || String(v.id); };          // (said through T by say)
   // the menu as things stand: the hour held (or, with the clock running, the hour it has reached), the run being skied, the view, the
@@ -528,7 +529,8 @@ const UI = (() => {
     if (vsig !== vwSig) {
       vwSig = vsig; el.view.textContent = '';
       for (const v of vs || []) { const b = mkBtn('', 'view', v.id); b.innerHTML = '<svg viewBox="0 0 30 22" aria-hidden="true">' + (VIEW_ICON[v.id] || VIEW_ICON.chase) + '</svg>'; const t = document.createElement('span'); t.textContent = T(v.name || v.id); b.appendChild(t); el.view.appendChild(b); }
-      el.vw.hidden = !vs; el.nav.querySelector('[data-sec="view"]').hidden = !vs; el.moreView.hidden = !vs;
+      el.vw.hidden = !vs; el.nav.querySelector('[data-sec="view"]').hidden = !vs;
+      if (el.moreView?.isConnected) el.moreView.hidden = !vs;
     }
     for (const b of el.view.children) b.classList.toggle('on', b.dataset.view === Game.view);
     const mt = typeof App.newMountain === 'function'; el.nav.querySelector('[data-sec="mt"]').hidden = !mt;
@@ -719,11 +721,12 @@ const UI = (() => {
   // The change is App.swap's own single transition: its veil closes over the last picture, the new mountain is made behind it, and it lifts
   // on the skier at the gate, pushing off again by itself if a run was on (no dip of ours on top of it: that showed the held picture between
   // the two). What follows a change, however it came (the key, the menu, a link followed), is onMountain's: App.onMountain calls it
-  U.newMountain = function (seed) {
-    if (!U.dev || !live() || typeof App.newMountain !== 'function' || cut || App.swapping) return false;
+  function newMountain(seed) {
+    if (!live() || typeof App.newMountain !== 'function' || cut || App.swapping) return false;
     try { App.newMountain(seed); } catch (e) { console.warn(e); return false; }
     return true;
-  };
+  }
+  U.newMountain = seed => !!U.dev && newMountain(seed);
   function mtnWord(m) { return m ? (EN() ? m.en : m.zh) : ''; }
   function sayMountain(n) {
     const m = typeof Course.mountainBySeed === 'function' && Course.mountainBySeed(n);
@@ -785,16 +788,17 @@ const UI = (() => {
     for (const b of el.skied.querySelectorAll('button')) { const m = list.find(q => q.id === b.dataset.mtn); b.classList.toggle('on', !!(m && Course.seed === m.seed)); }
   }
 
-  // ---- 今日之山: today's mountain (App.dailySeed: the Beijing day hashed). Dev only, beside the other developer controls, so normal play
-  // never writes that race. In dev, one tap from the title page or the seed row. Everything else is the mountain's as always (the splits,
+  // ---- 今日之山: today's mountain (App.dailySeed: the Beijing day hashed). Open it from the title shortcut or developer seed row.
+  // Everything else is the mountain's as always (the splits,
   // the day card, the seed in the address). What it adds: the date beside the number, and this player's best on it today (the longest
   // distance skied in one go from 出发, the top speed, the longest flight), kept in this browser until the day turns
-  const isDaily = () => !!U.dev && typeof App.isDaily === 'function' && App.isDaily();
+  const canPlayDaily = () => U.dev /*native{*/ || !!(self.COLD_SMOKE?.nativeWindow && !self.COLD_SMOKE.spatial) /*}native*/;
+  const isDaily = () => canPlayDaily() && typeof App.isDaily === 'function' && App.isDaily();
   const dayLabel = () => App.dayLabel(App.today(), EN());
   U.daily = function () {
-    if (!U.dev || typeof App.dailySeed !== 'function') return false;
+    if (!canPlayDaily() || typeof App.dailySeed !== 'function') return false;
     if (isDaily()) { say('今日之山', dayLabel()); return true; }
-    return U.newMountain(App.dailySeed());
+    return newMountain(App.dailySeed());
   };
   const DKEY = 'coldsmoke.daily';
   let DB = null, dbSaved = 0;

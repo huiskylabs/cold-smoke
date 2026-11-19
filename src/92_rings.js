@@ -910,14 +910,26 @@ const Rings = (() => {
       Rank.line(null, bd).then(r => { if (RG.pkSig !== sig || !sp.isConnected) return; sp.textContent = !r ? tx('排行榜暂时读不到', 'Board unavailable for now') : (r.top != null ? tx('第一 ', 'Top ') + fmt(r.top) : tx('还没有人上榜', 'No one on the board yet')) + (r.rank != null ? tx(' · 我 ', ' · me ') + (typeof r.rank === 'number' ? tx('第 ' + r.rank + ' 名', '#' + r.rank) : r.rank) : ''); });
     }
     d.querySelector('.d').innerHTML = ['a', 'b', 'c'].map(k => '<button data-d="' + k + '" class="' + (df === k ? 'on' : '') + '">' + T(DNAME[k]) + '</button>').join('');
-    d.querySelector('.t').textContent = isEN() ? 'Each ring passed takes ' + BON[df] + ' s off' + (rankOn() && ids.some(k => boardOf(k, df)) ? ' · all three levels share one board, ' + (df === 'c' ? 'Hard adds nothing' : T(DNAME[df]) + ' adds ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => T(LINES[k].name) + ' +' + hcOf(k, df) + ' s').join(', ')) : '') + ' · counts down 3, 2, 1 · Backspace to restart'
-      : '每穿过一个圈减 ' + BON[df] + ' 秒' + (rankOn() && ids.some(k => boardOf(k, df)) ? ' · 排行榜三档一起排，' + (df === 'c' ? '难不加时' : DNAME[df] + '加时 ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => LINES[k].name + ' +' + hcOf(k, df) + ' 秒').join('、')) : '') + ' · 开始后倒数 3、2、1 · 途中 Backspace 重来';
+    const hint = d.querySelector('.t');
+    hint.textContent = isEN() ? 'Each ring passed takes ' + BON[df] + ' s off' + (rankOn() && ids.some(k => boardOf(k, df)) ? ' · all three levels share one board, ' + (df === 'c' ? 'Hard adds nothing' : T(DNAME[df]) + ' adds ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => T(LINES[k].name) + ' +' + hcOf(k, df) + ' s').join(', ')) : '') + ' · counts down 3, 2, 1'
+      : '每穿过一个圈减 ' + BON[df] + ' 秒' + (rankOn() && ids.some(k => boardOf(k, df)) ? ' · 排行榜三档一起排，' + (df === 'c' ? '难不加时' : DNAME[df] + '加时 ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => LINES[k].name + ' +' + hcOf(k, df) + ' 秒').join('、')) : '') + ' · 开始后倒数 3、2、1';
+    const restart = document.createElement('span');
+    restart.className = 'restart-key';
+    restart.textContent = tx(' · 途中 Backspace 重来', ' · Backspace to restart');
+    hint.appendChild(restart);
   }
   if (typeof I18N !== 'undefined' && I18N.on) I18N.on(() => { if (RG.pkOpen) pickDraw(); });          // (the language changed while the panel is up)
   function pickOpen(on) {
     if (on && !(typeof UI !== 'undefined' && UI.state === 'title' && !UI.open)) return;
     RG.pkOpen = !!on; const d = pickUI(); if (on) pickDraw(); d.classList.toggle('on', !!on);
+    /*native{*/
+    if (self.COLD_SMOKE?.nativeWindow && !self.COLD_SMOKE.spatial) {
+      d.inert = !on;
+      d.closest('#app')?.classList.toggle('challenge-open', !!on);
+    }
+    /*}native*/
   }
+  /*native{*/RG.closePicker = () => { if (RG.pkOpen) pickOpen(false); };/*}native*/
   function chalGo() {
     const ids = mapLines(); if (!ids.length) return;
     const id = ids.includes(RG.pkSel) ? RG.pkSel : ids[0];

@@ -80,6 +80,211 @@ html, body, #app, #view { background: transparent; }
 #title.on .cta > * { transition-delay: 0s; }
 #app.wide #title { padding-left: max(var(--col), var(--title-left)); }
 #app.wide #title .cta { width: min(100%, 320px); }
+/* The home panels use one surface. Place it in the spare column when the inner display is wide. */
+#app :is(#home-panel, #rpick) {
+  --panel-left: var(--title-left);
+  --panel-right: var(--title-right);
+  --panel-top: var(--gt);
+  --panel-bottom: var(--gb);
+  position: absolute;
+  top: calc((100% + var(--panel-top) - var(--panel-bottom)) / 2);
+  left: var(--panel-left);
+  right: var(--panel-right);
+  margin-inline: auto;
+  transform: translateY(-50%);
+  width: min(356px, calc(100% - var(--panel-left) - var(--panel-right)));
+  max-height: calc(100% - var(--panel-top) - var(--panel-bottom));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  z-index: 5;
+  box-sizing: border-box;
+  padding: 20px;
+  border-radius: 24px;
+  background: rgba(20, 24, 30, .36);
+  -webkit-backdrop-filter: blur(24px) saturate(115%);
+  backdrop-filter: blur(24px) saturate(115%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .24), 0 10px 30px rgba(0, 0, 0, .16);
+  color: white;
+  font: 400 14px -apple-system, system-ui, sans-serif;
+
+  & h4 {
+    margin: 0 0 12px;
+    font: 600 17px -apple-system, system-ui, sans-serif;
+    color: white;
+    letter-spacing: normal;
+    white-space: normal;
+  }
+  & button {
+    min-height: 44px;
+    font: 500 14px -apple-system, system-ui, sans-serif;
+    letter-spacing: normal;
+    color: white;
+    background: rgba(255, 255, 255, .09);
+    border: 0;
+    box-shadow: none;
+  }
+  & button.on {
+    background: rgba(255, 255, 255, .21);
+  }
+  & .l button {
+    position: relative;
+    border-radius: 14px;
+    padding: 10px 34px 10px 12px;
+  }
+  & .l button.on::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 16px;
+    width: 6px;
+    height: 11px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: translateY(-65%) rotate(45deg);
+  }
+  & .l button b {
+    font: 600 15px -apple-system, system-ui, sans-serif;
+    letter-spacing: normal;
+    color: white;
+  }
+  & :is(.l button i, .l button em, .t) {
+    font: 400 12px/1.45 -apple-system, system-ui, sans-serif;
+    letter-spacing: normal;
+    color: rgba(255, 255, 255, .82);
+  }
+  & .d:not(:empty) {
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, .15);
+  }
+  & :is(.d, .bt) button { border-radius: 999px; }
+  & .d button:not(.on) { background: transparent; }
+  & .bt .go {
+    background: #874714;
+    font-weight: 600;
+    text-indent: 0;
+  }
+  & .bt button:active,
+  & .l button:active {
+    filter: brightness(1.2);
+  }
+}
+:root[data-fold="vertical"] #app :is(#home-panel, #rpick) {
+  --panel-right: calc(100% - var(--fold-start) + 12px);
+}
+:root[data-fold="horizontal"] #app :is(#home-panel, #rpick) {
+  --panel-top: calc(var(--fold-start) + var(--fold-gap) + 8px);
+}
+:root[data-expanded-display][data-fold=""] #app.wide :is(#home-panel, #rpick) {
+  left: auto;
+  right: max(var(--title-right), 6%);
+  width: min(356px, 40%);
+}
+:root:not([data-expanded-display][data-fold=""]) #app:is(.quick-open, .challenge-open),
+:root[data-expanded-display][data-fold=""] #app:not(.wide):is(.quick-open, .challenge-open) {
+  & #title .cta, & #bar { display: none; }
+}
+#home-panel {
+  & h5 { margin: 0 0 8px; font: 600 13px -apple-system, system-ui, sans-serif; }
+  & .home-options { display: grid; gap: 16px; }
+  & .auto-time {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+    gap: 12px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, .18);
+  }
+  /* Align the visible left edge of 自 with the section headings. */
+  & .auto-time span:lang(zh) { transform: translateX(-1.33px); }
+  & [data-auto-time] {
+    appearance: none;
+    position: relative;
+    flex: none;
+    width: 46px;
+    height: 28px;
+    margin: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .23);
+  }
+  & [data-auto-time]:checked { background: #30d158; }
+  & [data-auto-time]::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .22);
+  }
+  & [data-auto-time]:checked::before { left: 21px; }
+  & .scene-choices { display: grid; gap: 2px; }
+  & .times { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  & .weather {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    position: relative;
+    isolation: isolate;
+    padding-inline: 3px;
+  }
+  & .weather::before {
+    content: "";
+    position: absolute;
+    inset: 5px 0;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, .15);
+    z-index: -1;
+  }
+  & .scene-choices button { padding: 3px; border-radius: 12px; font-size: 12px; }
+  & .times button { min-height: 54px; }
+  & .weather button { border-radius: 999px; }
+  & .scene-choices button svg {
+    display: block;
+    width: 26px;
+    height: 20px;
+    margin: 0 auto;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  & dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: minmax(60px, 28%) 1fr;
+    gap: 12px 10px;
+    line-height: 1.4;
+  }
+  & dt { font-weight: 600; }
+  & dd { margin: 0; color: rgba(255, 255, 255, .82); }
+}
+#app #home-panel .scene-choices button:not(.on) { background: transparent; }
+#app #home-panel .scene-choices button.on { font-weight: 600; }
+#app #home-panel .weather button.on {
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 7px 0;
+    border-radius: inherit;
+    background: rgba(255, 255, 255, .21);
+    z-index: -1;
+  }
+}
+:root[data-expanded-display][data-fold=""] #app.wide #home-panel .times {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+/* Tapping outside dismisses the picker on iOS. */
+#app #rpick :is([data-x], .restart-key), #app #rpick.none .bt { display: none; }
 :root[data-fold="vertical"] #app #title {
   right: calc(100% - var(--fold-start)); padding-left: var(--title-left); padding-right: 16px;
 }

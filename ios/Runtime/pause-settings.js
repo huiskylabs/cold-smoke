@@ -1,3 +1,9 @@
+function readTouchHelp(pane, foreAft) {
+  return [...pane.querySelectorAll('.keys.hand-only b')]
+    .filter(b => foreAft || !b.classList.contains('fa-only'))
+    .map(b => ({ title: b.textContent.trim(), detail: b.nextElementSibling.textContent.trim() }));
+}
+
 // The window menus on iOS and visionOS share the same game actions and selections.
 function readPauseSettings(elements, directEntry) {
   // Duo keeps the advanced controls in the DOM so the menu can change mid-run.
@@ -35,6 +41,5 @@ function readPauseSettings(elements, directEntry) {
     snowfall: typeof Weather === 'undefined' || !hasWeather ? '' :
       I18N.t(Weather.levels.find(([id]) => id === Weather.level)?.[1] || ''),
     quality: String(Quality.pick), tier: I18N.t(Quality.L.name), versions,
-    help: [...pane.querySelectorAll('.keys.hand-only b')].filter(b => !b.classList.contains('fa-only') || app.classList.contains('fa'))
-      .map(b => ({ title: text(b), detail: text(b.nextElementSibling) })) };
+    help: readTouchHelp(pane, app.classList.contains('fa')) };
 }
