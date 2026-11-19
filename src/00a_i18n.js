@@ -55,7 +55,7 @@ const I18N = (() => {
     '隐藏': 'Hide', '更多': 'More', '侧面': 'Side', '环绕': 'Orbit', '转播': 'Broadcast', '终点': 'Finish',
     '光圈': 'Rings', '奖励': 'bonus', '罚时': 'penalty', ' 秒': ' s', '用时': 'Time', '光圈奖励': 'Ring bonus', '最快': 'Top',
     '最快 km/h': 'Top km/h', '滑行 km': 'Distance km', '落差 m': 'Drop m', '腾空 s': 'Air s', '腾空': 'Air', '线宽 = 速度 km/h': 'Line width = speed km/h',
-    '漏掉的圈': 'Missed rings', '最快的一站': 'Fastest stage', '一路的速度': 'Speed along the run', '雪友': 'Skier',
+    '漏掉的圈': 'Missed rings', '最快的一站': 'Fastest stage', '一路的速度': 'Speed along the run',
     '正在画这条线…': 'Drawing your line…', '截图或保存，发给朋友': 'Take a screenshot or save it, and send it to a friend', '这张卡没画出来': 'This card could not be drawn',
     '这里存不了图，截图就好': 'Saving is not possible here: take a screenshot instead', '保存图片': 'Save image', '关闭': 'Close',
     // ---- the runs (Course: SEG_NAMES), the hours, the weather, the views, the animals
