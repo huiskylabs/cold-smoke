@@ -9,7 +9,7 @@ const Input = (() => {
   // d (owner, 2026-11-14: a held turn suddenly swinging into a skid after two seconds is wrong; I want to skid only when I ask for it): a
   // steering key or finger only ever carves, however long it is held or however far round the line has come; the skid is asked for with
   // the weight forward (↑ / W, or the steering finger pushed up) while turning, which is what throws the tails out on real skis (see
-  // 'fore/aft' in step). Only steering by tilt, which has no forward, keeps the old rule (tipped all the way over skids)
+  // 'fore/aft' in step). Steering by tilt does the same with 前压 (or the phone tipped forward, Variants 'tilt'); only with fore/aft off does it keep the old rule (tipped all the way over skids)
   Variants.def('keys', '键盘转弯', [['a', '按半秒就搓'], ['b', '按两秒才搓'], ['c', '横过来才搓'], ['d', '前压才搓']], 'd');
   // the feel of the skiing (a player's notes, 2026-11-13: the drag of the snow, the body's weight going over in a turn, speed and momentum).
   // a: as it was. b: the edges hold only so much (past it the skis wash out sideways, scrubbing speed: a hard turn at speed is a wide one);
@@ -51,8 +51,14 @@ const Input = (() => {
   // a ski's edge takes hold, the new edge running behind the body by EB_T s from the first number on hard, icy snow to the second in deep
   // powder; the old edge lets go twice as fast. (b is the one the owner played and chose, default since 2026-11-18; c twice its delay, tried and not chosen) The carve, its limit, the wash and the scrape heard read the edges; the body's
   // lean, which the pose reads, still leads. Read in step()
+  // the phone's tilt (owner 2026-11-19). a: tilt steers, and only steers: the owner tried tilt doing forward and back too and it was too hard
+  // to control, so while the phone steers two buttons at the left (前压 / 后压, Input.btn.fwd / aft) do what ↑ and ↓ do on a keyboard.
+  // b: the phone tipped forward (the top edge away) is the weight on the shovels, tipped back the tails, from however it was held as the run
+  // started, and the buttons go. c: b with forward and back the other way round. In the 小红书 小工具, where the page's own tilt is switched
+  // off, the container's gyroscope (only how fast the phone turns, no angle: see I.onGyro) gives the tilt
+  Variants.def('tilt', '手机倾斜', [['a', '转弯 + 左边按钮'], ['b', '转弯 + 前后倾'], ['c', '前后倾反过来']], 'a');
   Variants.def('ebite', '换刃咬雪', [['a', '原来'], ['b', '随雪况'], ['c', '两倍延迟']], 'b');
-  const I = { u: 0, fa: 0, faV: 0, faT: 0, faScript: null, btn: { jump: false, tuck: false }, jump: false, tuck: false, mode: 'touch', xr: null, tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
+  const I = { u: 0, fa: 0, faV: 0, faT: 0, faScript: null, btn: { jump: false, tuck: false, fwd: false, aft: false }, jump: false, tuck: false, mode: 'touch', xr: null, tiltOK: false, tiltSeen: -1e9, gx: 0, zero: 0, pitch: 0, pitch0: 0, gyro: null, keys: {}, drag: null, kb: 0, kHeld: 0, kWas: 0, script: null, used: false };
   I.init = function (el) {
     addEventListener('keydown', e => { if (e.code !== I.mute) I.keys[e.code] = true; }); addEventListener('keyup', e => { I.keys[e.code] = false; if (e.code === I.mute) I.mute = null; });
     // (I.mute: a key the interface has used, held down still: a space that confirmed a menu or started the run is not also a jump)
@@ -67,13 +73,50 @@ const Input = (() => {
   // sideways component of gravity in screen space: the same number whether the phone is held upright like a wheel or flat like a tray
   I.onOrient = function (e) {
     if (e.beta == null || e.gamma == null) return;
-    const b = e.beta * PI / 180, g = e.gamma * PI / 180, gx = Math.cos(b) * Math.sin(g), gy = -Math.sin(b);
+    if (I.gyro) return;                                                                    // (the gyroscope, where it runs, is the one source)
+    const b = e.beta * PI / 180, g = e.gamma * PI / 180, gx = Math.cos(b) * Math.sin(g), gy = -Math.sin(b), gz = -Math.cos(b) * Math.cos(g);
     if (View.gravity(gx) && I.onFlip) I.onFlip();                                          // held the other way up: turn the picture over
-    const ang = View.angle();
-    I.gx = ang === 90 ? -gy : ang === 270 ? gy : ang === 180 ? -gx : gx;
-    if (I.zeroPending) { I.zero = clamp(I.gx, -0.3, 0.3); I.zeroPending = false; }       // however the phone is held as the run starts is 'straight ahead'
-    I.tiltSeen = performance.now(); I.tiltOK = true;
+    const sc = toScreen(gx, gy); I.onGrav(sc[0], sc[1], gz);
   };
+  // the device's own x and y (as the sensors give them) turned into the picture's: right across it and up it (z, out of the glass, is the same)
+  function toScreen(x, y) { const ang = View.angle(); return ang === 90 ? [-y, x] : ang === 270 ? [y, -x] : ang === 180 ? [-x, -y] : [x, y]; }
+  // gravity in the picture's frame, a unit vector (x right, y up the picture, z out of the glass toward the player), however it was found.
+  // Across: its sideways part (the same number whether the phone is held upright like a wheel or flat like a tray). Forward and back: how far
+  // the glass is tipped from upright toward lying face up, asin(-z), which turning the phone like a wheel leaves alone
+  I.onGrav = function (x, y, z) {
+    I.gx = x; I.pitch = Math.asin(clamp(-z, -1, 1));
+    if (I.zeroPending) { I.zero = clamp(I.gx, -0.3, 0.3); I.pitch0 = I.pitch; I.zeroPending = false; }       // however the phone is held as the run starts is 'straight ahead' and 'centred'
+    I.tiltSeen = performance.now(); if (!I.tiltOK) { I.tiltOK = true; if (I.onTiltOn) I.onTiltOn(); }
+  };
+  // the 小红书 小工具's gyroscope (miniTool.onGyroscopeChange, 19c_xhs.js): only how fast the phone turns about its own axes (rad/s), about
+  // 16 times a second, no angle and no gravity. So gravity is carried by hand: it starts where a phone held for play usually is (upright,
+  // tipped back GY_HOLD), each frame turns against the phone's own turning (dg/dt = g x w, the last rate held until the next one comes), and
+  // eases back toward that start over GY_TAU s, which keeps the sensor's slow drift from building up: let go of a tilt and the steering
+  // comes back to centre by itself, like a wheel. Each run starts from the same place, so 'straight ahead' is wherever the phone is then
+  const GY_HOLD = 0.6, GY_TAU = 6, G0 = [0, -Math.cos(GY_HOLD), -Math.sin(GY_HOLD)];
+  I.onGyro = function (f) {
+    if (!f || !isFinite(f.x) || !isFinite(f.y) || !isFinite(f.z)) return;
+    if (!I.gyro) I.gyro = { g: G0.slice(), w: [0, 0, 0], at: 0 };
+    I.gyro.w[0] = f.x; I.gyro.w[1] = f.y; I.gyro.w[2] = f.z; I.gyro.at = performance.now();
+  };
+  function gyroStep(dt) {
+    const Y = I.gyro; if (!Y) return;
+    if (performance.now() - Y.at > 400) return;                                            // (no rate for a while: hidden, or stopped)
+    if (I.zeroPending) Y.g = G0.slice();
+    const sw = toScreen(Y.w[0], Y.w[1]), wx = sw[0], wy = sw[1], wz = Y.w[2], g = Y.g, h = Math.min(dt, 0.1);
+    const nx = g[0] + (g[1] * wz - g[2] * wy) * h, ny = g[1] + (g[2] * wx - g[0] * wz) * h, nz = g[2] + (g[0] * wy - g[1] * wx) * h;
+    const k = 1 - Math.exp(-h / GY_TAU), ax = nx + (G0[0] - nx) * k, ay = ny + (G0[1] - ny) * k, az = nz + (G0[2] - nz) * k, n = Math.hypot(ax, ay, az) || 1;
+    g[0] = ax / n; g[1] = ay / n; g[2] = az / n;
+    I.onGrav(g[0], g[1], g[2]);
+  }
+  // forward and back from the tilt, -1..1, or null where the tilt is not to give it (Variants 'tilt' a, or not tilting)
+  I.faTilt = () => Variants.val.tilt !== 'a' && I.tiltLive();
+  // the two buttons at the left are wanted: the phone steering (no finger), fore/aft on, the tilt not doing forward and back itself
+  I.faButtons = () => Variants.val.fa === 'b' && Variants.val.tilt === 'a' && I.tiltLive();
+  function tiltFa() {
+    const d = (I.pitch - I.pitch0) * (Variants.val.tilt === 'c' ? -1 : 1);
+    return clamp(sign(d) * Math.max(0, Math.abs(d) - 0.06) / 0.30, -1, 1);             // (3.5 degrees of play, all of it by 21 degrees)
+  }
   // must be called from a tap (iOS asks for permission); resolves true if motion events may arrive.
   // (/*web{*/ … /*}web*/ is left out of the 小红书 小工具 build, where device orientation is switched off and the finger steers: tools/build-xhs.js)
   I.requestTilt = async function () {
@@ -87,6 +130,7 @@ const Input = (() => {
   };
   I.tiltLive = () => I.tiltOK && performance.now() - I.tiltSeen < 600;
   I.update = function (dt) {
+    gyroStep(dt);
     const k = (I.keys.ArrowRight || I.keys.KeyD ? 1 : 0) - (I.keys.ArrowLeft || I.keys.KeyA ? 1 : 0);
     // a key is all or nothing, and all of the steering is a skid. So a key asks for a carve: it aims inside the carve range for as long as
     // the turn is still coming round, however the keys are linked. The skid is what a skier does when the turn is finished and the speed
@@ -119,10 +163,11 @@ const Input = (() => {
     // weight, not at a blow: the same critically damped spring as the steering keys, nine tenths of the way in about a third of a second.
     // The steering finger's height from where it came down does the same, at the same scale as across; a script, if set, overrides both)
     I.jump = !!(K.Space || I.btn.jump/*native{*/ || I.pad?.jump/*}native*/); I.tuck = !!(K.ShiftLeft || K.ShiftRight || I.btn.tuck/*native{*/ || I.pad?.tuck/*}native*/);
-    const kf = (K.ArrowUp || K.KeyW ? 1 : 0) - (K.ArrowDown || K.KeyS ? 1 : 0);
+    const kf = (K.ArrowUp || K.KeyW || I.btn.fwd ? 1 : 0) - (K.ArrowDown || K.KeyS || I.btn.aft ? 1 : 0);      // (and the two buttons at the left while the phone steers)
     { const want = kf, w = Math.abs(want) >= Math.abs(I.fa) && want * I.fa >= 0 ? 11 : 15, x = I.fa - want, vv = I.faV, ee = Math.exp(-w * dt), bb = (vv + w * x) * dt; I.fa = want + (x + bb) * ee; I.faV = (vv - w * bb) * ee; }
     let f = I.fa/*native{*/ + (I.pad?.fa || 0)/*}native*/;
     if (I.xr) f += I.xr.fa;                                              // (in a headset: the head over the tips or back over the tails)
+    if (!I.drag && !I.xr && I.faTilt()) f += tiltFa();                 // (steering by tilt: the phone tipped forward or back, Variants 'tilt')
     if (I.drag && I.drag.y0 != null) { const L = Math.min(View.w || innerWidth, (View.h || innerHeight) * 1.4, 900) * 0.2, dy = clamp((I.drag.y0 - I.drag.y) / L, -1, 1); f += sign(dy) * Math.max(0, Math.abs(dy) - 0.08) / 0.92; }
     I.faT = clamp(I.faScript != null ? I.faScript : f, -1, 1);
   };
@@ -384,7 +429,7 @@ const Game = (() => {
     const rMin = TB ? lerp(4, 10.5, Math.max(smooth(4, 11, sp), 1 - smooth(0.45, 0.65, Math.abs(u)))) : 10.5;      // (a steering key, which asks for 0.66 (keys d), counts as held right over)
     const phiMax = Math.min(0.96 + 0.16 * deep, Math.atan(Math.max(sp, 2.5) ** 2 / (rMin * (1 - 0.4 * deep) * gn) + gHold / gn)) * (1 - 0.3 * S.tuckIn);
     // how much skid the player asks for, 0..1: by steering past 0.72 (a, b, c), or (keys d) by the weight forward while steering at all
-    const skQ = Variants.val.keys === 'd' && Input.mode !== 'tilt' ? smooth(0.15, 0.8, Math.max(0, Input.faT || 0)) * smooth(0.2, 0.5, Math.abs(u)) : smooth(0.72, 1.0, Math.abs(u));
+    const skQ = Variants.val.keys === 'd' && (Input.mode !== 'tilt' || Variants.val.fa === 'b') ? smooth(0.15, 0.8, Math.max(0, Input.faT || 0)) * smooth(0.2, 0.5, Math.abs(u)) : smooth(0.72, 1.0, Math.abs(u));
     const phiT = sign(cu) * Math.pow(Math.abs(cu), 1.2) * phiMax * (S.air && S.airT > 0.14 ? 0.3 : 1) * (1 - 0.28 * skQ * (TB ? smooth(2.5, 6, sp) : 1));      // (b: the lean given up to a skid only where there is one: under 9 km/h a full key skids nothing, see su)
     // (feel b: the faster, the a little heavier the body is to throw over: the same spring up to 50 km/h, four fifths as quick from 108. Only a
     // hint of the momentum: heavier than that read as true but tiring to ski, turn after turn (owner, 2026-11-13: real vs fun, keep it light))

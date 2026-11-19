@@ -511,7 +511,7 @@ const Terrain = (() => {
       const Lc = setLevelUniforms(L0, origin);
       uni.p[1] = -1; uni.tc[0] = X0 & 255; uni.tc[1] = Z0 & 255; uni.tc[2] = ((X0 / 2) % 256 + 256) % 256; uni.tc[3] = ((Z0 / 2) % 256 + 256) % 256;
       // (M.lv.w: one quad of the patch in cells of the finest level. The levels' own meshes, which read it as something else, set it again)
-      const pm = typeof Render !== 'undefined' && Render.H < 600 && (typeof Variants === 'undefined' || Variants.val.patchd !== 'a') ? patchHalf : patchFine; uni.lv[3] = pm.step;
+      const pm = (typeof Quality !== 'undefined' && Quality.k('patch') > 0) || (typeof Render !== 'undefined' && Render.H < 600 && (typeof Variants === 'undefined' || Variants.val.patchd !== 'a')) ? patchHalf : patchFine; uni.lv[3] = pm.step;
       gfx.draw(pipe, { u: uni, tex: tex(L0, Lc), vb: [pm.vb], ib: pm.ib, count: pm.n });
     }
     for (const L of T.levels) {
@@ -860,7 +860,7 @@ fn frag(v: VOut) -> FOut {
   // (seen this flat, a pixel's footprint is metres long down the view and centimetres across it: a mip level chosen by the long side
   // would blur every ridge away, so the level leans toward the short side, as for the tracks)
   let jaM: vec2f = dpdx(wxz); let jbM: vec2f = dpdy(wxz);
-  if (fM > 0.002) {
+  if (fM > 0.002 && M.sg.z < 0.5) {      // (M.sg.z: a lower Quality level leaves this relief out, Quality.k('tsh'))
     // (where the wind has worked the slope into pillows, where into sastrugi, and where it left it smooth: blobs ~80 m across)
     let pz: vec4f = tex(tDetail, wxz / 512.0 + vec2f(0.23, 0.67));
     let wS: f32 = smoothstep(0.42, 0.62, pz.z); let wP: f32 = 0.55 + 0.45 * smoothstep(0.62, 0.40, pz.z);
@@ -976,9 +976,10 @@ fn frag(v: VOut) -> FOut {
   let cover: f32 = shadowCover(wp);
   if (cover < 0.999) {
     let so: vec2f = sdir / (M.lv.x * 256.0);
-    let den: f32 = (mix(tex(tN, v.uvn.xy + so * 7.0).w, tex(tNc, v.uvn.zw + so * (7.0 * M.p.z)).w, al)
-                  + mix(tex(tN, v.uvn.xy + so * 21.0).w, tex(tNc, v.uvn.zw + so * (21.0 * M.p.z)).w, al)
-                  + mix(tex(tN, v.uvn.xy + so * 38.0).w, tex(tNc, v.uvn.zw + so * (38.0 * M.p.z)).w, al)) * 0.3333;
+    var den: f32 = mix(tex(tN, v.uvn.xy + so * 21.0).w, tex(tNc, v.uvn.zw + so * (21.0 * M.p.z)).w, al);
+    // (a lower Quality level reads the forest toward the sun once, at the middle of the three: M.sg.z)
+    if (M.sg.z < 0.5) { den = (mix(tex(tN, v.uvn.xy + so * 7.0).w, tex(tNc, v.uvn.zw + so * (7.0 * M.p.z)).w, al) + den
+                  + mix(tex(tN, v.uvn.xy + so * 38.0).w, tex(tNc, v.uvn.zw + so * (38.0 * M.p.z)).w, al)) * 0.3333; }
     let lit: f32 = exp(-8.5 * den);
     // streaks lying along the sun's bearing (sheared rather than turned, so the pattern survives the 1024 m origin steps)
     let sq: vec2f = vec2f(wxz.x - SUNK * wxz.y, wxz.y);

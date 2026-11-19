@@ -580,12 +580,12 @@ const RouteCard = self.RouteCard = (() => {
   // ---- beside the result (用户 2026-11-19 06:50 UTC: 弹出统计的时候，路线卡没有一起弹出来): the card itself, small, to the left of the result
   // card, coming in with it and going with it (CSS: it follows .card.on, so 回放, 继续滑 and a new run take it away too). A tap opens it large
   // (below the time and its line at the top middle, so they stay readable on a phone turned sideways)
-  // (the result card is min(330px,44vw) wide plus its 20 px padding each side, so the card sits 40 + 12 px further left than that)
+  // (the result card is min(330px,calc(var(--cw) * .44)) wide plus its 20 px padding each side, so the card sits 40 + 12 px further left than that)
   function dock() {
     const L = RG.line; if (!L || !L.el) return null;
     if (RCg.dk && RCg.dk.parentNode === L.el) return RCg.dk;
     const st = document.createElement('style');
-    st.textContent = '#rline .rcdock{position:absolute;top:calc(50% + 36px);right:calc(var(--gr) + min(330px,44vw) + 52px);height:min(calc(100% - var(--gt) - var(--gb) - 72px),560px);max-width:calc(100% - var(--gr) - min(330px,44vw) - 64px);aspect-ratio:3/4;object-fit:contain;transform:translate(12px,-50%);opacity:0;transition:opacity .5s .2s,transform .6s .2s cubic-bezier(.2,.6,.2,1);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.45),inset 0 0 0 1px rgba(244,247,251,.22);cursor:pointer;pointer-events:none}'
+    st.textContent = '#rline .rcdock{position:absolute;top:calc(50% + 36px);right:calc(var(--gr) + min(330px,calc(var(--cw) * .44)) + 52px);height:min(calc(100% - var(--gt) - var(--gb) - 72px),560px);max-width:calc(100% - var(--gr) - min(330px,calc(var(--cw) * .44)) - 64px);aspect-ratio:3/4;object-fit:contain;transform:translate(12px,-50%);opacity:0;transition:opacity .5s .2s,transform .6s .2s cubic-bezier(.2,.6,.2,1);border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.45),inset 0 0 0 1px rgba(244,247,251,.22);cursor:pointer;pointer-events:none}'
       + '#rline .card.on ~ .rcdock{opacity:1;transform:translate(0,-50%);pointer-events:auto}';
     const cv = document.createElement('canvas'); cv.className = 'rcdock'; cv.width = 600; cv.height = 800; cv.title = RC_W('路线卡');
     cv.addEventListener('click', e => { e.stopPropagation(); RCg.view = 0; open(); });
@@ -599,7 +599,7 @@ const RouteCard = self.RouteCard = (() => {
     const d = document.createElement('div'); d.id = 'rcard';
     d.innerHTML = '<style>'
       + '#rcard{position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;gap:clamp(12px,3vmin,24px);background:rgba(5,8,13,.62);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);pointer-events:auto}'
-      + '#rcard.on{display:flex}#rcard canvas{height:min(calc(100% - 32px),calc((100vw - 200px) * 4 / 3));aspect-ratio:3/4;border-radius:12px;box-shadow:0 18px 60px rgba(0,0,0,.5),inset 0 0 0 1px rgba(244,247,251,.22)}'
+      + '#rcard.on{display:flex}#rcard canvas{height:min(calc(100% - 32px),calc((var(--cw) - 200px) * 4 / 3));aspect-ratio:3/4;border-radius:12px;box-shadow:0 18px 60px rgba(0,0,0,.5),inset 0 0 0 1px rgba(244,247,251,.22)}'
       + '#rcard .side{display:flex;flex-direction:column;gap:8px;min-width:120px}#rcard .msg{font-family:var(--f-song);font-size:12px;letter-spacing:.14em;color:var(--dim);line-height:1.7;max-width:150px}'
       + '#rcard button{appearance:none;-webkit-appearance:none;margin:0;border:0;height:38px;padding:0 16px;border-radius:12px;font-family:var(--f-ui);font-size:12px;letter-spacing:.14em;cursor:pointer;color:var(--dim);background:rgba(5,8,13,.25);box-shadow:inset 0 0 0 1px var(--hair)}'
       + '#rcard button:disabled{opacity:.3;cursor:default}#rcard .nav{display:flex;gap:8px;align-items:center}#rcard .nav button{flex:1;padding:0;font-family:var(--f-lat);font-size:16px;letter-spacing:0}#rcard .n{font-family:var(--f-lat);font-size:11px;letter-spacing:.1em;color:var(--faint);text-align:center}'

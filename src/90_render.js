@@ -142,7 +142,7 @@ const Render = (() => {
     Clouds.update();
     if (!Trees.isBaked()) Trees.bake();
     gfx.beginPass(shadowT, { depth: 1 });
-    Terrain.drawShadow(R.origin, 2);
+    Terrain.drawShadow(R.origin, typeof Quality !== 'undefined' ? Quality.k('shLv') : 2);
     for (const f of R.passes.shadow) f(R);
     gfx.endPass();
     for (const f of R.passes.pre) f(R);

@@ -290,7 +290,7 @@ const Tracks = (() => {
     // (the deposits after the skis: snow thrown down on a track lies on it; and a ski going through a fan later scrapes it away)
     const dsent0 = L.dsent; if (nd) depDraw(L, fresh); L.dsent = depN;
     if (wipe) gfx.draw(L.wipe, { u: wu, count: 3 });
-    gfx.endPass(); gfx.genMips(L.tex);
+    gfx.endPass(); mip(L.tex, fresh);
     if (L.k) return true;
     // the light of the near map, worked out again round the new stamps only
     wu.c = LIT0;
@@ -298,9 +298,15 @@ const Tracks = (() => {
     if (n) quads(pBake, L, 0, { tT: L.tex }, n);
     if (nd) { L.dsent = dsent0; depDraw(L, fresh, pBakeD, { tT: L.tex }); L.dsent = depN; }
     if (wipe) gfx.draw(LN.wipe, { u: wu, count: 3 });
-    gfx.endPass(); gfx.genMips(LN.lit);
+    gfx.endPass(); mip(LN.lit, fresh);
     return true;
   }
+  // the blurred levels of a map, made again after it was pressed. Three maps of 1024 x 1024 every frame are on a phone a good part of
+  // what does not shrink with the picture: a lower Quality level (Quality.k('tmip') 2) makes them every other frame, the press itself
+  // still every frame. Only the levels are a frame behind, and only far enough from the lens for a groove to be under a pixel
+  const owed = new Set();
+  const mipK = () => (typeof Quality !== 'undefined' ? Quality.k('tmip') : 1);
+  function mip(tex, now) { const k = mipK(); if (now || !(k > 1) || frame % k === 0) { gfx.genMips(tex); owed.delete(tex); } else owed.add(tex); }
   // before the scene is drawn
   T.pre = function () {
     frame++; depLand();
@@ -309,6 +315,7 @@ const Tracks = (() => {
     const n = Course.normal(cx, cz); su.s[2] = Math.max(Math.tan(Sky.elev) + (n[0] * su.s[0] + n[2] * su.s[1]) / Math.max(n[1], 0.2), 0.03);
     press(LN);
     if (LF.fresh || !(frame & 3)) press(LF);
+    if (owed.size && frame % mipK() === 0) { for (const t of owed) gfx.genMips(t); owed.clear(); }
   };
 
   // how far the snow's visible surface stands above the ground the physics knows, at world x, z (m): the terrain raises the snow round the

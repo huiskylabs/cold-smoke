@@ -143,11 +143,11 @@ const Replay = self.Replay = (() => {
   // ---- the rings as they stood at recorded moment Tr, their clocks moved to the replay's T (92_rings.js reads RG.rings and draws them)
   function ringsAt(Tr, T) {
     const r = R.rec, rg = RG(); if (!r || !rg || !r.ringList) return;
-    const sh = T - Tr, out = []; let pass = 0, miss = 0;
+    const sh = T - Tr, out = [], Tc = Math.max(Tr, R.Tc || Tr); let pass = 0, miss = 0;
     for (const q of r.ringList) {
-      if (q.born > Tr + 1e-3 || (q.pass >= 0 && q.pass <= Tr && Tr - q.pass > 2.4)) { if (q.pass >= 0 && q.pass <= Tr && !q.fin) { if (q.hit) pass++; else miss++; } continue; }
+      if (q.born > Tr + 1e-3 || (q.pass >= 0 && q.pass <= Tc && Tr - q.pass > 2.4)) { if (q.pass >= 0 && q.pass <= Tc && !q.fin) { if (q.hit) pass++; else miss++; } continue; }
       const at = t => t >= 0 && t <= Tr ? t + sh : -1, w = Tr * 6.283, p = q.ph;
-      const passed = q.pass >= 0 && q.pass <= Tr, spl = at(q.splash);
+      const passed = q.pass >= 0 && q.pass <= Tc, spl = at(q.splash);
       if (passed && !q.fin) { if (q.hit) pass++; else miss++; }
       out.push({ id: q.id, s: q.s, u: q.u, r: q.r, yaw: q.yaw || 0, yawFix: true, tag: q.tag, air: q.air, fin: q.fin, x0: q.x0, y0: q.y0, ph: q.ph,
         x: q.x0 + 0.09 * Math.sin(w * 0.31 + p) + 0.04 * Math.sin(w * 0.73 + p * 2.1), y: q.y0 + 0.07 * Math.sin(w * 0.43 + p * 1.7) + 0.03 * Math.sin(w * 0.91 + p * 0.6),
@@ -258,6 +258,7 @@ const Replay = self.Replay = (() => {
     if (el) { el.root.classList.remove('on'); appEl().classList.remove('replay', 'rp-bare'); }
     snapCam();
     if (P.cur) { R.rec = P.cur.rec; R.recording = P.cur.recording; P.cur = null; }
+    if (rg && rg.replayHud) try { rg.replayHud(null); } catch (e) { }
     if (!quiet && !P.menu && rg && rg.cardShow) rg.cardShow(true);
     P.menu = false;
   }
@@ -275,6 +276,10 @@ const Replay = self.Replay = (() => {
     if (events && P.last >= 0 && k > P.last && k - P.last < 600) for (let i = P.last + 1; i <= k; i++) if (r.ev[i]) for (const e of r.ev[i]) G.events.push(Object.assign({}, e));
     P.last = k; P.k = k; P.u = u;
     R.Tr = r.T[k] + ((r.T[k + 1] || r.T[k]) - r.T[k]) * u;
+    // (a frame is recorded in the game's update, the rings judge a pass a moment later in the same frame, before it is drawn: so what
+    // had been passed by the time frame k was on the screen is what was passed before frame k+1 was recorded. Counted at R.Tr, a ring
+    // came one frame late on the clock and the rings' count, against what the run had shown)
+    R.Tc = (r.T[k + 1] != null ? r.T[k + 1] : r.T[k] + 0.05) - 1e-6;
   }
   // Game.update, while a replay plays: the frame is set before the game's own update (no physics steps in mode 'replay'), the pose and the
   // root again after it has worked out its own from the state (07_game.js G.afterPose), so the lens and everything after see the run's
@@ -346,7 +351,7 @@ const Replay = self.Replay = (() => {
     if (el || typeof document === 'undefined') return;
     const d = document.createElement('div'); d.id = 'replay';
     d.innerHTML = '<style>'
-      + '#app.replay #hud,#app.replay #bar,#app.replay #menu,#app.replay #say,#app.replay #shade,#app.replay #title,#app.replay #pause,#app.replay #steer,#app.replay #rline{visibility:hidden!important;opacity:0!important;pointer-events:none!important;transition:none!important}'
+      + '#app.replay #hud,#app.replay #bar,#app.replay #menu,#app.replay #say,#app.replay #shade,#app.replay #title,#app.replay #pause,#app.replay #steer,#app.replay #rline .card,#app.replay #rline .cd,#app.rp-bare #rline{visibility:hidden!important;opacity:0!important;pointer-events:none!important;transition:none!important}'
       + '#replay{position:absolute;inset:0;display:none;z-index:6;font-family:var(--f-ui);color:var(--snow);text-shadow:0 1px 16px rgba(5,8,13,.55);-webkit-user-select:none;user-select:none}#replay.on{display:block}'
       + '#replay .surf{position:absolute;inset:0;touch-action:none}'
       + '#replay .ui{transition:opacity .45s}#app.rp-bare #replay .ui{opacity:0;pointer-events:none}#replay.idle .bt0{opacity:0;pointer-events:none}'
@@ -354,9 +359,6 @@ const Replay = self.Replay = (() => {
       + '#replay .tag i{width:7px;height:7px;border-radius:50%;background:#ff7a66;box-shadow:0 0 10px #ff7a66}#replay .tag em{font-family:var(--f-song);font-style:normal;font-size:13px;letter-spacing:.3em;color:var(--snow)}'
       + '#replay .x{position:absolute;top:var(--gt);right:var(--gr);width:36px;height:36px;border-radius:999px;background:rgba(5,8,13,.36);box-shadow:inset 0 0 0 1px rgba(244,247,251,.16);display:grid;place-items:center;pointer-events:auto;cursor:pointer}'
       + '#replay svg{width:16px;height:16px;display:block;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}'
-      + '#replay .tm{position:absolute;top:var(--gt);left:50%;transform:translateX(-50%);font-family:var(--f-lat);font-weight:300;font-size:clamp(26px,6.4vmin,42px);line-height:1;letter-spacing:.02em;font-variant-numeric:tabular-nums}'
-      + '#replay .sub{position:absolute;top:calc(var(--gt) + clamp(34px,7.6vmin,50px));left:50%;transform:translateX(-50%);font-weight:500;font-size:11px;letter-spacing:.3em;margin-right:-.3em;color:var(--dim);white-space:nowrap}'
-      + '#replay .spl{position:absolute;top:calc(var(--gt) + clamp(56px,11vmin,74px));left:50%;transform:translateX(-50%);font-size:12px;letter-spacing:.1em;font-variant-numeric:tabular-nums;opacity:0;transition:opacity .45s;white-space:nowrap}#replay .spl.on{opacity:1}#replay .spl .k{font-family:var(--f-song);letter-spacing:.2em;color:rgba(244,247,251,.82);margin-right:1em}'
       + '#replay .bt0{position:absolute;left:var(--gl);right:var(--gr);bottom:var(--gb);background:rgba(5,8,13,.52);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:12px 16px 12px;text-shadow:none;pointer-events:auto}'
       + '#replay .tl{position:relative;height:22px;margin:0 2px 10px;cursor:pointer;touch-action:none}#replay .tl .rail{position:absolute;top:10px;left:0;right:0;height:2px;border-radius:1px;background:rgba(244,247,251,.18)}'
       + '#replay .tl .done{position:absolute;top:10px;left:0;height:2px;border-radius:1px;background:var(--snow)}#replay .tl .kn{position:absolute;top:4px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:var(--snow);box-shadow:0 0 0 4px rgba(244,247,251,.12)}'
@@ -368,13 +370,13 @@ const Replay = self.Replay = (() => {
       + '#replay kbd{font-family:var(--f-lat);font-size:.85em;letter-spacing:.04em;opacity:.55}#replay .sp{display:flex;gap:4px}#replay .sp button{padding:0 9px}#replay .sep{width:1px;height:20px;background:var(--hair);margin:0 4px;flex:none}'
       + '#replay .cams{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;min-width:0}#replay .cams::-webkit-scrollbar{display:none}#replay .cams button,#replay .camc button{font-family:var(--f-song);letter-spacing:.2em}#replay .camc{display:none}'
       // (a phone on its side: the cameras stand down the right edge, under the thumb, the six most used; the rest behind 更多)
-      + '@media (max-height:520px){#replay .cams,#replay .row .sep.c,#replay .row kbd{display:none}#replay .t{min-width:0}'
-      + '#replay .camc{display:flex;position:absolute;right:var(--gr);top:calc(var(--gt) + 44px);bottom:calc(var(--gb) + 76px);flex-direction:column;align-items:flex-end;gap:5px;overflow-y:auto;scrollbar-width:none;pointer-events:auto;text-shadow:none}'
-      + '#replay .camc button{background:rgba(5,8,13,.42);height:28px;padding:0 10px;flex:none}#replay .camc button.on{background:rgba(5,8,13,.55)}#replay .camc button.x6{display:none}#replay .camc.all button.x6{display:inline-flex}#replay.idle .camc{opacity:0;pointer-events:none}#replay .camc{transition:opacity .45s}}'
+      + '#app.short #replay .cams,#app.short #replay .row .sep.c,#app.short #replay .row kbd{display:none}#app.short #replay .t{min-width:0}'
+      + '#app.short #replay .camc{display:flex;position:absolute;right:var(--gr);top:calc(var(--gt) + 52px);bottom:calc(var(--gb) + 128px);flex-direction:column;align-items:flex-end;gap:5px;overflow-y:auto;scrollbar-width:none;pointer-events:auto;text-shadow:none}'
+      + '#app.short #replay .camc button{background:rgba(5,8,13,.42);height:28px;padding:0 10px;flex:none}#app.short #replay .camc button.on{background:rgba(5,8,13,.55)}#app.short #replay .camc button.x6{display:none}#app.short #replay .camc.all button.x6{display:inline-flex}#app.short #replay.idle .camc{opacity:0;pointer-events:none}#app.short #replay .camc{transition:opacity .45s}'
       + '</style>'
       + '<div class="surf"></div>'
       + '<div class="ui"><div class="tag"><i></i><em>' + RP_T('回放') + '</em>REPLAY</div><button class="x" data-a="x" aria-label="' + RP_T('退出回放') + '"><svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg></button>'
-      + '<div class="tm"></div><div class="sub"></div><div class="spl"></div>'
+      
       + '<div class="bt0"><div class="tl"><div class="rail"></div><div class="done"></div><div class="mk"></div><div class="kn"></div></div>'
       + '<div class="row"><button class="pp" data-a="pp" aria-label="' + RP_T('播放/暂停') + '"></button><button data-a="re" aria-label="' + RP_T('从头') + '"><svg viewBox="0 0 20 20"><path d="M4.5 10a5.5 5.5 0 1 0 1.8-4.1"/><path d="M4.2 3.6v3h3"/></svg></button><span class="t"></span>'
       + '<span class="sp">' + SPEEDS.map(s => '<button data-sp="' + s + '">' + (s === 0.25 ? '¼' : s === 0.5 ? '½' : s) + '×</button>').join('') + '</span><span class="sep c"></span>'
@@ -444,20 +446,12 @@ const Replay = self.Replay = (() => {
   function wake() { P.idle = 0; if (el) el.root.classList.remove('idle'); }
   function toggle() { if (P.t >= R.rec.dur - 1e-3) { P.t = 0; P.last = -1; P.splitI = 0; } P.play = !P.play; paint(); wake(); }
   function splitIndex() { const sp = R.rec.fin && R.rec.fin.splits || []; let i = 0; while (i < sp.length && sp[i] <= G.runT + 1e-6) i++; return i; }
-  // each frame: the clock as it ran (penalties in it, as the run's own clock had them), the rings so far, a station's time as it is reached
+  // each frame: the top of the screen as the run had it, at this moment of the run (92_rings.js RG.replayHud writes it, the same words and
+  // look as while skiing: the clock with the bonus off, the rings, a station's time as it is reached, the finish banner)
   function hudFrame() {
     if (!el) return;
-    const r = R.rec, f = r.fin || {}, bo = f.bonus || 0, pen = !bo && f.missed > 0 ? (f.score - f.t) / f.missed : 0, c = R.ringCount || { pass: 0, miss: 0 };          // (bo: the ring bonus, 2026-11-19; older recordings had a penalty)
-    const done = G.runT >= (f.t || Infinity) - 1e-6;
-    const tm = done ? fmt(f.score) : fmt(Math.max(0, G.runT + c.miss * pen - c.pass * bo));
-    const T = el.q('.tm'); if (T.textContent !== tm) T.textContent = tm; T.style.color = done ? 'var(--sun)' : '';
-    const sub = RP_T(f.name || '') + '　' + RP_T('光圈') + ' ' + c.pass + ' / ' + (c.pass + c.miss) + (bo ? (c.pass ? '　' + RP_T('奖励') + ' −' + Math.round(c.pass * bo * 10) / 10 + RP_T(' 秒') : '') : c.miss ? '　' + RP_T('罚时') + ' +' + Math.round(c.miss * pen * 10) / 10 + RP_T(' 秒') : ''), sb = el.q('.sub'); if (sb.textContent !== sub) sb.textContent = sub;
-    const sp = f.splits || [], nm = f.names || [];
-    if (P.play && P.splitI < sp.length && G.runT >= sp[P.splitI]) {
-      const i = P.splitI, d = sp[i] - (i ? sp[i - 1] : 0), e = el.q('.spl');
-      e.innerHTML = '<span class="k">' + (i === sp.length - 1 ? RP_T('终点') : RP_N(nm[i] || String(i + 1))) + '</span>' + fmt(d); e.classList.add('on'); clearTimeout(e._t); e._t = setTimeout(() => e.classList.remove('on'), 2200);
-      P.splitI++;
-    }
+    const r = R.rec, c = R.ringCount || { pass: 0, miss: 0 }, rg = RG();
+    if (rg && rg.replayHud) try { const cur = rg.rings && rg.rings.find(q => q.pass < 0 && !q.skip); rg.replayHud({ t: G.runT, passed: c.pass, missed: c.miss, finAhead: !!(cur && cur.fin), play: P.play, fin: r.fin || {} }); } catch (e) { }
     const t = el.q('.t'), tt = fmt(P.t) + ' / ' + fmt(r.dur); if (t.textContent !== tt) t.textContent = tt;
     const u = (clamp(P.t / Math.max(1e-6, r.dur), 0, 1) * 100).toFixed(2) + '%'; el.q('.done').style.width = u; el.q('.kn').style.left = u;
     // the bar fades after a few seconds left alone while it plays; the picture is all there is then

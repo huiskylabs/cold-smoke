@@ -9,6 +9,9 @@
 //   postNote + writeTempFile + saveImageToPhotosAlbum   分享 in the menu: the picture as it stands into a new note, with the run's figures in
 //                           the text; or the picture into the phone's photos.
 //   followAuthor / getFollowStatus (9.51+)   a quiet 关注作者 in the same place (gone for the author, 已关注 once followed).
+//   onGyroscopeChange + startGyroscope (9.50+)   the phone's turning, for steering and for forward and back by tilt: the container switches
+//                           off the page's own tilt, so its gyroscope is the only way (Input.onGyro). Started once, at 60 ms; where it fails
+//                           (no gyroscope: errCode 10002, or an older client) the finger steers, as before. The container pauses it in the background.
 const XHS = self.XHS = (() => {
   const X = { on: false };
   const T = s => I18N.t(s), EN = () => I18N.en();
@@ -95,6 +98,7 @@ const XHS = self.XHS = (() => {
   const node = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
   X.init = function () {
     if (!mt) return;
+    gyro();
     const menu = document.getElementById('menu'); if (!menu) return;
     { const b = self.COLD_SMOKE && self.COLD_SMOKE.build, o = menu.querySelector('section[data-sec="opt"]');
       if (b && o) { const p = node('p', 'note', ''); p.style.opacity = '.6'; const f = () => { p.textContent = (EN() ? 'Build ' : '版本 ') + b; }; f(); I18N.on(f); o.appendChild(p); } }
@@ -107,6 +111,14 @@ const XHS = self.XHS = (() => {
     X.layout();
     addEventListener('resize', () => setTimeout(X.layout, 80));
   };
+
+  // ---- the gyroscope (see the head of this file)
+  function gyro() {
+    if (!['startGyroscope', 'stopGyroscope', 'onGyroscopeChange', 'offGyroscopeChange'].every(has)) return;
+    try { mt.onGyroscopeChange(Input.onGyro); } catch (e) { return; }
+    try { Promise.resolve(mt.startGyroscope({ interval: 'ui' })).catch(e => { console.warn('no gyroscope', e && (e.errCode || e.errMsg)); try { mt.offGyroscopeChange(Input.onGyro); } catch (_) { } Input.gyro = null; }); }
+    catch (e) { try { mt.offGyroscopeChange(Input.onGyro); } catch (_) { } }
+  }
 
   let followSt = 0, msg = null;
   X.show = function () {

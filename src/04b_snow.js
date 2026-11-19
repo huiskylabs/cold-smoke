@@ -27,7 +27,7 @@ const SnowLook = (() => {
   S.uniformNames = () => { const u = { sf: 'vec4f', sg: 'vec4f', sn: 'vec4f' }; for (let i = 0; i < S.N; i++) u['ct' + i] = 'vec4f'; return u; };
   const row = {};
   S.frame = function (origin, at) {
-    U.sf[1] = S.on('snr2') ? 1 : 0; U.sf[0] = VS && VS.val.glint === 'a' ? 0 : 1; U.sg[0] = S.on('snr6') ? 1 : 0; U.sg[1] = S.on('snr4') ? 1 : 0; U.sg[3] = typeof Quality !== 'undefined' ? Quality.tier : 0;
+    U.sf[1] = S.on('snr2') ? 1 : 0; U.sf[0] = VS && VS.val.glint === 'a' ? 0 : 1; U.sg[0] = S.on('snr6') ? 1 : 0; U.sg[1] = S.on('snr4') ? 1 : 0; U.sg[3] = typeof Quality !== 'undefined' ? Quality.tier : 0; U.sg[2] = typeof Quality !== 'undefined' ? Quality.k('tsh') : 0;
     U.sn[2] = U.sg[0];
     if (!U.sg[0]) return U;
     // the table: from BACK m behind the camera on down the run (the run goes toward -z)

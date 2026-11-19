@@ -10,12 +10,29 @@
 // The level an automatic device settles at is remembered, so a phone that needed 流畅 starts there next time instead of stuttering first.
 const Quality = (() => {
   const LEVELS = [
-    { name: '高', maxDpr: 2, maxPx: 3.4e6, floor: 0.75, shadow: 2048, blur: true, dust: 1, glitter: 1, far: 460, bloom: 6 },
-    { name: '均衡', maxDpr: 1.25, maxPx: 1.2e6, floor: 0.75, shadow: 1536, blur: true, dust: 0.75, glitter: 0.7, far: 460, bloom: 6 },
-    { name: '流畅', maxDpr: 1, maxPx: 0.7e6, floor: 0.6, shadow: 1024, blur: false, dust: 0.5, glitter: 0.45, far: 380, bloom: 5 },
+    { name: '高', maxDpr: 2, maxPx: 3.4e6, floor: 0.75, shadow: 2048, blur: true, dust: 1, glitter: 1, far: 460, bloom: 6, grain: 1, wind: 1, shLv: 2, patch: 0, tsh: 0, tmip: 1 },
+    { name: '均衡', maxDpr: 1.25, maxPx: 1.2e6, floor: 0.75, shadow: 1536, blur: true, dust: 0.75, glitter: 0.7, far: 460, bloom: 6, grain: 0.75, wind: 1, shLv: 2, patch: 1, tsh: 0, tmip: 2 },
+    { name: '流畅', maxDpr: 1, maxPx: 0.7e6, floor: 0.6, shadow: 1024, blur: false, dust: 0.5, glitter: 0.45, far: 380, bloom: 5, grain: 0.5, wind: 0.5, shLv: 1, patch: 1, tsh: 1, tmip: 2 },
   ];
+  // (Variants 'qtier', 2026-11-19: a level used to change only pixels, and on a phone most of a frame does not scale with pixels: the
+  // terrain's vertices, the shadow pass, the particles. b gives each level a say over those too: grain how many of the spray's grains are
+  // thrown (the rest a little brighter, so the sheet reads as before), wind the blown snow's wisps, shLv how many terrain levels go into
+  // the shadow map (level 1 still covers the 62 m the map reaches), patch 1 the half-density under-foot mesh whatever the height, tsh 1 the
+  // terrain shader's optional middle-distance relief and forest-floor streaks left out, tmip 2 the ski tracks' blurred levels made every
+  // other frame (17_tracks.js). And 流畅 is not drawn so small any more (floor).
+  // a keeps the levels as they were)
+  const OLD = { grain: 1, wind: 1, shLv: 2, patch: 0, tsh: 0, tmip: 1 };
+  // Light load, the governor's first move inside a level: fewer of the small things that fly about (grains, glitter, air snow, wisps).
+  // Q.lite 0..2; Q.k(name) is the level's number for name times the light-load share
+  const LITE = [1, 0.8, 0.62];
   const KP = 'cs.q.pick', KA = /*native{*/self.COLD_SMOKE?.autoQualityKey || /*}native*/'cs.q.auto';
-  const Q = { LEVELS, pick: 'auto', tier: 0, guess: 0, gpu: '', why: '', L: LEVELS[0], subs: [], downs: 0, ups: 0 };
+  if (typeof Variants !== 'undefined') Variants.def('qtier', '画质档管到的', [['a', '只管像素'], ['b', '也管网格和粒子']], 'b');
+  const Q = { LEVELS, pick: 'auto', tier: 0, guess: 0, gpu: '', why: '', L: LEVELS[0], subs: [], downs: 0, ups: 0, lite: 0 };
+  const newer = () => typeof Variants === 'undefined' || Variants.val.qtier !== 'a';
+  Q.k = name => (newer() ? LEVELS[Q.tier][name] : name in OLD ? OLD[name] : LEVELS[Q.tier][name]) * (newer() && name in LITEK ? LITE[Q.lite] : 1);
+  const LITEK = { grain: 1, wind: 1, dust: 1, glitter: 1 };
+  Q.floor = () => (newer() && Q.tier === 2 ? 0.7 : LEVELS[Q.tier].floor);
+  Q.setLite = n => { n = clamp(n | 0, 0, LITE.length - 1); if (n === Q.lite) return false; Q.lite = n; return true; };
   const get = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const put = k => v => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { } if (Q.keep) Q.keep(k, v == null ? '' : v); };
   const handheld = () => !!(window.matchMedia && matchMedia('(pointer: coarse) and (hover: none)').matches);

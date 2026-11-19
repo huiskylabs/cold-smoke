@@ -280,7 +280,7 @@ const Grains = (() => {
     if (!cCPU || !G.enabled) return 0;
     sync();
     const o = opts || {}, sp = o.spread != null ? o.spread : 0.6, r = o.r != null ? o.r : 0.1, life = o.life || 3, brake = o.brake || 1.6, vs = o.vs || [0.3, 1.0], pw = o.power || 1;
-    const qk = Quality.L.glitter; let m = n * sparkK() * poolK * qk; const whole = Math.floor(m); m = whole + (rnd() < m - whole ? 1 : 0);
+    const qk = Quality.k('glitter'); let m = n * sparkK() * poolK * qk; const whole = Math.floor(m); m = whole + (rnd() < m - whole ? 1 : 0);
     for (let k = 0; k < m; k++) {
       const a = rnd() * TAU, b = rnd() * 2 - 1, s = Math.sqrt(1 - b * b), rr = r * Math.cbrt(rnd()), g = 0.65 + 0.7 * rnd();
       const jx = Math.cos(a) * s, jy = b, jz = Math.sin(a) * s, js = sp * Math.sqrt(rnd());

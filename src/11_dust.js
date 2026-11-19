@@ -81,11 +81,11 @@ fn vert(a: VIn) -> VOut {
     const o = off(R), ow = [((o[0] % 1024) + 1024) % 1024, ((o[1] % 1024) + 1024) % 1024, ((o[2] % 1024) + 1024) % 1024, 0];
     const sh = typeof Weather !== 'undefined' && Weather.ks > 0.001 ? Weather.share || 0 : 0;
     const dayK = typeof Sky !== 'undefined' ? 1 - smooth(0.2, 0.8, Sky.night || 0) : 1;
-    if (sh > 0.001) { let id = 0; for (const L of D.heavy) { const n = Math.min(L.n, Math.ceil(L.n * (sh + 0.04) * Quality.L.dust)); gfx.draw(pipeF, { u: { p: [L.W, L.size, L.fall, id], q: [sh, L.shut, L.op, L.n], o: [o[0], o[1], o[2], dayK] }, tex: { tDepth: R.depth, tShadow: R.shadowTex }, count: 4, instances: n }); id += L.n; } }
+    if (sh > 0.001) { let id = 0; for (const L of D.heavy) { const n = Math.min(L.n, Math.ceil(L.n * (sh + 0.04) * Quality.k('dust'))); gfx.draw(pipeF, { u: { p: [L.W, L.size, L.fall, id], q: [sh, L.shut, L.op, L.n], o: [o[0], o[1], o[2], dayK] }, tex: { tDepth: R.depth, tShadow: R.shadowTex }, count: 4, instances: n }); id += L.n; } }
     let id = 0;
     // 晴 turns the diamond dust down with Weather.dust (小雪 is 1, the way a clear day always looked); 大雪 is the flakes above
     const dustK = typeof Weather !== 'undefined' && Weather.dust != null ? Weather.dust : 1;
-    for (const L of D.layers) { const n = Math.round(L.n * Quality.L.dust * dustK); if (n > 0) gfx.draw(pipe, { u: { p: [L.W, L.power, L.fall, id], o: [o[0], o[1], o[2], 0], w: ow }, tex: { tDepth: R.depth, tShadow: R.shadowTex }, count: 4, instances: n }); id += L.n; }
+    for (const L of D.layers) { const n = Math.round(L.n * Quality.k('dust') * dustK); if (n > 0) gfx.draw(pipe, { u: { p: [L.W, L.power, L.fall, id], o: [o[0], o[1], o[2], 0], w: ow }, tex: { tDepth: R.depth, tShadow: R.shadowTex }, count: 4, instances: n }); id += L.n; }
   };
   return D;
 })();

@@ -16,7 +16,7 @@ const UI = (() => {
       seg: $('seg'), segEn: $('seg-en'), segCn: $('seg-cn'), hint: $('hint'), hintT: $('hint-t'), spd: $('spd'), tach: $('tach'), drop: $('drop'), snd: $('snd'), fs: $('fs'),
       bar: $('bar'), mn: $('mn'), menu: $('menu'), nav: $('menu').querySelector('nav'), pane: $('mpane'), mk: $('m-k'), mGo: $('m-go'), mTop: $('m-top'), oSnd: $('o-snd'), oFs: $('o-fs'), oLang: $('o-lang'), oQ: $('o-q'),
       time: $('sw-time'), kinds: $('sw-seg'), ev: $('sw-ev'), view: $('sw-view'), seed: $('sw-seed'), skied: $('sw-skied'), more: $('more'), drop2: $('drop2'), vw: $('vw'),
-      say: $('say'), sayK: $('say-k'), sayV: $('say-v'), cut: $('cut'), jump: $('jump'), tuck: $('tuck'),
+      say: $('say'), sayK: $('say-k'), sayV: $('say-v'), cut: $('cut'), jump: $('jump'), tuck: $('tuck'), fwd: $('fwd'), aft: $('aft'),
       pause: $('pause'), pauseS: $('pause-s'), pauseT: $('pause-t'), steer: $('steer'), steerV: $('steer-v'), chg: $('chg'),
       clk: $('clock'), clkT: $('clk-t'), clkS: $('clk-s'), clkG: $('clk-g') };
     // developer mode (?dev, or a path ending in /dev; never in the 小红书 build). The time, the weather, the encounters and the versions
@@ -96,7 +96,7 @@ const UI = (() => {
   U.layout = function () {
     if (!el) return;
     const V = View.measure(), c = el.app.classList, hh = handheld();
-    c.toggle('rot', V.forced); c.toggle('flip', V.forced && V.flip); c.toggle('wide', V.wide); c.toggle('short', V.short); c.toggle('desk', !hh);
+    c.toggle('rot', V.forced); c.toggle('flip', V.forced && V.flip); c.toggle('wide', V.wide); c.toggle('short', V.short); c.toggle('midh', V.h < 780); c.toggle('desk', !hh);          // (panels size themselves by these and by --cw / --ch, never by the browser's own vw / vh or @media height: with the picture turned by the game those are the other way round)
     c.toggle('hasfs', !hh && fsAvail());          // (a third glyph in the corner: the pill stands clear of it)
     el.app.style.width = V.forced ? V.w + 'px' : ''; el.app.style.height = V.forced ? V.h + 'px' : '';
     el.app.style.setProperty('--cw', V.w + 'px'); el.app.style.setProperty('--ch', V.h + 'px');
@@ -104,7 +104,30 @@ const UI = (() => {
     let framed = !!(self.COLD_SMOKE && self.COLD_SMOKE.noTilt); try { framed = framed || window.self !== window.top; } catch (e) { framed = true; }      // (no tilt in a frame, nor in the 小红书 小工具 container)
     U.hh = hh; U.framed = framed; howText();
     if (typeof XHS !== 'undefined') XHS.layout();
+    fitTitle(); requestAnimationFrame(fitTitle);
   };
+  // (用户 2026-11-19 19:29 UTC，iPhone 竖拿、小红书里: 标题页的按钮、说明挤在一起，最下一行被切掉) The title's column (name, buttons, the line on how
+  // to ski) must stand between the top of the frame and the fine print at its foot. On a low frame (a phone on its side, most of all with
+  // the host's buttons along one side) it is taller than that: then the name and the line under the buttons are drawn smaller, by one
+  // factor, until it fits (the buttons keep their size). Measured in the frame's own px (offsets, which the quarter turn does not touch).
+  function fitTitle() {
+    if (!el || !el.title) return;
+    const t = el.title, mk = t.querySelector('.mark'), cta = t.querySelector('.cta'); if (!mk || !cta) return;
+    const parts = [mk, ...cta.children].filter(e => !e.classList.contains('fine') && !e.classList.contains('keys') && !e.classList.contains('act'));          // (the buttons are never shrunk: a finger needs them their full size)
+    for (const e of parts) e.style.zoom = '';
+    const off = e => { let y = 0; for (let q = e; q && q !== el.app; q = q.offsetParent) y += q.offsetTop; return y; };
+    const vis = parts.filter(e => e.offsetHeight > 0); if (!vis.length) return;
+    const fine = cta.querySelector('.fine'), cs = getComputedStyle(el.app);
+    const foot = fine && fine.offsetHeight && getComputedStyle(fine).position === 'absolute' ? off(fine) - 10 : el.app.offsetHeight - (parseFloat(cs.getPropertyValue('--gb')) || 18);
+    for (let k = 0; k < 3; k++) {
+      const last = vis[vis.length - 1], over = off(last) + last.offsetHeight - foot; if (over <= 0.5) break;
+      const z0 = parseFloat(vis[0].style.zoom) || 1, tall = vis.reduce((a, e) => a + e.offsetHeight, 0);
+      const z = Math.max(0.62, z0 * (tall - over) / tall);
+      for (const e of vis) e.style.zoom = z.toFixed(3);
+    }
+    // (how wide the column of buttons now is, in the frame: panels that open beside it, like the challenge's, stand clear of it)
+    const act = cta.querySelector('.act'); if (act) { const r = act.getBoundingClientRect(); el.app.style.setProperty('--actw', Math.round(el.app.classList.contains('rot') ? r.height : r.width) + 'px'); }
+  }
   // (the title's line of controls, and the controls page: with fore/aft on (Variants 'fa' b) up and down are the shovels and the tails, the tuck is Shift)
   const faOn = () => typeof Variants !== 'undefined' && Variants.val.fa === 'b';
   function howText() {
@@ -114,7 +137,9 @@ const UI = (() => {
       el.how.textContent = T(fa ? '← → 转弯 · 转弯时按 ↓ 压刃拐急 · ↑ 搓雪减速 · 空格 跳 · Shift 加速' : '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速');
       return;
     }
-    const steering = fa ? '按住屏幕，左右拖转弯，转弯时往下拖压刃拐急，往上拖搓雪减速' : framed ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
+    // (where the phone can steer: the page's tilt outside a frame, or the 小工具's gyroscope once it reports, Input.onTiltOn)
+    const tilt = !framed || Input.tiltLive();
+    const steering = fa ? (tilt && Variants.val.tilt === 'a' ? '倾斜手机转弯，转弯时按左边「前压」搓雪减速、「后压」压刃拐急；也可以按住屏幕拖' : '按住屏幕，左右拖转弯，转弯时往下拖压刃拐急，往上拖搓雪减速') : !tilt ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
     /*native{*/
     if (self.COLD_SMOKE?.nativeWindow) {
       const gesture = fa ? '左右拖转弯，下拖压刃，上拖减速' : steering;
@@ -124,7 +149,8 @@ const UI = (() => {
     /*}native*/
     el.how.textContent = T(steering) + ' · ' + T('右下角 跳 / 加速');
   }
-  if (typeof Variants !== 'undefined') Variants.on(n => { if (n === 'fa' && el) howText(); });
+  if (typeof Variants !== 'undefined') Variants.on(n => { if ((n === 'fa' || n === 'tilt') && el) howText(); });
+  Input.onTiltOn = () => { if (el) howText(); };
   // the gold of the interface: a, the start button and the picked chip filled amber (as delivered); b, a hairline of gold round dark glass, the
   // way the rest of the interface wears it (the clock's rule, the view cards). The owner: the identity is the thin gold line, filled gold looked bad
   if (typeof Variants !== 'undefined') Variants.def('gold', '金色按钮', [['a', '实心'], ['b', '细描边']], 'b');
@@ -173,11 +199,14 @@ const UI = (() => {
   function showHint(kind) {
     U.hintKind = kind; el.hint.className = kind + ' on';
     el.hintT.textContent = T(kind === 'tilt' ? '像握方向盘一样倾斜手机' : kind === 'drag' ? '按住屏幕，左右拖动' : kind === 'pace' ? '连着转弯，把雪扬起来'
+      : kind === 'fa2' ? '左边「前压」：转弯时搓雪减速 · 「后压」：转弯时压刃拐急'
       : kind === 'moves' ? (U.hh ? '按住「跳」蓄力，松开起跳' : faOn() ? '转弯时按住 ↓ 压刃拐急 · ↑ 搓雪减速 · 空格 跳' : '空格 跳（按住蓄力） · ↓ 加速') : '← →  或  A D  转弯');
   }
   // per displayed frame
   U.frame = function (dt) {
     if (!el) return;
+    // (the two buttons at the left, 前压 / 后压: only while the phone steers, where the left thumb is free; see Input.faButtons)
+    { const on = U.hh && Input.faButtons(); if (on !== !!U.faBtn) { U.faBtn = on; el.app.classList.toggle('tiltfa', on); if (!on) { Input.btn.fwd = Input.btn.aft = false; if (el.fwd) { el.fwd.classList.remove('down'); el.aft.classList.remove('down'); } } } }
     if (U.state !== 'load') { switches(dt); clockFrame(); }
     if (U.state !== 'run') return;
     const S = Game.s, since = (performance.now() - U.t0) / 1000;
@@ -185,8 +214,9 @@ const UI = (() => {
     if (!U.hintKind && since > 0.7) showHint(Input.tiltLive() ? 'tilt' : U.hh ? 'drag' : 'keys');
     // (once the first turns are made, an invitation: link them, and throw the snow up; and after that the two moves: the jump, and the
     // push or tuck that makes speed)
-    else if (U.hintKind === 'gap' || U.hintKind === 'gap2') { U.hintT += dt; if (U.hintT > 1.0) { showHint(U.hintKind === 'gap' ? 'pace' : 'moves'); U.hintT = 0; } }
-    else if (U.hintKind === 'pace' || U.hintKind === 'moves') { U.hintT += dt; if (U.hintT > 5.5) { el.hint.classList.remove('on'); U.hintKind = U.hintKind === 'pace' ? 'gap2' : 'done'; U.hintT = 0; } }
+    // (the phone steering with the two buttons at the left: first what they do, then the rest)
+    else if (U.hintKind === 'gap' || U.hintKind === 'gap2' || U.hintKind === 'gap4') { U.hintT += dt; if (U.hintT > 1.0) { showHint(U.hintKind === 'gap' ? (Input.faButtons() ? 'fa2' : 'pace') : U.hintKind === 'gap4' ? 'pace' : 'moves'); U.hintT = 0; } }
+    else if (U.hintKind === 'pace' || U.hintKind === 'moves' || U.hintKind === 'fa2') { U.hintT += dt; if (U.hintT > (U.hintKind === 'fa2' ? 6.5 : 5.5)) { el.hint.classList.remove('on'); U.hintKind = U.hintKind === 'pace' ? 'gap2' : U.hintKind === 'fa2' ? 'gap4' : 'done'; U.hintT = 0; } }
     else if (U.hintKind && U.hintKind !== 'done') {
       if (U.hintKind !== 'tilt' && Input.tiltLive() && !Input.used) showHint('tilt');
       if (Input.used) U.hintT += dt;
@@ -449,7 +479,7 @@ const UI = (() => {
     el.pane.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
     el.nav.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
     $('view').addEventListener('pointerdown', e => { gy.id = e.pointerId; gy.y = View.y(e); });
-    holdBtn(el.jump, 'jump'); holdBtn(el.tuck, 'tuck');
+    holdBtn(el.jump, 'jump'); holdBtn(el.tuck, 'tuck'); if (el.fwd) { holdBtn(el.fwd, 'fwd'); holdBtn(el.aft, 'aft'); }
     // the next view, under the thumb (a press here never reaches the picture, where it would steer)
     el.vw.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); });
     el.vw.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); U.nextView(1); });
@@ -584,7 +614,7 @@ const UI = (() => {
   // ---- the versions the owner picks between: their own page of the menu, not part of the game. One row for each choice in Variants, in
   // groups (a choice this list does not know yet goes under 新加的), the current version filled, the recommended one marked with a grain of
   // amber. A press switches at once (each module eases its own change); 恢复推荐 puts every choice back to the recommended version
-  const VGROUP = [['实验室人物（11 月 17 日）', ['rider', 'ride', 'rski', 'rboard', 'rtski', 'rtboard']], ['画面与音乐（11 月 16 日评审）', ['glint', 'gold', 'tbtn', 'nebday', 'nebnight', 'mlevel', 'tmusic', 'lsnow', 'plume', 'wbal', 'vary']], ['性能（11 月 17 日）', ['pslice', 'govjs', 'mbtap', 'patchd', 'bootq', 'tcull']], ['人物动作（11 月 16 日评审）', ['mo1', 'medge', 'mo2', 'mo3', 'mo4', 'land', 'kring']], ['镜头', ['cam', 'wood', 'shots', 'tips', 'fptuck', 'edge', 'chatter', 'buffet']], ['人物与动作', ['body', 'cloth', 'poles', 'motion']],
+  const VGROUP = [['实验室人物（11 月 17 日）', ['rider', 'ride', 'rski', 'rboard', 'rtski', 'rtboard']], ['画面与音乐（11 月 16 日评审）', ['glint', 'gold', 'tbtn', 'nebday', 'nebnight', 'mlevel', 'tmusic', 'lsnow', 'plume', 'wbal', 'vary']], ['性能（11 月 17 日）', ['pslice', 'govjs', 'mbtap', 'patchd', 'bootq', 'tcull']], ['性能（11 月 19 日）', ['qtier']], ['人物动作（11 月 16 日评审）', ['mo1', 'medge', 'mo2', 'mo3', 'mo4', 'land', 'kring']], ['镜头', ['cam', 'wood', 'shots', 'tips', 'fptuck', 'edge', 'chatter', 'buffet']], ['人物与动作', ['body', 'cloth', 'poles', 'motion']],
     ['画面', ['ghost', 'hi', 'nspray', 'nsky', 'cu']], ['雪', ['spray', 'curtain', 'sparkle', 'clumps', 'lens', 'pdepth', 'drift']], ['场景与天气', ['tpass', 'tgrain', 'tvar', 'rock', 'moon', 'aurora', 'snow', 'rtree', 'flag', 'sink', 'wind']], ['手感', ['keys']]];
   let vSig = null, wxSig = null;
   const varMod = () => { try { return typeof Variants !== 'undefined' && Variants && Array.isArray(Variants.defs) ? Variants : null; } catch (e) { return null; } };

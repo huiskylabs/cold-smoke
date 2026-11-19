@@ -45,5 +45,5 @@ if (process.env.MIN !== '0') {
 }
 fs.writeFileSync(path.join(root, 'dist', 'index.html'), outMin);
 // dev variant with a full html skeleton (the artifact host adds its own)
-fs.writeFileSync(path.join(root, 'dist', 'dev.html'), '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>' + out + '</body></html>');
+fs.writeFileSync(path.join(root, 'dist', 'dev.html'), '<!doctype html><html><head><meta charset="utf-8"></head><body>' + out + '</body></html>');
 console.log('built', (outMin.length / 1024).toFixed(1) + ' KB (dev.html ' + (out.length / 1024).toFixed(1) + ' KB)', files.length, 'files', 'left out', stripped.n, 'native blocks');

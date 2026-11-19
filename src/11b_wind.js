@@ -151,7 +151,9 @@ const Wind = (() => {
     if (kv === 0) return;
     const sky = typeof Sky !== 'undefined' ? Sky.lut : null;
     if (n) {
-      gfx.draw(pipeSmoke, { u: { p: [W.PS, typeof Variants !== 'undefined' && Variants.val.plume === 'a' ? 0 : 1, 0, 0] }, tex: { tS: dataTex, tDepth: R.depth, tShadow: R.shadowTex, tSky: sky, tDetail: Tex.detail }, count: 4, instances: W.NS * W.PS });
+      // (a lower Quality level, Quality.k('wind'): fewer wisps to a plume, each a little thicker, p.z)
+      const ps = Math.max(8, Math.round(W.PS * (typeof Quality !== 'undefined' ? Quality.k('wind') : 1)));
+      gfx.draw(pipeSmoke, { u: { p: [ps, typeof Variants !== 'undefined' && Variants.val.plume === 'a' ? 0 : 1, W.PS / ps, 0] }, tex: { tS: dataTex, tDepth: R.depth, tShadow: R.shadowTex, tSky: sky, tDetail: Tex.detail }, count: 4, instances: W.NS * ps });
       gfx.draw(pipeGlint, { u: { p: [W.PC, typeof Variants !== 'undefined' && Variants.val.plume === 'a' ? 0 : 1, 0, 0] }, tex: { tS: dataTex, tDepth: R.depth, tShadow: R.shadowTex }, count: 4, instances: W.NS * W.PC });
     }
     const hb = typeof Spray !== 'undefined' ? Spray.hb : null;
@@ -231,7 +233,7 @@ fn vert(a: VIn) -> VOut {
   let rel: vec3f = P.pos - U.camPos.xyz; let zv: f32 = dot(rel, U.camFwd.xyz); let dist: f32 = length(rel);
   if (zv < 0.5) { return v; }
   // thin: what makes it read is the many wisps over each other, each one hardly there
-  let dens: f32 = P.str * P.em * smoothstep(0.0, 0.07, s) * pow(1.0 - s, 1.4) * 3.6 * (0.55 + 0.9 * P.seed) * smoothstep(2.0, 6.0, zv);
+  let dens: f32 = P.str * P.em * smoothstep(0.0, 0.07, s) * pow(1.0 - s, 1.4) * 3.6 * max(M.p.z, 1.0) * (0.55 + 0.9 * P.seed) * smoothstep(2.0, 6.0, zv);
   if (dens < 0.002) { return v; }
   let corner: vec2f = vec2f(f32(a.vid & 1u), f32((a.vid >> 1u) & 1u)) * 2.0 - 1.0;
   let V: vec3f = rel / dist;
