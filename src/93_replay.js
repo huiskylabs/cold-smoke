@@ -219,7 +219,7 @@ const Replay = self.Replay = (() => {
   }
 
   // ---- playing it back. Time in the replay is the run's own real time (rt: what the player saw, slow motion included), times the speed
-  const P = { t: 0, k: 0, speed: 1, play: true, saved: null, last: -1, hideUI: false, idle: 0, splitI: 0 };
+  const P = { t: 0, k: 0, speed: 1, play: true, saved: null, last: -1, hideUI: false, idle: 0, splitI: 0, hushed: false };
   function frameAt(t) {
     const rt = R.rec.rt; let lo = 0, hi = rt.length - 1;
     if (t <= rt[0]) return [0, 0]; if (t >= rt[hi]) return [hi, 0];
@@ -254,6 +254,7 @@ const Replay = self.Replay = (() => {
     if (s && s.line && rg && rg.line) { rg.line.parked = s.line.parked; rg.line.braking = s.line.braking; }
     if (s && s.inp && typeof Input !== 'undefined') { Input.script = s.inp.script; Input.faScript = s.inp.fa; }
     G.events.length = 0;
+    if (P.hushed) { P.hushed = false; fadeTo(lvl(), 0.12); }
     if (el) { el.root.classList.remove('on'); appEl().classList.remove('replay', 'rp-bare'); }
     snapCam();
     if (P.cur) { R.rec = P.cur.rec; R.recording = P.cur.recording; P.cur = null; }
@@ -294,8 +295,19 @@ const Replay = self.Replay = (() => {
     const ts = R.rec.ts[P.k] || 1; G.timeScale = P.play ? Math.max(1e-4, ts * P.speed) : 1e-4;
     // the snow thrown by the skis: the run's own emission, once a frame from the state put back
     if (P.play && dt > 1e-5 && typeof Spray !== 'undefined' && Spray.onStep) { const n = Math.min(4, Math.ceil(dt / (1 / 120))); for (let i = 0; i < n; i++) Spray.onStep(S, dt / n, App.t); }
+    quiet();
     hudFrame();
   };
+  // (用户 2026-11-19 07:18 UTC: 回放暂停，音乐跟那些还在) stood still, the replay is a pause like the menu's: the whole sound (the score, the
+  // wind, the skis) fades out as the menu's does (19_ui.js hush), and comes up again with the play. Slowing the world's clock (G.timeScale
+  // above) only stills what steps on game time; the sound and the music run on the audio clock, so they are told in so many words
+  function fadeTo(v, tau) { try { if (typeof Sound !== 'undefined' && Sound.rig && Sound.unlocked && Sound.ctx) Sound.rig.fade(v, Sound.ctx.currentTime, tau); } catch (e) { } }
+  const lvl = () => typeof Sound !== 'undefined' && Sound.on ? Sound.level : 0;
+  function quiet(force) {
+    const q = R.on && !P.play;
+    if (q === P.hushed && !force) return; P.hushed = q;
+    fadeTo(q ? 0 : lvl(), q ? 0.05 : 0.12);
+  }
   // (07_game.js calls this between the pose and the lens: the pose and the root are the run's, not what the update made of the state)
   G.afterPose = function () { if (!R.on || !R.pendingPose) return; const r = R.rec, [k, u] = frameAt(P.t); unpack(r.lay, r.frames[k], r.frames[k + 1], u); };
 
@@ -316,7 +328,10 @@ const Replay = self.Replay = (() => {
     rg.hooks.go.push(info => begin(info));
     rg.hooks.finish.push(o => finish(o));
     rg.cardButtons.push({ label: '回放', key: 'R', on: () => R.start() });
-    rg.replay = T => { if (R.on && R.rec) ringsAt(R.Tr, T); };
+    // (用户 2026-11-19 07:18 UTC: 回放的时候光圈是静止的) the rings are shown on the run's own clock, the moment R.Tr as it was recorded: their
+    // grains flow as they flowed then, slower with the replay's speed, and stand still with its pause. The clock is handed back to
+    // 92_rings.js, which draws with it (it used to keep the last clock of the run, so in a replay nothing in a ring moved)
+    rg.replay = () => { if (!(R.on && R.rec)) return null; ringsAt(R.Tr, R.Tr); return R.Tr; };
     return true;
   };
   if (!hookRings() && typeof addEventListener !== 'undefined') addEventListener('load', hookRings);
@@ -466,7 +481,7 @@ const Replay = self.Replay = (() => {
     else if (/^Digit\d$/.test(c)) { const d = +c.slice(5), i = d === 0 ? 9 : d - 1; setCam(CAMS[i][0]); wake(); }
     else if (c === 'KeyV' || c === 'KeyC') { const i = CAMS.findIndex(x => x[0] === R.cam); setCam(CAMS[(i + (e.shiftKey ? CAMS.length - 1 : 1)) % CAMS.length][0]); wake(); }
     else if (c === 'KeyH') bare(!P.hideUI);
-    else if (c === 'KeyM' || c === 'KeyF') { if (typeof UI !== 'undefined') { if (c === 'KeyM' && UI.sound) UI.sound(!Sound.on); if (c === 'KeyF' && UI.fullscreen) UI.fullscreen(); } }
+    else if (c === 'KeyM' || c === 'KeyF') { if (typeof UI !== 'undefined') { if (c === 'KeyM' && UI.sound) { UI.sound(!Sound.on); quiet(true); } if (c === 'KeyF' && UI.fullscreen) UI.fullscreen(); } }
   }, true);
 
   // whatever takes the game elsewhere (the title, a new mountain, the menu's restart) ends the replay quietly
