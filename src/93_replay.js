@@ -425,11 +425,11 @@ const Replay = self.Replay = (() => {
   // each frame: the clock as it ran (penalties in it, as the run's own clock had them), the rings so far, a station's time as it is reached
   function hudFrame() {
     if (!el) return;
-    const r = R.rec, f = r.fin || {}, pen = f.missed > 0 ? (f.score - f.t) / f.missed : 0, c = R.ringCount || { pass: 0, miss: 0 };
+    const r = R.rec, f = r.fin || {}, bo = f.bonus || 0, pen = !bo && f.missed > 0 ? (f.score - f.t) / f.missed : 0, c = R.ringCount || { pass: 0, miss: 0 };          // (bo: the ring bonus, 2026-11-19; older recordings had a penalty)
     const done = G.runT >= (f.t || Infinity) - 1e-6;
-    const tm = done ? fmt(f.score) : fmt(G.runT + c.miss * pen);
+    const tm = done ? fmt(f.score) : fmt(Math.max(0, G.runT + c.miss * pen - c.pass * bo));
     const T = el.q('.tm'); if (T.textContent !== tm) T.textContent = tm; T.style.color = done ? 'var(--sun)' : '';
-    const sub = (f.name || '') + '　光圈 ' + c.pass + ' / ' + (c.pass + c.miss) + (c.miss ? '　罚时 +' + Math.round(c.miss * pen * 10) / 10 + ' 秒' : ''), sb = el.q('.sub'); if (sb.textContent !== sub) sb.textContent = sub;
+    const sub = (f.name || '') + '　光圈 ' + c.pass + ' / ' + (c.pass + c.miss) + (bo ? (c.pass ? '　奖励 −' + Math.round(c.pass * bo * 10) / 10 + ' 秒' : '') : c.miss ? '　罚时 +' + Math.round(c.miss * pen * 10) / 10 + ' 秒' : ''), sb = el.q('.sub'); if (sb.textContent !== sub) sb.textContent = sub;
     const sp = f.splits || [], nm = f.names || [];
     if (P.play && P.splitI < sp.length && G.runT >= sp[P.splitI]) {
       const i = P.splitI, d = sp[i] - (i ? sp[i - 1] : 0), e = el.q('.spl');

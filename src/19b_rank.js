@@ -184,7 +184,7 @@ const Rank = self.Rank = (() => {
       if (fatal(code(e))) { off(e); return; }
       me.textContent = T(code(e) === 2002 ? '榜单还在准备，稍后再看' : '暂时读不到榜单，稍后再看');
     }
-    s.appendChild(node('p', 'note', T(bd.chal ? '挑战：这张地图的这条线，标准难度，用时越短越好（含罚时）。今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。' : view === 'd3' ? '今日之山：从山顶一口气滑完前三段的平均速度，北京时间零点换山。每人只留最好的一次。' : view === 'time' ? '滑雪时长只算总榜，一直累计。' : '今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。')));
+    s.appendChild(node('p', 'note', T(bd.chal ? '挑战：这张地图的这条线，轻松、标准、难一起排，用时越短越好（含罚时）。轻松和标准各加一点时间，难不加。今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。' : view === 'd3' ? '今日之山：从山顶一口气滑完前三段的平均速度，北京时间零点换山。每人只留最好的一次。' : view === 'time' ? '滑雪时长只算总榜，一直累计。' : '今日和本周按北京时间重新开始，总榜一直保留。每人只留最好的一次。')));
   }
   // ---- 光圈速降线 (dev, 用户 18:54 UTC 成绩页跟个人最好、全部最好比，还有排名): board 4, all time, the 标准 line only. A shorter time is
   // better but the platform keeps each player's highest, so a time goes up as 6000 − seconds (to a tenth) and comes back the same way.
