@@ -20,6 +20,7 @@ async function boot(stage) {
   const step = async (f, name) => { if (name) App.bootT.push([name, Math.round(performance.now())]); if (stage) stage(f, name); if (!manual) await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0))); };
   const canvas = document.getElementById('view');
   await step(0.03, '醒来');
+  BootCache.load((!manual || QS.has('bcache')) && !(DEV && QS.has('nocache')));          // (the second start: 00e_cache.js; read while the graphics wake)
   if (typeof XHS !== 'undefined') await XHS.restore();               // (inside 小红书: the player's settings from the container's own storage)
   Quality.decide(); App.applyQuality(true);                             // how much this device is asked to draw (00c_quality.js)
   if (DEV) console.log('quality', Quality.tier, Quality.why, Quality.gpu);
@@ -42,7 +43,13 @@ async function boot(stage) {
   // background threads (00d_par.js): started now, so they have read the script by the time the first pieces are handed out
   const pre = {}/*native{*/, spatial = !!(self.COLD_SMOKE?.spatial && gfx.caps.maxTex >= 4096)/*}native*/;
   const farW = +QS.get('vistares') || (/*native{*/spatial ? 4096 : /*}native*/gfx.caps.maxTex >= 4096 ? 3072 : 2048), cityW = +QS.get('cityres') || (/*native{*/spatial ? 1536 : /*}native*/1024);
-  if (Variants.val.par !== 'a' && (!manual || QS.has('par'))) {          // (tests: ?manual&par to use them too)
+  // what the last start worked out, if it was this same build, mountain, sun and set of versions (00e_cache.js): then no threads are needed
+  const bkey = [Course.seed, Course.forceType, Course.classic, Sky.az, farW, cityW, JSON.stringify(Variants.val)].join('|');
+  const hit = await BootCache.take(bkey, 250), got = App.bootGot = BootCache.on ? {} : null;
+  if (hit) { pre.noise = hit.noise; pre.snow = hit.snow; pre.far = hit.far; pre.skier = hit.skier; Terrain.cache = hit.terr; App.bootT.push(['缓存', Math.round(performance.now())]); }
+  if (DEV) console.log('bootcache', BootCache.on ? (hit ? 'hit' : BootCache.late ? 'late' : 'miss') : 'off', BootCache.ms + 'ms');
+  Terrain.grab = !!got;
+  if (!hit && Variants.val.par !== 'a' && (!manual || QS.has('par'))) {          // (tests: ?manual&par to use them too)
     const hc = navigator.hardwareConcurrency || 4;
     if (Par.start(Math.max(2, Math.min(4, hc)),          // (the page itself mostly waits on them, so as many threads as cores, up to 4)
        { vars: Object.assign({}, Variants.val), seed: Course.seed, fT: Course.forceType, cl: Course.classic, az: Sky.az })) {
@@ -59,16 +66,18 @@ async function boot(stage) {
   // ranges and the mountain; without them, the order it always had)
   const texs = async () => {
     await step(0.08, '磨雪');
-    makeNoiseTextures(gfx, await pre.noise); makeSnowTexture(gfx, Sky.az, await pre.snow); Terrain.setSun(Sky.az);
+    const nz = makeNoiseTextures(gfx, await pre.noise), sn = makeSnowTexture(gfx, Sky.az, await pre.snow); Terrain.setSun(Sky.az);
+    if (got) { got.noise = nz; got.snow = { snow: sn.snow, fine: sn.fine }; }
     await step(0.20, '远山与城市');
     const t0 = performance.now();
-    Vista.init(gfx, { farW, far: await pre.far, cityW, keep: DEV && QS.has('vistadbg') });
+    Vista.init(gfx, { farW, far: await pre.far, cityW, city: hit && hit.city, keep: DEV && QS.has('vistadbg'), grab: !!got });
+    if (got) { got.far = Vista.farData; got.city = Vista.cityData; Vista.farData = Vista.cityData = null; }
     if (DEV) console.log('vista', Math.round(performance.now() - t0) + 'ms', JSON.stringify(Vista.stats));
   };
   const own = async () => {
     await step(0.36, '立起天空');
     Render.init(gfx, canvas); Sky.init(gfx); Terrain.init(gfx); Post.init(gfx);
-    const skier = () => Skier.init(gfx), trees = () => { const t0 = performance.now(); Trees.init(gfx); Gates.init(gfx); if (DEV) console.log('trees', Math.round(performance.now() - t0) + 'ms', Math.round(Trees.stats.tris) + ' tris'); };
+    const skier = () => Skier.init(gfx), trees = () => { const t0 = performance.now(); Trees.init(gfx, hit && hit.trees, !!got); if (got) { got.trees = Trees.meshData; Trees.meshData = null; } Gates.init(gfx); if (DEV) console.log('trees', Math.round(performance.now() - t0) + 'ms', 'build ' + Math.round(TreeModel.buildMs) + 'ms', Math.round(Trees.stats.tris) + ' tris'); };
     // (with the threads the skier is being carved in one of them: the trees are planted first, and the body is taken in after)
     if (pre.skier) { await step(0.44, '种树'); trees(); Skier.adopt(await pre.skier); skier(); }
     else { skier(); if (!lazy) { await step(0.40, '林子里有鹿'); makeDeer(gfx); } await step(0.44, '种树'); trees(); }
@@ -117,13 +126,29 @@ async function boot(stage) {
   App.skierRoot = Game.root; App.skierPose = Game.pose;
   tick(1 / 60, false);
   if (DEV && QS.has('parcheck')) Terrain.check = true;
+  const tc = DEV && QS.has('cachecheck') && hit ? hit.terr : null;
   { const t0 = performance.now(); await Terrain.firstFill(Render.cam.pos[0], Render.cam.pos[2]); if (DEV) console.log('terrain', Math.round(performance.now() - t0) + 'ms', Par.ok ? 'par ' + Par.n + ' ' + JSON.stringify(Terrain.fillMs) : '', Terrain.check ? 'parcheck ' + JSON.stringify(Terrain.check) : ''); }
+  if (tc) console.log('cachecheck terrain', JSON.stringify(Terrain.checkCache(tc)));
+  if (got) { const m = Skier.mesh; got.skier = m && { V: m.V, W: m.W, I: m.I, nv: m.nv, ni: m.ni, v: m.v, ride: m.ride, hand: m.hand, lr: m.lr }; got.terr = Terrain.snap; Terrain.snap = null;
+    got.full = !!hit && Terrain.fromCache === Terrain.LEVELS; }
+  if (DEV && QS.has('cachecheck') && hit) {
+    const same = (a, b) => { let bad = 0; if (!a || !b || a.length !== b.length) return -1; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) bad++; return bad; };
+    const N0 = noiseData(), S0 = snowData(Sky.az), F0 = Vista.farBuild(farW), K0 = Skier.freshMesh(), K1 = Skier.mesh;
+    console.log('cachecheck tex', JSON.stringify({ skierAdopted: K1 === hit.skier, V: same(K0.V, hit.skier.V), W: same(K0.W, hit.skier.W), I: same(K0.I, hit.skier.I), noise: same(N0.noise, hit.noise.noise), detail: same(N0.detail, hit.noise.detail), snow: same(S0.snow, hit.snow.snow), fine: same(S0.fine, hit.snow.fine), farA: same(F0.A, hit.far.A), farB: same(F0.B, hit.far.B), city: hit.city ? Vista.cityCheck(hit.city) : null, trees: hit.trees ? TreeModel.check(hit.trees) : null }));
+  }
   if (!lazy) Par.stop();
   // the first picture bakes the nebula and the trees: do it while the loading page still covers the canvas
   if (!manual) { await step(0.96, '第一缕光'); tick(1 / 60, true); await step(1, null); }
   App.ready = true; App.bootT.push(['ready', Math.round(performance.now())]);
   App.later = gfx.release ? gfx.release() : Promise.resolve();
-  App.late = lazy ? bootLate(gfx) : Promise.resolve();
+  App.late = lazy ? bootLate(gfx) : saveBoot();
+}
+// (what this start worked out, written for the next one: 00e_cache.js. Not when all of it came from there already)
+async function saveBoot() {
+  const got = App.bootGot; App.bootGot = null;
+  if (!got || got.full || !got.noise || !got.snow || !got.far || !got.terr) return;
+  delete got.full; const ok = await BootCache.save(got);
+  App.bootT.push(['后补:缓存' + (ok ? '' : '(未存)'), Math.round(performance.now())]);
 }
 function makeDeer(gfx) { const t0 = performance.now(); Deer.init(gfx); if (DEV) console.log('deer', Math.round(performance.now() - t0) + 'ms', Deer.mesh.nv + ' verts'); }
 // the work held back from the start-up, done one piece at a time once the title page is up, each in a task of its own between frames
@@ -136,6 +161,7 @@ async function bootLate(gfx) {
     App.bootT.push(['后补:动物', Math.round(performance.now())]);
     await idle(); App.fpvOK = true;          // (the first-person body: built by its own first tick, 07d_fpv.js)
     Par.stop();
+    await idle(); await saveBoot();
   } catch (e) { reportError(e); }
 }
 // one simulation + presentation step. `draw` false: advance everything but skip the GPU frame (tests fast-forward this way)

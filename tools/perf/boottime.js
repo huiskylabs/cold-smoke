@@ -8,10 +8,15 @@ const out = path.join(__dirname, 'tmp/dev-boot.html');
 let html = fs.readFileSync(src, 'utf8');
 const rep = (a, b) => { if (!html.includes(a)) throw new Error('not found: ' + a.slice(0, 60)); html = html.replace(a, b); };
 rep('<script>\n(() => {', '<script>self.__bt=[["js-start",performance.now()]];\n(() => {');
-if (html.includes('App.bootT = [];')) {          // (the game keeps its own stage times since 2026-11-19: App.bootT)
+const squeezed = !html.includes('App.bootT = [];') && /App\.bootT\s*=\s*\[\]/.test(html);
+if (squeezed) {          // (dist/index.html, the squeezed page: SRC=dist/index.html. Only the start stamp goes in; the stages are the game's own App.bootT)
+  rep('App.bootT=[];', 'App.bootT=[];self.App=App;self.Quality=Quality;');          // (App and Quality live inside the page's own scope: handed out for the tool)
+  html = '<!doctype html><html><head><meta charset="utf-8"></head><body>' + html + '</body></html>';
+} else if (html.includes('App.bootT = [];')) {          // (the game keeps its own stage times since 2026-11-19: App.bootT)
   rep('App.bootT = [];', 'App.bootT = self.__bt;');
   rep("App.ready = true; App.bootT.push(['ready', Math.round(performance.now())]);", "App.ready = true; App.bootT.push(['ready', performance.now()]); self.__info = { backend: gfx.caps.backend, tier: Quality.tier, gpu: Quality.gpu };");
-  rep('App.late = lazy ? bootLate(gfx) : Promise.resolve();', 'App.late = lazy ? bootLate(gfx) : Promise.resolve(); Promise.all([App.later, App.late]).then(() => self.__bt.push(["later-done", performance.now()]));');
+  const late = html.includes('App.late = lazy ? bootLate(gfx) : saveBoot();') ? 'App.late = lazy ? bootLate(gfx) : saveBoot();' : 'App.late = lazy ? bootLate(gfx) : Promise.resolve();';
+  rep(late, late + ' Promise.all([App.later, App.late]).then(() => self.__bt.push(["later-done", performance.now()]));');
 } else {
   rep('step = async (f, name) => { if (stage) stage(f, name);', 'step = async (f, name) => { self.__bt.push([name || ("·" + f), performance.now()]); if (stage) stage(f, name);');
   rep('  App.ready = true;\n  App.later = gfx.release ? gfx.release() : Promise.resolve();', '  App.ready = true; self.__bt.push(["ready", performance.now()]); self.__info = { backend: gfx.caps.backend, tier: Quality.tier, gpu: Quality.gpu };\n  App.later = gfx.release ? gfx.release() : Promise.resolve(); App.later.then(() => self.__bt.push(["later-done", performance.now()]));');
@@ -36,13 +41,19 @@ const srv = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'te
     const logs = []; pg.on('console', m => logs.push(m.text()));
     const t0 = Date.now();
     await pg.goto('http://localhost:' + port + '/?dev&' + qs, { waitUntil: 'commit' });
-    await pg.waitForFunction(() => self.__bt && self.__bt.some(e => e[0] === 'ready') || document.querySelector('#fatal:not([hidden])'), null, { timeout: 180000, polling: 50 });
-    await pg.waitForFunction(() => self.__bt.some(e => e[0] === 'later-done'), null, { timeout: 120000, polling: 50 }).catch(() => { });
+    if (squeezed) {
+      await pg.waitForFunction(() => (typeof App !== 'undefined' && App.ready && App.late) || document.querySelector('#fatal:not([hidden])'), null, { timeout: 180000, polling: 50 });
+      await pg.evaluate(() => Promise.resolve(App.late).then(() => new Promise(r => setTimeout(r, 50)))).catch(() => { });
+      await pg.evaluate(() => { self.__bt = self.__bt.concat(App.bootT.map(e => [e[0], e[1]])); self.__bt.push(['later-done', performance.now()]); self.__info = { backend: App.gfx.caps.backend, tier: Quality.tier, gpu: Quality.gpu }; });
+    } else {
+      await pg.waitForFunction(() => self.__bt && self.__bt.some(e => e[0] === 'ready') || document.querySelector('#fatal:not([hidden])'), null, { timeout: 180000, polling: 50 });
+      await pg.waitForFunction(() => self.__bt.some(e => e[0] === 'later-done'), null, { timeout: 120000, polling: 50 }).catch(() => { });
+    }
     const r = await pg.evaluate(() => ({ bt: self.__bt, b00: self.__bt00, nav: performance.getEntriesByType('navigation')[0].toJSON(), ...(self.__info || {}) }));
     console.log(`\n=== run ${run + 1}  backend=${r.backend} tier=${r.tier} gpu=${r.gpu}`);
     console.log(`html 开始解析 ${r.nav.responseEnd.toFixed(0)}ms  body 开头 ${r.b00.toFixed(0)}ms  脚本开始执行 ${r.bt[0][1].toFixed(0)}ms`);
     for (let i = 1; i < r.bt.length; i++) console.log(String(r.bt[i - 1][0]).padEnd(12), '→', String(r.bt[i][0]).padEnd(12), (r.bt[i][1] - r.bt[i - 1][1]).toFixed(0).padStart(6) + 'ms', ' 累计', r.bt[i][1].toFixed(0) + 'ms');
-    const tl = logs.filter(l => /^(vista|deer|trees|terrain|quality|parcheck)|rror|arn|WebG|fail/i.test(l)); if (tl.length) console.log(tl.join('\n'));
+    const tl = logs.filter(l => /^(vista|deer|trees|terrain|quality|parcheck|bootcache|cachecheck)|rror|arn|WebG|fail/i.test(l)); if (tl.length) console.log(tl.join('\n'));
     if (process.env.PROF) {
       const { profile } = await cdp.send('Profiler.stop');
       fs.writeFileSync(path.join(__dirname, 'tmp/boot.cpuprofile'), JSON.stringify(profile));

@@ -16,6 +16,8 @@ let js = '';
 for (const f of files) js += '\n// ===== ' + f + ' =====\n' + fs.readFileSync(path.join(srcDir, f), 'utf8');
 const stripped = stripNative(js);
 js = stripped.out;
+// (which build this is, for the store the second start reads back: 00e_cache.js. A hash of the whole script, so any change is a new key)
+js = js.replace("'__BUILD_HASH__'", () => "'" + require('crypto').createHash('sha1').update(js).digest('hex').slice(0, 16) + "'");
 let tpl = fs.readFileSync(path.join(root, 'template.html'), 'utf8');
 // the three faces ride inside the page (the same subsets the 小红书 package carries, xhs/fonts/, made by tools/fetch-xhs-fonts.js), so the
 // title is set in its own Song wherever Google Fonts cannot be reached. The template's loader sees #faces and fetches nothing
@@ -28,7 +30,20 @@ let tpl = fs.readFileSync(path.join(root, 'template.html'), 'utf8');
 }
 const out = tpl.replace('/*__JS__*/', () => js);
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
-fs.writeFileSync(path.join(root, 'dist', 'index.html'), out);
+// the page the site serves (dist/index.html) carries the code without its comments and spaces: a phone reads 2.6 MB of script before the
+// first line runs, and two fifths of it is the commentary. The names are left as they are (no renaming), so the code runs exactly as written.
+// dist/dev.html keeps every comment, for reading and for the tools. (MIN=0: no squeezing; it needs esbuild, fetched by npx the first time)
+let outMin = out;
+if (process.env.MIN !== '0') {
+  try {
+    const tmp = path.join(root, 'dist', '.squeeze.tmp.js');
+    fs.writeFileSync(tmp, js);
+    const min = require('child_process').execFileSync('npx', ['--yes', 'esbuild@0.24.2', tmp, '--minify-whitespace', '--minify-syntax', '--charset=utf8', '--legal-comments=none', '--log-level=warning'], { cwd: root, maxBuffer: 64 << 20 }).toString();
+    fs.unlinkSync(tmp);
+    outMin = tpl.replace('/*__JS__*/', () => min);
+  } catch (e) { console.warn('esbuild not available, dist/index.html left unsqueezed:', e.message.split('\n')[0]); }
+}
+fs.writeFileSync(path.join(root, 'dist', 'index.html'), outMin);
 // dev variant with a full html skeleton (the artifact host adds its own)
 fs.writeFileSync(path.join(root, 'dist', 'dev.html'), '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>' + out + '</body></html>');
-console.log('built', (out.length / 1024).toFixed(1) + ' KB', files.length, 'files', 'left out', stripped.n, 'native blocks');
+console.log('built', (outMin.length / 1024).toFixed(1) + ' KB (dev.html ' + (out.length / 1024).toFixed(1) + ' KB)', files.length, 'files', 'left out', stripped.n, 'native blocks');

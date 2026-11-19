@@ -237,14 +237,28 @@ const TreeModel = (() => {
     return { V, I, nv, ni, S };
   }
   // all kinds, both levels: [v][lod] = { V, I, nv, ni }, and the list of boughs of each kind
-  M.buildAll = function () {
-    if (!pillows) makePillows();
+  // (pre: the meshes as the last start built them, 00e_cache.js; each kind's boughs, which the forest reads, are laid out again, cheaply)
+  M.buildAll = function (pre) {
     const t0 = performance.now(), out = [];
+    if (pre && pre.length === M.NV && pre.every(p => p && p.length === 2)) {
+      for (let v = 0; v < M.NV; v++) { const S = boughs(v); out.push(pre[v].map(m => ({ V: m.V, I: m.I, nv: m.nv, ni: m.ni, S }))); M.kinds[v] = S; }
+      M.buildMs = performance.now() - t0; M.fromCache = true;
+      return out;
+    }
+    if (!pillows) makePillows();
     for (let v = 0; v < M.NV; v++) { out.push([build(v, 0), build(v, 1)]); M.kinds[v] = out[v][0].S; }
     M.buildMs = performance.now() - t0;
     return out;
   };
   M.kinds = [];
+  // (dev, ?cachecheck: the meshes built again and compared number for number with what the cache gave)
+  M.check = function (pre) {
+    if (!pillows) makePillows();
+    let bad = 0, n = 0;
+    for (let v = 0; v < M.NV; v++) for (let l = 0; l < 2; l++) { const m = build(v, l), c = pre[v][l]; if (m.V.length !== c.V.length || m.I.length !== c.I.length) { bad = -1; continue; }
+      for (let i = 0; i < m.V.length; i++) { n++; if (m.V[i] !== c.V[i]) bad++; } for (let i = 0; i < m.I.length; i++) { n++; if (m.I[i] !== c.I[i]) bad++; } }
+    return { n, bad };
+  };
   M.env = env;
   return M;
 })();
@@ -283,11 +297,12 @@ const Trees = (() => {
   let farCPU, farBuf, nFar = 0, cardsOnly = false;
   const CAP0 = () => T.max0 + 6, CAP1 = () => T.max1 + 24, GCAP = 8;
 
-  T.init = function (g) {
+  T.init = function (g, pre, grab) {
     gfx = g;
     // (the atlas of cards holds a row per kind: where the GPU cannot hold that many rows of full height, the photographs are taken smaller)
     { const mt = (gfx.caps && gfx.caps.maxTex) || 4096; if (T.NV * T.tileH > mt) { T.tileH = Math.floor(mt / T.NV / 8) * 8; T.tileW = T.tileH / 2; } }
-    const all = TM.buildAll();
+    const all = TM.buildAll(pre);
+    if (grab) T.meshData = all.map(p => p.map(m => ({ V: m.V, I: m.I, nv: m.nv, ni: m.ni })));          // (for the next start: 00e_cache.js)
     for (let v = 0; v < T.NV; v++) {
       meshes.push([]); grp.push([]);
       for (let l = 0; l < 2; l++) {
