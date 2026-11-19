@@ -1,13 +1,16 @@
 // Pictures of the panels tools/layout-check.js measures, at the same screens (same safe insets, same 小红书 host buttons drawn in as
 // outlines), for a before / after look. Headless only: it never opens a window.
 //   node tools/layout-shots.js <out dir> <tag> [html] [only=<regex on the names>]
-const { chromium } = require('playwright'); const fs = require('fs'), path = require('path');
+const PW = require('playwright'), ENGINE = process.env.ENGINE || 'chromium', chromium = PW[ENGINE];          // (ENGINE=webkit: Safari's engine, as on an iPhone; the 21:15 UTC break showed only there)
+const fs = require('fs'), path = require('path');
 const dir = path.resolve(process.argv[2] || 'layout-shots'), tag = process.argv[3] || 'now';
 const html = path.resolve(process.argv.find(a => a.endsWith('.html')) || path.join(__dirname, '../dist/dev.html'));
 const only = (process.argv.find(a => a.startsWith('only=')) || '').slice(5);
 const CFG = [
+  { name: 'iPhone Safari 竖拿 网站', vw: 375, vh: 627, touch: true, safe: { l: 0, r: 0, t: 0, b: 0 }, xhs: false },          // (用户 21:15 UTC: Safari 的地址栏和底栏之间只剩 375x627)
   { name: 'iPhone mini 竖拿 小红书', vw: 375, vh: 812, touch: true, safe: { l: 0, r: 0, t: 47, b: 34 }, xhs: true },
   { name: 'iPhone 15 横拿 小红书', vw: 852, vh: 393, touch: true, safe: { l: 59, r: 59, t: 0, b: 21 }, xhs: true },
+  { name: 'iPhone SE 横拿 小红书', vw: 667, vh: 375, touch: true, safe: { l: 0, r: 0, t: 0, b: 0 }, xhs: true },
   { name: 'Android 360 竖拿', vw: 360, vh: 800, touch: true, safe: { l: 0, r: 0, t: 24, b: 0 }, xhs: false },
   { name: '桌面 1280x720', vw: 1280, vh: 720, touch: false, safe: { l: 0, r: 0, t: 0, b: 0 }, xhs: false },
 ];
@@ -53,6 +56,8 @@ fs.mkdirSync(dir, { recursive: true });
     if (!(await pg.evaluate(() => !!__rings.pickOpen))) await pg.evaluate(() => { const b = [...document.querySelectorAll('#title button')].find(x => /挑战/.test(x.textContent)); if (b) b.click(); }), await pg.waitForTimeout(1200);
     await shot('2挑战面板');
     await pg.evaluate(() => { if (__rings.pickOpen) __rings.pickOpen(false); }); await pg.waitForTimeout(600);
+    await pg.evaluate(() => __ski.ui().menu(true)); await pg.waitForTimeout(900); await shot('2b菜单');          // (a layer too: 返回 at its top left)
+    await pg.evaluate(() => __ski.ui().menu(false)); await pg.waitForTimeout(600);
     await pg.evaluate(() => { const V = __ski.m.Variants; V.set('ringdiff', 'b'); V.set('rline', 'a'); __rings.chal = true; __ski.ui().go(); });
     await pg.waitForFunction(() => __rings.line.st === 'count', null, { timeout: 240000 });
     await pg.evaluate(() => { __rings.line.cT = 99; }); await pg.waitForFunction(() => __rings.line.st === 'go', null, { timeout: 240000 });

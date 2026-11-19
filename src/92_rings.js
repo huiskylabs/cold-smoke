@@ -696,7 +696,7 @@ const Rings = (() => {
       + '#rline .ban{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;text-align:center;opacity:0;transition:opacity .5s}'
       + '#rline .ban.on{opacity:1}#rline .ban b{display:block;font-family:var(--f-lat);font-weight:300;font-size:clamp(46px,12vmin,84px);line-height:1;font-variant-numeric:tabular-nums}'
       + '#rline .ban .rule{width:26px;height:1px;background:var(--sun);margin:14px 0 12px}#rline .ban i{display:block;font-family:var(--f-song);font-weight:300;font-style:normal;font-size:clamp(13px,3.4vmin,16px);letter-spacing:.34em;margin-right:-.34em}'
-      + '#rline .card{position:absolute;top:50%;right:var(--gr);width:min(330px,calc(var(--cw) * .44));max-height:calc(100% - var(--gt) - var(--gb));overflow:auto;scrollbar-width:none;transform:translate(calc(100% + var(--gr) + 20px),-50%);transition:transform .6s cubic-bezier(.2,.6,.2,1);background:rgba(5,8,13,.52);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:18px 20px;pointer-events:auto;text-shadow:none;font-size:12px}'
+      + '#rline .card{position:absolute;top:50%;right:var(--gr);width:min(330px,calc(var(--cw) * .44));max-height:calc(100% - var(--gt) - var(--gb));display:flex;flex-direction:column;overflow:hidden;transform:translate(calc(100% + var(--gr) + 20px),-50%);transition:transform .6s cubic-bezier(.2,.6,.2,1);background:rgba(5,8,13,.52);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:18px 20px;pointer-events:auto;text-shadow:none;font-size:12px}'
       + '#rline .card::-webkit-scrollbar{display:none}#rline .card.on{transform:translate(0,-50%)}'
       + '#rline .card h3{margin:0;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.4em;color:var(--dim);white-space:nowrap}#rline .card h3 em{font-family:var(--f-song);font-style:normal;font-size:12px;letter-spacing:.24em;color:var(--snow);margin-right:.6em}'
       + '#rline .card .big{margin-top:10px;font-family:var(--f-lat);font-weight:300;font-size:clamp(34px,7vmin,46px);line-height:1;font-variant-numeric:tabular-nums}'
@@ -717,7 +717,7 @@ const Rings = (() => {
       + '#app.short #rline .card .big{margin-top:6px;font-size:clamp(28px,6vmin,36px)}#app.short #rline .card .rule{margin:8px 0 6px}#app.short #rline .fs{margin-top:8px}#app.short #rline table{margin-top:8px}#app.short #rline td,#app.short #rline th{padding:2px 2px;font-size:11px}#app.short #rline .bt{gap:6px}#app.short #rline .bt button{height:32px}'
       + '#app.midh #rline td,#app.midh #rline th{padding:3px 2px}'
       + '#app.rcardon #hud>:not(#pad),#app.rcardon #rline .tm,#app.rcardon #rline .sub{opacity:0!important;transition:opacity .3s}'          // (用户 2026-11-19: 手机上成绩卡压在速度、路段名、计时上)
-      + '#rline .bt{position:sticky;bottom:-18px;margin:12px -20px -18px;padding:10px 20px 14px;background:linear-gradient(rgba(8,11,17,0),rgba(8,11,17,.95) 14px)}'
+      + '#rline .card .sc{flex:0 1 auto;min-height:0;overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}#rline .card .sc::-webkit-scrollbar{display:none}#rline .bt{flex:none}'          // (no position:sticky: inside the frame the game turns itself, Safari put the sticky row in the middle of the panel, 用户 21:15 UTC 截图)
       + '#rline kbd{margin-left:.5em;font-family:var(--f-lat);font-size:.85em;letter-spacing:.04em;opacity:.6}</style>'
       + '<div class="tm"></div><div class="sub"></div><div class="pop"></div><div class="spl"></div><div class="cd"></div><div class="ban"><b></b><span class="rule"></span><i></i></div><div class="card"></div>';
     (document.getElementById('app') || document.body).appendChild(d); L.el = d;
@@ -817,14 +817,14 @@ const Rings = (() => {
     const rows = seg.map((d, i) => { const b = segBest[i]; const df = b != null ? d - b : null; if (df != null && df >= 0.3 && df > wd) { wd = df; worst = i; } return { n: L.names[i] || (i + 1) + '', d, b, df }; });
     const td = r => '<td>' + (r.b != null ? fmt(r.b) : '—') + '</td><td class="' + (r.df == null || Math.abs(r.df) < 0.005 ? '' : r.df < 0 ? 'g' : 'r') + '">' + (r.df == null ? '' : sgn(r.df)) + '</td>';
     const fs = items => '<div class="fs">' + items.map(([v, k, c]) => '<div><b' + (c ? ' class="' + c + '"' : '') + '>' + v + '</b><span>' + k + '</span></div>').join('') + '</div>';
-    L.q('card').innerHTML = '<h3><em>' + T(LINES[L.id].name) + '</em>' + T(DNAME[L.diff]) + '</h3><div class="big">' + fmt(score) + '</div><div class="rule"></div>'
+    L.q('card').innerHTML = '<div class="sc"><h3><em>' + T(LINES[L.id].name) + '</em>' + T(DNAME[L.diff]) + '</h3><div class="big">' + fmt(score) + '</div><div class="rule"></div>'
       + '<div class="dl ' + (isNew ? 'g' : 'r') + '">' + (isNew ? (best ? tx('新纪录，快了 ' + (best.score - score).toFixed(2) + ' 秒', 'New record, ' + (best.score - score).toFixed(2) + ' s faster') : tx('第一次完成，这就是你的纪录', 'First finish: this is your record')) : tx('比最好慢 ' + (score - best.score).toFixed(2) + ' 秒', (score - best.score).toFixed(2) + ' s off your best')) + '</div>'
       + fs([[fmt(L.tEnd), tx('用时', 'Time')], [RG.passed + ' / ' + tot, tx('光圈', 'Rings')], ['−' + bonus, tx('光圈奖励（秒）', 'Ring bonus (s)'), 'g']])
       + '<table><tr><th>' + tx('分站', 'Stage') + '</th><th>' + tx('本局', 'This run') + '</th><th>' + tx('之前最好', 'Best before') + '</th><th></th></tr>' + rows.map((r, i) => '<tr' + (i === worst ? ' class="worst"' : '') + '><td>' + TN(r.n) + '</td><td>' + fmt(r.d) + '</td>' + td(r) + '</tr>').join('') + '</table>'
       + '<div class="tip">' + [miss ? tx('漏了 ' + miss + ' 个圈，少减 ' + +(miss * p).toFixed(1) + ' 秒', miss + ' rings missed: ' + +(miss * p).toFixed(1) + ' s of bonus lost') : '', worst >= 0 ? tx('最慢的一站：' + rows[worst].n + '，比最好慢 ' + wd.toFixed(2) + ' 秒', 'Slowest stage: ' + TN(rows[worst].n) + ', ' + wd.toFixed(2) + ' s off its best') : ''].filter(Boolean).join(tx('；', '; ')) + '</div>'
       + (rankOn() && boardOf(L.id, L.diff) ? fs([[fmt(rec.best.score), tx('个人最好', 'Your best')], ['…', tx('全部最好', 'Best of all'), 'gtop'], ['…', tx('排名', 'Place'), 'grank']])
       + '<div class="tip">' + (hcOf(L.id, L.diff) ? tx('排行榜成绩 ' + fmt(score + hcOf(L.id, L.diff)) + '（' + DNAME[L.diff] + '加时 +' + hcOf(L.id, L.diff) + ' 秒，三档一起排）', 'Board time ' + fmt(score + hcOf(L.id, L.diff)) + ' (' + T(DNAME[L.diff]) + ' +' + hcOf(L.id, L.diff) + ' s; all three levels on one board)') : tx('排行榜成绩 ' + fmt(score) + '（难不加时，三档一起排）', 'Board time ' + fmt(score) + ' (Hard: nothing added; all three levels on one board)')) + '</div>' : fs([[fmt(rec.best.score), tx('个人最好', 'Your best')]]))
-      + '<div class="bt"><button class="p" data-a="again">' + tx('再来一局', 'Again') + '<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">' + tx('增加难度', 'Harder') + '</button>' : '') + '' + RG.cardButtons.map((b, i) => '<button data-cb="' + i + '">' + T(b.label) + (b.key ? '<kbd>' + b.key + '</kbd>' : '') + '</button>').join('') + '<button data-a="free">' + tx('继续滑', 'Ski on') + '<kbd>Esc</kbd></button></div>';
+      + '</div><div class="bt"><button class="p" data-a="again">' + tx('再来一局', 'Again') + '<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">' + tx('增加难度', 'Harder') + '</button>' : '') + '' + RG.cardButtons.map((b, i) => '<button data-cb="' + i + '">' + T(b.label) + (b.key ? '<kbd>' + b.key + '</kbd>' : '') + '</button>').join('') + '<button data-a="free">' + tx('继续滑', 'Ski on') + '<kbd>Esc</kbd></button></div>';
     emit('finish', { line: L.id, name: LINES[L.id].name, diff: L.diff, score, t: L.tEnd, bonus: p, missed: miss, passed: RG.passed, splits: L.split.slice(), names: L.names.slice(), isNew, segBest: segBest.slice(), ban: banTxt });
     board(score + hcOf(L.id, L.diff));
     clearTimeout(L.cardT); L.cardT = setTimeout(() => { if (L.st === 'done') L.q('card').classList.add('on'); }, 350);          // (用户 21:25 UTC: 停下来那一瞬间菜单就弹出来)
@@ -911,7 +911,7 @@ const Rings = (() => {
   }
   // ---- 挑战 on the title page (dev). (用户 21:31 UTC: 出发就是普通地滑；出发底下加一个「挑战」，点开以后再选路线这些.) 出发 and Enter are always
   // free skiing; 挑战 (a button in the left column like 场景 / 视角) opens a panel: the lines with this device's best, the difficulty,
-  // then 开始挑战 (or Enter), which counts down 3, 2, 1. Esc or 取消 closes it.
+  // then 开始挑战 (or Enter), which counts down 3, 2, 1. Esc, 返回, a tap on the dimmed page or the phone's own back closes it.
   const PICK = [['a', '速降线', '沿主路，从山顶到山脚'], ['x', '越野线', '钻树林、走侧道，从山顶到山脚']];
   // (用户 2026-11-18 02:38 UTC: 挑战是根据地图挑战，每个地图都有不同的挑战) each map has its own lines; the panel lists the current map's only.
   // A map = an official mountain (Course.mountains). Today there is one, 寒烟山, with these two lines; a mountain with none says so
@@ -955,8 +955,8 @@ const Rings = (() => {
   function pickUI() {
     if (RG.pk) return RG.pk;
     const d = document.createElement('div'); d.id = 'rpick';
-    d.innerHTML = '<style>#rpick{--pkl:calc(var(--col) + max(clamp(200px,calc(var(--cw) * .24),300px),calc(var(--actw,190px) + 24px)));position:absolute;left:var(--pkl);top:calc(var(--gt) + (var(--ch) - var(--gt) - var(--gb)) / 2);transform:translate(-8px,-50%);opacity:0;width:min(320px,calc(var(--cw) - var(--pkl) - var(--gr) - 56px));box-sizing:border-box;max-height:calc(var(--ch) - var(--gt) - var(--gb));overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain;z-index:5;pointer-events:none;background:rgba(5,8,13,.52);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:18px 18px 16px;color:var(--snow);font-family:var(--f-ui);font-size:12px;transition:opacity .35s ease,transform .45s cubic-bezier(.2,.6,.2,1)}'
-      + '#rpick.on{opacity:1;transform:translate(0,-50%);pointer-events:auto}#rpick::-webkit-scrollbar{display:none}'
+    d.innerHTML = '<style>#rpick{--pkl:calc(var(--col) + max(clamp(200px,calc(var(--cw) * .24),300px),calc(var(--actw,190px) + 24px)));position:absolute;left:var(--pkl);top:calc(var(--gt) + (var(--ch) - var(--gt) - var(--gb)) / 2);transform:translate(-8px,-50%);opacity:0;width:min(320px,calc(var(--cw) - var(--pkl) - var(--gr) - 56px));box-sizing:border-box;max-height:calc(var(--ch) - var(--gt) - var(--gb));display:flex;flex-direction:column;overflow:hidden;z-index:5;pointer-events:none;background:rgba(5,8,13,.52);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:18px 18px 16px;color:var(--snow);font-family:var(--f-ui);font-size:12px;transition:opacity .35s ease,transform .45s cubic-bezier(.2,.6,.2,1)}'
+      + '#rpick.on{opacity:1;transform:translate(0,-50%);pointer-events:auto}#rpick .sc{flex:0 1 auto;min-height:0;overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}#rpick .sc::-webkit-scrollbar{display:none}'
       + '#app.pkopen #title .how,#app.pkopen #title .fine{opacity:0;visibility:hidden;transition:none}'          // (the title's foot lines run under the panel: they step aside while it is up)
       + '#rpick h4{margin:0 0 12px;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.4em;color:var(--dim);white-space:nowrap}#rpick .l{display:flex;flex-direction:column;gap:6px}'
       + '#rpick button{appearance:none;-webkit-appearance:none;margin:0;border:0;font:inherit;color:var(--dim);cursor:pointer;box-sizing:border-box;text-align:left;border-radius:10px;padding:9px 12px;background:rgba(5,8,13,.25);box-shadow:inset 0 0 0 1px var(--hair);transition:color .2s,box-shadow .2s}'
@@ -965,13 +965,19 @@ const Rings = (() => {
       + '#rpick .l button i{display:block;margin-top:2px;font-style:normal;font-size:11px;letter-spacing:.1em;color:var(--faint)}#rpick .l button em{font-family:var(--f-lat);font-style:normal;font-weight:300;font-size:13px;letter-spacing:.02em;font-variant-numeric:tabular-nums;color:var(--dim)}'
       + '#rpick .r{display:flex;gap:6px;margin-top:10px}#rpick .r button{flex:1;text-align:center;padding:0;height:32px;border-radius:10px;letter-spacing:.2em}'
       + '#rpick .t{margin-top:12px;font-size:11px;line-height:1.7;letter-spacing:.1em;color:var(--dim)}'
-      + '#rpick .bt{display:flex;gap:8px;position:sticky;bottom:-16px;margin:14px -18px -16px;padding:10px 18px 16px;background:linear-gradient(rgba(8,11,17,0),rgba(8,11,17,.95) 14px)}#rpick .bt button{flex:1;text-align:center;height:40px;padding:0;border-radius:12px;letter-spacing:.2em}'
+      + '#rpick .bt{flex:none;display:flex;gap:8px;margin-top:14px}#rpick .bt button{flex:1;text-align:center;height:40px;padding:0;border-radius:12px;letter-spacing:.2em}'
       + '#rpick .bt .go{flex:1.6;color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun);font-family:var(--f-song);font-size:15px;letter-spacing:.5em;text-indent:.5em}'
       + '#rpick .l button i .rk{display:block;margin-top:3px;color:var(--dim);letter-spacing:.06em}#rpick .no{padding:14px 4px;font-size:13px;line-height:1.8;letter-spacing:.12em;color:var(--dim)}#rpick.none .r,#rpick.none .t,#rpick.none .go{display:none}'
-      + '#app.short #rpick{padding:12px 14px 12px}#app.short #rpick h4{margin-bottom:8px}#app.short #rpick .l{gap:5px}#app.short #rpick .l button{padding:6px 10px}#app.short #rpick .r{margin-top:8px}#app.short #rpick .r button{height:30px}#app.short #rpick .t{margin-top:8px;line-height:1.55}#app.short #rpick .bt{bottom:-12px;margin:10px -14px -12px;padding:8px 14px 12px}#app.short #rpick .bt button{height:36px}'
-      + '#rpick kbd{margin-left:.4em;font-family:var(--f-lat);font-size:.75em;letter-spacing:.04em;opacity:.6;text-indent:0}</style>'
-      + '<h4></h4><div class="l"></div><div class="r d"></div><div class="t"></div><div class="bt"><button class="go" data-go="1">开始挑战</button><button data-x="1">取消<kbd>Esc</kbd></button></div>';
-    (document.getElementById('app') || document.body).appendChild(d); RG.pk = d;
+      + '#app.short #rpick{padding:12px 14px 12px}#app.short #rpick h4{margin-bottom:8px}#app.short #rpick .l{gap:5px}#app.short #rpick .l button{padding:6px 10px}#app.short #rpick .r{margin-top:8px}#app.short #rpick .r button{height:30px}#app.short #rpick .t{margin-top:8px;line-height:1.55}#app.short #rpick .bt{margin-top:10px}#app.short #rpick .bt button{height:36px}'
+      + '#rpick kbd{margin-left:.4em;font-family:var(--f-lat);font-size:.75em;letter-spacing:.04em;opacity:.6;text-indent:0}'
+      + '#rpick .bk{align-self:flex-start;flex:none;margin:-6px 0 4px -10px;background:none;box-shadow:none;border-radius:10px;text-align:left}'          // (返回 at the layer's top left, as on every layer: 19_ui.js U.layer)
+      + '#pkscrim{position:absolute;inset:0;background:rgba(5,8,13,.5);opacity:0;visibility:hidden;transition:opacity .25s ease,visibility 0s linear .25s}#app.pkopen #pkscrim{opacity:1;visibility:visible;transition:opacity .25s ease}</style>'
+      + '<button class="bk" data-x="1" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg><span>返回</span></button>'
+      + '<div class="sc"><h4></h4><div class="l"></div><div class="r d"></div><div class="t"></div></div><div class="bt"><button class="go" data-go="1">开始挑战</button></div>';
+    // the page under the panel is dimmed and takes no tap: a tap there puts the panel away (it used to be 出发, a run started by mistake)
+    const sc = document.createElement('div'); sc.id = 'pkscrim';
+    sc.addEventListener('click', e => { e.stopPropagation(); pickOpen(false); });
+    const host = document.getElementById('app') || document.body; host.appendChild(sc); host.appendChild(d); RG.pk = d;
     d.addEventListener('click', e => {
       e.stopPropagation();          // (a click anywhere on the title page is 出发: never from inside this panel)
       const b = e.target.closest('button'); if (!b) return;
@@ -988,7 +994,7 @@ const Rings = (() => {
     if (!ids.includes(RG.pkSel)) RG.pkSel = ids.includes(Variants.val.rline) ? Variants.val.rline : ids[0];
     const cur = RG.pkSel;
     d.querySelector('h4').textContent = (isEN() ? 'Challenge · ' : '挑战 · ') + mapLabel();
-    d.querySelector('.go').textContent = tx('开始挑战', 'Start'); d.querySelector('[data-x]').innerHTML = tx('取消', 'Cancel') + '<kbd>Esc</kbd>';
+    d.querySelector('.go').textContent = tx('开始挑战', 'Start'); d.querySelector('.bk span').textContent = tx('返回', 'Back');
     d.classList.toggle('none', !ids.length);
     d.querySelector('.l').innerHTML = !ids.length ? tx('<div class="no">这张地图还没有挑战。<br>回到寒烟山就有。</div>', '<div class="no">No challenge on this mountain yet.<br>Mount Cold Smoke has them.</div>') : PICK.filter(p => ids.includes(p[0])).map(([id, n, t]) => {
       const b = bestOf(id, df), bd = boardOf(id, df);
@@ -1013,7 +1019,8 @@ const Rings = (() => {
   if (typeof I18N !== 'undefined' && I18N.on) I18N.on(() => { if (RG.pkOpen) pickDraw(); });          // (the language changed while the panel is up)
   function pickOpen(on) {
     if (on && !(typeof UI !== 'undefined' && UI.state === 'title' && !UI.open)) return;
-    RG.pkOpen = !!on; const d = pickUI(); if (on) pickDraw(); d.classList.toggle('on', !!on); const app = document.getElementById('app'); if (app) app.classList.toggle('pkopen', !!on);
+    RG.pkOpen = !!on; const d = pickUI(); if (on) pickDraw(); d.classList.toggle('on', !!on); if (RG.cb) RG.cb.classList.toggle('on', !!on); const app = document.getElementById('app'); if (app) app.classList.toggle('pkopen', !!on);
+    if (typeof UI !== 'undefined' && UI.layer) UI.layer('pick', !!on, () => pickOpen(false));          // (a layer: 返回, Esc and the phone's own back close it, 19_ui.js)
     /*native{*/
     if (self.COLD_SMOKE?.nativeWindow && !self.COLD_SMOKE.spatial) {
       d.inert = !on;

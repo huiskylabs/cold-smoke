@@ -5,7 +5,8 @@
 // Phones are checked both ways the game meets them: held sideways, and held upright with the game turning the picture itself (#app.rot),
 // inside 小红书 (the host's buttons along the top of the screen) and outside it.
 //   node tools/layout-check.js [out.json] [only=<regex on the names>] [html]     exit 1 when anything is wrong
-const { chromium } = require('playwright'); const fs = require('fs'), path = require('path');
+const PW = require('playwright'), ENGINE = process.env.ENGINE || 'chromium', chromium = PW[ENGINE];          // (ENGINE=webkit: Safari's engine, as on an iPhone; the 21:15 UTC break showed only there)
+const fs = require('fs'), path = require('path');
 const out = path.resolve(process.argv[2] || 'layout-check.json'), only = (process.argv.find(a => a.startsWith('only=')) || '').slice(5);
 const html = path.resolve(process.argv.find(a => a.endsWith('.html')) || path.join(__dirname, '../dist/dev.html'));
 
@@ -23,8 +24,9 @@ for (const [n, w, h, notch, home] of PH) {
     CFG.push({ name: n + ' 竖拿' + (xhs ? ' 小红书' : ''), vw: w, vh: h, touch: true, safe: { l: 0, r: 0, t: notch ? notch - 3 : 24, b: notch ? 34 : 0 }, xhs });
   }
 }
+CFG.push({ name: 'iPhone Safari 竖拿 网站', vw: 375, vh: 627, touch: true, safe: { l: 0, r: 0, t: 0, b: 0 }, xhs: false }, { name: 'iPhone Safari 横拿 网站', vw: 812, vh: 340, touch: true, safe: { l: 47, r: 47, t: 0, b: 0 }, xhs: false });          // (between Safari's own bars)
 for (const [w, h] of [[1024, 640], [1280, 720], [1366, 768], [1440, 900], [1920, 1080]]) CFG.push({ name: '桌面 ' + w + 'x' + h, vw: w, vh: h, touch: false, safe: { l: 0, r: 0, t: 0, b: 0 }, xhs: false });
-const EN = new Set(['iPhone mini 竖拿 小红书', 'iPhone mini 横拿 小红书', 'Android 360 横拿', '桌面 1280x720']);
+const EN = new Set(['iPhone Safari 竖拿 网站', 'Android 360 横拿', '桌面 1280x720']);          // (English only where the website is: 小红书 needs no English, 用户 2026-11-19 21:18 UTC)
 
 (async () => {
   const b = await chromium.launch({ headless: true });
@@ -75,6 +77,8 @@ const EN = new Set(['iPhone mini 竖拿 小红书', 'iPhone mini 横拿 小红�
       const nm = e => (e.id ? '#' + e.id : e.tagName.toLowerCase() + (e.className && typeof e.className === 'string' ? '.' + e.className.trim().split(/\s+/).join('.') : '')) + ' "' + (e.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 24) + '"';
       const where = e => { const p = []; for (let q = e.parentElement; q && q !== app && p.length < 3; q = q.parentElement) if (q.id) p.push('#' + q.id); return p.reverse().join(' '); };
       const probs = [], under = new Set();
+      // (Safari places position:sticky wrongly inside the frame the game turns a quarter: 用户 2026-11-19 21:15 UTC 截图, 开始挑战 in the middle of its panel. None at all inside #app)
+      for (const e of app.querySelectorAll('*')) if (getComputedStyle(e).position === 'sticky') probs.push({ k: '用了 position:sticky（Safari 转画面时会错位）', id: e.id || e.className });
       if (!document.querySelector('meta[name=viewport]')) probs.push({ k: '页面没有 viewport（手机会按 980 px 宽排版再整页缩小）', id: document.title });
       // (a panel over the whole frame, like the route card: what lies under it is out of play until it closes, not a fault)
       const modal = (e, hit) => { for (let q = hit; q && q !== app; q = q.parentElement) { if (q.contains(e)) return false; const Q = box(q.getBoundingClientRect()); if ((Q.r - Q.l) * (Q.b - Q.t) > W * H * 0.85) return true; } return false; };
@@ -90,7 +94,7 @@ const EN = new Set(['iPhone mini 竖拿 小红书', 'iPhone mini 横拿 小红�
         for (let q = e.parentElement; q && q !== app; q = q.parentElement) {
           const s = getComputedStyle(q); if (s.overflow === 'visible' && s.overflowX === 'visible' && s.overflowY === 'visible') continue;
           const Q = box(q.getBoundingClientRect());
-          if (B.l < Q.l - 1 || B.r > Q.r + 1 || B.t < Q.t - 1 || B.b > Q.b + 1) { if (/auto|scroll/.test(s.overflowY + s.overflowX)) scroller = scroller || q; else { clip = q; break; } }
+          if (B.l < Q.l - 1 || B.r > Q.r + 1 || B.t < Q.t - 1 || B.b > Q.b + 1) { if (/auto|scroll/.test(s.overflowY + s.overflowX)) scroller = scroller || q; else { if (!scroller) clip = q; break; } }          // (past the end of a list that scrolls, inside the panel that holds the list: reached by scrolling, not cut off)
           else if (/auto|scroll/.test(s.overflowY + s.overflowX) && (q.scrollHeight > q.clientHeight + 1 || q.scrollWidth > q.clientWidth + 1)) scroller = scroller || q;          // (a list that scrolls: what lies at its ends at rest is reached by scrolling)
         }
         if (clip) { probs.push({ k: '被裁掉', id, by: nm(clip) }); continue; }

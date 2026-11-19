@@ -14,7 +14,7 @@ const UI = (() => {
   U.init = function () {
     el = { app: $('app'), veil: $('veil'), shade: $('shade'), load: $('load'), fill: $('load-fill'), stage: $('load-stage'), title: $('title'), go: $('go'), how: $('how'), hud: $('hud'),
       seg: $('seg'), segEn: $('seg-en'), segCn: $('seg-cn'), hint: $('hint'), hintT: $('hint-t'), spd: $('spd'), tach: $('tach'), drop: $('drop'), snd: $('snd'), fs: $('fs'),
-      bar: $('bar'), mn: $('mn'), menu: $('menu'), nav: $('menu').querySelector('nav'), pane: $('mpane'), mk: $('m-k'), mGo: $('m-go'), mTop: $('m-top'), oSnd: $('o-snd'), oFs: $('o-fs'), oLang: $('o-lang'), oQ: $('o-q'),
+      bar: $('bar'), mn: $('mn'), menu: $('menu'), nav: $('menu').querySelector('nav'), pane: $('mpane'), mk: $('m-k'), mGo: $('m-go'), mTop: $('m-top'), mBack: $('m-back'), oSnd: $('o-snd'), oFs: $('o-fs'), oLang: $('o-lang'), oQ: $('o-q'),
       time: $('sw-time'), kinds: $('sw-seg'), ev: $('sw-ev'), view: $('sw-view'), seed: $('sw-seed'), skied: $('sw-skied'), more: $('more'), drop2: $('drop2'), vw: $('vw'),
       say: $('say'), sayK: $('say-k'), sayV: $('say-v'), cut: $('cut'), jump: $('jump'), tuck: $('tuck'), fwd: $('fwd'), aft: $('aft'),
       pause: $('pause'), pauseS: $('pause-s'), pauseT: $('pause-t'), steer: $('steer'), steerV: $('steer-v'), chg: $('chg'),
@@ -114,16 +114,21 @@ const UI = (() => {
     if (!el || !el.title) return;
     const t = el.title, mk = t.querySelector('.mark'), cta = t.querySelector('.cta'); if (!mk || !cta) return;
     const parts = [mk, ...cta.children].filter(e => !e.classList.contains('fine') && !e.classList.contains('keys') && !e.classList.contains('act'));          // (the buttons are never shrunk: a finger needs them their full size)
-    for (const e of parts) e.style.zoom = '';
+    // (shrunk with the scale property (apart from the fade-in's transform) and the room it frees given back by a negative margin, not CSS zoom: Safari's engine measures a zoomed
+    // box in its own unzoomed units, so the zoom it got there was wrong and the line under the buttons ran onto the foot line, 21:3x UTC)
+    for (const e of parts) { e.style.scale = ''; e.style.transformOrigin = ''; e.style.marginBottom = ''; }
     const off = e => { let y = 0; for (let q = e; q && q !== el.app; q = q.offsetParent) y += q.offsetTop; return y; };
     const vis = parts.filter(e => e.offsetHeight > 0); if (!vis.length) return;
     const fine = cta.querySelector('.fine'), cs = getComputedStyle(el.app);
     const foot = fine && fine.offsetHeight && getComputedStyle(fine).position === 'absolute' ? off(fine) - 10 : el.app.offsetHeight - (parseFloat(cs.getPropertyValue('--gb')) || 18);
-    for (let k = 0; k < 3; k++) {
-      const last = vis[vis.length - 1], over = off(last) + last.offsetHeight - foot; if (over <= 0.5) break;
-      const z0 = parseFloat(vis[0].style.zoom) || 1, tall = vis.reduce((a, e) => a + e.offsetHeight, 0);
-      const z = Math.max(0.62, z0 * (tall - over) / tall);
-      for (const e of vis) e.style.zoom = z.toFixed(3);
+    const last = vis[vis.length - 1], over = off(last) + last.offsetHeight - foot;
+    if (over > 0.5) {
+      const tall = vis.reduce((a, e) => a + e.offsetHeight, 0), z = Math.max(0.62, 1 - over / tall);
+      for (const e of vis) {
+        const h = e.offsetHeight, mb = parseFloat(getComputedStyle(e).marginBottom) || 0;
+        const P = e.parentNode, mid = P && Math.abs(e.offsetLeft + e.offsetWidth / 2 - P.clientWidth / 2) < 2 && e.offsetLeft > 2;          // (a centred column shrinks toward its middle)
+        e.style.transformOrigin = mid ? '50% 0' : '0 0'; e.style.scale = z.toFixed(3); e.style.marginBottom = (mb - h * (1 - z)).toFixed(1) + 'px';
+      }
     }
     // (how wide the column of buttons now is, in the frame: panels that open beside it, like the challenge's, stand clear of it)
     const act = cta.querySelector('.act'); if (act) { const r = act.getBoundingClientRect(); el.app.style.setProperty('--actw', Math.round(el.app.classList.contains('rot') ? r.height : r.width) + 'px'); }
@@ -462,7 +467,8 @@ const UI = (() => {
     el.more.addEventListener('click', e => { e.stopPropagation(); const b = e.target.closest('button'); if (!b) return; if (b.dataset.daily) { U.daily(); if (e.detail) b.blur(); } else U.menu(b.dataset.sec); });
     // the column on the left: a part to open, or one of the ways out
     el.menu.addEventListener('click', e => {
-      e.stopPropagation(); const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
+      e.stopPropagation(); const b = e.target.closest('button'); if (!b) { if (e.target === el.menu || e.target.classList.contains('scrim')) U.menu(false); return; } const d = b.dataset;
+      if (b === el.mBack) { U.menu(false); return; }          // (返回: the layer under it comes back, nothing starts)
       if (b === el.mGo) { if (U.state === 'title') U.go(); else U.menu(false); return; }
       if (b === el.mTop) { U.toTop(); return; }
       if (b.id === 'm-photo') { if (typeof Photo !== 'undefined') Photo.enter(); if (e.detail) b.blur(); return; }
@@ -514,6 +520,28 @@ const UI = (() => {
     if (s === 'rank' && typeof Rank !== 'undefined') Rank.show();
     if (s === 'share' && typeof XHS !== 'undefined') XHS.show();
   }
+  // layers (用户 2026-11-19 21:19 UTC：「菜单要有层级 modal 然后可以轻松退回去」). Every panel that opens over the page (菜单, 挑战, 路线卡) is
+  // one layer: the page under it is dimmed and takes no tap, and 返回, a tap on the dimmed picture, Esc, or the phone's own back (Android's
+  // key, the iPhone's edge swipe: one history step per layer, outside 小红书 whose host owns its back) close the top layer only, never
+  // start a run. U.layer(name, true, close) when a panel opens, U.layer(name, false) when it closes, however it was closed
+  const LY = []; let lyH = 0, lySkip = 0, lyPop = false;
+  const lyHist = () => { try { return typeof history !== 'undefined' && history.pushState && !(typeof XHS !== 'undefined' && XHS.on); } catch (e) { return false; } };
+  U.layer = function (name, on, close) {
+    const i = LY.findIndex(l => l.name === name);
+    if (on && i < 0) { LY.push({ name, close }); if (lyHist()) try { history.pushState({ csLayer: LY.length }, ''); lyH++; } catch (e) { } }
+    else if (!on && i >= 0) { LY.splice(i, 1); if (!lyPop && lyH > 0) { lyH--; lySkip++; try { history.back(); } catch (e) { lySkip--; } } }
+    if (el && el.app) el.app.classList.toggle('layered', LY.length > 0);
+  };
+  U.layerTop = () => LY.length ? LY[LY.length - 1].name : null;
+  U.back = function () { const l = LY[LY.length - 1]; if (!l) return false; l.close(); return true; };
+  if (typeof addEventListener !== 'undefined') addEventListener('popstate', () => {
+    if (lySkip > 0) { lySkip--; return; }
+    if (lyH <= 0) return; lyH--;
+    const l = LY[LY.length - 1]; if (!l) return;
+    lyPop = true; try { l.close(); } finally { lyPop = false; }
+    if (LY[LY.length - 1] === l) LY.pop();          // (a close that did nothing still takes its layer off)
+    if (el && el.app) el.app.classList.toggle('layered', LY.length > 0);
+  });
   // U.menu(): open or close; U.menu('view'): open at that part (or, open at it already, close)
   U.menu = function (on) {
     if (!el || U.gone) return;
@@ -523,9 +551,10 @@ const UI = (() => {
     if (on && U.state === 'run') holdOn();
     U.open = on; if (on) { if (!el.pane.querySelector('section.on')) show(sec); paint(); el.say.classList.remove('on'); sayT = 0; }
     const run = U.state === 'run';
-    el.mk.textContent = T(run ? 'PAUSED · 暂停' : 'MENU · 菜单'); el.mGo.textContent = T(run ? '继续滑' : '自由滑'); el.mTop.hidden = !run;
+    el.mk.textContent = T(run ? 'PAUSED · 暂停' : 'MENU · 菜单'); if (el.mBack) el.mBack.lastChild.textContent = T('返回'); el.mGo.textContent = T(run ? '继续滑' : '自由滑'); el.mTop.hidden = !run;
     el.menu.classList.toggle('on', on); el.menu.setAttribute('aria-hidden', on ? 'false' : 'true'); el.mn.setAttribute('aria-expanded', on ? 'true' : 'false');
     el.app.classList.toggle('menuopen', on);          // (the thumbs' buttons step aside under it)
+    U.layer('menu', on, () => U.menu(false));
     if (U.state === 'title') el.title.classList.toggle('on', !on);          // (the title's own words make way for it, and come back)
     try { if (!on && el.menu.contains(document.activeElement)) document.activeElement.blur(); } catch (e) { }
     if (!on && hold) holdOff();

@@ -625,8 +625,8 @@ const RouteCard = self.RouteCard = (() => {
   }
   function step(k) { const n = RCg.view + k; if (n < 0 || n >= RCg.hist.length) return; RCg.view = n; paint(); }
   // (opened from the result: the result card steps aside and comes back after; from the pause menu: the menu stays under it, paused)
-  function open() { if (!RCg.hist.length) return; RCg.view = cl(RCg.view, 0, RCg.hist.length - 1); ui().classList.add('on'); RCg.fromCard = !!(RG.line && RG.line.st === 'done'); if (RCg.fromCard) RG.cardShow(false); paint(); }
-  function close() { if (!RCg.el || !RCg.el.classList.contains('on')) return; RCg.el.classList.remove('on'); if (RCg.fromCard) RG.cardShow(true); RCg.fromCard = false; }
+  function open() { if (!RCg.hist.length) return; RCg.view = cl(RCg.view, 0, RCg.hist.length - 1); ui().classList.add('on'); RCg.fromCard = !!(RG.line && RG.line.st === 'done'); if (RCg.fromCard) RG.cardShow(false); paint(); if (typeof UI !== 'undefined' && UI.layer) UI.layer('rcard', true, close); }
+  function close() { if (!RCg.el || !RCg.el.classList.contains('on')) return; RCg.el.classList.remove('on'); if (typeof UI !== 'undefined' && UI.layer) UI.layer('rcard', false); if (RCg.fromCard) RG.cardShow(true); RCg.fromCard = false; }
   const cl = (v, a, b) => v < a ? a : v > b ? b : v;
   function save() {
     const el = RCg.el, cv = el.querySelector('canvas'), e = RCg.hist[RCg.view], msg = el.querySelector('.msg');
