@@ -474,7 +474,7 @@ const UI = (() => {
     if (on && U.state === 'run') holdOn();
     U.open = on; if (on) { if (!el.pane.querySelector('section.on')) show(sec); paint(); el.say.classList.remove('on'); sayT = 0; }
     const run = U.state === 'run';
-    el.mk.textContent = T(run ? 'PAUSED · 暂停' : 'MENU · 菜单'); el.mGo.textContent = T(run ? '继续滑' : '出发'); el.mTop.hidden = !run;
+    el.mk.textContent = T(run ? 'PAUSED · 暂停' : 'MENU · 菜单'); el.mGo.textContent = T(run ? '继续滑' : '自由滑'); el.mTop.hidden = !run;
     el.menu.classList.toggle('on', on); el.menu.setAttribute('aria-hidden', on ? 'false' : 'true'); el.mn.setAttribute('aria-expanded', on ? 'true' : 'false');
     el.app.classList.toggle('menuopen', on);          // (the thumbs' buttons step aside under it)
     if (U.state === 'title') el.title.classList.toggle('on', !on);          // (the title's own words make way for it, and come back)
@@ -528,7 +528,7 @@ const UI = (() => {
     for (const b of el.kinds.children) b.textContent = T(SEG_NAMES[b.dataset.seg] || b.dataset.seg);
     evSig = vwSig = vSig = wxSig = null;
     U.layout();
-    const run = U.state === 'run'; el.mk.textContent = T(run ? 'PAUSED · 暂停' : 'MENU · 菜单'); el.mGo.textContent = T(run ? '继续滑' : '出发');
+    const run = U.state === 'run'; el.mk.textContent = T(run ? 'PAUSED · 暂停' : 'MENU · 菜单'); el.mGo.textContent = T(run ? '继续滑' : '自由滑');
     if (U.hintKind && el.hint.classList.contains('on') && !/gap|done/.test(U.hintKind)) showHint(U.hintKind);
     if (U.state === 'run' && U.segIdx >= 0) { try { const sg = Course.segs[U.segIdx]; if (sg) segCard({ idx: U.segIdx, type: sg.type }); } catch (e) { } }
     if (el.tune) for (const n of el.tune.querySelectorAll('[data-zh]')) n.textContent = T(n.dataset.zh);
