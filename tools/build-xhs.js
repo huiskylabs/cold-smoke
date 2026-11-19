@@ -26,6 +26,8 @@ script = script.replace('/*__JS__*/', () => js);
 { const n = (script.match(/\/\*web\{\*\//g) || []).length; script = script.replace(/\/\*web\{\*\/[\s\S]*?\/\*\}web\*\//g, ''); if (/web\{|\}web/.test(script)) throw new Error('unbalanced /*web{*/ markers'); console.log('left out', n, 'web-only blocks'); }
 // the same native blocks build.js strips: the container is a web page
 { const n = (script.match(/\/\*native\{\*\//g) || []).length; script = script.replace(/\/\*native\{\*\/[\s\S]*?\/\*\}native\*\//g, ''); if (script.includes('/*native{*/') || script.includes('/*}native*/')) throw new Error('unbalanced /*native{*/ markers'); console.log('left out', n, 'native blocks'); }
+// (which build this is, for the store the second start reads back: 00e_cache.js)
+script = script.replace("'__BUILD_HASH__'", () => "'" + require('crypto').createHash('sha1').update(script).digest('hex').slice(0, 16) + "'");
 const polyfills = fs.readFileSync(path.join(root, 'xhs', 'polyfills.js'), 'utf8');
 
 // ---- markup and style: the template without its script, its claude.ai meta, inside a whole document

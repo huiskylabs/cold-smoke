@@ -493,6 +493,7 @@ const Vista = (() => {
     V.shadowElev = -9; V.updateShadow(true);
     initLights(lights);
     if (opt.keep) V.dbg = { far, city };
+    if (opt.grab) V.farData = far;          // (for the next start to read back: 00e_cache.js)
     V.stats.ms = [Math.round(t1 - t0), Math.round(t2 - t1), Math.round(performance.now() - t2)]; V.stats.lightMs = Math.round(t3 - t2); V.stats.nLight = [V.nFace, V.nSpot, V.nBeam];
     V.ready = true;
   };

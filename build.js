@@ -16,6 +16,8 @@ let js = '';
 for (const f of files) js += '\n// ===== ' + f + ' =====\n' + fs.readFileSync(path.join(srcDir, f), 'utf8');
 const stripped = stripNative(js);
 js = stripped.out;
+// (which build this is, for the store the second start reads back: 00e_cache.js. A hash of the whole script, so any change is a new key)
+js = js.replace("'__BUILD_HASH__'", () => "'" + require('crypto').createHash('sha1').update(js).digest('hex').slice(0, 16) + "'");
 let tpl = fs.readFileSync(path.join(root, 'template.html'), 'utf8');
 // the three faces ride inside the page (the same subsets the 小红书 package carries, xhs/fonts/, made by tools/fetch-xhs-fonts.js), so the
 // title is set in its own Song wherever Google Fonts cannot be reached. The template's loader sees #faces and fetches nothing

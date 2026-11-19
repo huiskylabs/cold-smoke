@@ -7,6 +7,7 @@ function makeNoiseTextures(gfx, pre) {
   Tex.noise = gfx.texture({ w: 256, h: 256, format: 'rgba8', wrap: 'repeat', filter: 'linear', data: D.noise });
   Tex.black = gfx.texture({ w: 1, h: 1, format: 'rgba8', wrap: 'clamp', filter: 'linear', data: new Uint8Array([0, 0, 0, 0]) });
   Tex.detail = gfx.texture({ w: 512, h: 512, format: 'rgba8', wrap: 'repeat', filter: 'linear', mips: true, data: D.detail }); gfx.genMips(Tex.detail);
+  return D;
 }
 function noiseData() {
   const out = {};
@@ -44,6 +45,7 @@ function makeSnowTexture(gfx, sunAz, pre) {
   const up = d => { const t = gfx.texture({ w: 512, h: 512, format: 'rgba8', wrap: 'repeat', filter: 'linear', mips: true,
     anisotropy: /*native{*/self.COLD_SMOKE?.spatial ? 2 : /*}native*/1, data: d }); gfx.genMips(t); return t; };
   Tex.snow = up(D.snow); Tex.snowFine = up(D.fine);
+  return D;
 }
 function snowData(sunAz, only) {          // (only: 'snow' or 'fine', one of the two by itself, for two threads)
   const n = 512;
@@ -346,8 +348,42 @@ const Terrain = (() => {
   }
   // the first fill (boot): the same as update(camX, camZ, true), with the work shared out where there are threads
   T.firstFill = async function (camX, camZ) {
+    const c = T.cache; T.cache = null;
+    if (!T.grab) return fill(camX, camZ, c);
+    // (T.grab, 00e_cache.js: what is uploaded is written down as well, every level's whole texture, for the next start to read back)
+    const keep = gfx, own = Object.prototype.hasOwnProperty.call(keep, 'updateTexture'), up = keep.updateTexture;
+    const n = T.levels.map(() => new Uint16Array(N * N * 4)), s = T.levels.map(() => new Uint16Array(N * N * 4));
+    keep.updateTexture = function (t, x, y, w, h, d) {
+      up.call(keep, t, x, y, w, h, d);
+      for (const L of T.levels) if (t === L.nTex || t === L.sTex) { const o = (t === L.nTex ? n : s)[L.l]; for (let r = 0; r < h; r++) o.set(d.subarray(r * w * 4, (r + 1) * w * 4), ((y + r) * N + x) * 4); break; }
+    };
+    try { await fill(camX, camZ, c); } finally { if (own) keep.updateTexture = up; else delete keep.updateTexture; }
+    T.grab = false;
+    T.snap = { cx: T.levels.map(L => L.cx), cz: T.levels.map(L => L.cz), H: T.levels.map(L => L.H.slice()), N: n, S: s };
+  };
+  // ---- the second start (00e_cache.js): every level as the first start left it, if its window lies where it lay then. A level whose window
+  // has moved (another shape of screen puts the lens a cell or two elsewhere) is made again, and with it every finer one, since a level's
+  // shade and horizon read the coarser levels round it. T.fromCache: how many levels came from the cache
+  function fromCache(camX, camZ, c) {
+    if (!c || !c.H || c.H.length !== T.LEVELS) return false;
+    let redo = -1;
+    for (const L of T.levels) { target(L, camX, camZ); if (tgt[0] !== c.cx[L.l] || tgt[1] !== c.cz[L.l]) redo = Math.max(redo, L.l); }
+    if (redo >= T.LEVELS - 1) return false;
+    dropQueue();
+    for (const L of T.levels) { target(L, camX, camZ); L.cx = tgt[0]; L.cz = tgt[1]; L.valid = true; if (L.l > redo) L.H.set(c.H[L.l]); else genHeights(L, L.cx - 128, L.cx + 127, L.cz - 128, L.cz + 127); }
+    for (const L of T.levels) {
+      if (L.l <= redo) { uploadRect(L, L.cx - 128, L.cx + 127, L.cz - 128, L.cz + 127); continue; }
+      gfx.updateTexture(L.hTex, 0, 0, N, N, c.H[L.l]); gfx.updateTexture(L.nTex, 0, 0, N, N, c.N[L.l]); gfx.updateTexture(L.sTex, 0, 0, N, N, c.S[L.l]);
+    }
+    T.fromCache = T.LEVELS - 1 - redo; T.lastGen = N * N * T.LEVELS;
+    return true;
+  }
+  async function fill(camX, camZ, c) {
+    const t0 = performance.now();
+    if (c && fromCache(camX, camZ, c)) { T.fillMs = ['cache', T.fromCache, Math.round(performance.now() - t0)]; return; }
+    T.fromCache = 0;
     if (!Par.ok || !T.preP) { T.update(camX, camZ, true); return; }
-    const t0 = performance.now(); await T.preP; const t1 = performance.now();
+    await T.preP; const t1 = performance.now();
     dropQueue();
     for (const L of T.levels) { target(L, camX, camZ); L.cx = tgt[0]; L.cz = tgt[1]; L.valid = true; fillFromPre(L); }
     pre = null; T.preP = null;
@@ -365,6 +401,20 @@ const Terrain = (() => {
     T.fillMs = [Math.round(t1 - t0), Math.round(t2 - t1), Math.round(performance.now() - t2)];
     T.lastGen = N * N * T.LEVELS;
     if (T.check) T.check = checkFill(done);
+  }
+  // (dev, ?cachecheck: every level that came from the cache, made again here and compared number for number)
+  T.checkCache = function (c) {
+    let bad = 0, n = 0; const keep = gfx, diff = (a, b) => { for (let i = 0; i < a.length; i++) { n++; if (a[i] !== b[i] && !(a[i] !== a[i] && b[i] !== b[i])) bad++; } };
+    for (const L of T.levels) {
+      if (L.l < T.LEVELS - T.fromCache) continue;
+      const H0 = L.H.slice(); genHeights(L, L.cx - 128, L.cx + 127, L.cz - 128, L.cz + 127); diff(L.H, c.H[L.l]); L.H.set(H0);
+      const o = { n: new Uint16Array(N * N * 4), s: new Uint16Array(N * N * 4) };
+      gfx = { updateTexture(t, x, y, w, h, d) { if (t === 'h') return; for (let r = 0; r < h; r++) o[t].set(d.subarray(r * w * 4, (r + 1) * w * 4), ((y + r) * N + x) * 4); } };
+      const tex = [L.hTex, L.nTex, L.sTex]; L.hTex = 'h'; L.nTex = 'n'; L.sTex = 's';
+      try { uploadRect(L, L.cx - 128, L.cx + 127, L.cz - 128, L.cz + 127); } finally { gfx = keep; [L.hTex, L.nTex, L.sTex] = tex; }
+      diff(o.n, c.N[L.l]); diff(o.s, c.S[L.l]);
+    }
+    return { levels: T.fromCache, n, bad };
   };
   // (dev, ?parcheck: make the whole fill again here on the page and compare it number for number with what the threads made)
   function checkFill(done) {
