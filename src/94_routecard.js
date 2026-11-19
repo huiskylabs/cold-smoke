@@ -14,7 +14,7 @@
 // RouteCard.draw(canvas, data, style) draws onto a canvas of any size (laid out for 16:9). data:
 //   track [[x, s, y, speed, air], ...] every 0.1 s from 出发 (s = metres down the course, x across, y height), rings [{ s, x, y, pass }],
 //   segs [{ s0, len, type }], names ['1 开阔大坡', ...], H(x, s) the height of the mountain, line '越野线', diff '标准', mountain '寒烟山',
-//   score, t, pen (s per missed ring), date (ms), seed (a number: the player and the moment)
+//   score (= t − ring bonus), t, bonus (s per ring passed), date (ms), seed (a number: the player and the moment)
 const RouteCard = self.RouteCard = (() => {
   const RC = {};
   const SONG = '"Noto Serif SC","Songti SC","STSong","Source Han Serif SC","Noto Serif CJK SC",serif';
@@ -402,7 +402,7 @@ const RouteCard = self.RouteCard = (() => {
     g.fillStyle = GREY; g.font = '400 ' + 17 * u * (PT ? 1.2 : 1) + 'px ' + SONG; spaced(g, d.diff + ' · ' + d.mountain, at2('diff', 0), at2('diff', 1), 0.3 * 17 * u);
     g.fillStyle = RED; g.fillRect(at2('rule', 0), at2('rule', 1), 34 * u, 3 * u);
     g.fillStyle = INK; g.font = '300 ' + at2('time', 2) + 'px ' + LAT; g.fillText(fmt(d.score), at2('time', 0), at2('time', 1));
-    const pen = d.score - d.t; if (pen > 0.01) { g.fillStyle = GREY; g.font = '400 ' + 13 * u * (PT ? 1.25 : 1) + 'px ' + SONG; spaced(g, '用时 ' + fmt(d.t) + '  罚时 +' + pen.toFixed(0) + ' 秒', at2('pen', 0), at2('pen', 1), 0.1 * 13 * u); }
+    const bon = d.t - d.score; if (bon > 0.01) { g.fillStyle = GREY; g.font = '400 ' + 13 * u * (PT ? 1.25 : 1) + 'px ' + SONG; spaced(g, '用时 ' + fmt(d.t) + '  光圈奖励 −' + (+bon.toFixed(1)) + ' 秒', at2('pen', 0), at2('pen', 1), 0.1 * 13 * u); }   // (rings 2026-11-19: score = time − ring bonus, no more penalty)
     // who skied it and where it stands (小红书: the player's nickname from the boards, later the login; the place on this line's board)
     { const who = d.player || '雪友', rk = d.rank != null ? (typeof d.rank === 'number' ? '第 ' + d.rank + ' 名' : String(d.rank)) : '', fs = at2('who', 2);
       g.fillStyle = INK; g.font = '400 ' + fs + 'px ' + SONG; const ex = spaced(g, who, at2('who', 0), at2('who', 1), 0.12 * fs);
@@ -516,7 +516,7 @@ const RouteCard = self.RouteCard = (() => {
     };
     setTimeout(step, 400);          // (after the finish's own burst and the card sliding in)
     // who and the place: the board answers a moment after the finish (92_rings.js submits the time first)
-    if (typeof Rank !== 'undefined' && Rank.me && Rank.on && Rank.chalBoard && o.diff === 'b') {
+    if (typeof Rank !== 'undefined' && Rank.me && Rank.on && Rank.chalBoard) {   // all three difficulties share one board since 2026-11-19
       const m = C.mountainBySeed && C.mountainBySeed(), b = m ? Rank.chalBoard(m.id, o.line) : 0;
       if (b) setTimeout(() => Rank.me(b).then(w => { if (!w || RCg.data !== d) return; if (w.nick) d.player = w.nick; if (w.rank != null) d.rank = w.rank; if (RCg.el && RCg.el.classList.contains('on')) paint(); }).catch(() => { }), 2500);
     }

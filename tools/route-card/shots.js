@@ -12,7 +12,7 @@ fs.mkdirSync(outDir, { recursive: true });
   const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   await pg.setContent('<!doctype html><meta charset="utf-8"><body style="margin:0;background:#000"></body>');
   await pg.addScriptTag({ path: path.resolve(__dirname, '../../src/94_routecard.js') });
-  const r = ride.diffs[diff], DN = { a: '轻松', b: '标准', c: '难' }, PEN = { a: 2, b: 4, c: 5 };
+  const r = ride.diffs[diff], DN = { a: '轻松', b: '标准', c: '难' }, PEN = { a: 1.5, b: 1.5, c: 1.5 };
   for (const st of styles) {
     const t0 = Date.now();
     const url = await pg.evaluate(([r, line, dn, pen, st, scale]) => {
@@ -25,9 +25,9 @@ fs.mkdirSync(outDir, { recursive: true });
       const TG = r.tgrid, tv = (i, j) => { const row = TG.D[j]; return row && row[i] != null ? row[i] / 100 : 0; };
       // the forest density, bilinear between its 8 m cells (so its edges are smooth shapes, not squares)
       const T = TG ? (x, s) => { const fi = (x - TG.x0) / TG.step, fj = (s - TG.s0) / TG.step, i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j; return (tv(i, j) * (1 - u) + tv(i + 1, j) * u) * (1 - v) + (tv(i, j + 1) * (1 - u) + tv(i + 1, j + 1) * u) * v; } : null;
-      const missed = r.rings.filter(q => !q.fin && !q.pass).length;
+      const passed = r.rings.filter(q => !q.fin && q.pass).length;   // (2026-11-19: each ring passed takes `pen` seconds off, no more penalty)
       const d = { track: r.track, rings: r.rings.filter(q => !q.fin), segs: r.segs, names: r.names, H, cx, trees: r.trees, T, split: r.split, player: '雪友', rank: 12, line, diff: dn, mountain: '寒烟山',
-        score: r.tEnd + missed * pen, t: r.tEnd, pen, date: Date.UTC(2026, 10, 18, 22, 47), seed: 20261118 };
+        score: Math.max(0, r.tEnd - passed * pen), t: r.tEnd, bonus: pen, date: Date.UTC(2026, 10, 18, 22, 47), seed: 20261118 };
       const cv = document.createElement('canvas'); const PT = st.endsWith('v'); st = PT ? st.slice(0, -1) : st; cv.width = (PT ? 1200 : 1600) * scale; cv.height = (PT ? 1600 : 900) * scale;
       RouteCard.draw(cv, d, st); return cv.toDataURL('image/png');
     }, [r, ride.line === 'x' ? '越野线' : '速降线', DN[diff], PEN[diff], st, scale]);
