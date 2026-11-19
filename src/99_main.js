@@ -77,7 +77,7 @@ async function boot(stage) {
   const own = async () => {
     await step(0.36, '立起天空');
     Render.init(gfx, canvas); Sky.init(gfx); Terrain.init(gfx); Post.init(gfx);
-    const skier = () => Skier.init(gfx), trees = () => { const t0 = performance.now(); Trees.init(gfx); Gates.init(gfx); if (DEV) console.log('trees', Math.round(performance.now() - t0) + 'ms', 'build ' + Math.round(TreeModel.buildMs) + 'ms', Math.round(Trees.stats.tris) + ' tris'); };
+    const skier = () => Skier.init(gfx), trees = () => { const t0 = performance.now(); Trees.init(gfx, hit && hit.trees, !!got); if (got) { got.trees = Trees.meshData; Trees.meshData = null; } Gates.init(gfx); if (DEV) console.log('trees', Math.round(performance.now() - t0) + 'ms', 'build ' + Math.round(TreeModel.buildMs) + 'ms', Math.round(Trees.stats.tris) + ' tris'); };
     // (with the threads the skier is being carved in one of them: the trees are planted first, and the body is taken in after)
     if (pre.skier) { await step(0.44, '种树'); trees(); Skier.adopt(await pre.skier); skier(); }
     else { skier(); if (!lazy) { await step(0.40, '林子里有鹿'); makeDeer(gfx); } await step(0.44, '种树'); trees(); }
@@ -134,7 +134,7 @@ async function boot(stage) {
   if (DEV && QS.has('cachecheck') && hit) {
     const same = (a, b) => { let bad = 0; if (!a || !b || a.length !== b.length) return -1; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) bad++; return bad; };
     const N0 = noiseData(), S0 = snowData(Sky.az), F0 = Vista.farBuild(farW), K0 = Skier.freshMesh(), K1 = Skier.mesh;
-    console.log('cachecheck tex', JSON.stringify({ skierAdopted: K1 === hit.skier, V: same(K0.V, hit.skier.V), W: same(K0.W, hit.skier.W), I: same(K0.I, hit.skier.I), noise: same(N0.noise, hit.noise.noise), detail: same(N0.detail, hit.noise.detail), snow: same(S0.snow, hit.snow.snow), fine: same(S0.fine, hit.snow.fine), farA: same(F0.A, hit.far.A), farB: same(F0.B, hit.far.B), city: hit.city ? Vista.cityCheck(hit.city) : null }));
+    console.log('cachecheck tex', JSON.stringify({ skierAdopted: K1 === hit.skier, V: same(K0.V, hit.skier.V), W: same(K0.W, hit.skier.W), I: same(K0.I, hit.skier.I), noise: same(N0.noise, hit.noise.noise), detail: same(N0.detail, hit.noise.detail), snow: same(S0.snow, hit.snow.snow), fine: same(S0.fine, hit.snow.fine), farA: same(F0.A, hit.far.A), farB: same(F0.B, hit.far.B), city: hit.city ? Vista.cityCheck(hit.city) : null, trees: hit.trees ? TreeModel.check(hit.trees) : null }));
   }
   if (!lazy) Par.stop();
   // the first picture bakes the nebula and the trees: do it while the loading page still covers the canvas

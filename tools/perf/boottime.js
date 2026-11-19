@@ -8,7 +8,10 @@ const out = path.join(__dirname, 'tmp/dev-boot.html');
 let html = fs.readFileSync(src, 'utf8');
 const rep = (a, b) => { if (!html.includes(a)) throw new Error('not found: ' + a.slice(0, 60)); html = html.replace(a, b); };
 rep('<script>\n(() => {', '<script>self.__bt=[["js-start",performance.now()]];\n(() => {');
-if (html.includes('App.bootT = [];')) {          // (the game keeps its own stage times since 2026-11-19: App.bootT)
+const squeezed = !html.includes('App.bootT = [];') && /App\.bootT\s*=\s*\[\]/.test(html);
+if (squeezed) {          // (dist/index.html, the squeezed page: SRC=dist/index.html. Only the start stamp goes in; the stages are the game's own App.bootT)
+  html = '<!doctype html><html><head><meta charset="utf-8"></head><body>' + html + '</body></html>';
+} else if (html.includes('App.bootT = [];')) {          // (the game keeps its own stage times since 2026-11-19: App.bootT)
   rep('App.bootT = [];', 'App.bootT = self.__bt;');
   rep("App.ready = true; App.bootT.push(['ready', Math.round(performance.now())]);", "App.ready = true; App.bootT.push(['ready', performance.now()]); self.__info = { backend: gfx.caps.backend, tier: Quality.tier, gpu: Quality.gpu };");
   const late = html.includes('App.late = lazy ? bootLate(gfx) : saveBoot();') ? 'App.late = lazy ? bootLate(gfx) : saveBoot();' : 'App.late = lazy ? bootLate(gfx) : Promise.resolve();';
@@ -37,8 +40,14 @@ const srv = http.createServer((q, r) => { r.writeHead(200, { 'content-type': 'te
     const logs = []; pg.on('console', m => logs.push(m.text()));
     const t0 = Date.now();
     await pg.goto('http://localhost:' + port + '/?dev&' + qs, { waitUntil: 'commit' });
-    await pg.waitForFunction(() => self.__bt && self.__bt.some(e => e[0] === 'ready') || document.querySelector('#fatal:not([hidden])'), null, { timeout: 180000, polling: 50 });
-    await pg.waitForFunction(() => self.__bt.some(e => e[0] === 'later-done'), null, { timeout: 120000, polling: 50 }).catch(() => { });
+    if (squeezed) {
+      await pg.waitForFunction(() => (typeof App !== 'undefined' && App.ready && App.late) || document.querySelector('#fatal:not([hidden])'), null, { timeout: 180000, polling: 50 });
+      await pg.evaluate(() => Promise.resolve(App.late).then(() => new Promise(r => setTimeout(r, 50)))).catch(() => { });
+      await pg.evaluate(() => { self.__bt = self.__bt.concat(App.bootT.map(e => [e[0], e[1]])); self.__bt.push(['later-done', performance.now()]); self.__info = { backend: App.gfx.caps.backend, tier: Quality.tier, gpu: Quality.gpu }; });
+    } else {
+      await pg.waitForFunction(() => self.__bt && self.__bt.some(e => e[0] === 'ready') || document.querySelector('#fatal:not([hidden])'), null, { timeout: 180000, polling: 50 });
+      await pg.waitForFunction(() => self.__bt.some(e => e[0] === 'later-done'), null, { timeout: 120000, polling: 50 }).catch(() => { });
+    }
     const r = await pg.evaluate(() => ({ bt: self.__bt, b00: self.__bt00, nav: performance.getEntriesByType('navigation')[0].toJSON(), ...(self.__info || {}) }));
     console.log(`\n=== run ${run + 1}  backend=${r.backend} tier=${r.tier} gpu=${r.gpu}`);
     console.log(`html 开始解析 ${r.nav.responseEnd.toFixed(0)}ms  body 开头 ${r.b00.toFixed(0)}ms  脚本开始执行 ${r.bt[0][1].toFixed(0)}ms`);
