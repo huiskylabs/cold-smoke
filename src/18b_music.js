@@ -23,7 +23,7 @@ const Music = (() => {
   if (typeof Variants !== 'undefined') { Variants.def('mlevel', '音乐音量', [['a', '原来'], ['b', '大一点']], 'b'); Variants.def('tmusic', '标题页音乐', [['a', '没有'], ['b', '有']], 'a'); }
   const vOf = n => typeof Variants !== 'undefined' ? Variants.val[n] : null;
   MU.titleOn = () => vOf('tmusic') === 'b';
-  const MIX = { pad: 1.15, arp: 1.1, bass: 0.7, shim: 1.3, lead: 1.25, air: 1 };       // the layers against each other (set by measuring each one alone)
+  const MIX = { pad: 1.15, arp: 1.1, bass: 0.7, shim: 1.3, lead: 1.25, air: 1, ring: 1.35 };       // the layers against each other (set by measuring each one alone)
   // a chord: bass note and the note the bass moves to, four bed voices, six notes for the pulse (low to high), five for lead and shimmer.
   // The bed is voiced open: never two seconds side by side and no semitone low down (under snow and wind a cluster is only mud)
   const C = (b, alt, pad, arp, lead) => ({ b, alt, pad, arp, lead });
@@ -134,6 +134,11 @@ const Music = (() => {
     const arpB = bus('arp', 1, 0.3, 0.5), arpLP = biq('lowpass', 2200, 0.5); chain(arpLP, arpB); kr(arpLP.frequency); const arpV = [0, 1, 2, 3, 4].map(() => voice(arpLP));
     const shB = bus('shim', 0.7, 0.6, 0.6), shV = [0, 1, 2, 3].map(() => voice(shB)); shB.gain.value = 1;
     const ldB = bus('lead', 1, 0.5, 0.45), ldV = [0, 1].map(() => voice(ldB)); ldB.gain.value = 1;
+    // ---- 光圈 (用户 2026-11-18 22:58 UTC: 通过这个圈的话，音乐会根据这个来蹦一个音，好听，有一种反馈): through a ring the score answers
+    // with a struck glass note from the chord sounding at that moment (so it can never clash), an octave over the lead, with its fifth
+    // above it soft. Ring after ring through without a miss the notes climb the chord, a run going up; a miss starts the climb again
+    // from the bottom. Struck at once, not held for the beat (a reply that waits a sixteenth feels late); the echo puts it on the beat
+    const rgB = bus('ring', 1, 0.55, 0.45), rgV = [0, 1, 2, 3, 4, 5].map(() => voice(rgB)); rgB.gain.value = 1;
     // ---- bass: a triangle and its octave; a kick that is only a falling sine
     const basB = bus('bass', 1, 0, 0), bO = bend(osc('triangle', 73)), bO2 = bend(osc('sine', 146)), bG = gain(0), bLP = biq('lowpass', 260, 0.7); chain(bO, bLP, bG, basB); chain(bO2, gain(0.22), bG); kr(bO.frequency); kr(bO2.frequency);
     const bass = (t, m, v, long) => {
@@ -217,6 +222,15 @@ const Music = (() => {
       const full = T.full; T.fly = 0; T.d = 0; T.H = 0; T.full = false; if (!T.on || !full) return;
       T.bl = Math.max(0.25, sat(airT / 1.3) * (0.55 + 0.45 * sat(v / 7)));
       T.step = 0; T.bar = 0; T.abs = 0; T.chord = (T.chord + 1) & 3; T.pos = T.next = Math.ceil(T.pos); T.ph = null; say(t, 'land ' + T.bl.toFixed(2));
+    };
+    // through a ring: k how many in a row (0 the first), fin the finish ring (the whole chord, struck upward), side where it was (-1..1)
+    S.ring = function (t, k, fin, side) {
+      const ch = T.ch, L5 = ch.lead, pn = clamp(side || 0, -0.6, 0.6);
+      if (fin) { for (let i = 0; i < 5; i++) pluck(rgV[T.rg = ((T.rg || 0) + 1) % 6], t + 0.01 + i * 0.07, hz(L5[i] + 12), 0.34 - 0.03 * i, 2, 0.45, 0.7 + 0.1 * i, (i - 2) * 0.25, 0.003); pluck(rgV[T.rg = (T.rg + 1) % 6], t + 0.4, hz(L5[0] + 24), 0.22, 3.5, 0.3, 1.4, 0, 0.004); return; }
+      const n = k % 5, o = 12 * (1 + Math.min(1, Math.floor(k / 5)));
+      pluck(rgV[T.rg = ((T.rg || 0) + 1) % 6], t + 0.01, hz(L5[n] + o), 0.36, 2, 0.5, 0.55, pn, 0.003);
+      pluck(rgV[T.rg = (T.rg + 1) % 6], t + 0.03, hz(L5[n] + o + 7), 0.11, 3.5, 0.25, 0.8, -pn, 0.004);
+      say(t, 'ring ' + k);
     };
     // hitting a tree: the music flinches
     S.crash = function (t) { if (!T.on) return; T.hush = t + 0.8; T.wantP = Math.min(T.wantP, 1); T.wantB = 0; T.tierP = Math.min(T.tierP, 1); T.tierB = 0; T.tail = 0; set(h.arp, [0, 0.85][T.tierP] * T.kind.a, t, 0.1); bG.gain.setTargetAtTime(0, t, 0.08); set(h.kik, 0, t, 0.05); say(t, 'crash'); };

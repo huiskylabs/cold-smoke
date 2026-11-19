@@ -55,8 +55,9 @@ const Replay = self.Replay = (() => {
   // ---- recording: from the push-off (RG.hooks.go) to TAIL s past the finish (RG.hooks.finish)
   function begin(info) {
     if (R.on) stop(true);
+    if (R.rec && R.rec.sealed) R.last = R.rec;          // (the run before stays watchable while this one is recorded)
     const lay = layout(Object.entries(OBJ()));
-    R.rec = { info, lay, frames: [], rdt: [], gdt: [], ts: [], rt: [], runT: [], T: [], clock: [], ev: [], rings: new Map(), fin: null, t0: now(), endAt: Infinity, view: G.view };
+    R.rec = { seed: typeof Course !== 'undefined' ? Course.seed : 0, info, lay, frames: [], rdt: [], gdt: [], ts: [], rt: [], runT: [], T: [], clock: [], ev: [], rings: new Map(), fin: null, t0: now(), endAt: Infinity, view: G.view };
     R.recording = true; drawCard();
   }
   function finish(o) {
@@ -65,6 +66,9 @@ const Replay = self.Replay = (() => {
   }
   function record(dt) {
     const r = R.rec; if (!r || !R.recording) return;
+    // (用户 2026-11-18 23:32 UTC: 回放点了没反应) the pause menu and 拍照 hold the game (mode 'hold'): that is a pause, not a run given up.
+    // It used to throw the recording away, so after any pause on the way down 回放 had nothing to play. Now nothing is kept while held
+    if (G.mode === 'hold') return;
     if (G.mode !== 'run' && G.mode !== 'park') { if (!r.fin) { R.rec = null; R.recording = false; } else R.recording = false; return; }      // (the line given up, or the title: a run that did not finish is not kept)
     const buf = new Float64Array(r.lay.N); pack(r.lay, buf);
     r.frames.push(buf); r.rdt.push(App.dtReal || 1 / 60); r.gdt.push(r.lastDt || 1 / 60); r.ts.push(G.timeScale || 1);
@@ -75,13 +79,64 @@ const Replay = self.Replay = (() => {
   }
   // the run is over: what each ring became is copied out of the live objects, which the next run will throw away
   function seal() {
-    const r = R.rec; if (!r || r.sealed) return; r.sealed = true;
-    const keep = ['id', 's', 'u', 'x0', 'y0', 'ph', 'x', 'y', 'r', 'tag', 'air', 'fin', 'born', 'grow', 'pass', 'hit', 'splash'];
+    const r = R.rec; if (!r || r.sealed) return; r.sealed = true; R.last = r;
+    const keep = ['id', 's', 'u', 'x0', 'y0', 'ph', 'x', 'y', 'r', 'yaw', 'tag', 'air', 'fin', 'born', 'grow', 'pass', 'hit', 'splash'];          // (yaw: each ring faces the line through it, 92_rings.js aim())
     r.ringList = [...r.rings.values()].map(q => { const o = {}; for (const k of keep) o[k] = q[k]; if (o.x0 === undefined) { o.x0 = o.x; o.y0 = o.y; o.ph = (o.id * 2.39996) % 6.283; } return o; }).sort((a, b) => a.id - b.id);
     r.rings = null; r.dur = r.rt[r.rt.length - 1] || 0;
     tvPlan();
+    save(r);
   }
+  // ---- kept when the page is closed (用户 2026-11-18 23:45 UTC: 关掉页面以后还要能看的话，可以存在 localStorage 里面). The last finished run
+  // goes to localStorage (through Store where there is one, 小红书): about 10 frames a second (the replay eases between frames anyway),
+  // each number as 16 bits over its own range, the few that travel far (where the skier is) as 32-bit floats. A 7-minute run is about 1.5 MB
+  // of text, under the browser's 5 MB. The clocks are kept relative to the run's start (+1000 s, so none of them reads as 'not yet', -1).
+  // A build whose frame layout differs cannot read an old one and drops it
+  const KEY = 'coldsmoke.replay.last', META = ['rdt', 'gdt', 'ts', 'rt', 'runT', 'T', 'clock'];
+  const st = () => typeof Store !== 'undefined' && Store.getJSON ? Store : null;
+  const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+  const unb64 = s => { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; };
+  const laySig = lay => lay.L.map(f => f.o + '.' + f.k + ':' + f.t + f.n).join(',');
+  function save(r) {
+    try {
+      const n0 = r.frames.length; if (n0 < 31) return;
+      const step = Math.max(1, Math.round(n0 / Math.max(1, r.dur * 10))), idx = []; for (let i = 0; i < n0; i += step) idx.push(i); if (idx[idx.length - 1] !== n0 - 1) idx.push(n0 - 1);
+      const n = idx.length, N = r.lay.N, T0 = r.T[0] - 1000, lo = new Float64Array(N), hi = new Float64Array(N);
+      lo.fill(Infinity); hi.fill(-Infinity); for (const i of idx) { const F = r.frames[i]; for (let j = 0; j < N; j++) { const v = F[j]; if (v < lo[j]) lo[j] = v; if (v > hi[j]) hi[j] = v; } }
+      const wide = []; for (let j = 0; j < N; j++) if (!(hi[j] - lo[j] <= 60)) wide.push(j);
+      const isW = new Uint8Array(N); for (const j of wide) isW[j] = 1;
+      const q16 = new Uint16Array(n * (N - wide.length)), f32 = new Float32Array(n * wide.length);
+      let a = 0, c = 0; for (const i of idx) { const F = r.frames[i]; for (let j = 0; j < N; j++) { if (isW[j]) f32[c++] = F[j]; else q16[a++] = hi[j] > lo[j] ? Math.round((F[j] - lo[j]) / (hi[j] - lo[j]) * 65535) : 0; } }
+      const meta = {}; for (const k of META) { const m = new Float32Array(n); idx.forEach((i, u) => { m[u] = k === 'T' ? r.T[i] - T0 : r[k][i]; }); meta[k] = b64(new Uint8Array(m.buffer)); }
+      const ev = []; let ei = 0; idx.forEach((i, u) => { const e = []; for (; ei <= i; ei++) if (r.ev[ei]) e.push(...r.ev[ei]); if (e.length) ev.push([u, e]); });
+      const sh = x => x >= 0 ? x - T0 : x, rings = (r.ringList || []).map(q => Object.assign({}, q, { born: q.born - T0, grow: sh(q.grow), pass: sh(q.pass), splash: sh(q.splash) }));
+      const o = { v: 1, sig: laySig(r.lay), seed: r.seed, info: r.info, fin: r.fin, view: r.view, endAt: r.endAt, n, lo: [...lo].map(v => Number.isFinite(v) ? v : 0), hi: [...hi].map(v => Number.isFinite(v) ? v : 0), wide,
+        q16: b64(new Uint8Array(q16.buffer)), f32: b64(new Uint8Array(f32.buffer)), meta, ev, rings };
+      const S = st(), txt = JSON.stringify(o); R.savedBytes = txt.length;
+      if (S) { if (S.durable) S.durable(KEY); S.setJSON(KEY, o); } else { try { localStorage.setItem(KEY, txt); } catch (e) { localStorage.removeItem(KEY); console.warn('replay too big to keep', txt.length); } }
+    } catch (e) { console.warn('replay save', e); }
+  }
+  function load() {
+    try {
+      const S = st(); let o = null; if (S) { if (S.durable) S.durable(KEY); o = S.getJSON(KEY); } else o = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (!o || o.v !== 1) return null;
+      const lay = layout(Object.entries(OBJ())); if (laySig(lay) !== o.sig) return null;
+      const N = lay.N, n = o.n, isW = new Uint8Array(N); for (const j of o.wide) isW[j] = 1;
+      const q16 = new Uint16Array(unb64(o.q16).buffer), f32 = new Float32Array(unb64(o.f32).buffer), frames = [];
+      let a = 0, c = 0; for (let u = 0; u < n; u++) { const F = new Float64Array(N); for (let j = 0; j < N; j++) F[j] = isW[j] ? f32[c++] : o.lo[j] + q16[a++] / 65535 * (o.hi[j] - o.lo[j]); frames.push(F); }
+      const r = { seed: o.seed, info: o.info, lay, frames, fin: o.fin, view: o.view, endAt: o.endAt, ev: new Array(n).fill(null), ringList: o.rings, rings: null, sealed: true, loaded: true };
+      for (const k of META) r[k] = Array.from(new Float32Array(unb64(o.meta[k]).buffer));
+      for (const [u, e] of o.ev) r.ev[u] = e;
+      r.dur = r.rt[n - 1] || 0;
+      const keepRec = R.rec; R.rec = r; tvPlan(); R.rec = keepRec;
+      return r;
+    } catch (e) { console.warn('replay load', e); return null; }
+  }
+  R.save = save; R.load = load;          // (for tests)
   R.ready = () => !!(R.rec && R.rec.frames.length > 30 && (R.rec.sealed || R.rec.fin));
+  // (用户 2026-11-18 23:33 UTC: 应该可以存过去 1 场竞技赛的录像？在哪里看？) the last challenge run that reached the finish is kept (until the
+  // page is closed), whatever came after it, and can be watched from the pause menu (上一场回放) on the same mountain, skiing freely or on a line
+  R.hasLast = () => { if (!R.last && !R.triedLoad && (G.mode === 'run' || G.mode === 'park')) { R.triedLoad = true; R.last = load(); } return hasLast(); };
+  const hasLast = () => !!(R.last && R.last.sealed && R.last.frames.length > 30 && R.last.seed === (typeof Course !== 'undefined' ? Course.seed : 0));
 
   // ---- the rings as they stood at recorded moment Tr, their clocks moved to the replay's T (92_rings.js reads RG.rings and draws them)
   function ringsAt(Tr, T) {
@@ -92,7 +147,7 @@ const Replay = self.Replay = (() => {
       const at = t => t >= 0 && t <= Tr ? t + sh : -1, w = Tr * 6.283, p = q.ph;
       const passed = q.pass >= 0 && q.pass <= Tr, spl = at(q.splash);
       if (passed && !q.fin) { if (q.hit) pass++; else miss++; }
-      out.push({ id: q.id, s: q.s, u: q.u, r: q.r, tag: q.tag, air: q.air, fin: q.fin, x0: q.x0, y0: q.y0, ph: q.ph,
+      out.push({ id: q.id, s: q.s, u: q.u, r: q.r, yaw: q.yaw || 0, yawFix: true, tag: q.tag, air: q.air, fin: q.fin, x0: q.x0, y0: q.y0, ph: q.ph,
         x: q.x0 + 0.09 * Math.sin(w * 0.31 + p) + 0.04 * Math.sin(w * 0.73 + p * 2.1), y: q.y0 + 0.07 * Math.sin(w * 0.43 + p * 1.7) + 0.03 * Math.sin(w * 0.91 + p * 0.6),
         born: q.born + sh, grow: at(q.grow), pass: passed ? q.pass + sh : -1, splash: spl, hit: spl >= 0 ? q.hit : 0 });
     }
@@ -169,8 +224,12 @@ const Replay = self.Replay = (() => {
     while (hi - lo > 1) { const m = (lo + hi) >> 1; if (rt[m] <= t) lo = m; else hi = m; }
     return [lo, (t - rt[lo]) / Math.max(1e-6, rt[hi] - rt[lo])];
   }
-  R.start = function () {
-    if (R.on || !R.ready()) return false;
+  R.start = function (opt) {
+    if (R.on) return false;
+    // from the pause menu: the last finished run, the one being recorded (if any) set aside meanwhile and taken up again after
+    P.menu = !!(opt && opt.last); P.cur = null;
+    if (P.menu) { if (!R.hasLast()) return false; if (R.rec !== R.last) { P.cur = { rec: R.rec, recording: R.recording }; R.rec = R.last; R.recording = false; } }
+    else if (!R.ready()) return false;
     if (!R.rec.sealed) { R.recording = false; seal(); }
     const r = R.rec, rg = RG();
     // what to put back afterwards: the skier as it stands, the mode, the hour, the view, the rings
@@ -195,7 +254,9 @@ const Replay = self.Replay = (() => {
     G.events.length = 0;
     if (el) { el.root.classList.remove('on'); appEl().classList.remove('replay', 'rp-bare'); }
     snapCam();
-    if (!quiet && rg && rg.cardShow) rg.cardShow(true);
+    if (P.cur) { R.rec = P.cur.rec; R.recording = P.cur.recording; P.cur = null; }
+    if (!quiet && !P.menu && rg && rg.cardShow) rg.cardShow(true);
+    P.menu = false;
   }
   R.stop = () => stop(false);
   // the chase camera (07_game.js) and the views' rig (07b_views.js) start again where the skier now is, instead of swinging in from afar
@@ -216,6 +277,7 @@ const Replay = self.Replay = (() => {
   // root again after it has worked out its own from the state (07_game.js G.afterPose), so the lens and everything after see the run's
   const U0 = G.update;
   G.update = function (dt) {
+    try { menuBtn(); } catch (e) { }
     if (!R.on) { U0.call(this, dt); if (R.recording && R.rec) { R.rec.lastDt = dt; record(dt); } return; }
     R.guard(); if (!R.on) { U0.call(this, dt); return; }
     marksOnce();
@@ -235,6 +297,16 @@ const Replay = self.Replay = (() => {
   // (07_game.js calls this between the pose and the lens: the pose and the root are the run's, not what the update made of the state)
   G.afterPose = function () { if (!R.on || !R.pendingPose) return; const r = R.rec, [k, u] = frameAt(P.t); unpack(r.lay, r.frames[k], r.frames[k + 1], u); };
 
+  // the pause menu's 上一场回放 (under 拍照 / 挑战): shown while skiing when there is a finished run on this mountain to watch
+  let mBtn = null;
+  function menuBtn() {
+    if (typeof document === 'undefined') return;
+    if (!mBtn) { const ph = document.getElementById('m-chal') || document.getElementById('m-photo'); if (!ph || !ph.parentNode) return;
+      mBtn = document.createElement('button'); mBtn.type = 'button'; mBtn.id = 'm-replay'; mBtn.textContent = '上一场回放'; mBtn.hidden = true;
+      mBtn.addEventListener('click', e => { e.stopPropagation(); if (typeof UI !== 'undefined' && UI.menu) UI.menu(false); setTimeout(() => R.start({ last: true }), 60); });
+      ph.parentNode.insertBefore(mBtn, ph.nextSibling); }
+    const sh = !R.on && typeof UI !== 'undefined' && UI.state === 'run' && R.hasLast(); if (mBtn.hidden === sh) mBtn.hidden = !sh;
+  }
   // the rings: 92_rings.js calls this each frame of the replay (Game.mode 'replay'), T its own clock
   const hookRings = () => {
     const rg = RG(); if (!rg || rg._replayHooked) return !!rg;
@@ -246,6 +318,7 @@ const Replay = self.Replay = (() => {
     return true;
   };
   if (!hookRings() && typeof addEventListener !== 'undefined') addEventListener('load', hookRings);
+  
 
   // ---- what is on the screen: in the game's own look (template.html: --snow, --dim, --faint, --hair, --sun; Jost light for figures, the Song
   // serif for names, small spaced capitals for labels, dark glass on the picture, a hairline of amber as the accent), as the rings' card has it
@@ -352,11 +425,11 @@ const Replay = self.Replay = (() => {
   // each frame: the clock as it ran (penalties in it, as the run's own clock had them), the rings so far, a station's time as it is reached
   function hudFrame() {
     if (!el) return;
-    const r = R.rec, f = r.fin || {}, pen = f.missed > 0 ? (f.score - f.t) / f.missed : 0, c = R.ringCount || { pass: 0, miss: 0 };
+    const r = R.rec, f = r.fin || {}, bo = f.bonus || 0, pen = !bo && f.missed > 0 ? (f.score - f.t) / f.missed : 0, c = R.ringCount || { pass: 0, miss: 0 };          // (bo: the ring bonus, 2026-11-19; older recordings had a penalty)
     const done = G.runT >= (f.t || Infinity) - 1e-6;
-    const tm = done ? fmt(f.score) : fmt(G.runT + c.miss * pen);
+    const tm = done ? fmt(f.score) : fmt(Math.max(0, G.runT + c.miss * pen - c.pass * bo));
     const T = el.q('.tm'); if (T.textContent !== tm) T.textContent = tm; T.style.color = done ? 'var(--sun)' : '';
-    const sub = (f.name || '') + '　光圈 ' + c.pass + ' / ' + (c.pass + c.miss) + (c.miss ? '　罚时 +' + Math.round(c.miss * pen * 10) / 10 + ' 秒' : ''), sb = el.q('.sub'); if (sb.textContent !== sub) sb.textContent = sub;
+    const sub = (f.name || '') + '　光圈 ' + c.pass + ' / ' + (c.pass + c.miss) + (bo ? (c.pass ? '　奖励 −' + Math.round(c.pass * bo * 10) / 10 + ' 秒' : '') : c.miss ? '　罚时 +' + Math.round(c.miss * pen * 10) / 10 + ' 秒' : ''), sb = el.q('.sub'); if (sb.textContent !== sub) sb.textContent = sub;
     const sp = f.splits || [], nm = f.names || [];
     if (P.play && P.splitI < sp.length && G.runT >= sp[P.splitI]) {
       const i = P.splitI, d = sp[i] - (i ? sp[i - 1] : 0), e = el.q('.spl');
