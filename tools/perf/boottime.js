@@ -10,6 +10,7 @@ const rep = (a, b) => { if (!html.includes(a)) throw new Error('not found: ' + a
 rep('<script>\n(() => {', '<script>self.__bt=[["js-start",performance.now()]];\n(() => {');
 const squeezed = !html.includes('App.bootT = [];') && /App\.bootT\s*=\s*\[\]/.test(html);
 if (squeezed) {          // (dist/index.html, the squeezed page: SRC=dist/index.html. Only the start stamp goes in; the stages are the game's own App.bootT)
+  rep('App.bootT=[];', 'App.bootT=[];self.App=App;self.Quality=Quality;');          // (App and Quality live inside the page's own scope: handed out for the tool)
   html = '<!doctype html><html><head><meta charset="utf-8"></head><body>' + html + '</body></html>';
 } else if (html.includes('App.bootT = [];')) {          // (the game keeps its own stage times since 2026-11-19: App.bootT)
   rep('App.bootT = [];', 'App.bootT = self.__bt;');
