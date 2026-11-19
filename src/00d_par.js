@@ -10,38 +10,43 @@ const Par = (() => {
     // ---- inside the thread: the world as the page has it (the versions picked, the mountain, the sun), then each job as it comes
     self.onmessage = e => {
       const m = e.data; let res = null, err = null;
+      if (m.hi) { self.postMessage({ up: 1 }); return; }          // (the script has been read and run: ready for work)
       try { if (m.init) P.jobs.__init(m.init); if (m.job) res = P.jobs[m.job](m.a); } catch (x) { err = String((x && x.stack) || x); }
       const tr = []; collect(res, tr, 0); self.postMessage({ id: m.id, res, err }, tr);
     };
     return P;
   }
-  let src = null; try { const s = document.currentScript; if (s && !s.src) src = s.textContent; } catch (e) { }
+  // the script the page is running: its text where it sits in the page (the web), or its address (the 小红书 package's app.js)
+  let src = null, srcUrl = null; try { const s = document.currentScript; if (s && s.src) srcUrl = s.src; else if (s) src = s.textContent; } catch (e) { }
   const pool = [], queue = []; let seq = 0, url = null;
   function collect(o, out, d) {           // the buffers of the typed arrays in a result go across without a copy
     if (!o || typeof o !== 'object' || d > 3) return;
     if (ArrayBuffer.isView(o)) { if (!out.includes(o.buffer)) out.push(o.buffer); return; }
     for (const k in o) collect(o[k], out, d + 1);
   }
-  // (what the thread is missing of a page: enough for the script's own top level to run through without one. Nothing in the jobs uses it)
-  const PRELUDE = 'self.CS_WORKER=1;self.window=self;self.devicePixelRatio=1;self.innerWidth=844;self.innerHeight=390;self.matchMedia=()=>({matches:false,addEventListener(){},addListener(){}});' +
-    'self.requestAnimationFrame=f=>setTimeout(f,16);self.localStorage={getItem:()=>null,setItem(){},removeItem(){}};' +
-    'self.document=(()=>{const p=()=>new Proxy(function(){},{get:(t,k)=>k===Symbol.toPrimitive?()=>"":k==="length"?0:k==="then"?undefined:p(),apply:()=>p(),construct:()=>p()});return p();})();\n';
   // start n threads (each parses and runs the whole script once, ~0.1 s, while the page goes on with its own work)
   P.start = function (n, state) {
-    if (P.n || !src || typeof Worker === 'undefined' || typeof Blob === 'undefined' || typeof URL === 'undefined') return false;
-    try { url = URL.createObjectURL(new Blob([PRELUDE, src], { type: 'text/javascript' })); } catch (e) { return false; }
+    // (/*web{*/ … /*}web*/: the 小红书 小工具 forbids threads, tools/build-xhs.js; there the page makes everything itself)
+    /*web{*/
+    if (P.n || (!src && !srcUrl) || typeof Worker === 'undefined') return false;
+    if (src) { try { url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' })); } catch (e) { return false; } }
     for (let i = 0; i < n; i++) {
-      let w; try { w = new Worker(url); } catch (e) { break; }
-      const slot = { w, busy: null, init: state };
-      w.onmessage = e => done(slot, e.data);
+      let w; try { w = new Worker(url || srcUrl); } catch (e) { break; }
+      const slot = { w, busy: null, init: state, up: false };
+      w.onmessage = e => { if (e.data && e.data.up) { slot.up = true; clearTimeout(slot.t); pump(); } else done(slot, e.data); };
       w.onerror = e => { e.preventDefault && e.preventDefault(); fail(slot, 'worker error: ' + (e.message || '?')); };
+      // (a thread that has not read the script in 4 s, or never will: given up, and its work done on the page)
+      slot.t = setTimeout(() => { if (!slot.up) fail(slot, 'worker did not start'); }, 4000);
+      w.postMessage({ hi: 1 });
       pool.push(slot);
     }
     P.n = pool.length; P.ok = P.n > 0; return P.ok;
+    /*}web*/
+    return false;
   };
   function pump() {
     for (const s of pool) {
-      if (s.busy || !queue.length || s.dead) continue;
+      if (s.busy || !queue.length || s.dead || !s.up) continue;
       const j = queue.shift(); s.busy = j;
       const m = { id: j.id, job: j.job, a: j.a }; if (s.init) { m.init = s.init; s.init = null; }
       try { s.w.postMessage(m, j.tr || []); } catch (e) { fail(s, e.message); }
@@ -58,7 +63,7 @@ const Par = (() => {
     if (!P.ok) return Promise.reject(new Error('no workers'));
     return new Promise((go, no) => { queue.push({ id: ++seq, job, a, tr, go, no }); pump(); });
   };
-  P.stop = function () { for (const s of pool) try { s.w.terminate(); } catch (e) { } pool.length = 0; P.ok = false; P.n = 0; if (url) { try { URL.revokeObjectURL(url); } catch (e) { } url = null; } };
+  P.stop = function () { for (const s of pool) { clearTimeout(s.t); try { s.w.terminate(); } catch (e) { } } pool.length = 0; P.ok = false; P.n = 0; if (url) { try { URL.revokeObjectURL(url); } catch (e) { } url = null; } };
   P.idle = () => !queue.length && pool.every(s => !s.busy);
   return P;
 })();

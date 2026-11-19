@@ -584,6 +584,12 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 <script>
 (() => {
 "use strict";
+// (run as a background thread of the start-up, src/00d_par.js: no page here, so the little of one the script's own top level touches)
+if (typeof document === 'undefined' && typeof importScripts === 'function') {
+  const p = () => new Proxy(function () { }, { get: (t, k) => k === Symbol.toPrimitive ? () => '' : k === 'length' ? 0 : k === 'then' ? undefined : p(), apply: () => p(), construct: () => p() });
+  Object.assign(self, { CS_WORKER: 1, window: self, document: p(), devicePixelRatio: 1, innerWidth: 844, innerHeight: 390, requestAnimationFrame: f => setTimeout(f, 16),
+    matchMedia: () => ({ matches: false, addEventListener() { }, addListener() { } }), localStorage: { getItem: () => null, setItem() { }, removeItem() { } } });
+}
 // type: fetched without holding up the page; the system's own faces stand in until (or unless) it arrives. Where the page carries the faces
 // itself (build.js puts them in, as <style id="faces">) nothing is fetched
 (() => {
