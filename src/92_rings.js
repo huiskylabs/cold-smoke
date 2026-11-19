@@ -453,8 +453,16 @@ const Rings = (() => {
   // (用户 2026-11-18 06:51 UTC: 每张地图两条线，速降线沿主路，越野线钻树林、走奇怪的地方，为了 explore；前三站不要了)
   if (typeof Variants !== 'undefined') Variants.def('rline', '光圈路线', [['off', '关'], ['a', '速降线'], ['x', '越野线']], 'off');
   const LINES = { a: { n: 12, name: '速降线' }, x: { n: 12, name: '越野线' } };
-  const PEN = { a: 1.5, b: 2, c: 3 },          // (用户 2026-11-18 23:36 UTC 选 1.5 / 2 / 3: about twice what skipping a ring saves, measured 0.6-1.2 s; was 2 / 4 / 5)
+  // (用户 2026-11-19 00:23 UTC: 与其说罚时，不如每过一个圈减时间，像 bonus) each ring passed takes BON seconds off the clock; a ring missed
+  // simply earns nothing. Same stakes per ring as the penalty it replaces (用户 2026-11-18 23:36 UTC 选 1.5 / 2 / 3: about twice what
+  // skipping a ring saves, measured 0.6-1.2 s), shown as a reward
+  const BON = { a: 1.5, b: 1.5, c: 1.5 },          // (one value for all three: with 2 or 3 on 难, a clean run there would come out below zero)
   DNAME = { a: '轻松', b: '标准', c: '难' }, DNEXT = { a: 'b', b: 'c' };
+  // (用户 2026-11-19 00:18 UTC: 简单、中等、难都上同一个排行榜，简单的加一些时间，中等少加一些，难的不加，放到一起比) the board time is
+  // the run's score (time + missed rings) plus this, per line: how much slower the same skier is on 难 than on this difficulty, measured
+  // by riding each line at each difficulty with the same pilot at two skill levels (tools/ring-handicap.js)
+  const HC = { a: { a: 85, b: 65, c: 0 }, x: { a: 40, b: 5, c: 0 } };
+  const hcOf = (id, df) => (HC[id] && HC[id][df]) || 0;
   const L = { id: null, diff: null, st: 'idle', seed: 1, fin: false, sEnd: 0, segs: null, cut: [], names: [], split: [], ci: 0, pen: 0, missSeen: 0, cT: 0, lastF: 0, el: null, rec: null };
   const diffKey = () => (typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b';
   const fmt = t => { t = Math.max(0, t); const m = Math.floor(t / 60), r = t - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(2); };          // (用户 21:25 UTC: 计时精确到 2 位)
@@ -619,7 +627,7 @@ const Rings = (() => {
   function beep(f, d, g) {
     try { const A = Sound.ctx; if (!A || !Sound.on) return; const o = A.createOscillator(), v = A.createGain(), t = A.currentTime; o.type = 'sine'; o.frequency.value = f; v.gain.setValueAtTime(0, t); v.gain.linearRampToValueAtTime(g, t + 0.012); v.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(v); v.connect(A.destination); o.start(t); o.stop(t + d + 0.05); } catch (e) { }
   }
-  const recKey = () => 'coldsmoke.line.' + L.id + '.' + diffKey();
+  const recKey = () => 'coldsmoke.line2.' + L.id + '.' + diffKey();          // (line2: scores with the ring bonus, 2026-11-19; the old penalty bests stay under coldsmoke.line.)
   // (records go through Store where it is there (00d_store.js): in the Xiaohongshu container it keeps them when the page's own storage is not kept)
   const ST = () => typeof Store !== 'undefined' && Store.getJSON ? Store : null;
   function recLoad() { try { const S = ST(); if (S) { if (S.durable) S.durable(recKey()); return S.getJSON(recKey()) || null; } return JSON.parse(localStorage.getItem(recKey()) || 'null'); } catch (e) { return null; } }
@@ -697,14 +705,14 @@ const Rings = (() => {
   function lineFinish() {
     if (L.st !== 'go') return;
     L.st = 'done'; L.tEnd = Game.runT; L.split.push(L.tEnd); brake(true);
-    const p = PEN[L.diff] || 4, miss = RG.missed, score = L.tEnd + miss * p, tot = RG.passed + RG.missed;
+    const p = BON[L.diff] || 2, miss = RG.missed, bonus = +(RG.passed * p).toFixed(1), score = Math.max(0, L.tEnd - bonus), tot = RG.passed + RG.missed;
     const seg = L.split.map((t, i) => t - (i ? L.split[i - 1] : 0));
     const old = L.rec, best = old && old.best, segBest = old && old.seg || [];
     const isNew = !best || score < best.score - 1e-6;
     const rec = { best: isNew ? { score, t: L.tEnd, miss, tot, date: Date.now() } : best, seg: seg.map((d, i) => segBest[i] != null ? Math.min(segBest[i], d) : d), runs: ((old && old.runs) || 0) + 1 };
     recSave(rec);
     try { if (typeof Cards !== 'undefined' && Cards.emit) Cards.emit('ring.line', { line: L.id === 'x' ? 'cross' : 'speed', full: miss === 0, t: L.tEnd, missed: miss }); } catch (e) { }          // (集卡: the card system picks it up when it is there)
-    setTxt('tm', fmt(score)); L.q('tm').classList.add('fin'); setTxt('sub', '光圈 ' + RG.passed + ' / ' + tot + (miss ? ' · 罚时 +' + miss * p + ' 秒' : ' · 全部穿过'));
+    setTxt('tm', fmt(score)); L.q('tm').classList.add('fin'); setTxt('sub', '光圈 ' + RG.passed + ' / ' + tot + ' · 奖励 −' + bonus + ' 秒' + (miss ? '' : ' · 全部穿过'));
     const ban = L.q('ban'); ban.querySelector('b').textContent = fmt(score);
     ban.querySelector('i').textContent = isNew ? (best ? '新纪录！快了 ' + (best.score - score).toFixed(2) + ' 秒' : '第一次完成') : '比最好慢 ' + (score - best.score).toFixed(2) + ' 秒';
     ban.classList.add('on'); setTimeout(() => ban.classList.remove('on'), 1400);          // (gone before the card slides in)
@@ -716,13 +724,14 @@ const Rings = (() => {
     const fs = items => '<div class="fs">' + items.map(([v, k, c]) => '<div><b' + (c ? ' class="' + c + '"' : '') + '>' + v + '</b><span>' + k + '</span></div>').join('') + '</div>';
     L.q('card').innerHTML = '<h3><em>' + LINES[L.id].name + '</em>' + DNAME[L.diff] + '</h3><div class="big">' + fmt(score) + '</div><div class="rule"></div>'
       + '<div class="dl ' + (isNew ? 'g' : 'r') + '">' + (isNew ? (best ? '新纪录，快了 ' + (best.score - score).toFixed(2) + ' 秒' : '第一次完成，这就是你的纪录') : '比最好慢 ' + (score - best.score).toFixed(2) + ' 秒') + '</div>'
-      + fs([[fmt(L.tEnd), '用时'], [RG.passed + ' / ' + tot, '光圈'], [miss ? '+' + miss * p : '0', '罚时', miss ? 'r' : '']])
+      + fs([[fmt(L.tEnd), '用时'], [RG.passed + ' / ' + tot, '光圈'], ['−' + bonus, '光圈奖励（秒）', 'g']])
       + '<table><tr><th>分站</th><th>本局</th><th>之前最好</th><th></th></tr>' + rows.map((r, i) => '<tr' + (i === worst ? ' class="worst"' : '') + '><td>' + r.n + '</td><td>' + fmt(r.d) + '</td>' + td(r) + '</tr>').join('') + '</table>'
-      + '<div class="tip">' + [miss ? '漏了 ' + miss + ' 个圈，罚时 +' + miss * p + ' 秒' : '', worst >= 0 ? '最慢的一站：' + rows[worst].n + '，比最好慢 ' + wd.toFixed(2) + ' 秒' : ''].filter(Boolean).join('；') + '</div>'
+      + '<div class="tip">' + [miss ? '漏了 ' + miss + ' 个圈，少减 ' + +(miss * p).toFixed(1) + ' 秒' : '', worst >= 0 ? '最慢的一站：' + rows[worst].n + '，比最好慢 ' + wd.toFixed(2) + ' 秒' : ''].filter(Boolean).join('；') + '</div>'
       + fs([[fmt(rec.best.score), '个人最好'], ['…', '全部最好', 'gtop'], ['…', '排名', 'grank']])
+      + '<div class="tip">' + (hcOf(L.id, L.diff) ? '排行榜成绩 ' + fmt(score + hcOf(L.id, L.diff)) + '（' + DNAME[L.diff] + '加时 +' + hcOf(L.id, L.diff) + ' 秒，三档一起排）' : '排行榜成绩 ' + fmt(score) + '（难不加时，三档一起排）') + '</div>'
       + '<div class="bt"><button class="p" data-a="again">再来一局<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">增加难度</button>' : '') + '' + RG.cardButtons.map((b, i) => '<button data-cb="' + i + '">' + b.label + (b.key ? '<kbd>' + b.key + '</kbd>' : '') + '</button>').join('') + '<button data-a="free">继续滑<kbd>Esc</kbd></button></div>';
-    emit('finish', { line: L.id, name: LINES[L.id].name, diff: L.diff, score, t: L.tEnd, missed: miss, passed: RG.passed, splits: L.split.slice(), names: L.names.slice(), isNew });
-    board(score);
+    emit('finish', { line: L.id, name: LINES[L.id].name, diff: L.diff, score, t: L.tEnd, bonus: p, missed: miss, passed: RG.passed, splits: L.split.slice(), names: L.names.slice(), isNew });
+    board(score + hcOf(L.id, L.diff));
     clearTimeout(L.cardT); L.cardT = setTimeout(() => { if (L.st === 'done') L.q('card').classList.add('on'); }, 350);          // (用户 21:25 UTC: 停下来那一瞬间菜单就弹出来)
   }
   // the boards (小红书 only): the best of everyone and this player's place, filled in when they come back
@@ -792,18 +801,18 @@ const Rings = (() => {
       return;
     }
     if (L.st === 'go') {
-      const s = -G.s.p[2], p = PEN[L.diff] || 4;
+      const s = -G.s.p[2], p = BON[L.diff] || 2;
       if (RG.missed > L.missSeen) { L.missSeen = RG.missed; flash('pop', '+' + p, 900); beep(220, 0.22, 0.14); }
-      L.pen = RG.missed * p;
+      L.pen = -RG.passed * p;
       while (L.ci < L.cut.length - 1 && s >= L.cut[L.ci]) {
         const t = G.runT, d = t - (L.ci ? L.split[L.ci - 1] : 0), b = L.rec && L.rec.seg && L.rec.seg[L.ci];
         L.split.push(t);
         flash('spl', '<span class="k">' + (L.names[L.ci] || '') + '</span>　' + fmt(d) + (b != null ? '　<span class="' + (d <= b ? 'g' : 'r') + '">' + sgn(d - b) + '</span>' : ''), 2200);
         L.ci++;
       }
-      setTxt('tm', fmt(G.runT + L.pen));
+      setTxt('tm', fmt(Math.max(0, G.runT + L.pen)));
       const cur = RG.rings.find(r => r.pass < 0 && !r.skip);
-      setTxt('sub', '穿过 ' + RG.passed + (RG.missed ? ' · 漏 ' + RG.missed + ' · 罚时 +' + L.pen + ' 秒' : '') + (cur && cur.fin ? ' · 前方终点' : ''));
+      setTxt('sub', '穿过 ' + RG.passed + (RG.passed ? ' · 奖励 −' + +(-L.pen).toFixed(1) + ' 秒' : '') + (RG.missed ? ' · 漏 ' + RG.missed : '') + (cur && cur.fin ? ' · 前方终点' : ''));
     }
   }
   // ---- 挑战 on the title page (dev). (用户 21:31 UTC: 出发就是普通地滑；出发底下加一个「挑战」，点开以后再选路线这些.) 出发 and Enter are always
@@ -816,7 +825,7 @@ const Rings = (() => {
   const mapNow = () => { try { const m = Course.mountainBySeed(); return m ? m : null; } catch (e) { return null; } };
   const mapLines = () => { const m = mapNow(); return m && MAP_LINES[m.id] ? MAP_LINES[m.id] : []; };
   // the ranked line's board (小红书): the 标准 run of a map's ranked line only (用户 02:40 UTC: 每张地图一条长线上榜)
-  const boardOf = (id, df) => { const m = mapNow(); return m && df === 'b' && typeof Rank !== 'undefined' && Rank.chalBoard ? Rank.chalBoard(m.id, id) : 0; };
+  const boardOf = (id, df) => { const m = mapNow(); return m && typeof Rank !== 'undefined' && Rank.chalBoard ? Rank.chalBoard(m.id, id) : 0; };
   const RING_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5.6"/><path d="M10 1.8v1.6M10 16.6v1.6M1.8 10h1.6M16.6 10h1.6"/></svg>';
   function syncLine() { const lid = chalOn() && LINES[Variants.val.rline] ? Variants.val.rline : null; if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); } }
   function chalButton() {
@@ -867,7 +876,7 @@ const Rings = (() => {
     });
     return d;
   }
-  function bestOf(id, df) { try { const k = 'coldsmoke.line.' + id + '.' + df, S = ST(); const r = S ? S.getJSON(k) : JSON.parse(localStorage.getItem(k) || 'null'); return r && r.best ? r.best.score : null; } catch (e) { return null; } }
+  function bestOf(id, df) { try { const k = 'coldsmoke.line2.' + id + '.' + df, S = ST(); const r = S ? S.getJSON(k) : JSON.parse(localStorage.getItem(k) || 'null'); return r && r.best ? r.best.score : null; } catch (e) { return null; } }
   function pickDraw() {
     const d = pickUI(), df = diffKey(), ids = mapLines(), m = mapNow();
     if (!ids.includes(RG.pkSel)) RG.pkSel = ids.includes(Variants.val.rline) ? Variants.val.rline : ids[0];
@@ -876,7 +885,7 @@ const Rings = (() => {
     d.classList.toggle('none', !ids.length);
     d.querySelector('.l').innerHTML = !ids.length ? '<div class="no">这张地图还没有挑战。<br>回到寒烟山就有。</div>' : PICK.filter(p => ids.includes(p[0])).map(([id, n, t]) => {
       const b = bestOf(id, df), bd = boardOf(id, df);
-      return '<button data-l="' + id + '" class="' + (cur === id ? 'on' : '') + '"><b>' + n + (b != null ? '<em>最好 ' + fmt(b) + '</em>' : '') + '</b><i>' + t + (bd ? '<span class="rk" data-rk="' + id + '">排行榜 · 读取中…</span>' : df !== 'b' && boardOf(id, 'b') ? '<span class="rk">只有「标准」上排行榜</span>' : '') + '</i></button>';
+      return '<button data-l="' + id + '" class="' + (cur === id ? 'on' : '') + '"><b>' + n + (b != null ? '<em>最好 ' + fmt(b) + '</em>' : '') + '</b><i>' + t + (bd ? '<span class="rk" data-rk="' + id + '">排行榜 · 读取中…</span>' : '') + '</i></button>';
     }).join('');
     // the place and the best of everyone, for the ranked line (小红书 only; elsewhere the line just says 排行榜 in the 小红书 version)
     const sig = RG.pkSig = (RG.pkSig || 0) + 1;
@@ -886,7 +895,7 @@ const Rings = (() => {
       Rank.line(null, bd).then(r => { if (RG.pkSig !== sig || !sp.isConnected) return; sp.textContent = !r ? '排行榜暂时读不到' : (r.top != null ? '第一 ' + fmt(r.top) : '还没有人上榜') + (r.rank != null ? ' · 我 ' + (typeof r.rank === 'number' ? '第 ' + r.rank + ' 名' : r.rank) : ''); });
     }
     d.querySelector('.d').innerHTML = ['a', 'b', 'c'].map(k => '<button data-d="' + k + '" class="' + (df === k ? 'on' : '') + '">' + DNAME[k] + '</button>').join('');
-    d.querySelector('.t').textContent = '漏一个圈罚 ' + PEN[df] + ' 秒 · 开始后倒数 3、2、1 · 途中 Backspace 重来';
+    d.querySelector('.t').textContent =  '每穿过一个圈减 ' + BON[df] + ' 秒 · 排行榜三档一起排，' + (df === 'c' ? '难不加时' : DNAME[df] + '加时 ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => LINES[k].name + ' +' + hcOf(k, df) + ' 秒').join('、')) + ' · 开始后倒数 3、2、1 · 途中 Backspace 重来';
   }
   function pickOpen(on) {
     if (on && !(typeof UI !== 'undefined' && UI.state === 'title' && !UI.open)) return;
@@ -934,7 +943,7 @@ const Rings = (() => {
     if (typeof document !== 'undefined') try { pickFrame(); } catch (e) { if (!RG.perr) { RG.perr = 1; console.warn('pick:', e); } }
     const lid = typeof Variants !== 'undefined' && chalOn() && LINES[Variants.val.rline] ? Variants.val.rline : null;
     if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); }
-    const want = typeof Variants !== 'undefined' && chalOn() && ((Variants.val.rings === 'on' && devOn()) || !!L.id);
+    const want = typeof Variants !== 'undefined' && chalOn() && ((Variants.val.rings === 'on' && devOn()) || !!L.id || (typeof Game !== 'undefined' && Game.mode === 'replay'));          // (a replay watched while skiing freely (上一场回放) still draws its rings)
     if (want !== RG.on) { RG.on = want; reset(); hud(); }
     const T = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
     if (L.id && typeof document !== 'undefined') try { lineFrame(T); } catch (e) { if (!RG.lerr) { RG.lerr = 1; console.warn('line:', e); } }
