@@ -461,3 +461,103 @@ const RouteCard = self.RouteCard = (() => {
   };
   return RC;
 })();
+
+// ---------------------------------------------------------------- 路线卡 in the game: recorded on every challenge run, opened from the result card
+// (owner 2026-11-19 00:04 UTC: ok to the tall card in the game's colours.) While a challenge runs, every 0.1 s of the run's clock keeps where
+// the skier was, how fast, in the air or not; every ring met is kept by reference (what became of it is read at the finish). At the finish
+// the mountain round the line is sampled once into small grids (height every 10 m, forest every 8 m, ~0.1 M samples, done in slices so no
+// frame stalls), and the result card gets a 路线卡 button (key C): the tall 3:4 card over the dimmed game, with 保存图片 and 关闭 (Esc).
+// The player's name is the 小红书 nickname from the line's board (Rank.me), later the login; outside the container it is 雪友 and no place.
+(() => {
+  if (typeof window === 'undefined' || typeof Game === 'undefined') return;
+  const RG = window.__rings; if (!RG || !RG.hooks) return;
+  const G = Game, S = G.s;
+  const RCg = { rec: null, data: null, el: null, busy: false };
+  self.RouteCardGame = RCg;          // (for test scripts)
+
+  function begin(info) { RCg.rec = { info, track: [], rings: new Map(), nextT: 0, date: Date.now() }; RCg.data = null; }
+  function sample() {
+    const r = RCg.rec; if (!r || r.done || G.mode !== 'run') return;
+    if (G.runT + 1e-6 >= r.nextT) { r.nextT = G.runT + 0.1; r.track.push([S.p[0], -S.p[2], S.p[1], S.speed || 0, S.air ? 1 : 0]); }
+    if (RG.rings) for (const q of RG.rings) if (!q.skip && !r.rings.has(q.id)) r.rings.set(q.id, q);
+  }
+  const U0 = G.update;
+  G.update = function (dt) { U0.call(this, dt); try { sample(); } catch (e) { } };
+
+  // at the finish: the run's numbers, then the mountain round it, a slice per frame
+  function finish(o) {
+    const r = RCg.rec; if (!r || r.track.length < 20) { RCg.rec = null; return; }
+    r.done = true; sample();
+    const T = r.track, C = Course;
+    const rings = [...r.rings.values()].map(q => ({ s: q.s, x: q.x, y: q.y, pass: !!q.hit, fin: !!q.fin })).filter(q => !q.fin).sort((a, b) => a.s - b.s);
+    const segs = C.segs.filter(g => g.s0 <= T[T.length - 1][1] + 10).map(g => ({ s0: g.s0, len: g.len, type: g.type }));
+    let xa = 1e9, xb = -1e9; for (const p of T) { xa = Math.min(xa, p[0]); xb = Math.max(xb, p[0]); }
+    const sA = T[0][1] - 60, sB = T[T.length - 1][1] + 60;
+    const HG = { x0: Math.floor((xa - 420) / 10) * 10, s0: Math.floor(sA / 10) * 10, step: 10, rows: [] }, NX = Math.ceil((xb + 420 - HG.x0) / 10) + 1;
+    const TG = { x0: Math.floor((xa - 360) / 8) * 8, s0: Math.floor(sA / 8) * 8, step: 8, rows: [] }, TX = Math.ceil((xb + 360 - TG.x0) / 8) + 1;
+    const cx = []; for (let s = Math.max(0, sA); s <= sB; s += 10) { const c = C.at(s); cx.push([s, c.cx, c.hw]); }
+    const d = { track: T, rings, segs, names: o.names || [], cx, line: o.name || '', diff: ({ a: '轻松', b: '标准', c: '难' })[o.diff] || '', mountain: (C.mountainName && C.mountainName()) || '',
+      score: o.score, t: o.t, split: o.splits || [], date: r.date, seed: (Math.random() * 1e9) | 0, player: '雪友', rank: null, ready: false };
+    RCg.data = d; RCg.rec = null;
+    let js = HG.s0, jt = TG.s0;
+    const step = () => {
+      if (RCg.data !== d) return;
+      const t0 = performance.now();
+      while (performance.now() - t0 < 6 && (js <= sB || jt <= sB)) {
+        if (js <= sB) { const row = new Float32Array(NX); for (let i = 0; i < NX; i++) row[i] = C.height(HG.x0 + i * 10, -js, 4); HG.rows.push(row); js += 10; }
+        if (jt <= sB) { const row = new Uint8Array(TX); for (let i = 0; i < TX; i++) row[i] = Math.round(cl01(C.treeDensity(TG.x0 + i * 8, -jt)) * 100); TG.rows.push(row); jt += 8; }
+      }
+      if (js <= sB || jt <= sB) { setTimeout(step, 0); return; }
+      d.H = (x, s) => { const fi = (x - HG.x0) / 10, fj = (s - HG.s0) / 10; if (fi < 0 || fj < 0 || fi >= NX - 1 || fj >= HG.rows.length - 1) return null;
+        const i = fi | 0, j = fj | 0, u = fi - i, v = fj - j, A = HG.rows[j], B = HG.rows[j + 1]; return (A[i] * (1 - u) + A[i + 1] * u) * (1 - v) + (B[i] * (1 - u) + B[i + 1] * u) * v; };
+      const tv = (i, j) => { const row = TG.rows[j]; return row && i >= 0 && i < TX ? row[i] / 100 : 0; };
+      d.T = (x, s) => { const fi = (x - TG.x0) / 8, fj = (s - TG.s0) / 8, i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j; return (tv(i, j) * (1 - u) + tv(i + 1, j) * u) * (1 - v) + (tv(i, j + 1) * (1 - u) + tv(i + 1, j + 1) * u) * v; };
+      d.ready = true; if (RCg.el && RCg.el.classList.contains('on')) paint();
+    };
+    setTimeout(step, 400);          // (after the finish's own burst and the card sliding in)
+    // who and the place: the board answers a moment after the finish (92_rings.js submits the time first)
+    if (typeof Rank !== 'undefined' && Rank.me && Rank.on && Rank.chalBoard && o.diff === 'b') {
+      const m = C.mountainBySeed && C.mountainBySeed(), b = m ? Rank.chalBoard(m.id, o.line) : 0;
+      if (b) setTimeout(() => Rank.me(b).then(w => { if (!w || RCg.data !== d) return; if (w.nick) d.player = w.nick; if (w.rank != null) d.rank = w.rank; if (RCg.el && RCg.el.classList.contains('on')) paint(); }).catch(() => { }), 2500);
+    }
+  }
+  const cl01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+  RG.hooks.go.push(begin); RG.hooks.finish.push(finish);
+
+  // ---- the card over the game
+  function ui() {
+    if (RCg.el) return RCg.el;
+    const d = document.createElement('div'); d.id = 'rcard';
+    d.innerHTML = '<style>'
+      + '#rcard{position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;gap:clamp(12px,3vmin,24px);background:rgba(5,8,13,.62);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);pointer-events:auto}'
+      + '#rcard.on{display:flex}#rcard canvas{height:min(calc(100% - 32px),calc((100vw - 200px) * 4 / 3));aspect-ratio:3/4;border-radius:12px;box-shadow:0 18px 60px rgba(0,0,0,.5),inset 0 0 0 1px rgba(244,247,251,.22)}'
+      + '#rcard .side{display:flex;flex-direction:column;gap:8px;min-width:120px}#rcard .msg{font-family:var(--f-song);font-size:12px;letter-spacing:.14em;color:var(--dim);line-height:1.7;max-width:150px}'
+      + '#rcard button{appearance:none;-webkit-appearance:none;margin:0;border:0;height:38px;padding:0 16px;border-radius:12px;font-family:var(--f-ui);font-size:12px;letter-spacing:.14em;cursor:pointer;color:var(--dim);background:rgba(5,8,13,.25);box-shadow:inset 0 0 0 1px var(--hair)}'
+      + '#rcard button.p{color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun);font-family:var(--f-song);letter-spacing:.3em}#rcard kbd{margin-left:.5em;font-family:var(--f-lat);font-size:.85em;opacity:.6}'
+      + '</style><canvas width="1200" height="1600"></canvas><div class="side"><button class="p" data-a="save">保存图片</button><button data-a="close">关闭<kbd>Esc</kbd></button><div class="msg">截图或保存，发给朋友</div></div>';
+    (document.getElementById('app') || document.body).appendChild(d);
+    d.addEventListener('click', e => { const a = e.target && e.target.closest && e.target.closest('[data-a]'); if (!a) { if (e.target === d) close(); return; } if (a.dataset.a === 'save') save(); else close(); });
+    RCg.el = d; return d;
+  }
+  function paint() {
+    const d = RCg.data, cv = RCg.el.querySelector('canvas'), g = cv.getContext('2d'), msg = RCg.el.querySelector('.msg');
+    if (!d || !d.ready) { g.fillStyle = '#141c2b'; g.fillRect(0, 0, cv.width, cv.height); g.fillStyle = 'rgba(244,247,251,.62)'; g.font = '400 32px "Noto Serif SC","Songti SC",serif'; g.textAlign = 'center'; g.fillText('正在画这条线…', cv.width / 2, cv.height / 2); return; }
+    try { RouteCard.draw(cv, d, 'e'); msg.textContent = '截图或保存，发给朋友'; } catch (e) { console.warn('route card:', e); msg.textContent = '这张卡没画出来'; }
+  }
+  function open() { if (!RCg.data) return; ui().classList.add('on'); RG.cardShow(false); paint(); }
+  function close() { if (!RCg.el || !RCg.el.classList.contains('on')) return; RCg.el.classList.remove('on'); RG.cardShow(true); }
+  function save() {
+    const cv = RCg.el.querySelector('canvas'), d = RCg.data, name = '雪迹_' + (d ? d.line : '路线') + '_' + new Date().toISOString().slice(0, 10) + '.png';
+    try { cv.toBlob(b => { if (!b) return; const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); }, 'image/png'); }
+    catch (e) { RCg.el.querySelector('.msg').textContent = '这里存不了图，截图就好'; }
+  }
+  RCg.open = open; RCg.close = close;
+  RG.cardButtons.push({ label: '路线卡', key: 'C', on: open });
+  addEventListener('keydown', e => {
+    const on = RCg.el && RCg.el.classList.contains('on');
+    if (on && (e.code === 'Escape' || e.code === 'KeyC')) { e.preventDefault(); e.stopImmediatePropagation(); close(); return; }
+    if (!on && e.code === 'KeyC' && RG.line && RG.line.st === 'done' && RCg.data && !(G.mode === 'replay')) { e.preventDefault(); open(); }
+  }, true);
+  // a new run or the title: the card goes
+  RG.hooks.go.push(() => close());
+})();
