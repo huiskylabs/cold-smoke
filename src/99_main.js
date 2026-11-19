@@ -244,7 +244,7 @@ function fit() {
 // 60 frames a second come first. If this machine cannot hold them at full sharpness the picture is drawn a little smaller and stretched,
 // and it goes back up when there is room again. If even that is not enough, the Quality level steps down (00c_quality.js; only while it is
 // on 自动) and the picture starts again at full size for that level; after a long while with room to spare it may step back up, once
-const Gov = { on: QS.get('gov') !== '0' && !QS.get('w'), acc: 0, /*native{*/work: 0, /*}native*/n: 0, slow: 0, fast: 0, last: 0, downs: 0, t0: 0, calm: 0, js: 0, ownT: 0, ownN: 0, own: 0 };
+const Gov = { on: QS.get('gov') !== '0' && !QS.get('w'), probe: null, fixed: false, acc: 0, /*native{*/work: 0, /*}native*/n: 0, slow: 0, fast: 0, last: 0, downs: 0, t0: 0, calm: 0, js: 0, ownT: 0, ownN: 0, own: 0 };
 Variants.def('govjs', '自动清晰度', [['a', '看平均帧时间'], ['b', '不算脚本卡的帧']], 'b');
 function govern(now, raw) {
   const js = Gov.js; Gov.js = App.stepS || 0;                             // (the step before this one: what this frame waited on)
@@ -258,6 +258,7 @@ function govern(now, raw) {
   const n = Gov.n - Gov.ownN, own = Gov.ownN > n, avg = n > 0 ? (Gov.acc - Gov.ownT) / n : 0; Gov.acc = Gov.ownT = 0; Gov.n = Gov.ownN = 0;
   Gov.own = own ? Gov.own + 1 : 0; if (own) { Gov.slow = Gov.fast = Gov.calm = 0; return; }
   if (avg > 1 / 50) { Gov.slow++; Gov.fast = 0; } else if (avg < 1 / 57) { Gov.fast++; Gov.slow = 0; } else { Gov.slow = 0; Gov.fast = 0; }
+  if (Variants.val.qtier !== 'a') { govAct(avg, avg > 1 / 36, avg < 1 / 57, now, false); return; }
   const floor = Quality.L.floor;
   if (Gov.slow >= 2 && Render.scale > floor) { Render.scale = Math.max(floor, Render.scale * (avg > 1 / 36 ? 0.8 : 0.9)); Gov.slow = 0; Gov.downs++; Gov.last = now; fit(); }
   else if (Gov.slow >= 2 && Quality.step(1)) { Render.scale = 1; Gov.slow = 0; Gov.fast = 0; Gov.downs = 0; Gov.calm = 0; Gov.last = now; App.applyQuality(); }
@@ -265,6 +266,34 @@ function govern(now, raw) {
   // (a level back up: a full minute at full size, every second of it with room to spare, and only once a visit)
   if (avg < 1 / 57 && Render.scale >= 1) Gov.calm++; else Gov.calm = 0;
   if (Gov.calm >= 60 && Quality.ups < 1 && Quality.tier > 0 && now - Gov.last > 60000 && Quality.step(-1)) { Gov.calm = 0; Gov.fast = 0; Gov.last = now; App.applyQuality(); }
+}
+// (Variants 'qtier' b) what the governor does about it, in this order, once two seconds running were slow:
+//   1. light load (Quality.lite): fewer of the small things that fly about. Hard to see, and it takes off work that does not shrink with
+//      the picture, which on a phone is most of a frame
+//   2. the picture drawn a little smaller, as before. But each step is checked: if the next second is not at least 5% quicker, the
+//      device is held up by something the size of the picture does not touch, so the step is taken back (no blur for nothing) and
+//   3. a level down (with light load back to none: the new level has its own numbers)
+// and back the other way when there has been room to spare: the picture back to full size first, then light load off, then (once a
+// visit, after a full calm minute) a level up. w: the measure of this second (the frame time, or on the native player the GPU's own)
+function govAct(w, verySlow, fast, now, metal) {
+  if (Gov.probe && now - Gov.probe.t > 900) {
+    const p = Gov.probe; Gov.probe = null;
+    if (w > p.w * 0.95 && Gov.slow > 0) { Gov.fixed = true; Render.scale = p.from; fit(); Gov.slow = 2; }
+  }
+  const floor = Quality.floor();
+  if (Gov.slow >= 2) {
+    Gov.slow = 0; Gov.fast = 0; Gov.calm = 0; Gov.last = now;
+    if (Quality.auto() && Quality.setLite(Quality.lite + 1)) return;       // (read as things are drawn: nothing to apply)
+    if (Render.scale > floor && !Gov.fixed) { Gov.probe = { t: now, w, from: Render.scale }; Render.scale = Math.max(floor, Render.scale * (verySlow ? 0.8 : 0.9)); Gov.downs++; fit(); return; }
+    if (Quality.step(1)) { Render.scale = 1; Gov.downs = 0; Gov.fixed = false; Gov.probe = null; Quality.setLite(0); App.applyQuality(); }
+    return;
+  }
+  if (Gov.fast >= 12 && now - Gov.last > 20000) {
+    if (Render.scale < 1 && (metal || Gov.downs < 5)) { Render.scale = Math.min(1, Render.scale * 1.08); Gov.fast = 0; Gov.last = now; fit(); return; }
+    if (Quality.lite > 0 && Quality.setLite(Quality.lite - 1)) { Gov.fast = 0; Gov.last = now; return; }
+  }
+  if (fast && Render.scale >= 1 && Quality.lite === 0) Gov.calm++; else Gov.calm = 0;
+  if (Gov.calm >= 60 && Quality.ups < 1 && Quality.tier > 0 && now - Gov.last > 60000 && Quality.step(-1)) { Gov.calm = 0; Gov.fast = 0; Gov.fixed = false; Gov.last = now; App.applyQuality(); }
 }
 /*native{*/
 govern = function (now, raw, gpu) {
@@ -277,6 +306,7 @@ govern = function (now, raw, gpu) {
   const slow = metal ? work > 0.018 && avg > 1 / 50 : avg > 1 / 50;
   const fast = metal ? work < 0.011 : avg < 1 / 57;
   if (slow) { Gov.slow++; Gov.fast = 0; } else if (fast) { Gov.fast++; Gov.slow = 0; } else { Gov.slow = 0; Gov.fast = 0; }
+  if (Variants.val.qtier !== 'a') { govAct(work, work > 1 / 36, fast, now, metal); return; }
   const floor = Quality.L.floor;
   if (Gov.slow >= 2 && Render.scale > floor) { Render.scale = Math.max(floor, Render.scale * (work > 1 / 36 ? 0.8 : 0.9)); Gov.slow = 0; Gov.downs++; Gov.last = now; fit(); }
   else if (Gov.slow >= 2 && Quality.step(1)) { Render.scale = 1; Gov.slow = 0; Gov.fast = 0; Gov.downs = 0; Gov.calm = 0; Gov.last = now; App.applyQuality(); }
@@ -295,7 +325,7 @@ App.applyQuality = function (first) {
   if (App.ready && !QS.get('w')) fit();
   if (App.redraw) App.redraw();
 };
-Quality.on((t, from) => { if (from === 'pick') { Render.scale = 1; Gov.slow = Gov.fast = Gov.downs = Gov.calm = 0; } App.applyQuality(); });
+Quality.on((t, from) => { if (from === 'pick') { Render.scale = 1; Gov.slow = Gov.fast = Gov.downs = Gov.calm = 0; Gov.fixed = false; Gov.probe = null; Quality.setLite(0); } App.applyQuality(); });
 App.gov = Gov;
 // If WebGPU starts but the game cannot be built on it (a stricter shader compiler than the ones it was tested on, say), start again on WebGL2
 // rather than leave an error on a black page. Once per visit: the choice is kept for the tab, and in the address.

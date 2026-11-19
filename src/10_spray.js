@@ -135,7 +135,7 @@ const Spray = (() => {
   let ph = 0, gh = 0, liveP = null, liveG = null;                                   // ring heads
   const dirtyP = [], dirtyG = [];                        // [first, count] ranges written since the last upload
   let accP = 0, accG = 0;
-  const rnd = RNG(977);
+  const rnd = RNG(977), gRnd = RNG(4243);       // (gRnd: only which grains a lower Quality level leaves out, so the rest of the spray draws the same numbers)
   // Other modules that add to thrown snow (grains, clumps, marks left on the slope, wind) hear every emission here, synchronously, as it happens.
   // e = { kind: 'carve'|'skid'|'powder'|'land'|'sift'|'fall'|'pole', t, p:[x,y,z], v:[x,y,z] (mean throw velocity), spread (rad),
   //       rate (how much snow this step, 0..2), powder (0..1), r:[x,z] right axis, f:[x,z] forward axis }   (world space)
@@ -222,7 +222,10 @@ const Spray = (() => {
     mark(dirtyP, ph); ph = (ph + 1) % P.NP; liveP.put(); P.stats.puffs++;
   };
   // one crystal or crumb. f: 0 a crumb the size of a hazelnut (flies an arc, down in half a second) .. 1 a flake (rides the air of the sheet, sifts down)
+  // (a lower Quality level throws fewer of them, Quality.k('grain'): the ones it keeps a little brighter, so the sheet holds its light)
   P.grain = function (t0, px, py, pz, vx, vy, vz, f, power, lifeK, brake) {
+    const qg = typeof Quality !== 'undefined' ? Quality.k('grain') : 1;
+    if (qg < 1) { if (gRnd() > qg) return; power *= Math.min(1.6, 1 / Math.sqrt(qg)); }
     const o = Render.origin, i = gh * P.GF, c = grainCPU;
     c[i] = px - o[0]; c[i + 1] = py - o[1]; c[i + 2] = pz - o[2]; c[i + 3] = t0;
     c[i + 4] = vx; c[i + 5] = vy; c[i + 6] = vz; c[i + 7] = rnd();
