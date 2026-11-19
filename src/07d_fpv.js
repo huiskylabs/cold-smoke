@@ -279,6 +279,7 @@ const Fpv = (() => {
   // out: m to the side of the lens; dn: m below it; fw: m ahead; keep: how much of the figure's own motion is kept; reach: the most from shoulder to fist (m).
   const CARRY = F.CARRY = { out: 0.30, dn: 0.50, fw: 0.26, keep: 0.85, mean: 1.1, reach: 0.52 };
   if (typeof Variants !== 'undefined') Variants.def('fphand', '第一视角手位', [['a', '原来'], ['b', '手在面前']], 'b');
+  const LENSCUT = F.LENSCUT = [0.80, 1.00, 0, 0], YAWMAX = 0.6;
   const carryOn = () => typeof Variants === 'undefined' || Variants.val.fphand !== 'a';
   F.carryOn = carryOn;
   // the lens and the body's frame, in the figure's space (the camera is placed before the figure is posed: this frame's)
@@ -295,8 +296,18 @@ const Fpv = (() => {
     if (B) { fw = [Math.sin(B.yaw), 0, -Math.cos(B.yaw)]; const xh = [Math.cos(B.yaw), 0, Math.sin(B.yaw)], cr = Math.cos(B.roll), sr = Math.sin(B.roll); X = [xh[0] * cr, sr, xh[2] * cr]; U = [-xh[0] * sr, cr, -xh[2] * sr]; }
     else { fw = [-R[8], -R[9], -R[10]]; X = [R[0], R[1], R[2]]; U = [R[4], R[5], R[6]]; }
     const m = v => [v[0] * R[0] + v[1] * R[1] + v[2] * R[2], v[0] * R[4] + v[1] * R[5] + v[2] * R[6], v[0] * R[8] + v[1] * R[9] + v[2] * R[10]];
-    const Zm = m(fw);
-    return { C, X: m(X), U: m(U), Z: [-Zm[0], -Zm[1], -Zm[2]] };
+    const Zm = m(fw); let Xm = m(X), Um = m(U), Z = [-Zm[0], -Zm[1], -Zm[2]];
+    // (but the hands are held out in front of the chest, not the eyes: turned hard, a hockey stop, the skis and the body swing across under
+    // eyes that keep looking down the hill, and held off the eyes the hands were reached round across the body, an arm twisted through its
+    // sleeve. So the frame is turned back toward where the shoulders face, to within YAWMAX of it: the hands go round with the body)
+    const J = Skier.world.J;
+    if (J && J.shL && J.shR) {
+      const sx = J.shR[0] - J.shL[0], sz = J.shR[2] - J.shL[2], fa = Math.atan2(sz, sx) /* where the shoulders face, about +y: 0 = ahead (-z), + toward +x */, fe = Math.atan2(Zm[0], -Zm[2]);
+      let d = Math.atan2(Math.sin(fe - fa), Math.cos(fe - fa)); const ex = d - clamp(d, -YAWMAX, YAWMAX);
+      if (ex !== 0) { const c = Math.cos(-ex), sn = Math.sin(-ex), ry = v => [v[0] * c - v[2] * sn, v[1], v[0] * sn + v[2] * c]; Xm = ry(Xm); Um = ry(Um); Z = ry(Z); }
+      F.yawOff = ex;
+    }
+    return { C, X: Xm, U: Um, Z };
   }
   function carry(A, k, sg, G1, Sh, w, cf, dt) {
     if (!cf) return G1;
@@ -883,6 +894,13 @@ fn frag(v: VOut) -> FOut {
     F.vis = F.ready && !F.dead && fpc >= F.swap; PH.own = smooth(F.swap, 1, fpc);
     // the view of the ski tips: the arms are drawn until they are down behind the lens, the figure is left out once the lens has left the helmet
     F.arms = F.tk < 0.7 && !Game.fpIn; F.hideFig = F.vis && !board() && (F.tk > 0.25 || !!Game.fpIn);
+    // (from the lens in the head the figure's own head, neck, collar, pack and shoulders are a hand's breadth away: turned hard, the body swings
+    // round under the eyes and they came into the picture, coarse that close (they are modelled to be seen from five metres). The owner,
+    // 2026-11-18: never let the head and neck into the picture, only the hands and what is below. So all of the figure within LENSCUT of
+    // the lens is left out (08_skier.js); the hands and poles here, and the boots and skis further down, stay. Its shadow is still whole.
+    // First 0.52-0.72 m: in a hard turn the knee then came up to 0.73 m, the thigh filled the foot of the picture (tools/fpv/figview.js). Now
+    // 0.80-1.00 m: everything above the shins goes; the ankles are 1.07 m and more away, so the boots on the skis stay)
+    Skier.lensCut = F.vis && !board() && carryOn() && !F.hideFig ? LENSCUT : null;
     if (DBG) { if (DBG === 'noarms') F.arms = false; if (DBG === 'nofig') F.hideFig = F.vis; }      // (?fpdbg=noarms | nofig: to find what is drawn where, in tests)      // (or the figure turned away under the lens: Game.fpIn, 07b_views.js; then only the skis: these arms hang from its shoulders, which are then in front of the lens)
     // (the thrown snow is made to thin out before it reaches a lens: 10_spray.js, Spray.lens. Down among the skis the snow they push up is the
     // picture, so there it is let much nearer; the number is given back as it was found on the way out)
