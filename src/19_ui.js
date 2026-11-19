@@ -16,7 +16,7 @@ const UI = (() => {
       seg: $('seg'), segEn: $('seg-en'), segCn: $('seg-cn'), hint: $('hint'), hintT: $('hint-t'), spd: $('spd'), tach: $('tach'), drop: $('drop'), snd: $('snd'), fs: $('fs'),
       bar: $('bar'), mn: $('mn'), menu: $('menu'), nav: $('menu').querySelector('nav'), pane: $('mpane'), mk: $('m-k'), mGo: $('m-go'), mTop: $('m-top'), oSnd: $('o-snd'), oFs: $('o-fs'), oLang: $('o-lang'), oQ: $('o-q'),
       time: $('sw-time'), kinds: $('sw-seg'), ev: $('sw-ev'), view: $('sw-view'), seed: $('sw-seed'), skied: $('sw-skied'), more: $('more'), drop2: $('drop2'), vw: $('vw'),
-      say: $('say'), sayK: $('say-k'), sayV: $('say-v'), cut: $('cut'), jump: $('jump'), tuck: $('tuck'),
+      say: $('say'), sayK: $('say-k'), sayV: $('say-v'), cut: $('cut'), jump: $('jump'), tuck: $('tuck'), fwd: $('fwd'), aft: $('aft'),
       pause: $('pause'), pauseS: $('pause-s'), pauseT: $('pause-t'), steer: $('steer'), steerV: $('steer-v'), chg: $('chg'),
       clk: $('clock'), clkT: $('clk-t'), clkS: $('clk-s'), clkG: $('clk-g') };
     // developer mode (?dev, or a path ending in /dev; never in the 小红书 build). The time, the weather, the encounters and the versions
@@ -101,11 +101,14 @@ const UI = (() => {
       el.how.textContent = T(fa ? '← → 转弯 · 转弯时按 ↓ 压刃拐急 · ↑ 搓雪减速 · 空格 跳 · Shift 加速' : '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速');
       return;
     }
-    const steering = fa ? '按住屏幕，左右拖转弯，转弯时往下拖压刃拐急，往上拖搓雪减速' : framed ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
+    // (where the phone can steer: the page's tilt outside a frame, or the 小工具's gyroscope once it reports, Input.onTiltOn)
+    const tilt = !framed || Input.tiltLive();
+    const steering = fa ? (tilt && Variants.val.tilt === 'a' ? '倾斜手机转弯，转弯时按左边 ▲ 前压搓雪减速、▼ 后压压刃拐急；也可以按住屏幕拖' : '按住屏幕，左右拖转弯，转弯时往下拖压刃拐急，往上拖搓雪减速') : !tilt ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
     const actions = /*native{*/self.COLD_SMOKE?.nativeWindow ? '下方按钮起跳和加速' : /*}native*/'右下角 跳 / 加速';
     el.how.textContent = T(steering) + ' · ' + T(actions);
   }
-  if (typeof Variants !== 'undefined') Variants.on(n => { if (n === 'fa' && el) howText(); });
+  if (typeof Variants !== 'undefined') Variants.on(n => { if ((n === 'fa' || n === 'tilt') && el) howText(); });
+  Input.onTiltOn = () => { if (el) howText(); };
   // the gold of the interface: a, the start button and the picked chip filled amber (as delivered); b, a hairline of gold round dark glass, the
   // way the rest of the interface wears it (the clock's rule, the view cards). The owner: the identity is the thin gold line, filled gold looked bad
   if (typeof Variants !== 'undefined') Variants.def('gold', '金色按钮', [['a', '实心'], ['b', '细描边']], 'b');
@@ -154,11 +157,14 @@ const UI = (() => {
   function showHint(kind) {
     U.hintKind = kind; el.hint.className = kind + ' on';
     el.hintT.textContent = T(kind === 'tilt' ? '像握方向盘一样倾斜手机' : kind === 'drag' ? '按住屏幕，左右拖动' : kind === 'pace' ? '连着转弯，把雪扬起来'
+      : kind === 'fa2' ? '左边 ▲ 前压：转弯时搓雪减速 · ▼ 后压：转弯时压刃拐急'
       : kind === 'moves' ? (U.hh ? '按住「跳」蓄力，松开起跳' : faOn() ? '转弯时按住 ↓ 压刃拐急 · ↑ 搓雪减速 · 空格 跳' : '空格 跳（按住蓄力） · ↓ 加速') : '← →  或  A D  转弯');
   }
   // per displayed frame
   U.frame = function (dt) {
     if (!el) return;
+    // (the two buttons at the left, ▲ 前压 / ▼ 后压: only while the phone steers, where the left thumb is free; see Input.faButtons)
+    { const on = U.hh && Input.faButtons(); if (on !== !!U.faBtn) { U.faBtn = on; el.app.classList.toggle('tiltfa', on); if (!on) { Input.btn.fwd = Input.btn.aft = false; if (el.fwd) { el.fwd.classList.remove('down'); el.aft.classList.remove('down'); } } } }
     if (U.state !== 'load') { switches(dt); clockFrame(); }
     if (U.state !== 'run') return;
     const S = Game.s, since = (performance.now() - U.t0) / 1000;
@@ -166,8 +172,9 @@ const UI = (() => {
     if (!U.hintKind && since > 0.7) showHint(Input.tiltLive() ? 'tilt' : U.hh ? 'drag' : 'keys');
     // (once the first turns are made, an invitation: link them, and throw the snow up; and after that the two moves: the jump, and the
     // push or tuck that makes speed)
-    else if (U.hintKind === 'gap' || U.hintKind === 'gap2') { U.hintT += dt; if (U.hintT > 1.0) { showHint(U.hintKind === 'gap' ? 'pace' : 'moves'); U.hintT = 0; } }
-    else if (U.hintKind === 'pace' || U.hintKind === 'moves') { U.hintT += dt; if (U.hintT > 5.5) { el.hint.classList.remove('on'); U.hintKind = U.hintKind === 'pace' ? 'gap2' : 'done'; U.hintT = 0; } }
+    // (the phone steering with the two buttons at the left: first what they do, then the rest)
+    else if (U.hintKind === 'gap' || U.hintKind === 'gap2' || U.hintKind === 'gap4') { U.hintT += dt; if (U.hintT > 1.0) { showHint(U.hintKind === 'gap' ? (Input.faButtons() ? 'fa2' : 'pace') : U.hintKind === 'gap4' ? 'pace' : 'moves'); U.hintT = 0; } }
+    else if (U.hintKind === 'pace' || U.hintKind === 'moves' || U.hintKind === 'fa2') { U.hintT += dt; if (U.hintT > (U.hintKind === 'fa2' ? 6.5 : 5.5)) { el.hint.classList.remove('on'); U.hintKind = U.hintKind === 'pace' ? 'gap2' : U.hintKind === 'fa2' ? 'gap4' : 'done'; U.hintT = 0; } }
     else if (U.hintKind && U.hintKind !== 'done') {
       if (U.hintKind !== 'tilt' && Input.tiltLive() && !Input.used) showHint('tilt');
       if (Input.used) U.hintT += dt;
@@ -430,7 +437,7 @@ const UI = (() => {
     el.pane.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
     el.nav.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
     $('view').addEventListener('pointerdown', e => { gy.id = e.pointerId; gy.y = View.y(e); });
-    holdBtn(el.jump, 'jump'); holdBtn(el.tuck, 'tuck');
+    holdBtn(el.jump, 'jump'); holdBtn(el.tuck, 'tuck'); if (el.fwd) { holdBtn(el.fwd, 'fwd'); holdBtn(el.aft, 'aft'); }
     // the next view, under the thumb (a press here never reaches the picture, where it would steer)
     el.vw.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); });
     el.vw.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); U.nextView(1); });

@@ -301,6 +301,12 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
   pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; transition: background .12s ease, color .12s ease, transform .12s ease, box-shadow .12s ease; }
 #jump { right: calc(var(--gr) + 8px); bottom: calc(var(--gb) + 38px); width: 72px; height: 72px; font-size: 20px; }
 #tuck { right: calc(var(--gr) + 94px); bottom: calc(var(--gb) + 2px); width: 60px; height: 60px; font-size: 13px; letter-spacing: .12em; text-indent: .12em; }
+/* (the phone steering: the left thumb is free, so the weight forward and back sit there, ▲ over ▼ as on the keys. Shown only then, #app.tiltfa) */
+#pad .fab { left: calc(var(--gl) + 6px); width: 88px; height: 58px; border-radius: 16px; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+#pad .fab b { font-weight: 500; font-size: 16px; letter-spacing: .08em; } #pad .fab small { font-size: 11px; opacity: .8; letter-spacing: .04em; }
+#fwd { bottom: calc(var(--gb) + 72px); } #aft { bottom: calc(var(--gb) + 2px); }
+#app.tiltfa #pad .fab { display: flex; }
+#app.en #pad .fab b { font-size: 13px; letter-spacing: .02em; } #app.en #pad .fab small { font-size: 10px; letter-spacing: 0; }
 #pad button.down { background: rgba(255, 208, 138, .92); box-shadow: none; color: #1b1408; text-shadow: none; transform: scale(.95); }
 /* (held, the jump loads: the ring round it closes as the legs fold) */
 #jump::before { content: ""; position: absolute; inset: -6px; border-radius: 50%; background: conic-gradient(var(--sun) calc(var(--k, 0) * 1turn), rgba(244, 247, 251, 0) 0); opacity: 0; transition: opacity .2s ease;
@@ -498,7 +504,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
     <div id="day"><small class="k" id="day-k"></small><b class="t" id="day-t"></b><i class="rule"></i><div class="fs" id="day-f"></div><small class="rk" id="day-r"></small></div>
     <div id="chg" aria-hidden="true"></div>
     <div id="steer"><i class="l"></i><i class="v" id="steer-v"></i><i class="a"></i><i class="b"></i><i class="o"></i></div>
-    <div id="pad"><button id="vw" type="button" aria-label="换视角"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="6" width="11" height="9" rx="2"/><path d="M13.5 9l4-2.2v7.4l-4-2.2"/></svg></button><button id="tuck" type="button" aria-label="加速">加速</button><button id="jump" type="button" aria-label="跳">跳</button></div>
+    <div id="pad"><button id="vw" type="button" aria-label="换视角"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="6" width="11" height="9" rx="2"/><path d="M13.5 9l4-2.2v7.4l-4-2.2"/></svg></button><button id="tuck" type="button" aria-label="加速">加速</button><button id="jump" type="button" aria-label="跳">跳</button><button id="fwd" class="fab" type="button" aria-label="前压"><b>▲ 前压</b><small>搓雪减速</small></button><button id="aft" class="fab" type="button" aria-label="后压"><b>▼ 后压</b><small>压刃拐急</small></button></div>
   </section>
   <div id="bar">
     <button id="mn" type="button" aria-label="菜单" aria-expanded="false" aria-controls="menu"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12"/></svg></button>
@@ -553,7 +559,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
           <div class="keys"><b>V</b><span>换视角</span><b>M　F</b><span>静音 · 全屏</span><b>Esc　H</b><span>菜单 · 这一页</span></div>
           <div class="keys dev-only"><b>T　X</b><span>换时间 · 换天气</span><b>N</b><span>下一种路段</span><b>G　P</b><span>叫出动物 · 航班</span><b>R</b><span>换一座山</span><b>`</b><span>版本对比</span></div>
         </div>
-        <div class="keys hand-only"><b>按住拖动</b><span>左右拖动转弯，拖过刻度就切雪</span><b class="fa-only">上下拖动</b><span class="fa-only">转弯时往下拖压刃拐急，往上拖搓雪减速</span><b>跳</b><span>按住蓄力，松开起跳</span><b>加速</b><span>按住压低，慢的时候自动撑杖</span><b>机位</b><span>换视角</span><b>两指拖动</b><span>环顾四周</span></div>
+        <div class="keys hand-only"><b>按住拖动</b><span>左右拖动转弯，拖过刻度就切雪</span><b class="fa-only">上下拖动</b><span class="fa-only">转弯时往下拖压刃拐急，往上拖搓雪减速</span><b class="fa-only">倾斜手机</b><span class="fa-only">像方向盘一样左右倾转弯；这时左边出现两个按钮：▲ 前压，转弯时板尾甩出去搓雪减速；▼ 后压，转弯时压刃拐得更急</span><b>跳</b><span>按住蓄力，松开起跳</span><b>加速</b><span>按住压低，慢的时候自动撑杖</span><b>机位</b><span>换视角</span><b>两指拖动</b><span>环顾四周</span></div>
         <p class="note desk-only">Shift + 字母 往回切换。</p>
         <p class="note">暂停菜单里点「拍照」：时间全部停住，界面收起，自由移动镜头取景，再按快门存图。</p></section>
       <section data-sec="opt"><h4>SETTINGS · 设置<kbd>M</kbd><kbd>F</kbd></h4><div class="chips opts"><button type="button" id="o-snd" aria-pressed="true">声音 开</button><button type="button" id="o-fs" aria-pressed="false">全屏</button><button type="button" id="o-lang" lang="en">English</button><button type="button" id="o-q">画质 自动</button></div>
