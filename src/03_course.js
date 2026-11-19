@@ -70,6 +70,9 @@ if (typeof Variants !== 'undefined') {
   // 金色雪旗 above the tree line (owner 2026-11-18 03:56, with a photo of the Rockies above the trees: "两面是山…山上的云雾缭绕…没有树…很多石头
   // …有些石头裸露出来…大面积的白雪"): no trees, rock breaking through the walls, wide white snow, cloud wrapped round the mountains
   Variants.def('dalp', '高山 (金色雪旗)', [['a', '林海'], ['b', '林线以上：无树、多石、云雾']], 'b');
+  // 季节 (owner 2026-11-19 03:19 UTC, video snowboard-yixin-niceone: a spring day in the Rockies, the mountains dark with bare rock and
+  // conifer, the snow left in the hollows and on the shaded sides, the lower walls one dark forest). b is that; a stays deep winter
+  Variants.def('dsea', '季节 (金色雪旗)', [['a', '深冬'], ['b', '春雪']], 'a');
   // (defined here, not in 05_sky.js where it is used most: the terrain shader text in 04_terrain.js is put together when that file loads, and
   // read dlight as undefined, so the clear-day changes to the faces never reached them)
   Variants.def('dlight', '光 (金色雪旗)', [['a', '旧图的光（迎着太阳）'], ['b', '自己的光（金色、侧后光、无积云）'], ['c', '晴天（八海山视频：深蓝天、白雪、蓝影、云海）']], 'c');
@@ -880,12 +883,16 @@ const Course = ((vn1, vn2, h2U) => {
     if (d > 0 && typeof Metro !== 'undefined' && Metro.kind() === 'd') {
       if (Variants.val.start === 'b') d *= smooth(650, 1500, s + 220 * vnoise2(x / 240, z / 240, 27));
       // (the owner 2026-11-18: fewer trees: stands with open snow between them, not one unbroken wood)
-      if (au > c.hw + 4) d *= 0.35 + 0.65 * smooth(-0.05, 0.30, vnoise2(x / 150, z / 150, 33));
+      if (au > c.hw + 4 && !(Variants.val.dsea === 'b' && e > 140)) d *= 0.35 + 0.65 * smooth(-0.05, 0.30, vnoise2(x / 150, z / 150, 33));
       // (above the tree line: no trees up high; below it, a long way down, a thin scatter of spruce, never a wood. Owner 2026-11-18 03:57:
       // "上面就没有树…下面…林线以下稍微有点树，但是也比较稀")
       // (04:27, the owner again: with no trees at all it looks strange: trees along the runs after all, not dense, in stands of several
       // kinds, 14_trees.js dStand; still none on the bare cone at the very top)
-      if (Variants.val.dalp === 'b') d *= 0.62 * smooth(700, 1500, s + 300 * vnoise2(x / 260, z / 260, 34)) * smooth(-0.15, 0.25, vnoise2(x / 90, z / 90, 35));      // (round 20, against Okuhida C08: no spruce stands on a face too steep to hold snow; the walls had trees up their cliffs)
+      if (Variants.val.dalp === 'b') {
+        const sparse = 0.62 * smooth(700, 1500, s + 300 * vnoise2(x / 260, z / 260, 34)) * smooth(-0.15, 0.25, vnoise2(x / 90, z / 90, 35));
+        // (春雪: past the run's own edge the lower walls are one dark wood, as in the owner's video; the run keeps its sparse stands)
+        d *= Variants.val.dsea === 'b' ? lerp(sparse, 1.6, smooth(140, 320, e)) : sparse;
+      }      // (round 20, against Okuhida C08: no spruce stands on a face too steep to hold snow; the walls had trees up their cliffs)
       if (Variants.val.dalp === 'b' && d > 0.001 && e > 60) {
         const q = 6, gx = (C.height(x + q, z, 8) - C.height(x - q, z, 8)) / (2 * q), gz = (C.height(x, z + q, 8) - C.height(x, z - q, 8)) / (2 * q);
         d *= 1 - smooth(0.70, 1.05, Math.hypot(gx, gz));

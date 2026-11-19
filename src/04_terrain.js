@@ -738,6 +738,13 @@ fn frag(v: VOut) -> FOut {
       let ew2: f32 = 0.018 + dist * 0.00003;
       let bar: f32 = Nm.y + 0.85 * (0.5 - rib) + 0.12 * (0.5 - oc) + conc * 0.35 + shut;
       rock = smoothstep(0.60 + ew2, 0.60 - ew2, bar) * step(0.001, rgate);
+      if (${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b' && Variants.val.dsea === 'b') ? 'true' : 'false'}) {
+        // (春雪, the owner's video: late in the season the snow is gone from every rib, crest and sunny face steeper than ~20 degrees and
+        // lies on in the hollows, the gullies and the shaded sides, so a wall is dark with white filling its folds. conc: the hollow measure)
+        let sunF: f32 = dot(normalize(Nm.xz + vec2f(1e-5, 0.0)), normalize(L.xz + vec2f(1e-5, 0.0))) * saturate((1.0 - Nm.y) * 4.0);
+        let bar3: f32 = Nm.y + 0.50 * (0.5 - rib) + 0.25 * (0.5 - oc) + conc * 0.85 - 0.08 * sunF + shut * 0.5;
+        rock = smoothstep(0.93 + ew2, 0.93 - ew2, bar3) * saturate((mnt - 0.03) * 12.0) * (1.0 - smoothstep(0.04, 0.25, sm.w));
+      }
     } else { rock = rock * 0.45; }
   }
   let sdir0: vec2f = normalize(L.xz + vec2f(1e-4, 0.0)); let tanE0: f32 = L.y / max(length(L.xz), 1e-3);
@@ -1063,13 +1070,14 @@ fn frag(v: VOut) -> FOut {
     }
     var rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
     ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.06, 0.97, 0.92), 0.20); }' : ''}
+    ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b' && Variants.val.dsea === 'b') ? 'if (U.world.x > 2.5) { rc = rc * vec3f(0.55, 0.56, 0.60); lip = lip * 0.25; }' : ''}      // (春雪: dark wet rock, the frost gone; video rock ~ (55,52,55))
     col = mix(col, rc, rock * (1.0 - 0.9 * lip));
     ${typeof location !== 'undefined' && /dbgl/.test(location.search) ? 'col = vec3f(rock, lip, saturate(dist / 4000.0)) * 0.6;' : ''}      // (test renders: R bare rock, G snow on it, B distance)
   }
   // distant forest reads as a dark speckled carpet with long shadows
   // (金色雪旗 above the trees, round 3: the course's stands are drawn as real trees out to ~1.2 km; the carpet laid on top of them read as
   // salt-and-pepper grain over the rock and the snow. Stands this sparse need no carpet)
-  var fw: f32 = sm.w * ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'select(1.0, 0.0, U.world.x > 2.5)' : '1.0'};
+  var fw: f32 = sm.w * ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b' && Variants.val.dsea !== 'b') ? 'select(1.0, 0.0, U.world.x > 2.5)' : '1.0'};      // (春雪: the walls are wooded again, the carpet carries them past the drawn trees)
   // (金色雪旗: past the reach of the near trees the valley walls are wooded wherever they are not too steep to hold trees, up to a ragged
   // line high on them, with open avalanche tracks and rock bands between; a Rockies valley is never a bare snow wall)
   if (U.world.x > 2.5) {
