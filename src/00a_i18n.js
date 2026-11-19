@@ -33,7 +33,7 @@ const I18N = (() => {
     '右下角 跳 / 加速': 'Jump and Tuck at bottom right',
     '倾斜手机转弯，或按住屏幕左右拖动': 'Tilt the phone to turn, or hold and drag',
     '醒来': 'waking', '磨雪': 'grinding snow', '远山与城市': 'far ranges and the city', '立起天空': 'raising the sky', '林子里有鹿': 'deer in the woods',
-    '种树': 'planting trees', '点亮星云': 'lighting the nebula', '调音': 'tuning', '调光': 'setting the light', '铺雪': 'laying the snow', '第一缕光': 'first light',
+    '种树': 'planting trees', '点亮星云': 'lighting the nebula', '调音': 'tuning', '调光': 'setting the light', '铺雪': 'laying the snow', '第一缕光': 'first light', '启动用时': 'Start-up', '声音': 'sound',
     '这台设备的浏览器不支持 WebGL2，画面无法启动。': 'This browser does not support WebGL2, so the picture cannot start.',
     // ---- in a run
     '落差 M': 'DROP M', '落差': 'DROP', '距离 M': 'DISTANCE M', '距离 KM': 'DISTANCE KM', '极速 KM/H': 'TOP KM/H', '飞行 M': 'AIR M', '飞行 ': 'AIR ',

@@ -325,6 +325,8 @@ const Sound = (() => {
   };
 
   // ---- live use
+  // made once: at start-up, or (Variants 'bootlz' b, 99_main.js) once the title page is up, or by the first tap if that comes sooner
+  A.ensure = function () { if (A.inited) return; A.inited = true; A.init(); };
   A.init = function () {
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     try { A.ctx = new AC({ latencyHint: 'interactive' }); A.rig = A.build(A.ctx); } catch (e) { console.warn('audio unavailable', e); A.ctx = null; A.rig = null; return; }
@@ -339,7 +341,7 @@ const Sound = (() => {
   };
   // from a tap: browsers only let sound begin there
   A.unlock = function () {
-    if (!A.ctx) return; A.unlocked = true;
+    A.ensure(); if (!A.ctx) return; A.unlocked = true;
     try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { }
     if (A.ctx.state !== 'running') A.ctx.resume();
     A.rig.fade(A.on ? A.level : 0, A.ctx.currentTime, 0.5);
