@@ -17,7 +17,7 @@ const Rings = (() => {
   // (用户 2026-11-18 16:57 UTC: 一个可以分享给别人试玩的链接，只看得到挑战，看不到其他 dev 的东西，也没有版本对比) ?chal in the address: the 挑战
   // button, the two lines, the rings, the result card and the replay, with every other dev thing (场景, 今日之山, 版本对比, the switches) off
   const shareOn = () => { try { return !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && /[?&]chal(=|&|$)/.test(location.search); } catch (e) { return false; } };
-  const chalOn = () => devOn() || shareOn();
+  const chalOn = () => true;          // (用户 2026-11-19 00:39 UTC: 直接上线，不需要放到 dev 后面) the challenge is for everyone now, the 小红书 build too
   const devOn = () => { try { return !(self.COLD_SMOKE && self.COLD_SMOKE.noDev) && (/[?&]dev(=|&|$)/.test(location.search) || /\/dev\/?$/.test(location.pathname) || !!(self.COLD_SMOKE && self.COLD_SMOKE.dev)); } catch (e) { return false; } };
   const cl = (v, a, b) => Math.max(a, Math.min(b, v));
   const ease = x => 1 - Math.pow(1 - cl(x, 0, 1), 3);
@@ -463,6 +463,9 @@ const Rings = (() => {
   // by riding each line at each difficulty with the same pilot at two skill levels (tools/ring-handicap.js)
   const HC = { a: { a: 85, b: 65, c: 0 }, x: { a: 40, b: 5, c: 0 } };
   const hcOf = (id, df) => (HC[id] && HC[id][df]) || 0;
+  // (用户 2026-11-19 00:39-00:40 UTC: 电脑上玩存 localStorage，没有排名就不显示；小红书才加排名；网站以后能登录再排) nothing about the boards
+  // is shown where there are none: no 全部最好 / 排名, no handicap line, no 排行榜 note
+  const rankOn = () => typeof Rank !== 'undefined' && !!Rank.on && !!Rank.line;
   const L = { id: null, diff: null, st: 'idle', seed: 1, fin: false, sEnd: 0, segs: null, cut: [], names: [], split: [], ci: 0, pen: 0, missSeen: 0, cT: 0, lastF: 0, el: null, rec: null };
   const diffKey = () => (typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b';
   const fmt = t => { t = Math.max(0, t); const m = Math.floor(t / 60), r = t - m * 60; return m + ':' + (r < 10 ? '0' : '') + r.toFixed(2); };          // (用户 21:25 UTC: 计时精确到 2 位)
@@ -727,8 +730,8 @@ const Rings = (() => {
       + fs([[fmt(L.tEnd), '用时'], [RG.passed + ' / ' + tot, '光圈'], ['−' + bonus, '光圈奖励（秒）', 'g']])
       + '<table><tr><th>分站</th><th>本局</th><th>之前最好</th><th></th></tr>' + rows.map((r, i) => '<tr' + (i === worst ? ' class="worst"' : '') + '><td>' + r.n + '</td><td>' + fmt(r.d) + '</td>' + td(r) + '</tr>').join('') + '</table>'
       + '<div class="tip">' + [miss ? '漏了 ' + miss + ' 个圈，少减 ' + +(miss * p).toFixed(1) + ' 秒' : '', worst >= 0 ? '最慢的一站：' + rows[worst].n + '，比最好慢 ' + wd.toFixed(2) + ' 秒' : ''].filter(Boolean).join('；') + '</div>'
-      + fs([[fmt(rec.best.score), '个人最好'], ['…', '全部最好', 'gtop'], ['…', '排名', 'grank']])
-      + '<div class="tip">' + (hcOf(L.id, L.diff) ? '排行榜成绩 ' + fmt(score + hcOf(L.id, L.diff)) + '（' + DNAME[L.diff] + '加时 +' + hcOf(L.id, L.diff) + ' 秒，三档一起排）' : '排行榜成绩 ' + fmt(score) + '（难不加时，三档一起排）') + '</div>'
+      + (rankOn() ? fs([[fmt(rec.best.score), '个人最好'], ['…', '全部最好', 'gtop'], ['…', '排名', 'grank']])
+      + '<div class="tip">' + (hcOf(L.id, L.diff) ? '排行榜成绩 ' + fmt(score + hcOf(L.id, L.diff)) + '（' + DNAME[L.diff] + '加时 +' + hcOf(L.id, L.diff) + ' 秒，三档一起排）' : '排行榜成绩 ' + fmt(score) + '（难不加时，三档一起排）') + '</div>' : fs([[fmt(rec.best.score), '个人最好']]))
       + '<div class="bt"><button class="p" data-a="again">再来一局<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">增加难度</button>' : '') + '' + RG.cardButtons.map((b, i) => '<button data-cb="' + i + '">' + b.label + (b.key ? '<kbd>' + b.key + '</kbd>' : '') + '</button>').join('') + '<button data-a="free">继续滑<kbd>Esc</kbd></button></div>';
     emit('finish', { line: L.id, name: LINES[L.id].name, diff: L.diff, score, t: L.tEnd, bonus: p, missed: miss, passed: RG.passed, splits: L.split.slice(), names: L.names.slice(), isNew });
     board(score + hcOf(L.id, L.diff));
@@ -891,11 +894,11 @@ const Rings = (() => {
     const sig = RG.pkSig = (RG.pkSig || 0) + 1;
     for (const sp of d.querySelectorAll('[data-rk]')) {
       const id = sp.dataset.rk, bd = boardOf(id, df);
-      if (typeof Rank === 'undefined' || !Rank.on || !Rank.line) { sp.textContent = '排行榜在小红书里'; continue; }
+      if (!rankOn()) { sp.remove(); continue; }
       Rank.line(null, bd).then(r => { if (RG.pkSig !== sig || !sp.isConnected) return; sp.textContent = !r ? '排行榜暂时读不到' : (r.top != null ? '第一 ' + fmt(r.top) : '还没有人上榜') + (r.rank != null ? ' · 我 ' + (typeof r.rank === 'number' ? '第 ' + r.rank + ' 名' : r.rank) : ''); });
     }
     d.querySelector('.d').innerHTML = ['a', 'b', 'c'].map(k => '<button data-d="' + k + '" class="' + (df === k ? 'on' : '') + '">' + DNAME[k] + '</button>').join('');
-    d.querySelector('.t').textContent =  '每穿过一个圈减 ' + BON[df] + ' 秒 · 排行榜三档一起排，' + (df === 'c' ? '难不加时' : DNAME[df] + '加时 ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => LINES[k].name + ' +' + hcOf(k, df) + ' 秒').join('、')) + ' · 开始后倒数 3、2、1 · 途中 Backspace 重来';
+    d.querySelector('.t').textContent = '每穿过一个圈减 ' + BON[df] + ' 秒' + (rankOn() ? ' · 排行榜三档一起排，' + (df === 'c' ? '难不加时' : DNAME[df] + '加时 ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => LINES[k].name + ' +' + hcOf(k, df) + ' 秒').join('、')) : '') + ' · 开始后倒数 3、2、1 · 途中 Backspace 重来';
   }
   function pickOpen(on) {
     if (on && !(typeof UI !== 'undefined' && UI.state === 'title' && !UI.open)) return;

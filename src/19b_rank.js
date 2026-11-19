@@ -33,8 +33,7 @@ const Rank = self.Rank = (() => {
     ...CHAL.map(c => ({ id: 'c-' + c.map + '-' + c.line, name: c.name, boards: { day: c.board, week: c.board, all: c.board }, fmt: tfmt, ok: tok, chal: true })),
     { id: 'time', name: '滑雪时长', boards: { all: 5 }, fmt: mins },
   ];
-  // the challenges are dev-only for now: normal play shows 滑雪时长 alone
-  const views = () => VIEWS.filter(v => !v.chal || (typeof UI !== 'undefined' && UI.dev) || (typeof Rings !== 'undefined' && Rings.share));
+  const views = () => VIEWS;          // (用户 2026-11-19 00:39 UTC: 挑战直接上线) the challenge boards show for everyone in 小红书
   R.chalBoard = (map, line) => { const c = CHAL.find(q => q.map === map && q.line === line); return c ? c.board : 0; };
   const PERIODS = [['day', '今日'], ['week', '本周'], ['all', '总榜']];
   const FLUSH_EVERY = 30000, CACHE = 45000, KEY = 'coldsmoke.playtime';
