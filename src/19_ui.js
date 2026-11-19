@@ -103,7 +103,7 @@ const UI = (() => {
     }
     // (where the phone can steer: the page's tilt outside a frame, or the 小工具's gyroscope once it reports, Input.onTiltOn)
     const tilt = !framed || Input.tiltLive();
-    const steering = fa ? (tilt && Variants.val.tilt === 'a' ? '倾斜手机转弯，转弯时按左边 ▲ 前压搓雪减速、▼ 后压压刃拐急；也可以按住屏幕拖' : '按住屏幕，左右拖转弯，转弯时往下拖压刃拐急，往上拖搓雪减速') : !tilt ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
+    const steering = fa ? (tilt && Variants.val.tilt === 'a' ? '倾斜手机转弯，转弯时按左边「前压」搓雪减速、「后压」压刃拐急；也可以按住屏幕拖' : '按住屏幕，左右拖转弯，转弯时往下拖压刃拐急，往上拖搓雪减速') : !tilt ? '按住屏幕左右拖动转弯' : '倾斜手机或按住屏幕左右拖动转弯';
     const actions = /*native{*/self.COLD_SMOKE?.nativeWindow ? '下方按钮起跳和加速' : /*}native*/'右下角 跳 / 加速';
     el.how.textContent = T(steering) + ' · ' + T(actions);
   }
@@ -157,13 +157,13 @@ const UI = (() => {
   function showHint(kind) {
     U.hintKind = kind; el.hint.className = kind + ' on';
     el.hintT.textContent = T(kind === 'tilt' ? '像握方向盘一样倾斜手机' : kind === 'drag' ? '按住屏幕，左右拖动' : kind === 'pace' ? '连着转弯，把雪扬起来'
-      : kind === 'fa2' ? '左边 ▲ 前压：转弯时搓雪减速 · ▼ 后压：转弯时压刃拐急'
+      : kind === 'fa2' ? '左边「前压」：转弯时搓雪减速 · 「后压」：转弯时压刃拐急'
       : kind === 'moves' ? (U.hh ? '按住「跳」蓄力，松开起跳' : faOn() ? '转弯时按住 ↓ 压刃拐急 · ↑ 搓雪减速 · 空格 跳' : '空格 跳（按住蓄力） · ↓ 加速') : '← →  或  A D  转弯');
   }
   // per displayed frame
   U.frame = function (dt) {
     if (!el) return;
-    // (the two buttons at the left, ▲ 前压 / ▼ 后压: only while the phone steers, where the left thumb is free; see Input.faButtons)
+    // (the two buttons at the left, 前压 / 后压: only while the phone steers, where the left thumb is free; see Input.faButtons)
     { const on = U.hh && Input.faButtons(); if (on !== !!U.faBtn) { U.faBtn = on; el.app.classList.toggle('tiltfa', on); if (!on) { Input.btn.fwd = Input.btn.aft = false; if (el.fwd) { el.fwd.classList.remove('down'); el.aft.classList.remove('down'); } } } }
     if (U.state !== 'load') { switches(dt); clockFrame(); }
     if (U.state !== 'run') return;

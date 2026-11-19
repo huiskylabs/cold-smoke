@@ -9,7 +9,7 @@ const Input = (() => {
   // d (owner, 2026-11-14: a held turn suddenly swinging into a skid after two seconds is wrong; I want to skid only when I ask for it): a
   // steering key or finger only ever carves, however long it is held or however far round the line has come; the skid is asked for with
   // the weight forward (↑ / W, or the steering finger pushed up) while turning, which is what throws the tails out on real skis (see
-  // 'fore/aft' in step). Steering by tilt does the same with ▲ 前压 (or the phone tipped forward, Variants 'tilt'); only with fore/aft off does it keep the old rule (tipped all the way over skids)
+  // 'fore/aft' in step). Steering by tilt does the same with 前压 (or the phone tipped forward, Variants 'tilt'); only with fore/aft off does it keep the old rule (tipped all the way over skids)
   Variants.def('keys', '键盘转弯', [['a', '按半秒就搓'], ['b', '按两秒才搓'], ['c', '横过来才搓'], ['d', '前压才搓']], 'd');
   // the feel of the skiing (a player's notes, 2026-11-13: the drag of the snow, the body's weight going over in a turn, speed and momentum).
   // a: as it was. b: the edges hold only so much (past it the skis wash out sideways, scrubbing speed: a hard turn at speed is a wide one);
@@ -52,7 +52,7 @@ const Input = (() => {
   // powder; the old edge lets go twice as fast. (b is the one the owner played and chose, default since 2026-11-18; c twice its delay, tried and not chosen) The carve, its limit, the wash and the scrape heard read the edges; the body's
   // lean, which the pose reads, still leads. Read in step()
   // the phone's tilt (owner 2026-11-19). a: tilt steers, and only steers: the owner tried tilt doing forward and back too and it was too hard
-  // to control, so while the phone steers two buttons at the left (▲ 前压 / ▼ 后压, Input.btn.fwd / aft) do what ↑ and ↓ do on a keyboard.
+  // to control, so while the phone steers two buttons at the left (前压 / 后压, Input.btn.fwd / aft) do what ↑ and ↓ do on a keyboard.
   // b: the phone tipped forward (the top edge away) is the weight on the shovels, tipped back the tails, from however it was held as the run
   // started, and the buttons go. c: b with forward and back the other way round. In the 小红书 小工具, where the page's own tilt is switched
   // off, the container's gyroscope (only how fast the phone turns, no angle: see I.onGyro) gives the tilt
