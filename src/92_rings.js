@@ -751,6 +751,52 @@ const Rings = (() => {
   RG.hooks = { go: [], finish: [] }; RG.cardButtons = [];
   function emit(k, o) { for (const f of RG.hooks[k] || []) try { f(o); } catch (e) { console.warn('rings hook ' + k + ':', e); } }
   RG.cardShow = on => { if (L.el && L.st === 'done') L.q('card').classList.toggle('on', !!on); };
+  // ---- the top of the screen while a line is skied: the clock (bonus taken off), the rings, a station's time as it is reached, the
+  // finish. One set of words and one look, written by the run as it goes and by its replay as it plays back (RG.replayHud below):
+  // (用户 2026-11-19 18:39 UTC: 回放模式的画面（上面的时间数据）应该和玩的时候一样) the replay used to draw its own copy, worded and timed differently
+  function hudRun(t, passed, missed, p, finAhead) {
+    L.q('tm').classList.remove('fin');
+    setTxt('tm', fmt(Math.max(0, t - passed * p)));
+    const bo = +(passed * p).toFixed(1);
+    setTxt('sub', tx('穿过 ', 'Rings ') + passed + (passed ? tx(' · 奖励 −' + bo + ' 秒', ' · bonus −' + bo + ' s') : '') + (missed ? tx(' · 漏 ', ' · missed ') + missed : '') + (finAhead ? tx(' · 前方终点', ' · finish ahead') : ''));
+  }
+  function hudFin(score, passed, tot, bonus, miss) {
+    setTxt('tm', fmt(score)); L.q('tm').classList.add('fin');
+    setTxt('sub', tx('光圈 ', 'Rings ') + passed + ' / ' + tot + tx(' · 奖励 −' + bonus + ' 秒', ' · bonus −' + bonus + ' s') + (miss ? '' : tx(' · 全部穿过', ' · all rings')));
+  }
+  function finBanner(score, txt) {
+    const ban = L.q('ban'); ban.querySelector('b').textContent = fmt(score); ban.querySelector('i').textContent = txt || '';
+    ban.classList.add('on'); clearTimeout(ban._t); ban._t = setTimeout(() => ban.classList.remove('on'), 1400);          // (gone before the card slides in)
+    beep(880, 0.25, 0.18); setTimeout(() => beep(1320, 0.6, 0.16), 140);
+  }
+  function splitFlash(name, d, b) { flash('spl', '<span class="k">' + TN(name || '') + '</span>　' + fmt(d) + (b != null ? '　<span class="' + (d <= b ? 'g' : 'r') + '">' + sgn(d - b) + '</span>' : ''), 2200); }
+  function missFlash(p) { flash('pop', '+' + p, 900); beep(220, 0.22, 0.14); }
+  // the replay (93_replay.js), each frame: st = { t: the run's clock, passed, missed, finAhead, play, fin: the finish hook's payload }.
+  // The same words appear at the same moments as in the run; a station's time and the finish banner come only while it plays forward
+  // (dragged along the time line, the numbers simply stand where they were). st = null: the replay is over, the screen as the run left it
+  const RS = { t: -1, ci: 0, miss: 0, done: false };
+  RG.replayHud = function (st) {
+    if (!L.el && !st) return; ui();
+    if (!st) {
+      for (const k of ['pop', 'spl', 'ban']) L.q(k).classList.remove('on');
+      if (L.st === 'done' && L.finHud) { const f = L.finHud; hudFin(f.score, f.passed, f.tot, f.bonus, f.miss); }
+      show(L.st !== 'idle' && L.st !== 'free'); RS.t = -1; return;
+    }
+    show(true);
+    const f = st.fin || {}, sp = f.splits || [], nm = f.names || [], sb = f.segBest || [], p = f.bonus || BON[f.diff] || 1.5, end = f.t != null ? f.t : Infinity, t = st.t;
+    const jump = RS.t < 0 || t < RS.t - 1e-4 || t - RS.t > 0.75;
+    if (jump) {
+      RS.ci = 0; while (RS.ci < sp.length - 1 && t >= sp[RS.ci]) RS.ci++;
+      RS.miss = st.missed; RS.done = t >= end - 1e-6;
+      for (const k of ['pop', 'spl', 'ban']) L.q(k).classList.remove('on');
+    }
+    RS.t = t;
+    if (st.missed > RS.miss) { RS.miss = st.missed; if (st.play) missFlash(p); }
+    while (RS.ci < sp.length - 1 && t >= sp[RS.ci]) { const i = RS.ci, d = sp[i] - (i ? sp[i - 1] : 0); if (st.play) splitFlash(nm[i], d, sb[i]); RS.ci++; }
+    if (t < end - 1e-6) { RS.done = false; hudRun(t, st.passed, st.missed, p, st.finAhead); return; }
+    hudFin(f.score, f.passed, (f.passed || 0) + (f.missed || 0), +((f.passed || 0) * p).toFixed(1), f.missed);
+    if (!RS.done) { RS.done = true; if (st.play) finBanner(f.score, f.ban); }
+  };
   function lineFinish() {
     if (L.st !== 'go') return;
     L.st = 'done'; L.tEnd = Game.runT; L.split.push(L.tEnd); brake(true);
@@ -761,11 +807,9 @@ const Rings = (() => {
     const rec = { best: isNew ? { score, t: L.tEnd, miss, tot, date: Date.now() } : best, seg: seg.map((d, i) => segBest[i] != null ? Math.min(segBest[i], d) : d), runs: ((old && old.runs) || 0) + 1 };
     recSave(rec);
     try { if (typeof Cards !== 'undefined' && Cards.emit) Cards.emit('ring.line', { line: L.id === 'x' ? 'cross' : 'speed', full: miss === 0, t: L.tEnd, missed: miss }); } catch (e) { }          // (集卡: the card system picks it up when it is there)
-    setTxt('tm', fmt(score)); L.q('tm').classList.add('fin'); setTxt('sub', tx('光圈 ', 'Rings ') + RG.passed + ' / ' + tot + tx(' · 奖励 −' + bonus + ' 秒', ' · bonus −' + bonus + ' s') + (miss ? '' : tx(' · 全部穿过', ' · all rings')));
-    const ban = L.q('ban'); ban.querySelector('b').textContent = fmt(score);
-    ban.querySelector('i').textContent = isNew ? (best ? tx('新纪录！快了 ' + (best.score - score).toFixed(2) + ' 秒', 'New record! ' + (best.score - score).toFixed(2) + ' s faster') : tx('第一次完成', 'First finish')) : tx('比最好慢 ' + (score - best.score).toFixed(2) + ' 秒', (score - best.score).toFixed(2) + ' s off your best');
-    ban.classList.add('on'); setTimeout(() => ban.classList.remove('on'), 1400);          // (gone before the card slides in)
-    beep(880, 0.25, 0.18); setTimeout(() => beep(1320, 0.6, 0.16), 140);
+    const banTxt = isNew ? (best ? tx('新纪录！快了 ' + (best.score - score).toFixed(2) + ' 秒', 'New record! ' + (best.score - score).toFixed(2) + ' s faster') : tx('第一次完成', 'First finish')) : tx('比最好慢 ' + (score - best.score).toFixed(2) + ' 秒', (score - best.score).toFixed(2) + ' s off your best');
+    hudFin(score, RG.passed, tot, bonus, miss); finBanner(score, banTxt);
+    L.finHud = { score, passed: RG.passed, tot, bonus, miss };          // (what the top of the screen says once the run is over: put back after a replay)
     // the card: what this run was, against the best before it
     let worst = -1, wd = 0;
     const rows = seg.map((d, i) => { const b = segBest[i]; const df = b != null ? d - b : null; if (df != null && df >= 0.3 && df > wd) { wd = df; worst = i; } return { n: L.names[i] || (i + 1) + '', d, b, df }; });
@@ -779,7 +823,7 @@ const Rings = (() => {
       + (rankOn() && boardOf(L.id, L.diff) ? fs([[fmt(rec.best.score), tx('个人最好', 'Your best')], ['…', tx('全部最好', 'Best of all'), 'gtop'], ['…', tx('排名', 'Place'), 'grank']])
       + '<div class="tip">' + (hcOf(L.id, L.diff) ? tx('排行榜成绩 ' + fmt(score + hcOf(L.id, L.diff)) + '（' + DNAME[L.diff] + '加时 +' + hcOf(L.id, L.diff) + ' 秒，三档一起排）', 'Board time ' + fmt(score + hcOf(L.id, L.diff)) + ' (' + T(DNAME[L.diff]) + ' +' + hcOf(L.id, L.diff) + ' s; all three levels on one board)') : tx('排行榜成绩 ' + fmt(score) + '（难不加时，三档一起排）', 'Board time ' + fmt(score) + ' (Hard: nothing added; all three levels on one board)')) + '</div>' : fs([[fmt(rec.best.score), tx('个人最好', 'Your best')]]))
       + '<div class="bt"><button class="p" data-a="again">' + tx('再来一局', 'Again') + '<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">' + tx('增加难度', 'Harder') + '</button>' : '') + '' + RG.cardButtons.map((b, i) => '<button data-cb="' + i + '">' + T(b.label) + (b.key ? '<kbd>' + b.key + '</kbd>' : '') + '</button>').join('') + '<button data-a="free">' + tx('继续滑', 'Ski on') + '<kbd>Esc</kbd></button></div>';
-    emit('finish', { line: L.id, name: LINES[L.id].name, diff: L.diff, score, t: L.tEnd, bonus: p, missed: miss, passed: RG.passed, splits: L.split.slice(), names: L.names.slice(), isNew });
+    emit('finish', { line: L.id, name: LINES[L.id].name, diff: L.diff, score, t: L.tEnd, bonus: p, missed: miss, passed: RG.passed, splits: L.split.slice(), names: L.names.slice(), isNew, segBest: segBest.slice(), ban: banTxt });
     board(score + hcOf(L.id, L.diff));
     clearTimeout(L.cardT); L.cardT = setTimeout(() => { if (L.st === 'done') L.q('card').classList.add('on'); }, 350);          // (用户 21:25 UTC: 停下来那一瞬间菜单就弹出来)
   }
@@ -851,17 +895,16 @@ const Rings = (() => {
     }
     if (L.st === 'go') {
       const s = -G.s.p[2], p = BON[L.diff] || 2;
-      if (RG.missed > L.missSeen) { L.missSeen = RG.missed; flash('pop', '+' + p, 900); beep(220, 0.22, 0.14); }
+      if (RG.missed > L.missSeen) { L.missSeen = RG.missed; missFlash(p); }
       L.pen = -RG.passed * p;
       while (L.ci < L.cut.length - 1 && s >= L.cut[L.ci]) {
         const t = G.runT, d = t - (L.ci ? L.split[L.ci - 1] : 0), b = L.rec && L.rec.seg && L.rec.seg[L.ci];
         L.split.push(t);
-        flash('spl', '<span class="k">' + TN(L.names[L.ci] || '') + '</span>　' + fmt(d) + (b != null ? '　<span class="' + (d <= b ? 'g' : 'r') + '">' + sgn(d - b) + '</span>' : ''), 2200);
+        splitFlash(L.names[L.ci], d, b);
         L.ci++;
       }
-      setTxt('tm', fmt(Math.max(0, G.runT + L.pen)));
       const cur = RG.rings.find(r => r.pass < 0 && !r.skip);
-      setTxt('sub', tx('穿过 ', 'Rings ') + RG.passed + (RG.passed ? tx(' · 奖励 −' + +(-L.pen).toFixed(1) + ' 秒', ' · bonus −' + +(-L.pen).toFixed(1) + ' s') : '') + (RG.missed ? tx(' · 漏 ', ' · missed ') + RG.missed : '') + (cur && cur.fin ? tx(' · 前方终点', ' · finish ahead') : ''));
+      hudRun(G.runT, RG.passed, RG.missed, p, !!(cur && cur.fin));
     }
   }
   // ---- 挑战 on the title page (dev). (用户 21:31 UTC: 出发就是普通地滑；出发底下加一个「挑战」，点开以后再选路线这些.) 出发 and Enter are always
