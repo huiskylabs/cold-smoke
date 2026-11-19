@@ -36,10 +36,9 @@ HTML
 {
   echo '(() => { "use strict";'
   if [ "$platform" = visionos ]; then
-    echo 'self.COLD_SMOKE = { nativeWindow: true, spatial: true, noTilt: true, renderer: "Apple Metal", autoQualityKey: "cs.q.vision" };'
-  else
-    cat ios/Runtime/platform.js
+    echo 'self.COLD_SMOKE = { spatial: true, noTilt: true };'
   fi
+  cat ios/Runtime/platform.js
   for src in src/*.js; do
     case "$src" in
       src/01_gfx.js) cat "$src" ios/Runtime/metal-shaders.js ios/Runtime/metal-gfx.js ;;

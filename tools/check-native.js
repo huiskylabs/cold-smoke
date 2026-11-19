@@ -7,9 +7,8 @@ function read(rel) { return fs.readFileSync(path.join(root, rel), 'utf8'); }
 
 function bundle(platform) {
   const parts = ['(() => { "use strict";'];
-  parts.push(platform === 'visionos'
-    ? 'self.COLD_SMOKE = { nativeWindow: true, spatial: true, noTilt: true, renderer: "Apple Metal", autoQualityKey: "cs.q.vision" };'
-    : read('ios/Runtime/platform.js'));
+  if (platform === 'visionos') parts.push('self.COLD_SMOKE = { spatial: true, noTilt: true };');
+  parts.push(read('ios/Runtime/platform.js'));
   const skip = new Set(['19b_rank.js', '19c_xhs.js', '20_director.js']);
   for (const name of fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js')).sort()) {
     if (skip.has(name)) continue;

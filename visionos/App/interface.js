@@ -19,6 +19,7 @@
     if (mode === 'menu') {
       settings = readPauseSettings(bindings, direct);
       settings.bodyControls = !!XR.bodyControls;
+      settings.advancedMenu = !!UI.dev;
       const t = (zh, en) => settings.english ? en : zh;
       settings.help = [
         { title: t('左摇杆','Left stick'), detail: t('转向和调整重心','Steer and shift weight') },
@@ -37,9 +38,10 @@
       else if (visible('say')) { notice = text('say-k'); detail = text('say-v'); }
     }
     const running = mode === 'run';
-    const payload = { mode, english: I18N.en(), body: !!XR.bodyControls, sound: !!Sound.on,
+    const payload = { mode, english: I18N.en(), body: !!XR.bodyControls, sound: !!Sound.on, advancedMenu: !!UI.dev,
       speed: running ? Math.round(Math.hypot(...Game.s.v) * 3.6) : 0, drop: running ? Math.max(0, Math.round(Game.drop || 0)) : 0,
       camera: running ? I18N.t(Game.views?.find(v => v.id === Game.view)?.name || Game.view) : '',
+      challenge: running && Rings.on ? { passed: Rings.passed, missed: Rings.missed } : null,
       notice, detail, bare: photo && !immersive && byID('photo').classList.contains('bare'), settings };
     const key = JSON.stringify(payload);
     if (key !== last) { last = key; window.webkit.messageHandlers.slope.postMessage(payload); }
@@ -70,9 +72,13 @@
       if (byID('photo').classList.contains('bare')) byID('ph-surf').dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyH', bubbles: true }));
       else byID('ph-hide').click();
     }
+    else if (UI.open && (id === 'advanced:on' || id === 'advanced:off')) UI.setAdvancedMenu(id === 'advanced:on');
     else if (UI.open && /^quality:(auto|[012])$/.test(id)) {
       const value = id.slice(8); Quality.select(value === 'auto' ? value : Number(value));
-    } else (bindings.get(id) || byID(id))?.click();
+    } else {
+      const button = bindings.get(id) || byID(id);
+      if (button && (UI.dev || !button.closest('.dev-only'))) button.click();
+    }
     state(true);
   };
   self.COLD_SMOKE.previewGamePhoto = () => window.webkit.messageHandlers.metal.postMessage({ previewGamePhoto: true });

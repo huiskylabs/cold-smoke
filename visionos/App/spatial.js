@@ -94,9 +94,10 @@ fn frag(v: VOut) -> FOut {
   }
   window.slope = {
     background() { window.slope.pad(null); UI.pause(); },
-    begin() { reset(); XR.beginSpatial(); },
+    foreground() { Sound.refresh(); },
+    begin() { reset(); XR.beginSpatial(); Sound.refresh(); },
     frame: packet => XR.advanceSpatial(packet),
-    end() { reset(); XR.endSpatial(); },
+    end() { reset(); XR.endSpatial(); Sound.refresh(); },
     hands(left, right, cancelled) {
       if (!XR.active || XR.photoMode || !XR.bodyControls) return;
       if (UI.state === 'title') {

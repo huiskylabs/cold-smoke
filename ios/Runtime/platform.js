@@ -1,9 +1,10 @@
-// Read the Duo preference before the game initializes its menu and equipment.
+// Read each platform's preference before the shared menu and equipment initialize.
 self.COLD_SMOKE = {
+  ...self.COLD_SMOKE,
   nativeWindow: true,
   renderer: 'Apple Metal',
-  autoQualityKey: 'cs.q.wk.metal.gpu',
-  advancedMenuKey: 'cs.ios.advancedMenu',
+  autoQualityKey: self.COLD_SMOKE?.spatial ? 'cs.q.vision' : 'cs.q.wk.metal.gpu',
+  advancedMenuKey: self.COLD_SMOKE?.spatial ? 'cs.vision.advancedMenu' : 'cs.ios.advancedMenu',
   dev: false
 };
 try {

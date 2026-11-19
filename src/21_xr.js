@@ -24,6 +24,8 @@ const XR = (() => {
   const qs = new URLSearchParams(location.search);
   // the level drawn in the headset (read like Quality.L by the modules that draw: 00c_quality.js)
   const LEVEL = { name: 'XR', maxDpr: 1, maxPx: 1e9, floor: 0.6, shadow: 1024, blur: false, dust: 0.5, glitter: 0.45, far: 380, bloom: 5 };
+  /*native{*/const spatialPixels = 5.2e6, spatialPixelCap = 4.6e6;
+  /*}native*/
   const X = {
     ok: false, active: false, starting: false, session: null, ref: null, layer: null, pose: null,
     scale: clamp(+qs.get('xrscale') || 0.62, 0.25, 1.5), minScale: 0.32, maxScale: clamp(+qs.get('xrscale') || 0.8, 0.25, 1.5),
@@ -170,7 +172,7 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
       // A foveated drawable describes a large logical viewport. The scene is
       // shaded into an ordinary rectangular texture before that rate map is used.
       const visiblePixels = viewportW * viewportH;
-      const budget = Math.min(visiblePixels, X.maxPx, 5.2e6 * X.scale * X.scale);
+      const budget = Math.min(visiblePixels, X.maxPx, spatialPixels * X.scale * X.scale);
       const density = Math.sqrt(budget / visiblePixels);
       W = viewportW * density; H = viewportH * density;
     }
@@ -249,7 +251,12 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
   // The compositor supplies the same local-space poses and off-axis projections as WebXR.
   // Neither transport owns a second simulation or asks the window's RAF to tick it.
   X.beginSpatial = function () {
-    X.minScale = 0.64; X.maxScale = 1; X.scale = 0.74; X.maxPx = 4.6e6;
+    const fullScale = Math.sqrt(spatialPixelCap / spatialPixels);
+    X.minScale = 0.64;
+    // Manual presets start at their own ceiling and share the existing safety floor.
+    X.maxScale = Quality.pick === 2 ? X.minScale : Quality.pick === 1 ? 0.74 : fullScale;
+    X.scale = Quality.auto() ? 0.74 : X.maxScale;
+    X.maxPx = spatialPixelCap;
     X.layer = { getViewport: v => v.viewport }; X.hidden = false; begin();
   };
   X.endSpatial = end;
@@ -327,10 +334,12 @@ fn frag(v: VOut) -> FOut { var o: FOut; let c: vec4f = tex(tP, v.uv); let a: f32
     // Reducing pixel count buys nothing when the GPU already finished in budget.
     const cadence = metal && sceneInterval > 0 ? sceneInterval : avg;
     const slow = metal ? cadence > frame * 1.02 && gpu > frame * 0.9 : avg > frame * 1.12;
-    const fast = metal ? sceneInterval > 0 && cadence < frame * 0.86 : avg < frame * 1.04;
+    // A steady 60 new eye pairs/s can already be on target. Raise resolution only
+    // with sustained GPU headroom for the extra pixels in the next 6% step.
+    const fast = metal ? sceneInterval > 0 && cadence <= frame * 1.02 && gpu < frame * 0.78 : avg < frame * 1.04;
     gov.slow = slow ? gov.slow + 1 : 0;
     if (gov.slow >= (metal ? 2 : 1) && X.scale > X.minScale) { X.scale = Math.max(X.minScale, X.scale * (metal && cadence < frame * 1.16 ? 0.96 : 0.88)); X.sized = false; gov.slow = gov.fast = 0; }
-    else if (fast) { if (++gov.fast >= 15 && X.scale < X.maxScale) { X.scale = Math.min(X.maxScale, X.scale * 1.06); X.sized = false; gov.fast = 0; } }
+    else if (fast) { if (++gov.fast >= (metal ? 8 : 15) && X.scale < X.maxScale) { X.scale = Math.min(X.maxScale, X.scale * 1.06); X.sized = false; gov.fast = 0; } }
     else gov.fast = 0;
   };
   /*}native*/

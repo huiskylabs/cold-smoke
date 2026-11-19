@@ -2,11 +2,13 @@ import Photos
 import SwiftUI
 
 struct SlopeReadout: Decodable, Equatable {
+    struct Challenge: Decodable, Equatable { let passed, missed: Int }
     var mode = "loading"
     var english = Locale.preferredLanguages.first?.hasPrefix("zh") == false
-    var body = false, sound = true, bare = false
+    var body = false, sound = true, bare = false, advancedMenu = false
     var speed = 0, drop = 0
     var camera = "", notice = "", detail = ""
+    var challenge: Challenge?
     var settings: PauseSettings?
 
     func text(_ zh: String, _ en: String) -> String { english ? en : zh }
@@ -63,6 +65,17 @@ private struct SkiMetrics: View {
     }
 }
 
+private struct RingProgress: View {
+    let state: SlopeReadout
+    var body: some View {
+        if let challenge = state.challenge {
+            Label(state.text("光圈", "Rings") + " \(challenge.passed) / \(challenge.passed + challenge.missed)", systemImage: "circle.dashed")
+                .font(.headline).monospacedDigit().foregroundStyle(.secondary)
+                .accessibilityIdentifier("ring-progress")
+        }
+    }
+}
+
 struct SlopeControls: View {
     @ObservedObject var ui: SlopeInterface
     var immersive = false
@@ -113,6 +126,7 @@ struct SlopeControls: View {
                             .font(.headline).foregroundStyle(.secondary)
                             .accessibilityLabel(t("视角，\(s.camera)", "Camera, \(s.camera)"))
                     }
+                    RingProgress(state: s)
                 }
             case "photo":
                 Label(s.notice.isEmpty ? t("转头取景 · 左摇杆移动","Look to frame · Left stick to move") : s.notice, systemImage: "camera")
@@ -137,7 +151,10 @@ struct SlopeControls: View {
         case "run":
             VStack {
                 HStack(alignment: .top) {
-                    SkiMetrics(state: s).padding(14).glassBackgroundEffect(in: Capsule())
+                    VStack(alignment: .leading, spacing: 4) {
+                        SkiMetrics(state: s)
+                        RingProgress(state: s)
+                    }.padding(14).glassBackgroundEffect(in: Capsule())
                     Spacer()
                     icon("mn","line.3.horizontal",t("滑行菜单","Ski menu"))
                     icon("snd",s.sound ? "speaker.wave.2.fill" : "speaker.slash.fill",t("游戏声音","Game sound"))
@@ -217,9 +234,9 @@ private struct SummitTitle: View {
                             .accessibilityIdentifier("space")
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10),
                                                  count: typeSize.isAccessibilitySize || geo.size.width < 360 ? 1 : 2), spacing: 8) {
-                            shortcut("open:sky", "cloud.sun", "场景", "Scene")
+                            if state.advancedMenu { shortcut("open:sky", "cloud.sun", "场景", "Scene") }
                             shortcut("open:view", "viewfinder", "视角", "Camera")
-                            shortcut("daily", "mountain.2", "今日之山", "Daily mountain")
+                            if state.advancedMenu { shortcut("daily", "mountain.2", "今日之山", "Daily mountain") }
                             shortcut("open:keys", "gamecontroller", "操作", "Controls")
                             shortcut("start", "play.fill", "窗口滑行", "Ski in window")
                             shortcut("open:opt", "slider.horizontal.3", "偏好设置", "Preferences")

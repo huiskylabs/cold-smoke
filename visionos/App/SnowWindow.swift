@@ -98,6 +98,8 @@ final class SnowWindow: UIViewController, ObservableObject, WKScriptMessageHandl
     }
     override func viewDidLoad() {
         super.viewDidLoad()
+        NotificationCenter.default.addObserver(self, selector: #selector(sceneDidActivate(_:)),
+                                               name: UIScene.didActivateNotification, object: nil)
         do {
             guard let device = MTLCreateSystemDefaultDevice(), let page else { throw RenderError("Cannot load Metal or the offline mountain.") }
             let surface = Surface(frame: view.bounds)
@@ -226,6 +228,12 @@ final class SnowWindow: UIViewController, ObservableObject, WKScriptMessageHandl
         if slope == nil && !changing { call("window.slope?.background()") }
     }
 
+    @objc private func sceneDidActivate(_ note: Notification) {
+        guard ready, let scene = note.object as? UIWindowScene,
+              scene === web?.window?.windowScene || slope != nil else { return }
+        call("window.slope?.foreground()")
+    }
+
     func attach(_ layer: LayerRenderer) {
         // Each immersive space has independent tracking, frame IDs and pinch ownership.
         let token = UUID(); sessionID = token
@@ -282,15 +290,26 @@ final class SnowWindow: UIViewController, ObservableObject, WKScriptMessageHandl
     #if DEBUG
     private func sampleQuality(_ token: UUID) {
         Task {
-            for _ in 0..<4 {
+            let file = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("slope-quality.txt")
+            var samples = "Immersive session " + Date().ISO8601Format() + "\n"
+            try? samples.write(to: file, atomically: true, encoding: .utf8)
+            for _ in 0..<12 {
                 try? await Task.sleep(for: .seconds(5))
                 guard sessionID == token else { return }
                 call("""
                     const xr = __ski.m.XR, gpu = __ski.app().gfx.gpuSeconds;
-                    return [__ski.ui().state, xr.stats.frames + ' updates', xr.stats.W + 'x' + xr.stats.H,
+                    const interval = xr.pose?.sceneInterval;
+                    return [__ski.ui().state, 'preset ' + __ski.m.Quality.pick, xr.stats.frames + ' updates', xr.stats.W + 'x' + xr.stats.H,
                       'scale ' + xr.scale.toFixed(2), (gpu * 1000).toFixed(1) + ' ms GPU (latest)',
+                      (interval > 0 ? (1 / interval).toFixed(1) : 'n/a') + ' new frames/s',
                       (xr.stats.avg * 1000).toFixed(1) + ' ms/update (last window)'].join(', ');
-                    """) { if let text = $0 as? String { reportSlopeMilestone(text) } }
+                    """) { result in
+                    guard self.sessionID == token, let text = result as? String else { return }
+                    reportSlopeMilestone(text)
+                    samples += text + "\n"
+                    try? samples.write(to: file, atomically: true, encoding: .utf8)
+                }
             }
         }
     }

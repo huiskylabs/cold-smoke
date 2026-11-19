@@ -100,6 +100,7 @@ const I18N = (() => {
     '给验收用，不是游戏的一部分 · 小圆点是推荐的版本': 'For review, not part of the game · the dot marks the recommended version', '恢复推荐': 'Reset to recommended', '推荐': 'Recommended',
     // ---- the versions page (Variants: the rows' names and their versions, as each module registers them)
     '镜头': 'Camera', '人物与动作': 'Skier & motion', '人物动作（11 月 16 日评审）': 'Skier motion (16 Nov review)', '画面': 'Picture', '雪': 'Snow', '场景与天气': 'Scene & weather', '手感': 'Feel', '新加的': 'New',
+    '滑具': 'Equipment', '双板': 'Skis', '单板': 'Snowboard', '光圈挑战': 'Ring challenge', '光圈难度': 'Ring difficulty', '轻松': 'Easy', '标准': 'Standard', '难': 'Hard',
     '追身镜头': 'Chase camera', '林间镜头': 'Camera in trees', '穿林': 'Through the trees', '树林闪烁': 'Woods flicker', '分段机位': 'Camera per run', '雪板尖机位': 'Ski-tips camera', '俯冲手位': 'Hands in a tuck', '四角模糊': 'Corner blur',
     '雪面颤动': 'Snow chatter', '风压抖动': 'Wind buffet', '人物模型': 'Skier model', '衣服': 'Clothing', '持杖': 'Pole carry', '人物动作': 'Skier motion', '动作·时序': 'Motion · timing', '板刃时序': 'Edge timing', '动作·雪杖': 'Motion · poles', '动作·头和上身': 'Motion · head and trunk', '动作·起跳和落地': 'Motion · take-off and landing', '电脑上的蓄力圈': 'Jump charge ring (keyboard)', '不显示': 'Hidden', '显示': 'Shown',
     '逆光光斑': 'Lens ghosts', '高光': 'Highlights', '夜间雪雾': 'Spray at night', '夜空颜色': 'Night sky colour', '小云': 'Small clouds',

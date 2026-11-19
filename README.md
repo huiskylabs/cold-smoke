@@ -61,6 +61,8 @@ In the Web version, the **Immersive** button on the title page only appears in a
 
 Open `visionos/ColdSmokeVision.xcodeproj`, select **ColdSmokeVision** and run on Apple Vision Pro. The build draws the app icon with `node tools/generate-icons.js` before it compiles the asset catalog. Node.js 18 or newer needs to be on `PATH`. Choose **Immersive** and press **A** on the controller to start. You can look around freely while skiing. To steer by leaning and use pinch gestures, enable **Body controls** in the game window’s **Settings**.
 
+Turn on **Preferences → Advanced → Show advanced options** to access scene controls and version comparisons. Under **Version comparison → New**, choose **Equipment → Snowboard** or enable **Ring challenge**. The headset remembers these choices.
+
 An Xbox Series X|S Wireless Controller paired in visionOS Settings → Bluetooth works in the window and the immersive space. **Left stick:** steer and shift weight. **A:** start, then hold to load a jump and release to launch. **RT:** pole or tuck. **Y:** enter Immersive or recenter while inside. **Menu:** return to the paused window. Reenter to continue the same run.
 
 During a run, **LB** selects the previous camera and **RB** selects the next. Press **X** once to freeze the scene. Move the camera with the left stick and frame the shot by looking around in Immersive or using the right stick in the window. Press **X** again to save a photo to Photos, or **B** to resume skiing.
@@ -169,6 +171,8 @@ Web 版标题页的「沉浸模式」按钮只在能打开头显的浏览器里�
 ### 在 Apple Vision Pro 上运行
 
 用 Xcode 打开 `visionos/ColdSmokeVision.xcodeproj`，选择 **ColdSmokeVision** 并在 Apple Vision Pro 上运行。构建会在编译素材目录之前用 `node tools/generate-icons.js` 画出应用图标，`PATH` 里需要 Node.js 18 或更新版本。点「沉浸模式」，按手柄 **A** 出发。滑行时可以自由转头环视。想用倾身转向和捏合起跳时，在游戏窗口的「设置」里打开「身体动作控制」。
+
+打开「偏好设置 → 高级 → 显示高级选项」，即可调整场景或进入「版本对比」。在「版本对比 → 新加的」中，将「滑具」设为「单板」，或打开「光圈挑战」。头显会记住这些选择。
 
 Xbox Series X|S 手柄可在头显的「设置 → 蓝牙」配对。左摇杆转向和调整重心，**A** 出发或蓄力起跳，**RT** 加速，**Y** 进入沉浸或在沉浸中重新校准正前方。按**菜单键**回到暂停窗口，再进入会从原处续滑。
 

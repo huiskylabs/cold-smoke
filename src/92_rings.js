@@ -172,6 +172,7 @@ const Rings = (() => {
     drawList.sort((a, b) => b.dist - a.dist);          // far first: the near ring's tube writes depth over what lies behind it
   }
   function hud() {
+    /*native{*/if (self.COLD_SMOKE?.nativeSpatialUI) return;/*}native*/
     if (!RG.hud) { RG.hud = document.createElement('div'); RG.hud.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);font:500 13px/1 system-ui,sans-serif;letter-spacing:.12em;color:rgba(255,255,255,.85);text-shadow:0 1px 3px rgba(0,0,0,.45);pointer-events:none;z-index:3'; document.body.appendChild(RG.hud); }
     RG.hud.style.display = RG.on && !L.id ? '' : 'none'; if (L.id) return;
     const cur = RG.rings.find(r => r.pass < 0 && !r.skip), dn = { a: '轻松', b: '标准', c: '难' }[(typeof Variants !== 'undefined' && Variants.val.ringdiff) || 'b'] || '标准', t = '光圈（' + dn + '） ' + RG.passed + ' / ' + (RG.passed + RG.missed) + (cur && cur.tag ? '　·　这个圈 ' + cur.tag + ' 大' : ''); if (RG.hud.textContent !== t) RG.hud.textContent = t;
@@ -448,6 +449,7 @@ const Rings = (() => {
     if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); }
     const want = typeof Variants !== 'undefined' && (Variants.val.rings === 'on' || !!L.id) && devOn();
     if (want !== RG.on) { RG.on = want; reset(); hud(); }
+    /*native{*/if (RG.on && typeof XR !== 'undefined' && XR.photoMode) return;/*}native*/
     const T = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
     if (L.id && typeof document !== 'undefined') try { lineFrame(T); } catch (e) { if (!RG.lerr) { RG.lerr = 1; console.warn('line:', e); } }
     // (用户 05:16 UTC: 拍照时光圈不见了): held (the pause menu, 拍照) the world stands still, and so do the rings: drawn as they were, time stopped.
@@ -458,9 +460,9 @@ const Rings = (() => {
     lastT = T;
     RG.n++; try { update(T); prep(T); hud(); trail(); } catch (e) { drawList = []; if (!RG.err) { RG.err = 1; console.warn('rings:', e); } }
   };
-  // hang on the game's own draw: the rings are worked out just before each frame, drawn inside it by the render passes
+  // Shared work runs once before the shadow map and both eye views.
   if (typeof Render !== 'undefined') {
-    const R0 = Render.render; Render.render = function () { RG.frame(); return R0.apply(this, arguments); };
+    const R0 = Render.renderShared; Render.renderShared = function () { RG.frame(); return R0.apply(this, arguments); };
     const I0 = Render.init; Render.init = function (g) { const out = I0.apply(this, arguments); try { RG.init(g); } catch (e) { console.warn('rings init:', e); } return out; };
     // (a pipeline that failed to build must never take the game's frame down with it: the rings are then simply not drawn)
     const safe = f => R => { try { f(R); } catch (e) { if (!RG.gerr) { RG.gerr = 1; console.warn('rings draw:', e && e.message ? e.message : e); } } };
