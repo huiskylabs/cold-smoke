@@ -267,6 +267,59 @@ const Fpv = (() => {
   }
   F.solveArm = solveArm; F.LIM = LIM;
 
+  // ---- where the hands are held, seen from the eyes (Variants 'fphand' b)
+  // A skier holds the hands out in front, a little wider than the shoulders, elbows bent: "where you can see them" is how it is taught, and it is
+  // how they show in a helmet camera's picture (ski/fpv/参考图: a fist in each lower corner, the shafts running down and back out of the
+  // picture). The figure is posed to be seen from five metres: its head is well forward over its hands, its arms all but straight, and from
+  // the lens over that head its fists were straight down, under the foot of the picture (measured 2026-11-18, 40 s of linked turns: both
+  // hands out of the picture 97% of the time on the snow, 0.1-0.3 m ahead of the lens and 0.6 m under it). What was done about it only ever
+  // pushed a hand further down and out (07b_views.js, fpArms). So here each hand is carried to where a skier holds it, measured from the lens
+  // in the body's own frame (across the shoulders, up the trunk, ahead): CARRY. What the figure does with it besides (the reach for a plant, a
+  // double-pole stroke, a hand thrown up by a bump) is kept: the hand's place off the shoulder, less its own slow average (mean, about a second).
+  // out: m to the side of the lens; dn: m below it; fw: m ahead; keep: how much of the figure's own motion is kept; reach: the most from shoulder to fist (m).
+  const CARRY = F.CARRY = { out: 0.30, dn: 0.50, fw: 0.26, keep: 0.85, mean: 1.1, reach: 0.52 };
+  if (typeof Variants !== 'undefined') Variants.def('fphand', '第一视角手位', [['a', '原来'], ['b', '手在面前']], 'b');
+  const carryOn = () => typeof Variants === 'undefined' || Variants.val.fphand !== 'a';
+  F.carryOn = carryOn;
+  // the lens and the body's frame, in the figure's space (the camera is placed before the figure is posed: this frame's)
+  function carryFrame() {
+    const c = typeof Render !== 'undefined' && Render.cam, R = Skier.world && Skier.world.root; if (!c || !R) return null;
+    const o = Render.origin || [0, 0, 0], q = [c.pos[0] - o[0] - R[12], c.pos[1] - o[1] - R[13], c.pos[2] - o[2] - R[14]];
+    const C = [q[0] * R[0] + q[1] * R[1] + q[2] * R[2], q[0] * R[4] + q[1] * R[5] + q[2] * R[6], q[0] * R[8] + q[1] * R[9] + q[2] * R[10]];
+    // The frame is the eyes' own, as they are carried by the body (07b_views.js, Game.fpBody: where the head faces and how far the lens is tipped
+    // with the lean, without the player's looking about): the hands go with the upper body, which faces down the hill with the head while the skis
+    // swing under it, so they stay put in the picture through linked turns (in the skis' frame they swung across it by most of its width each
+    // turn, and both were in it together 4% of the time); and they are held out level, under the eyes, not down along a trunk bowed forward.
+    // ahead, across, up: in the world, then in the figure's space
+    const B = Game.fpBody; let fw, X, U;
+    if (B) { fw = [Math.sin(B.yaw), 0, -Math.cos(B.yaw)]; const xh = [Math.cos(B.yaw), 0, Math.sin(B.yaw)], cr = Math.cos(B.roll), sr = Math.sin(B.roll); X = [xh[0] * cr, sr, xh[2] * cr]; U = [-xh[0] * sr, cr, -xh[2] * sr]; }
+    else { fw = [-R[8], -R[9], -R[10]]; X = [R[0], R[1], R[2]]; U = [R[4], R[5], R[6]]; }
+    const m = v => [v[0] * R[0] + v[1] * R[1] + v[2] * R[2], v[0] * R[4] + v[1] * R[5] + v[2] * R[6], v[0] * R[8] + v[1] * R[9] + v[2] * R[10]];
+    const Zm = m(fw);
+    return { C, X: m(X), U: m(U), Z: [-Zm[0], -Zm[1], -Zm[2]] };
+  }
+  function carry(A, k, sg, G1, Sh, w, cf, dt) {
+    if (!cf) return G1;
+    // (in the mirrored space the left hand is worked in, the right's numbers do for it)
+    const C = mir(cf.C, sg), X = mir(cf.X, sg), U = mir(cf.U, sg), Z = mir(cf.Z, sg);
+    // (across runs from the left shoulder to the right; mirrored it points to the left, and the left hand's outside is the other way)
+    const ox = sg > 0 ? X : v3.mul(X, -1);
+    const H = v3.add(v3.add(v3.mad(C, ox, CARRY.out), v3.mul(U, -CARRY.dn)), v3.mul(Z, -CARRY.fw));
+    // the figure's own motion of this hand, about its slow average, off its shoulder
+    const r = v3.sub(G1, Sh);
+    if (!A.cm || A.init || !(dt > 0)) A.cm = r.slice();
+    else { const e = 1 - Math.exp(-dt / CARRY.mean); for (let i = 0; i < 3; i++) A.cm[i] += (r[i] - A.cm[i]) * e; }
+    let T = v3.mad(H, v3.sub(r, A.cm), CARRY.keep);
+    // (and never further from the shoulder than a bent arm holds it: the shoulders turn with the trunk, the lens with the head, and with the
+    // trunk turned away a hand held off the lens was out at the end of a straight arm, its glove and pole twisted round the wrist)
+    { const v = v3.sub(T, Sh), l = v3.len(v), lm = CARRY.reach; if (l > lm) T = v3.mad(Sh, v, lm / l); }
+    // the elbow is let hang down and a little out, as a held arm's does, not wherever the figure's was (that one came up beside the lens
+    // and the sleeve was cut open by the near plane: black shards across the picture). solveArm only takes the side the elbow bends to from it
+    A.eh = v3.lerp(A.eh0, v3.add(v3.add(Sh, v3.mul(ox, 0.14)), v3.add(v3.mul(U, -0.32), v3.mul(Z, 0.04))), w);
+    return v3.lerp(G1, T, w);
+  }
+  F.carryFrame = carryFrame;
+
   // ---- each frame: the figure's pose (as it will be drawn this frame) is taken over, with a little weight of its own added
   const mkSide = sg => ({ sg, init: true, init0: true, tau: LIM.tw0, dW: 0, dP: 0, bS: 0, open: 0, bend: 0, o: [0, 0, 0], ov: [0, 0, 0], pd: [0, 0], pdv: [0, 0], m: [null, null, null, null, null], ski: null });
   const SD = [mkSide(1), mkSide(-1)], mir = (p, sg) => sg > 0 ? p : [-p[0], p[1], p[2]];
@@ -290,6 +343,7 @@ const Fpv = (() => {
     // let down and out over the first part of the drive, out of the picture's lower corners. rch: how much, by the stroke's phase; dr: the drive)
     const dpOK = fq > 0 ? (1 - tuck) * (1 - sat(ps.air || 0)) * (1 - smooth(0.14, 0.5, Math.abs(ps.lean || 0))) : 0;
     const rch = dpOK > 0 ? smooth(0, 0.12, fq) * smooth(0.50, 0.24, fq) * dpOK : 0, dr = dpOK > 0 ? smooth(0.22, 0.46, fq) * smooth(0.62, 0.50, fq) * dpOK : 0;
+    const cw = carryOn() ? own * (1 - tuck) * (1 - dropK) * (1 - sat(Math.max((ps.air || 0) / 0.5, G && G.flight ? G.flight.w || 0 : 0))) : 0, cf = cw > 0 ? carryFrame() : null;
     for (let k = 0; k < 2; k++) {
       const A = SD[k], sg = A.sg, n = sg > 0 ? 'R' : 'L', hold = sat(J['planted' + n] || 0);
       const Sh = mir(J['sh' + n], sg), Eh = mir(J['elbow' + n], sg), G0 = mir(J['grip' + n], sg), d0 = mir(J['poleD' + n], sg), T = mir(J['tip' + n], sg), acc = mir(PH.a, sg);
@@ -303,6 +357,8 @@ const Fpv = (() => {
         for (let i = 0; i < 2; i++) { const to = clamp(-(i ? acc[2] : acc[0]) * 0.011 - A.ov[i ? 2 : 0] * 0.35, -0.16, 0.16) * fr; A.pdv[i] = (A.pdv[i] + wp * wp * (to - A.pd[i]) * dt) / (1 + 2 * zp * wp * dt + wp * wp * dt * dt); A.pd[i] = clamp(A.pd[i] + A.pdv[i] * dt, -0.22, 0.22) * (hold >= 1 ? 0 : 1); }
       }
       let G1 = v3.mad(G0, A.o, own), d = v3.norm([d0[0] + A.pd[0] * own, d0[1], d0[2] + A.pd[1] * own]);
+      // (where a skier's hands are, as the eyes see them: Variants 'fphand' b, carry())
+      A.eh0 = Eh; A.eh = Eh; if (cw > 0) G1 = carry(A, k, sg, G1, Sh, cw, cf, dt);
       // (on the way down to the view of the ski tips the hands are let down and back, out of the picture behind the lens, before they are left out)
       if (dropK > 0) { G1[0] += 0.10 * dropK; G1[1] -= 0.45 * dropK; G1[2] += 0.32 * dropK; }
       // (a hand on a planted pole stays the pole's length from where the tip went in)
@@ -311,7 +367,7 @@ const Fpv = (() => {
       // (and a fist never comes in past a hand's breadth of the body's middle: from the helmet two fists that meet there are seen to cross, the
       // forearms in an X. A soft floor, nothing kept from frame to frame: well out to its own side a hand is not touched at all)
       { const mid = sg * (J.shR[0] + J.shL[0]) * 0.5, h = Math.max(0.08 - Math.abs(G1[0] - mid - 0.15), 0) / 0.08; G1[0] = Math.max(G1[0], mid + 0.15) + h * h * 0.02; }
-      solveArm(A, Sh, G1, d, Eh, hold, T, dt);
+      solveArm(A, Sh, G1, d, A.eh, hold, T, dt);
       A.init = false; A.hold = hold;
       A.M = A.M || []; for (let i = 0; i < 4; i++) A.M[i] = sg > 0 ? A.m[i] : flipM(A.m[i]);
       A.foot = s.F[Sk ? Sk.B['foot' + n] : (sg > 0 ? 15 : 12)];
@@ -760,6 +816,10 @@ fn frag(v: VOut) -> FOut {
   const GONE = ['uarmL', 'farmL', 'handL', 'uarmR', 'farmR', 'handR', 'poleL', 'poleR', 'elbowL', 'elbowR', 'head'];      // (the head too: the lens is inside it, and the goggles' frame crossed the view)
   // (on a board the arms go too: the front one hung right across the lens, the board under it)
   const GONE_B = GONE.filter(n => n.indexOf('pole') < 0).concat(['chest', 'shL', 'shR', 'neck']);      // (and the chest: standing sideways, the front shoulder is right before the lens)
+  // (Variants 'fphand' b: the lens is in the drawn head now, not beside it, and the neck and collar round it were cut open by the near plane:
+  // black shards across the middle of the picture. They go too; with ?fphide=2 the chest and shoulders as well, as on a board, to compare)
+  const GONE_C = GONE.concat(/[?&]fphide=2/.test(typeof location !== 'undefined' ? location.search : '') ? ['neck', 'chest', 'shL', 'shR'] : /[?&]fphide=0/.test(typeof location !== 'undefined' ? location.search : '') ? [] : ['neck']);
+  const DBG = (() => { try { const m = /[?&]fpdbg=([a-z]+)/.exec(location.search); return m ? m[1] : ''; } catch (e) { return ''; } })();
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   // the snow off the shovels in the view of the ski tips: crumbs thrown up and aside from where each ski meets the snow, and a thin mist of the
   // finest of it. rate: lumps a second flat out in deep snow (a third of them mist); dens: how thick a crumb is; life, brake: how soon it
@@ -772,7 +832,7 @@ fn frag(v: VOut) -> FOut {
     gfx.updateTexture(boneTex, 0, 0, 4, 16, boneData);
     if (figData) {
       hideData.set(figData);
-      for (const nm of (board() ? GONE_B : GONE)) { const b = Skier.B[nm]; if (b == null) continue; const p = m4.tp(R, Skier.world.J[nm === 'head' ? 'skull' : nm.slice(-1) === 'L' ? 'shL' : nm.slice(-1) === 'R' ? 'shR' : 'neck']), o = b * 16, e = 0.002; hideData.fill(0, o, o + 16); hideData[o] = e; hideData[o + 5] = e; hideData[o + 10] = e; hideData[o + 12] = p[0]; hideData[o + 13] = p[1]; hideData[o + 14] = p[2]; hideData[o + 15] = 1; }
+      for (const nm of (board() ? GONE_B : carryOn() ? GONE_C : GONE)) { const b = Skier.B[nm]; if (b == null) continue; const p = m4.tp(R, Skier.world.J[nm === 'head' ? 'skull' : nm.slice(-1) === 'L' ? 'shL' : nm.slice(-1) === 'R' ? 'shR' : 'neck']), o = b * 16, e = 0.002; hideData.fill(0, o, o + 16); hideData[o] = e; hideData[o + 5] = e; hideData[o + 10] = e; hideData[o + 12] = p[0]; hideData[o + 13] = p[1]; hideData[o + 14] = p[2]; hideData[o + 15] = 1; }
       gfx.updateTexture(hideTex, 0, 0, 4, 32, hideData);
     }
     const S = Game.s, ps = Game.pose || {}, t = (typeof App !== 'undefined' ? App.t : 0) % 512, ch = Game.feel && Game.feel.chatter || 0, sp = S.speed || 0, on = S.air ? 0 : 1;
@@ -822,7 +882,8 @@ fn frag(v: VOut) -> FOut {
     if (fpc <= 0) { if (F.posed) { SD[0].init = SD[1].init = SD[0].init0 = true; PH.v = null; F.posed = false; } PH.dt = 0; }
     F.vis = F.ready && !F.dead && fpc >= F.swap; PH.own = smooth(F.swap, 1, fpc);
     // the view of the ski tips: the arms are drawn until they are down behind the lens, the figure is left out once the lens has left the helmet
-    F.arms = F.tk < 0.7 && !Game.fpIn; F.hideFig = F.vis && !board() && (F.tk > 0.25 || !!Game.fpIn);      // (or the figure turned away under the lens: Game.fpIn, 07b_views.js; then only the skis: these arms hang from its shoulders, which are then in front of the lens)
+    F.arms = F.tk < 0.7 && !Game.fpIn; F.hideFig = F.vis && !board() && (F.tk > 0.25 || !!Game.fpIn);
+    if (DBG) { if (DBG === 'noarms') F.arms = false; if (DBG === 'nofig') F.hideFig = F.vis; }      // (?fpdbg=noarms | nofig: to find what is drawn where, in tests)      // (or the figure turned away under the lens: Game.fpIn, 07b_views.js; then only the skis: these arms hang from its shoulders, which are then in front of the lens)
     // (the thrown snow is made to thin out before it reaches a lens: 10_spray.js, Spray.lens. Down among the skis the snow they push up is the
     // picture, so there it is let much nearer; the number is given back as it was found on the way out)
     // (and what does come near is spread into a wide faint veil, Spray.nearBlur: there it is left the lumps it is)

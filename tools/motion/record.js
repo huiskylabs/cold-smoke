@@ -44,6 +44,7 @@ const mkCtl = function (sc) {
     taps: t => { const u = [[4, 4.45, -1], [4.5, 4.95, 1], [7, 7.3, -1], [7.35, 7.65, 1], [9.5, 9.9, -1]].find(x => t >= x[0] && t < x[1]); key(u ? u[2] : 0); },
     turnback: t => { const u = (t - 3) % sc.per, k = Math.floor((t - 3) / sc.per); key(t < 3 || u > sc.hold ? 0 : (k % 2 ? 1 : -1)); },
     keys: t => { key(t < 3 ? 0 : (Math.floor((t - 3) / (sc.per / 2)) % 2 ? -1 : 1)); },
+    slowkeys: t => { key(t < 0.5 ? 0 : (Math.floor((t - 0.5) / (sc.per / 2)) % 2 ? -1 : 1)); },      // (慢速：不等加速，出发半秒后就开始左右转)
     sine: t => { I.script = t < 3 ? 0 : sc.amp * Math.sin((t - 3) * 2 * Math.PI / sc.per); },
     pilot: t => { I.script = pilot(t); },
     jump: t => { I.script = 0; I.btn.jump = t > 2 && S.contact && (G.flight.lipT < 0.5); },
@@ -85,7 +86,7 @@ if (require.main === module) (async () => {
       const data = await page.evaluate(([sc, ctlSrc]) => {
         const K = window.__ski, M = K.m, G = M.Game, S = G.s, I = M.Input, Sk = M.Skier, C = M.Course, T = M.Tracks;
         { const LR = self.__labride && self.__labride(); if (LR && LR.LabRide && LR.LabRide.on && LR.LabRide.on()) { const gear = M.Variants.val.ride === 'b' ? 'board' : 'ski'; let w = 0; while (!LR.LabRide.body(gear).ready && w < 6000) { K.sim(1 / 60, () => 0, { draw: false }); w++; } } }
-        K.reset(sc.s0); G.trickSeed(12345); I.keys = {}; I.btn.jump = I.btn.tuck = false; I.script = null; I.faScript = null; I.kb = 0; I.kbV = 0;
+        K.reset(sc.s0); G.trickSeed(12345); G.forceTrick = sc.ft || null; I.keys = {}; I.btn.jump = I.btn.tuck = false; I.script = null; I.faScript = null; I.kb = 0; I.kbV = 0;
         // （页面里的 tick 不是全局函数：用 __ski.sim 每次走一帧，fn 返回 null 表示走键盘那条路）
         const tick1 = () => K.sim(1 / 60, () => I.script, { draw: false });
         const ctl = (0, eval)('(' + ctlSrc + ')')(sc);
@@ -139,7 +140,7 @@ if (require.main === module) (async () => {
         I.keys = {}; I.btn.jump = I.btn.tuck = false; I.script = null; I.faScript = null; Sk.update = up0;
         out.LEN = Sk.LEN; out.vars = Object.assign({}, M.Variants.val);
         return out;
-      }, [sc, mkCtl.toString()]);
+      }, [Object.assign({}, sc, { ft: process.env.FT }), mkCtl.toString()]);
       fs.writeFileSync(path.join(outDir, sc.id + '.json'), JSON.stringify(data));
       const sp = data.S.map(r => r[0]);
       console.log(`  ${sc.id}: ${data.t.length} 帧, 速度 ${Math.min(...sp).toFixed(1)}–${Math.max(...sp).toFixed(1)} m/s, 事件 ${data.ev.length}, 动作 [${(data.trick || []).join(',')}], 路段 ${[...new Set(data.seg)].join('/')}, ${((Date.now() - t1) / 1000).toFixed(1)}s`);

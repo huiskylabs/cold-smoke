@@ -315,7 +315,8 @@ window.__ski = {
   sim(seconds, fn, opt = {}) {
     const n = Math.round(seconds * 60); if (Game.mode !== 'run') Game.start();
     const gl2 = App.gfx.caps.backend === 'webgl2';
-    for (let i = 0; i < n; i++) { Input.script = fn ? fn(Game.runT) : 0; const d = i === n - 1 && opt.draw !== false; tick(1 / 60, d); if (!d && gl2 && i % 6 === 5) Tracks.pre(); }   // the tracks are pressed and wiped as in play
+    // (opt.dts: the frames' lengths in turn instead of 1/60 each, as a real browser's are never all the same: a test of what depends on them)
+    for (let i = 0; i < n; i++) { Input.script = fn ? fn(Game.runT) : 0; const d = i === n - 1 && opt.draw !== false; tick(opt.dts ? opt.dts[i % opt.dts.length] : 1 / 60, d); if (!d && gl2 && i % 6 === 5) Tracks.pre(); }   // the tracks are pressed and wiped as in play
     const S = Game.s; return { p: S.p.map(v => +v.toFixed(2)), speed: +S.speed.toFixed(2), lean: +S.lean.toFixed(3), beta: +S.beta.toFixed(3), air: S.air, e: +S.e.toFixed(3), seg: Course.segAt(-S.p[2]).type };
   },
   frame(dt) { tick(dt == null ? 1 / 60 : dt, true); },
