@@ -573,6 +573,8 @@ const Trees = (() => {
       if (mode === 'e' && v === 8) { out[o + 10] = 0.7 + 0.5 * r1; out[o + 3] = h * (1.0 + 0.3 * r7); }
       if (mode === 'f') { out[o + 10] = 1.18 + 0.26 * r1; out[o + 11] = 1.15; out[o + 3] = h * (0.72 + 0.2 * r7); }
     }
+    // (春雪, the owner's video: the snow is long gone from the boughs, the spruce stand dark green with only a fleck left in the shade)
+    if (typeof Variants !== 'undefined' && Variants.val.dsea === 'b' && Variants.val.dalp === 'b' && Variants.val.world === 'd') out[o + 11] = 0.04 + 0.10 * hash2(q, 79);
   }
   function chunk(cx, cz) {
     const key = (cx + 4096) * 2097152 + (cz + 1048576);

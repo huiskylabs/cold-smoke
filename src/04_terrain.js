@@ -742,8 +742,9 @@ fn frag(v: VOut) -> FOut {
         // (春雪, the owner's video: late in the season the snow is gone from every rib, crest and sunny face steeper than ~20 degrees and
         // lies on in the hollows, the gullies and the shaded sides, so a wall is dark with white filling its folds. conc: the hollow measure)
         let sunF: f32 = dot(normalize(Nm.xz + vec2f(1e-5, 0.0)), normalize(L.xz + vec2f(1e-5, 0.0))) * saturate((1.0 - Nm.y) * 4.0);
+        let dn2s: f32 = saturate(0.5 + (tex(tDetail, (wxz / 19.0 + vec2f(0.53, 0.17)) / 6.0).z - 0.5) * 1.9) * smoothstep(3000.0, 400.0, dist) + 0.5 * smoothstep(400.0, 3000.0, dist);      // (a ragged edge at the size of a boulder field, not a melted-wax outline)
         let bar3: f32 = Nm.y + 0.50 * (0.5 - rib) + 0.25 * (0.5 - oc) + conc * 0.85 - 0.08 * sunF + shut * 0.5;
-        rock = smoothstep(0.93 + ew2, 0.93 - ew2, bar3) * saturate((mnt - 0.03) * 12.0) * (1.0 - smoothstep(0.04, 0.25, sm.w));
+        rock = smoothstep(0.93 + ew2 * 0.5, 0.93 - ew2 * 0.5, bar3 + 0.10 * (dn2s - 0.5)) * saturate((mnt - 0.03) * 12.0) * (1.0 - smoothstep(0.04, 0.25, sm.w));
       }
     } else { rock = rock * 0.45; }
   }
@@ -1070,7 +1071,7 @@ fn frag(v: VOut) -> FOut {
     }
     var rc: vec3f = ra * (U.sunCol.rgb * saturate(dot(Nr, L)) * sh * (1.0 - 0.85 * ov) + (U.ambSky.rgb * (1.3 + 0.8 * Nr.y) + U.ambGnd.rgb * (0.50 - 0.45 * Nr.y) + fill * 1.5 + twiLight(Nr)) * ao * (1.0 - 0.6 * ov));
     ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b') ? 'if (U.world.x > 2.5) { rc = mix(rc, vec3f(luma(rc)) * vec3f(1.06, 0.97, 0.92), 0.20); }' : ''}
-    ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b' && Variants.val.dsea === 'b') ? 'if (U.world.x > 2.5) { rc = rc * vec3f(0.55, 0.56, 0.60); lip = lip * 0.25; }' : ''}      // (春雪: dark wet rock, the frost gone; video rock ~ (55,52,55))
+    ${(typeof Variants !== 'undefined' && Variants.val.dalp === 'b' && Variants.val.dsea === 'b') ? 'if (U.world.x > 2.5) { rc = vec3f(luma(rc)) * vec3f(0.40, 0.40, 0.43) + rc * 0.12; lip = lip * 0.15; }' : ''}      // (春雪: dark wet rock, the frost gone; video rock ~ (55,52,55))
     col = mix(col, rc, rock * (1.0 - 0.9 * lip));
     ${typeof location !== 'undefined' && /dbgl/.test(location.search) ? 'col = vec3f(rock, lip, saturate(dist / 4000.0)) * 0.6;' : ''}      // (test renders: R bare rock, G snow on it, B distance)
   }
