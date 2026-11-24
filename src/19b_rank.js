@@ -36,17 +36,17 @@ const Rank = self.Rank = (() => {
   // (用户 2026-11-19 19:23 UTC: 在排行榜底下说清楚速降线、越野线是怎么算的) the note under a challenge board: how its time is made, with
   // this line's own numbers (the ring bonus and each level's added time, from 92_rings.js RG.rules, so the note never drifts from the code)
   const chalNote = bd => {
-    const c = CHAL.find(q => 'c-' + q.map + '-' + q.line === bd.id), ru = self.__rings && self.__rings.rules, hc = (ru && c && ru.HC[c.line]) || {}, bon = (ru && ru.BON.b) || 1.5;
-    const add = d => hc[d] ? '+' + hc[d] + (EN() ? ' s' : ' 秒') : (EN() ? 'nothing' : '不加');
+    const c = CHAL.find(q => 'c-' + q.map + '-' + q.line === bd.id), ru = self.__rings && self.__rings.rules, hc = (ru && c && ru.hcOf) ? { a: ru.hcOf(c.line, 'a'), b: ru.hcOf(c.line, 'b'), c: 0 } : {}, bon = (ru && ru.BON.b) || 1.5;
+    const add = d => hc[d] ? ' +' + hc[d] + (EN() ? ' s' : ' 秒') : (EN() ? ' nothing' : '不加'), none = !hc.a && !hc.b;
     return EN()
-      ? 'How it is scored: your time, less ' + bon + ' s for every ring you go through. Easy, Standard and Hard share one board: Easy ' + add('a') + ', Standard ' + add('b') + ', Hard ' + add('c') + '. Lowest wins. Today and This week restart at Beijing midnight; All time stays. Only your best run counts.'
-      : '怎么算：用时，每穿过一个圈减 ' + bon + ' 秒。轻松、标准、难一起排：轻松 ' + add('a') + '，标准 ' + add('b') + '，难' + (hc.c ? ' ' : '') + add('c') + '。越少越靠前。今日和本周按北京时间零点重新开始，总榜一直保留。每人只留最好的一次。';
+      ? 'How it is scored: your time, less ' + bon + ' s for every ring you go through. Easy, Standard and Hard share one board' + (none ? ', no level adds time' : ': Easy' + add('a') + ', Standard' + add('b') + ', Hard' + add('c')) + '. Lowest wins. Today and This week restart at Beijing midnight; All time stays. Only your best run counts.'
+      : '怎么算：用时，每穿过一个圈减 ' + bon + ' 秒。轻松、标准、难一起排' + (none ? '，三档都不加时' : '：轻松' + add('a') + '，标准' + add('b') + '，难' + add('c')) + '。越少越靠前。今日和本周按北京时间零点重新开始，总榜一直保留。每人只留最好的一次。';
   };
   const views = () => VIEWS;          // (用户 2026-11-19 00:39 UTC: 挑战直接上线) the challenge boards show for everyone in 小红书
   R.chalBoard = (map, line) => { const c = CHAL.find(q => q.map === map && q.line === line); return c ? c.board : 0; };
   const PERIODS = [['day', '今日'], ['week', '本周'], ['all', '总榜']];
   const FLUSH_EVERY = 30000, CACHE = 45000, KEY = 'coldsmoke.playtime';
-  let mt = null, el = null, view = 'time', period = 'day', lastFlush = 0, cool = 0, flushing = null, sig = 0, saved = 0, last = '';
+  let mt = null, el = null, view = VIEWS[0].id, period = 'day', lastFlush = 0, cool = 0, flushing = null, sig = 0, saved = 0, last = '';
   const sent = {}, pend = {}, cache = {};
 
   const api = () => { try { const m = window.xhs && window.xhs.miniTool; return m && typeof m.submitScore === 'function' && typeof m.getRankList === 'function' && typeof m.getMyRank === 'function' ? m : null; } catch (e) { return null; } };
@@ -56,7 +56,7 @@ const Rank = self.Rank = (() => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const code = e => (e && typeof e.errCode === 'number') ? e.errCode : (e && +e.errCode) || 0;
   // no boards for this tool (not authorised at upload, or not let into the 内测): the entry goes away for the rest of the page
-  function off(e) { R.on = false; console.warn('rank off', e && e.errMsg, code(e)); if (el) { el.nav.hidden = true; if (el.sec.classList.contains('on')) el.sec.textContent = ''; } }
+  function off(e) { R.on = false; console.warn('rank off', e && e.errMsg, code(e)); { const t = document.getElementById('t-rank'); if (t) t.hidden = true; } if (R.onOff) try { R.onOff(); } catch (_) { } if (el) { el.nav.hidden = true; if (el.sec.classList.contains('on')) el.sec.textContent = ''; } }
   const fatal = c => c === 1005 || c === 10003;
 
   // ---- time skied: seconds today, this week, in all (P.d / P.w: which day and week the first two are of)
@@ -92,6 +92,7 @@ const Rank = self.Rank = (() => {
     if (!el.nav || !el.sec) { el = null; return; }
     R.on = true; roll(); load();
     el.nav.hidden = false;
+    { const t = document.getElementById('t-rank'); if (t) t.hidden = false; }          // (菜单方案 B: 排行榜 on the title too, 19_ui.js layoutB)
     el.sec.addEventListener('click', e => {
       const b = e.target.closest('button'); if (!b) return;
       if (b.dataset.rv) { view = b.dataset.rv; render(); } else if (b.dataset.rp) { period = b.dataset.rp; render(); }
@@ -217,7 +218,22 @@ const Rank = self.Rank = (() => {
       return { nick, rank: me.status === 'EXACT' ? me.rank : me.status === 'OVER_LIMIT' ? '500+' : null };
     } catch (e) { return null; }
   };
-  R.show = function () { if (el && R.on) render(); };
+  // (菜单方案 B) opened during a challenge line, the page starts at that line's board
+  let shownLine = null;
+  R.show = function () { const ln = self.__rings && __rings.line && __rings.line.id; if (ln && ln !== shownLine) R.pick('hanyan', ln); shownLine = ln || null; if (el && R.on) render(); };
+  // (菜单方案 B, 用户 2026-11-22) the board of one challenge line, opened from elsewhere (the result card, the menu during that line)
+  R.pick = function (map, line) { const c = CHAL.find(q => q.map === map && q.line === line); if (c) { view = 'c-' + c.map + '-' + c.line; period = 'day'; } };
+  // one board as rows, for the 挑战 panel's own column and the title's card: { rows: [{ rank, name, t }], me: { rank, t } | null, line }
+  // (times in m:ss.xx; old figures outside the challenge range are left out, as on the menu's page). null outside the container
+  R.top = async function (b, per, n) {
+    if (!R.on || !mt || !b) return null;
+    try {
+      await R.flush();
+      const r = await read(b, per || 'day'), rows = r.list.filter(it => tok(+it.score)).slice(0, n || 50).map(it => ({ rank: +it.rank, name: who(it.nickname), t: tfmt(+it.score) }));
+      const m = r.me || {}, mine = m.status === 'EXACT' && tok(+m.score) ? { rank: m.rank, t: tfmt(+m.score) } : m.status === 'OVER_LIMIT' ? { rank: '500+', t: '' } : null;
+      return { rows, me: mine };
+    } catch (e) { if (fatal(code(e))) off(e); return { rows: [], me: null, err: code(e) === 2002 ? '榜单还在准备，稍后再看' : '暂时读不到榜单，稍后再看' }; }
+  };
 
   // ---- the day card: today's places, if they come back while the card is still up
   R.onDay = async function () {

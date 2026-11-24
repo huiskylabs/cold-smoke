@@ -1089,7 +1089,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
 `;
     pipe = gfx.pipeline({
       name: 'skier', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SKIN_SSL, SKIER_SSL, headSSL], buffers,
-      varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', bn: 'vec3f', mat: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', s: 'vec4f' },
+      varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', bn: 'vec3f', mat: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', s: 'vec4f', c: 'vec4f' },
       textures: { tBones: 'fetch', tDetail: '2d', tShadow: 'shadow', tSky: '2d' },
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let s: SkinV = skinVertex(a.pos, a.nrm, a.bw); v.wp = s.wp; v.nrm = s.n; v.bp = a.pos; v.bn = a.nrm; v.mat = a.mat; v.clip = U.viewProj * vec4f(s.wp, 1.0); return v; }`,
       fs: SKIER_FS.replace('/*MARKS*/', marks),
@@ -1297,6 +1297,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     cloth(s.J); s.hem = st.hm.o;
     const R = m4.fromBasis(X, Y, Z, [root.pos[0] - origin[0], root.pos[1] - origin[1], root.pos[2] - origin[2]]), M = skinMats(s);
     for (let i = 0; i < K.NB; i++) boneData.set(m4.mul(R, M[i]), i * 16);
+    K.world.M = M;          // (the bones in the figure's own frame: 一起滑 (99b_net.js) sends them to the others on the mountain)
     if (gfx) gfx.updateTexture(boneTex, 0, 0, 4, 32, boneData);
     const W = K.world; W.root = R; W.J = s.J; W.X = X; W.Y = Y; W.Z = Z; W.hb = s.hb;
     // the skis (tail to tip) and the poles (fist to tip) in render space, each [a, b]: the motion blur leaves them sharp, as it does the body (09_post.js)
@@ -1324,9 +1325,18 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     clo.q[2] += (want[1] - clo.q[2]) * e; clo.q[3] += (want[0] - clo.q[3]) * e; clo.h += (want[2] - clo.h) * e;
     nite[0] = typeof Sky !== 'undefined' && Sky.night === Sky.night ? smooth(0.35, 1, Sky.night) : 0;
     nite[3] = Variants.val.kit === 'b' && nite[1] > 0 ? 1 : 0;      // (the finer details of the clothes, Variants 'kit' b: new body only)      // (from deep dusk on: dusk itself stays as it was)
-    gfx.draw(pipe, { u: { p: clo.p, q: clo.q, r: nite, s: K.lensCut || CUT0 }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count });
+    gfx.draw(pipe, { u: { p: clo.p, q: clo.q, r: nite, s: K.lensCut || CUT0, c: COL0 }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count });
   };
   K.drawShadow = function () { wantBody(); gfx.draw(pipeShadow, { u: { p: [0, 0, 0, 0] }, tex: { tBones: boneTex }, vb: [vb, vb2], ib, count }); };
+  // ---- 一起滑 (99b_net.js): the other skiers on the mountain are this same figure, drawn again from bones that came over the network.
+  // K.otherTex(): a bone texture of their own; K.otherBones(tex, R, M): R the figure's place (render space), M its bones in its own frame;
+  // K.drawOthers(list, shadowTex, skyTex) / K.drawOthersShadow(list): each {tex, col: [r, g, b, 1] the jacket's colour}
+  const COL0 = [0, 0, 0, 0], oData = new Float32Array(4 * 32 * 4), OCLO = { p: [0.25, 0.25, 0.35, 0.35], q: [0.5, 0.5, 1, 1] };
+  K.otherTex = () => gfx ? gfx.texture({ w: 4, h: 32, format: 'rgba32f', filter: 'nearest' }) : null;
+  K.otherBones = function (tex, R, M) { if (!gfx || !tex) return; for (let i = 0; i < K.NB; i++) oData.set(m4.mul(R, M[i]), i * 16); gfx.updateTexture(tex, 0, 0, 4, 32, oData); };
+  K.drawOthers = function (list, shadowTex, skyTex) { if (!pipe || !count || !list.length) return; wantBody(); OCLO.q[2] = clo.q[2]; OCLO.q[3] = clo.q[3];
+    for (const o of list) gfx.draw(pipe, { u: { p: OCLO.p, q: OCLO.q, r: nite, s: CUT0, c: o.col }, tex: { tBones: o.tex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count }); };
+  K.drawOthersShadow = function (list) { if (!pipeShadow || !count) return; for (const o of list) gfx.draw(pipeShadow, { u: { p: [0, 0, 0, 0] }, tex: { tBones: o.tex }, vb: [vb, vb2], ib, count }); };
   return K;
 })();
 
@@ -1389,7 +1399,7 @@ fn frag(v: VOut) -> FOut {
   let lay: f32 = saturate(0.55 + skN(bp.yz * 2.7 + bp.xx * vec2f(1.9, 1.4)) * 4.0);            // (the long folds lie in patches)
   var fold: f32 = 0.0; var sd: f32 = 1.0; var shell: f32 = 0.0; var dark: f32 = 0.0;
   var alb: vec3f = vec3f(0.5); var specP: f32 = 20.0; var specS: f32 = 0.03; var sheen: f32 = 0.0; var gloss: f32 = 0.0; var glossTint: vec3f = vec3f(1.0); var cloth: f32 = 0.0; var lensK: f32 = 0.0; var lensV: f32 = 0.0;
-  let orange: vec3f = ${V(L.jacket.alb)}; let navy: vec3f = ${V(L.sleeveFore.alb)};
+  let orange: vec3f = mix(${V(L.jacket.alb)}, M.c.rgb, step(0.5, M.c.w)); let navy: vec3f = ${V(L.sleeveFore.alb)};
   /*MARKS*/
   // where one garment ends on another the edge is drawn here, pixel by pixel, from the garment's own line, a few millimetres inside the lip the mesh
   // makes of it: a mesh cannot keep such an edge straight (it came out as a ragged fringe that read as fur), a line can.

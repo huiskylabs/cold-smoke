@@ -81,7 +81,8 @@ const EN = new Set(['iPhone Safari 竖拿 网站', 'Android 360 横拿', '桌面
       for (const e of app.querySelectorAll('*')) if (getComputedStyle(e).position === 'sticky') probs.push({ k: '用了 position:sticky（Safari 转画面时会错位）', id: e.id || e.className });
       if (!document.querySelector('meta[name=viewport]')) probs.push({ k: '页面没有 viewport（手机会按 980 px 宽排版再整页缩小）', id: document.title });
       // (a panel over the whole frame, like the route card: what lies under it is out of play until it closes, not a fault)
-      const modal = (e, hit) => { for (let q = hit; q && q !== app; q = q.parentElement) { if (q.contains(e)) return false; const Q = box(q.getBoundingClientRect()); if ((Q.r - Q.l) * (Q.b - Q.t) > W * H * 0.85) return true; } return false; };
+      const modal = (e, hit) => { for (let q = hit; q && q !== app; q = q.parentElement) { if (q.contains(e)) return false; if (q.id === 'rpick' || q.id === 'pkscrim') return true; const Q = box(q.getBoundingClientRect());          // (the 挑战 panel is a layer too: what it lies over is out of play, 菜单方案 B made it wide)
+         if ((Q.r - Q.l) * (Q.b - Q.t) > W * H * 0.85) return true; } return false; };
       const sticky = e => { for (let q = e; q && q !== app; q = q.parentElement) if (getComputedStyle(q).position === 'sticky') return q; return null; };
       for (const e of app.querySelectorAll('*')) {
         if (!leaf(e) || !vis(e)) continue;

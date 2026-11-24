@@ -11,6 +11,68 @@ const UI = (() => {
   const handheld = () => mq('(pointer: coarse) and (hover: none)') || (!mq('(pointer: fine)') && 'ontouchstart' in window);
   let el = null, wake = null, fsT = -1e9;
 
+  // ---- 菜单方案 B (用户 2026-11-22 15:59 UTC「直接按推荐来做」: 排行榜要好找、菜单更简单). Web and 小红书 only: the iPhone / Vision Pro
+  // apps lay out their own native controls over these nodes, so there (COLD_SMOKE.advancedMenuKey) nothing here moves. What changes:
+  //   the title: 自由滑 and 挑战 side by side, the same size (挑战 is put there by 92_rings.js), under them 排行榜 · 设置 (视角 and 操作 now
+  //     lives inside 设置); a card of today's board stands at the top right (92_rings.js)
+  //   the menu: 继续滑 · 挑战 (or 重来这条线) · 排行榜 · 拍照 · 回到山顶, then 设置 (· 分享) as small tiles (视角 is the first part of 设置). 操作说明 and
+  //     滑过的山 are reached from 设置, so a phone on its side never has to scroll the column
+  U.mb = false;
+  function layoutB() {
+    if (self.COLD_SMOKE && self.COLD_SMOKE.advancedMenuKey) return;
+    U.mb = true; el.app.classList.add('mb');
+    const nav = el.nav, q = s => nav.querySelector(s);
+    // the title's small row: 排行榜 (小红书: shown by 19b_rank.js) · 视角 · 设置
+    const keysB = el.more.querySelector('[data-sec="keys"]'); if (keysB) keysB.remove();
+    const mkMore = (sec, icon, zh, id) => { const b = document.createElement('button'); b.type = 'button'; if (sec) b.dataset.sec = sec; if (id) b.id = id; b.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true">' + icon + '</svg><span></span>'; I18N.live(b.lastChild, zh); return b; };
+    const rankB = mkMore(null, '<path d="M6 3.5h8v4a4 4 0 0 1-8 0z"/><path d="M6 5H3.5v1.2A2.8 2.8 0 0 0 6.3 9M14 5h2.5v1.2A2.8 2.8 0 0 1 13.7 9M10 11.5v3M7 16.5h6"/>', '排行榜', 't-rank');
+    rankB.hidden = true; rankB.dataset.board = '1';
+    const optB = mkMore('opt', '<circle cx="10" cy="10" r="2.6"/><path d="M10 2.5v2.2M10 15.3v2.2M2.5 10h2.2M15.3 10h2.2M4.7 4.7l1.6 1.6M13.7 13.7l1.6 1.6M4.7 15.3l1.6-1.6M13.7 6.3l1.6-1.6"/>', '设置');
+    const v = el.more.querySelector('[data-sec="view"]');
+    el.more.insertBefore(rankB, v || el.more.firstChild); if (v) v.after(optB); else el.more.appendChild(optB);
+    el.tRank = rankB;
+    // (用户 2026-11-24 19:24 UTC「我从多人离开以后就看不到这个多人的入口了…刚开始跟滑开以后的设置是2套这个菜单」) the title and the menu
+    //   offer the same ways to play, in the same order: 自由滑 (继续滑) · 挑战 · 一起滑. 一起滑 (#mpgo on the title, #m-mp in the menu) is put
+    //   there by 99b_net.js where it runs (the web build): on the title it stands as the third big button beside 自由滑 and 挑战, and the row
+    //   goes three wide when it shows. In the menu #m-mp follows #m-chal, which already stands after 继续滑
+    const act = el.more.parentNode, mpOn = () => { const m = document.getElementById('mpgo'); act.classList.toggle('mp3', !!(m && !m.hidden && m.parentNode === act)); };
+    const mpMove = () => { const m = document.getElementById('mpgo'); if (m && m.parentNode !== act) act.insertBefore(m, el.more); mpOn(); };
+    mpMove();
+    try { new MutationObserver(mpMove).observe(act, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] }); } catch (e) { }
+    // and in the menu, whoever comes in when: 一起滑 right after 挑战 (or after 继续滑 where there is no 挑战)
+    const mpNav = () => { const m = q('#m-mp'); if (!m) return; const a = q('#m-chal') || q('#m-go'); if (a && a.nextElementSibling !== m) a.after(m); };
+    mpNav();
+    try { new MutationObserver(mpNav).observe(nav, { childList: true }); } catch (e) { }
+    // the menu's column, in the order of what a player reaches for
+    const order = ['#m-back', '#m-k', '#m-go', '[data-sec="rank"]', '#m-photo', '#m-top'];
+    for (const s of order) { const n = q(s); if (n) nav.appendChild(n); }
+    const sep = document.createElement('i'); sep.className = 'msep'; nav.appendChild(sep);
+    const row = document.createElement('div'); row.className = 'mrow'; nav.appendChild(row);          // (视角 · 设置 · 分享: small tiles side by side)
+    for (const s of ['[data-sec="opt"]', '[data-sec="share"]']) { const n = q(s); if (n) { n.classList.add('mi'); n.classList.remove('sm'); row.appendChild(n); } }
+    for (const s of ['[data-sec="keys"]', '[data-sec="mt"]']) { const n = q(s); if (n) { n.classList.add('mbsub'); nav.appendChild(n); } }
+    for (const n of [...nav.querySelectorAll('.msep')]) if (n !== sep) n.remove();
+    for (const s of ['[data-sec="sky"]', '[data-sec="seg"]', '[data-sec="ev"]', '[data-sec="vers"]']) { const n = q(s); if (n) nav.appendChild(n); }          // (developer mode only)
+    // 设置 opens the way to the two pages that left the column
+    const opt = el.pane.querySelector('section[data-sec="opt"]');
+    // (用户 2026-11-22 21:13 UTC「设置里面就应该可以选视角」: 视角 is no button of its own on the title or in the menu, it is the first part
+    //   of 设置. The page's own nodes move, so whatever fills the tiles (#sw-view) still finds them; U.menu('view') opens 设置, the V key still just steps to the next view)
+    const vsec = el.pane.querySelector('section[data-sec="view"]');
+    if (opt && vsec) { const g = document.createElement('div'); g.className = 'gap'; opt.insertBefore(g, opt.firstChild); while (vsec.lastChild) opt.insertBefore(vsec.lastChild, opt.firstChild); vsec.remove(); }
+    if (opt) {
+      const h = document.createElement('div'); h.className = 'gap'; opt.appendChild(h);
+      const row = document.createElement('div'); row.className = 'chips mbgo';
+      for (const [sec, zh] of [['keys', '操作说明'], ['mt', '滑过的山']]) { const b = document.createElement('button'); b.type = 'button'; b.dataset.gosec = sec; I18N.live(b, zh); row.appendChild(b); }
+      opt.appendChild(row);
+    }
+    // and each of those two pages has its way back to 设置
+    for (const sec of ['keys', 'mt']) {
+      const s = el.pane.querySelector('section[data-sec="' + sec + '"]'); if (!s) continue;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'mbback'; b.dataset.gosec = 'opt';
+      b.innerHTML = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg><span></span>'; I18N.live(b.lastChild, '设置');
+      s.insertBefore(b, s.firstChild);
+    }
+  }
+
   U.init = function () {
     el = { app: $('app'), veil: $('veil'), shade: $('shade'), load: $('load'), fill: $('load-fill'), stage: $('load-stage'), title: $('title'), go: $('go'), how: $('how'), hud: $('hud'),
       seg: $('seg'), segEn: $('seg-en'), segCn: $('seg-cn'), hint: $('hint'), hintT: $('hint-t'), spd: $('spd'), tach: $('tach'), drop: $('drop'), snd: $('snd'), fs: $('fs'),
@@ -38,6 +100,7 @@ const UI = (() => {
     el.app.classList.toggle('dev', !!U.dev);
     if (!U.dev /*native{*/ && !U.setAdvancedMenu /*}native*/) el.app.querySelectorAll('.dev-only').forEach(n => n.remove());
     el.moreView = el.more.querySelector('[data-sec="view"]'); el.moreDaily = el.more.querySelector('[data-daily]'); el.daily = $('sw-daily'); el.mtDaily = el.menu.querySelector('section[data-sec="mt"] [data-daily]');
+    layoutB();
     I18N.capture(el.app); I18N.on(relang);
     U.layout();
     el.go.addEventListener('click', e => { e.stopPropagation(); U.go(); });
@@ -55,6 +118,9 @@ const UI = (() => {
       if (U.gone) { if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); location.reload(); } return; }
       // the menu open: Esc puts it away (and the run goes on); Enter and space belong to the button that has the focus
       const mine = (e.code === 'Enter' || e.code === 'Space') && on('#menu button, #bar button, #more button');
+      // (Esc closes the top layer, whatever it is (一起滑's 找谁 / name box, a panel a module opened without a key of its own), as 返回 and the
+      //   phone's back do; only with no layer up does it open the menu. It used to open the menu over 找谁: 2026-11-24 check)
+      if (e.code === 'Escape' && U.layerTop() && U.layerTop() !== 'menu') { e.preventDefault(); U.back(); return; }
       if (U.open && e.code === 'Escape') { e.preventDefault(); U.menu(false); return; }
       if (mine) { muteKey(e.code); return; }
       if (U.open && (e.code === 'Enter' || e.code === 'Space')) { e.preventDefault(); muteKey(e.code); el.mGo.click(); return; }          // (nothing in the menu has the focus: Enter, or space as the owner asked, is the top line, 继续滑 or 出发)
@@ -74,7 +140,9 @@ const UI = (() => {
     /*web{*/ document.addEventListener('fullscreenchange', () => {
       const on = !!document.fullscreenElement, own = performance.now() - fsT < 1500; fsT = performance.now();
       el.fs.classList.toggle('full', on); el.fs.setAttribute('aria-pressed', on ? 'true' : 'false'); U.layout(); if (U.open) paint();
-      if (!on && !own) U.pause();          // thrown out of the whole screen (the system's Esc, a back gesture): the run waits
+      // thrown out of the whole screen (the system's Esc, a back gesture): the run waits. With a panel up (找谁, the name box…) that Esc was
+      //   meant for the panel, which the browser kept for itself: the panel closes and no menu goes over it (2026-11-24 WebKit check)
+      if (!on && !own) { const top = U.layerTop(); if (top && top !== 'menu') U.back(); else U.pause(); }
     }); /*}web*/
     // nothing here scrolls or zooms
     el.app.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
@@ -462,7 +530,7 @@ const UI = (() => {
     el.time.appendChild(iconBtn('time', 'auto', TIME_ICON.auto, T('自动'))); for (const [id, name] of TIMES) el.time.appendChild(iconBtn('time', id, TIME_ICON[id] || TIME_ICON.day, T(name)));
     for (const k of Object.keys(SEG_TYPES)) el.kinds.appendChild(mkBtn(T(SEG_NAMES[k] || k), 'seg', k));
     el.mn.addEventListener('click', e => { e.stopPropagation(); U.menu(); if (e.detail) el.mn.blur(); });
-    el.more.addEventListener('click', e => { e.stopPropagation(); const b = e.target.closest('button'); if (!b) return; if (b.dataset.daily) { U.daily(); if (e.detail) b.blur(); } else U.menu(b.dataset.sec); });
+    el.more.addEventListener('click', e => { e.stopPropagation(); const b = e.target.closest('button'); if (!b) return; if (b.dataset.board) { if (self.__rings && __rings.pickOpen) __rings.pickOpen(true); if (e.detail) b.blur(); return; } if (b.dataset.daily) { U.daily(); if (e.detail) b.blur(); } else U.menu(b.dataset.sec); });
     // the column on the left: a part to open, or one of the ways out
     el.menu.addEventListener('click', e => {
       e.stopPropagation(); const b = e.target.closest('button'); if (!b) { if (e.target === el.menu || e.target.classList.contains('scrim')) U.menu(false); return; } const d = b.dataset;
@@ -470,7 +538,8 @@ const UI = (() => {
       if (b === el.mGo) { if (U.state === 'title') U.go(); else U.menu(false); return; }
       if (b === el.mTop) { U.toTop(); return; }
       if (b.id === 'm-photo') { if (typeof Photo !== 'undefined') Photo.enter(); if (e.detail) b.blur(); return; }
-      if (d.sec && b.parentNode === el.nav) { show(d.sec); return; }
+      if (d.gosec) { show(d.gosec); if (e.detail) b.blur(); return; }
+      if (d.sec && (b.parentNode === el.nav || (U.mb && el.nav.contains(b)))) { show(d.sec); return; }
       if (d.time) U.setTime(d.time); else if (d.seg) U.gotoKind(d.seg); else if (d.view) U.setView(d.view); else if (d.mtn) U.pickMountain(d.mtn); else if (d.new) U.newMountain(); else if (d.daily) U.daily();
       else if ('animal' in d) { U.animal(d.animal); U.menu(false); } else if (d.plane) { U.plane(); U.menu(false); }
       else if (b === el.oSnd) U.sound(!Sound.on); else if (b === el.oFs) U.fullscreen(); else if (b === el.oLang) I18N.set(EN() ? 'zh' : 'en'); else if (b === el.oQ) { Quality.cycle(); paint(); }
@@ -511,8 +580,10 @@ const UI = (() => {
   // which part of the menu is open
   function show(s) {
     if (!U.dev && (s === 'sky' || s === 'ev' || s === 'vers' || s === 'seg')) s = 'view';
-    if (!el.pane.querySelector('section[data-sec="' + s + '"]')) s = 'view'; sec = s;
-    for (const b of el.nav.querySelectorAll('button[data-sec]')) b.classList.toggle('on', b.dataset.sec === s);
+    if (!el.pane.querySelector('section[data-sec="' + s + '"]')) s = 'view';
+    if (U.mb && s === 'view') s = 'opt';          // (菜单方案 B: 视角 lives inside 设置)
+    sec = s;
+    for (const b of el.nav.querySelectorAll('button[data-sec]')) b.classList.toggle('on', b.dataset.sec === s || (U.mb && b.dataset.sec === 'opt' && (s === 'keys' || s === 'mt')));
     for (const x of el.pane.children) x.classList.toggle('on', x.dataset.sec === s);
     el.pane.scrollTop = 0; paint();
     if (s === 'rank' && typeof Rank !== 'undefined') Rank.show();
@@ -553,7 +624,7 @@ const UI = (() => {
     el.menu.classList.toggle('on', on); el.menu.setAttribute('aria-hidden', on ? 'false' : 'true'); el.mn.setAttribute('aria-expanded', on ? 'true' : 'false');
     el.app.classList.toggle('menuopen', on);          // (the thumbs' buttons step aside under it)
     U.layer('menu', on, () => U.menu(false));
-    if (U.state === 'title') el.title.classList.toggle('on', !on);          // (the title's own words make way for it, and come back)
+    if (U.state === 'title' && !U.mb) el.title.classList.toggle('on', !on);          // (the title's own words make way for it, and come back; 菜单方案 B clips them instead (template.html), so on its way back the title is there at once, its entrance not played again)
     try { if (!on && el.menu.contains(document.activeElement)) document.activeElement.blur(); } catch (e) { }
     if (!on && hold) holdOff();
   };

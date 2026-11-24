@@ -448,6 +448,84 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
 #app:not(.desk) button { min-height: 44px; min-width: 44px; }
 #app:not(.desk) #menu nav button { padding: 6px 0; }
 #app.en .cta .how, #app.en .cta .fine, #app.en #hint span, #app.en #say b { letter-spacing: .06em; }
+/* ---- 菜单方案 B (用户 2026-11-22 15:59 UTC「直接按推荐来做」: 排行榜要好找、菜单更简单; 19_ui.js layoutB, 92_rings.js). Only on #app.mb,
+   which the iPhone / Vision Pro apps never get: their native controls keep the old layout. The title: 自由滑 and 挑战 side by side, the same
+   size and look; under them one row of small buttons (排行榜 · 设置; 视角 is the first part of 设置). The menu: one short column, then a row of small tiles */
+#app.mb .cta .act { display: grid; grid-template-columns: 1fr 1fr; align-items: stretch; width: clamp(300px, 50vmin, 420px); gap: clamp(8px, 1.4vmin, 12px); }
+/* (一起滑 on the title, where the web build has it: a third big button the same as 自由滑 and 挑战; the row grows to fit three) */
+#app.mb .cta .act.mp3 { grid-template-columns: 1fr 1fr 1fr; width: clamp(330px, 56vmin, 470px); }
+#app.mb.vbtn.short:not(.desk) .cta .act.mp3 { width: clamp(330px, 50vmin, 380px); }
+#app.mb .cta .act > #mpgo { pointer-events: auto; position: relative; appearance: none; -webkit-appearance: none; border: 0; cursor: pointer; box-sizing: border-box; width: 100%; min-width: 0; margin: 0; display: flex; align-items: center; justify-content: center; gap: 0; border-radius: 12px; height: clamp(46px, 10.5vmin, 62px); padding: 0 8px;
+  font-family: var(--f-song); font-size: clamp(16px, 3vmin, 21px); font-weight: 500; letter-spacing: .3em; text-indent: .3em; white-space: nowrap;
+  background: rgba(8, 12, 20, .34); color: #ffd9a0; box-shadow: inset 0 0 0 1px rgba(255, 208, 138, .9), 0 6px 22px rgba(5, 8, 13, .25); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+#app.mb .cta .act > #mpgo svg { display: none; }
+#app.mb:not(.desk) .cta .act > #mpgo { height: 46px; }
+#app.mb .cta .act.mp3 #go, #app.mb .cta .act.mp3 #go2, #app.mb .cta .act.mp3 > #mpgo { letter-spacing: .15em; text-indent: .15em; }
+/* (a build without 一起滑 (小红书) keeps the button hidden: its display above must not bring it back) */
+#app.mb .cta .act > #mpgo[hidden] { display: none; }
+/* (English: the big buttons read alike, none in capitals, on one line; three of them in a row tighten) */
+#app.en.mb #go, #app.en.mb #go2, #app.en.mb .cta .act > #mpgo { text-transform: none; letter-spacing: .06em; text-indent: .06em; white-space: nowrap; }
+#app.en.mb .cta .act.mp3 > #go, #app.en.mb .cta .act.mp3 > #go2, #app.en.mb .cta .act.mp3 > #mpgo { font-size: clamp(14px, 2.6vmin, 18px); }
+#app.mb .cta .more { grid-column: 1 / -1; display: flex; flex-direction: row; flex-wrap: nowrap; align-items: stretch; gap: clamp(6px, 1.2vmin, 10px); }
+#app.mb .cta .more button { flex: 1 1 0; min-width: 0; width: auto; box-sizing: border-box; justify-content: center; border-radius: 12px; height: clamp(40px, 8vmin, 50px); padding: 0 8px; gap: 6px; letter-spacing: .14em; }
+#app.mb #go, #app.mb #go2 { box-sizing: border-box; width: 100%; min-width: 0; margin: 0; display: flex; align-items: center; justify-content: center; border-radius: 12px; height: clamp(46px, 10.5vmin, 62px); padding: 0 10px; font-size: clamp(16px, 3vmin, 21px); letter-spacing: .6em; text-indent: .6em; }
+#app.mb #go::after { border-radius: 16px; inset: -5px; }
+#go2 { pointer-events: auto; position: relative; appearance: none; -webkit-appearance: none; border: 0; cursor: pointer; font-family: var(--f-song); font-weight: 500;
+  background: rgba(8, 12, 20, .34); color: #ffd9a0; box-shadow: inset 0 0 0 1px rgba(255, 208, 138, .9), 0 6px 22px rgba(5, 8, 13, .25); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); transition: filter .25s ease, transform .25s ease, background .25s ease; }
+#app:not(.line) #go2 { background: linear-gradient(180deg, #f7d6a2, #eeb25c); color: #1b1408; box-shadow: 0 6px 22px rgba(255, 186, 96, .20), 0 1px 0 rgba(255, 255, 255, .5) inset; -webkit-backdrop-filter: none; backdrop-filter: none; }
+@media (hover: hover) { #app.line #go2:hover { background: rgba(8, 12, 20, .5); } }
+#go2:active { transform: scale(.98); } #go2:focus-visible { outline: 2px solid var(--sun); outline-offset: 4px; } #go2.on { background: rgba(255, 208, 138, .14); }
+#app.en.mb #go, #app.en.mb #go2 { letter-spacing: .2em; text-indent: .2em; }
+#app.mb:not(.desk) #go, #app.mb:not(.desk) #go2 { height: 46px; } #app.mb:not(.desk) .cta .more button { height: 44px; }
+#app.mb:not(.desk) .cta .act { gap: 8px; } #app.mb:not(.desk) .cta .more { gap: 8px; }
+/* (the fine print ran into the line on how to steer on a phone on its side: there it stays out, as on the old short title) */
+#app.mb.wide:not(.desk) .cta .fine { display: none; }
+#app.mb #menu nav button.mbsub { display: none; }
+#app.mb .cta .more button[data-sec="view"], #app.mb #menu nav button[data-sec="view"] { display: none; }          /* (视角 is inside 设置: 19_ui.js layoutB) */
+#app.mb #menu nav .mrow { display: flex; flex-wrap: wrap; gap: 8px; margin-top: calc(var(--mg) * .6); }
+#app.mb #menu nav .mrow button { align-self: auto; display: inline-flex; align-items: center; justify-content: center; height: 40px; padding: 0 16px; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--hair); font-family: var(--f-ui); font-size: 13px; font-weight: 400; letter-spacing: .2em; }
+#app.mb #menu nav .mrow button::before { display: none; }
+#app.mb #menu nav .mrow button.on { color: var(--sun); box-shadow: inset 0 0 0 1px var(--sun); }
+#app.mb #menu nav .mrow button[hidden] { display: none; }
+#app.mb:not(.desk) #menu nav .mrow button { padding: 0 14px; }
+/* (a phone on its side in 小红书: the host's buttons take the top, so the column has ~280 px. The main lines go two to a row there, the
+   tiles under them, and the whole column fits without scrolling: measured by tools/menu-b-shots.js) */
+#app.mb.short:not(.desk) #menu nav { width: clamp(260px, calc(var(--cw) * .34), 320px); display: grid; grid-template-columns: 1fr 1fr; align-content: safe center; column-gap: 12px; row-gap: 2px; }
+#app.mb.short:not(.desk) #menu nav > * { grid-column: 1 / -1; margin-top: 0; margin-bottom: 0; }
+#app.mb.short:not(.desk) #menu nav > button:not(.back) { grid-column: auto; }
+#app.mb.short:not(.desk) #menu nav > button.mbsub { display: none; }
+#app.mb.short:not(.desk) #menu nav #m-k { display: none; }
+#app.mb.short:not(.desk) #menu nav button.sm { font-size: var(--mf); }
+#app.mb.short:not(.desk) #menu nav .msep { display: none; }
+/* (keys are for a keyboard: on a touch screen every key hint is only in the way, Backspace in the 挑战 panel, ⏎ R C Esc on the result card,
+   the letters beside the menu's headings) */
+#app.mb:not(.desk) #rpick .restart-key, #app.mb:not(.desk) kbd { display: none; }
+/* (a low screen with the board: the hint under 难度 has no room; its sense is in the board column's note) */
+#app.short #rpick.brd .t { display: none; }
+/* (the menu open over a challenge line: the line's clock and ring count step out, they ran into the menu's page) */
+#app.menuopen #rline { visibility: hidden; }
+/* (labels never break inside a word: 排行榜 on the title's small row, 第一人称 on a view tile) */
+#app.mb .cta .more button { white-space: nowrap; overflow: hidden; } #app.mb .cta .more button span { overflow: hidden; text-overflow: ellipsis; }
+#app.mb:not(.desk) .cta .more button { letter-spacing: .04em; gap: 4px; padding: 0 4px; font-size: 13px; }
+#app.mb #menu .tiles button span { white-space: nowrap; }
+#app.mb.short:not(.desk) #menu .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* (the title's small row on a phone on its side: the old held-in-hand column (vbtn.short) set it 250 px wide, and 排行榜 lost its last
+   word to an ellipsis. The row is as wide as 自由滑 + 挑战, its two buttons each half of it) */
+#app.mb.vbtn.short:not(.desk) .cta .act { width: clamp(300px, 44vmin, 340px); }
+#app.mb.vbtn.short:not(.desk) .cta .more button { flex: 1 1 0; padding: 0 6px; gap: 4px; letter-spacing: .04em; }
+/* (Safari: a panel's blur does not always come through (headless WebKit drew none), and then the page under it read through it, the
+   title's buttons under the 挑战 panel, the speed and the clock under the menu. Whatever a panel covers steps out while it is up, so the
+   panel reads the same with or without the blur. A clip, not visibility or opacity: the title's buttons fade in with their own delays, and a
+   change to either of those played that entrance again, the title stood empty for 1-3 s after the panel closed) */
+#app.mb.menuopen #hud, #app.mb.menuopen #title, #app.mb.menuopen #say, #app.mb.pkopen.pkbrd #title > * { -webkit-clip-path: inset(0 0 100% 0); clip-path: inset(0 0 100% 0); }
+/* (the 挑战 panel with its board on a low screen: the lines lose their second line, the hint tightens, so 难度 and 开始挑战 stay whole) */
+#app.short #rpick.brd .l button i { display: none; }
+#app.short #rpick.brd h4 { margin-bottom: 6px; }
+#app.short #rpick.brd .bk { margin-bottom: 0; }
+#app.short #rpick.brd .r { margin-top: 6px; }
+#menu .mbback { appearance: none; -webkit-appearance: none; display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; min-height: 36px; margin: -6px 0 6px -8px; padding: 0 10px 0 4px; background: none; border: 0; color: var(--dim); font-family: var(--f-ui); font-size: 13px; letter-spacing: .2em; cursor: pointer; }
+#menu .mbback svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+@media (hover: hover) { #menu .mbback:hover { color: var(--snow); } }
 #app.en #seg b { letter-spacing: .04em; font-weight: 500; font-size: clamp(30px, 8.6vmin, 42px); }
 #app.en.wide #seg b { font-size: clamp(28px, 7vmin, 52px); }
 #app.en #day .t { letter-spacing: .12em; font-weight: 500; }
@@ -517,7 +595,7 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
   <section id="title" class="layer">
     <header class="mark"><div class="cn">雪迹</div><div class="rule"></div><div class="en">COLD SMOKE</div><p class="tag">一个人，一座山，一直往下</p></header>
     <footer class="cta">
-      <div class="act"><button id="go" type="button">自由滑</button><div class="more" id="more"><button type="button" class="dev-only" data-sec="sky"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.4"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/></svg>场景</button><button type="button" data-sec="view"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="6" width="11" height="9" rx="2"/><path d="M13.5 9l4-2.2v7.4l-4-2.2"/></svg>视角</button><button type="button" class="dev-only" data-daily="1"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 15.5l5-8 3 4.5 2-3 5 6.5z"/><circle cx="14.5" cy="4.5" r="1.6"/></svg>今日之山</button><button type="button" data-sec="keys"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="5.5" width="15" height="9" rx="2"/><path d="M5.5 8.5h1M9.5 8.5h1M13.5 8.5h1M6.5 11.5h7"/></svg>操作</button><button type="button" id="xr" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 8.2c0-1.5 1.2-2.7 2.7-2.7h9.6c1.5 0 2.7 1.2 2.7 2.7v2.6c0 1.9-1.5 3.4-3.4 3.4h-1.4c-.9 0-1.6-.5-2-1.3l-.2-.4c-.2-.4-.7-.4-.9 0l-.2.4c-.4.8-1.1 1.3-2 1.3H5.9c-1.9 0-3.4-1.5-3.4-3.4z"/></svg>沉浸模式</button></div></div>
+      <div class="act"><button id="go" type="button">自由滑</button><div class="more" id="more"><button type="button" class="dev-only" data-sec="sky"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="3.4"/><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4"/></svg>场景</button><button type="button" id="mpgo" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="7" cy="6" r="2.2"/><circle cx="13.5" cy="7.5" r="2"/><path d="M3 16.5c.6-3 2.2-4.6 4-4.6s3.4 1.6 4 4.6M10.5 16.5c.5-2.4 1.7-3.6 3-3.6s2.5 1.2 3 3.6"/></svg>一起滑</button><button type="button" data-sec="view"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="6" width="11" height="9" rx="2"/><path d="M13.5 9l4-2.2v7.4l-4-2.2"/></svg>视角</button><button type="button" class="dev-only" data-daily="1"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 15.5l5-8 3 4.5 2-3 5 6.5z"/><circle cx="14.5" cy="4.5" r="1.6"/></svg>今日之山</button><button type="button" data-sec="keys"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="5.5" width="15" height="9" rx="2"/><path d="M5.5 8.5h1M9.5 8.5h1M13.5 8.5h1M6.5 11.5h7"/></svg>操作</button><button type="button" id="xr" hidden><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 8.2c0-1.5 1.2-2.7 2.7-2.7h9.6c1.5 0 2.7 1.2 2.7 2.7v2.6c0 1.9-1.5 3.4-3.4 3.4h-1.4c-.9 0-1.6-.5-2-1.3l-.2-.4c-.2-.4-.7-.4-.9 0l-.2.4c-.4.8-1.1 1.3-2 1.3H5.9c-1.9 0-3.4-1.5-3.4-3.4z"/></svg>沉浸模式</button></div></div>
       <p class="how" id="how">倾斜手机转弯，或按住屏幕左右拖动</p>
       <p class="fine">画面和声音全部由代码实时生成，没有一张贴图、一段录音。戴上耳机更好。</p>
       <p class="keys"><b>回车</b>自由滑<b>H</b>操作<b>M</b>静音<b>F</b>全屏</p>

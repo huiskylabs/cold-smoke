@@ -25,7 +25,7 @@ const I18N = (() => {
     '一个人，一座山，一直往下': 'One skier, one mountain, all the way down',
     '沉浸模式': 'Immersive', '捏一下手指 出发': 'Pinch to start', '左右歪头转弯 · 转弯时头往后压刃拐急，头往前搓雪减速': 'Lean your head to turn · head back in a turn to carve tighter, forward to skid and slow',
     '右手捏住 蹲低加速 · 左手捏住 蓄力，松开起跳': 'Right pinch held: tuck · Left pinch held: load a jump, let go to fly', '按数码表冠退出': 'Press the Digital Crown to leave',
-    '出发': 'Start', '自由滑': 'Free ski', '挑战': 'Challenge', '场景': 'Scene', '视角': 'Views', '操作': 'Controls', '回车': 'Enter', '静音': 'Mute', '全屏': 'Full screen', '退出全屏': 'Exit full screen',
+    '出发': 'Start', '自由滑': 'Free ski', '挑战': 'Challenge', '场景': 'Scene', '视角': 'Views', '一起滑': 'Ski together', '操作': 'Controls', '回车': 'Enter', '静音': 'Mute', '全屏': 'Full screen', '退出全屏': 'Exit full screen',
     '画面和声音全部由代码实时生成，没有一张贴图、一段录音。戴上耳机更好。': 'Every picture and every sound is made live by code: not one texture, not one recording. Best with headphones.',
     '画面和声音全部由代码实时生成，戴上耳机更好。': 'Every picture and every sound is made live by code. Best with headphones.',
     '← → 或 A D 转弯 · 空格 跳 · ↓ 或 S 加速': '← → or A D to turn · Space to jump · ↓ or S to tuck',
@@ -148,7 +148,10 @@ const I18N = (() => {
   { let q = null, s = null;
     try { q = norm(new URLSearchParams(location.search).get('lang')); } catch (e) { }
     try { s = norm(localStorage.getItem(KEY)); } catch (e) { }
-    L.lang = q || s || browser(); }
+    // (the owner, 2026-11-22 22:15 UTC: "我本地试玩永远默认中文！": a test copy (a local file, or a page that says so: COLD_SMOKE.lang, as the
+    // 一起滑 test link does) starts in Chinese whatever the browser's language; the site itself still follows the browser)
+    let t = null; try { t = norm(self.COLD_SMOKE && self.COLD_SMOKE.lang) || (location.protocol === 'file:' ? 'zh' : null); } catch (e) { }
+    L.lang = q || s || t || browser(); }
   L.en = () => L.lang === 'en';
   // a string as shown: the English for it in English, itself otherwise (and itself when there is no English for it yet)
   L.t = s => { if (L.lang !== 'en' || s == null) return s; const k = String(s), e = EN[k]; if (e != null) return e; const tk = k.trim(); return EN[tk] != null ? k.replace(tk, EN[tk]) : k; };

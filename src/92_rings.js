@@ -505,9 +505,14 @@ const Rings = (() => {
   // the run's score (time less the rings' bonus) plus this, per line. 2026-11-19, after the levels moved down a step and every ring was
   // made reachable: tools/ring-reach.js (the searching pilot, one skier for all three) rode each line at each level three times; its score
   // with every ring through came out 速降线 难 127.5 / 标准 122.6 / 轻松 126.8 s, 越野线 152.6 / 120.3 / 150.4 s (the bonus for the
-  // extra rings all but pays for the extra time). So: what the same skier gains on that level over 难, plus 5 s for each step easier
-  const HC = { a: { a: 10, b: 10, c: 0 }, x: { a: 10, b: 35, c: 0 } };
-  const hcOf = (id, df) => (HC[id] && HC[id][df]) || 0;
+  // extra rings all but pays for the extra time). So: what the same skier gains on that level over 难, plus 5 s for each step easier.
+  // (用户 2026-11-23 15:29 UTC「为什么轻松只加10秒，但是标准要加35秒？Doesn't make sense」) Those 11-19 figures were from lines since laid
+  // out again (b527ebb), and 越野线 标准 then ran 32 s short. Measured again on b527ebb (ring-reach.js, 3 rides each; a ride that stuck
+  // left out): score 速降线 难 191.5 / 标准 187.9 / 轻松 187.0 s, 越野线 222.1 / 238.3 / 269.6 s. Same rule, never below 0: 速降线 轻松
+  // +14.5 → 15, 标准 +8.6 → 10; 越野线 both come out below 0 (the easier levels are already slower: fewer rings, less bonus) → 0.
+  // And whatever the figures, an easier level never adds less than a harder one: hcOf holds 轻松 ≥ 标准 ≥ 难 = 0
+  const HC = { a: { a: 15, b: 10, c: 0 }, x: { a: 0, b: 0, c: 0 } };
+  const hcOf = (id, df) => { const h = HC[id] || {}, v = k => Math.max(0, h[k] || 0); return df === 'c' ? 0 : df === 'b' ? v('b') : Math.max(v('a'), v('b')); };
   // (用户 2026-11-19 00:39-00:40 UTC: 电脑上玩存 localStorage，没有排名就不显示；小红书才加排名；网站以后能登录再排) nothing about the boards
   // is shown where there are none: no 全部最好 / 排名, no handicap line, no 排行榜 note
   const rankOn = () => typeof Rank !== 'undefined' && !!Rank.on && !!Rank.line;
@@ -750,7 +755,7 @@ const Rings = (() => {
       + '#rline kbd{margin-left:.5em;font-family:var(--f-lat);font-size:.85em;letter-spacing:.04em;opacity:.6}</style>'
       + '<div class="tm"></div><div class="sub"></div><div class="pop"></div><div class="spl"></div><div class="cd"></div><div class="ban"><b></b><span class="rule"></span><i></i></div><div class="card"></div>';
     (document.getElementById('app') || document.body).appendChild(d); L.el = d;
-    d.addEventListener('click', e => { const a = e.target && e.target.dataset && e.target.dataset.a, cb = e.target && e.target.closest && e.target.closest('[data-cb]'); if (cb) { const b = RG.cardButtons[+cb.dataset.cb]; if (b && b.on) b.on(); return; } if (a === 'again') lineRestart(); else if (a === 'harder') lineHarder(); else if (a === 'free') lineFree(); });
+    d.addEventListener('click', e => { const a = e.target && e.target.dataset && e.target.dataset.a, cb = e.target && e.target.closest && e.target.closest('[data-cb]'); if (cb) { const b = RG.cardButtons[+cb.dataset.cb]; if (b && b.on) b.on(); return; } if (a === 'again') lineRestart(); else if (a === 'harder') lineHarder(); else if (a === 'free') lineFree(); else if (a === 'board') { const m = mapNow(); if (Rank.pick && m) Rank.pick(m.id, L.id); if (typeof UI !== 'undefined') UI.menu('rank'); } });
     L.q = k => d.querySelector('.' + k);
     return d;
   }
@@ -848,12 +853,12 @@ const Rings = (() => {
     const fs = items => '<div class="fs">' + items.map(([v, k, c]) => '<div><b' + (c ? ' class="' + c + '"' : '') + '>' + v + '</b><span>' + k + '</span></div>').join('') + '</div>';
     L.q('card').innerHTML = '<div class="sc"><h3><em>' + T(LINES[L.id].name) + '</em>' + T(DNAME[L.diff]) + '</h3><div class="big">' + fmt(score) + '</div><div class="rule"></div>'
       + '<div class="dl ' + (isNew ? 'g' : 'r') + '">' + (isNew ? (best ? tx('新纪录，快了 ' + (best.score - score).toFixed(2) + ' 秒', 'New record, ' + (best.score - score).toFixed(2) + ' s faster') : tx('第一次完成，这就是你的纪录', 'First finish: this is your record')) : tx('比最好慢 ' + (score - best.score).toFixed(2) + ' 秒', (score - best.score).toFixed(2) + ' s off your best')) + '</div>'
-      + fs([[fmt(L.tEnd), tx('用时', 'Time')], [RG.passed + ' / ' + tot, tx('光圈', 'Rings')], ['−' + bonus, tx('光圈奖励（秒）', 'Ring bonus (s)'), 'g']])
+      + fs([[fmt(L.tEnd), tx('用时', 'Time')], [RG.passed + ' / ' + tot, tx('光圈', 'Rings')], [(+bonus > 0 ? '−' : '') + bonus, tx('光圈奖励（秒）', 'Ring bonus (s)'), 'g']])
       + '<table><tr><th>' + tx('分站', 'Stage') + '</th><th>' + tx('本局', 'This run') + '</th><th>' + tx('之前最好', 'Best before') + '</th><th></th></tr>' + rows.map((r, i) => '<tr' + (i === worst ? ' class="worst"' : '') + '><td>' + TN(r.n) + '</td><td>' + fmt(r.d) + '</td>' + td(r) + '</tr>').join('') + '</table>'
       + '<div class="tip">' + [miss ? tx('漏了 ' + miss + ' 个圈，少减 ' + +(miss * p).toFixed(1) + ' 秒', miss + ' rings missed: ' + +(miss * p).toFixed(1) + ' s of bonus lost') : '', worst >= 0 ? tx('最慢的一站：' + rows[worst].n + '，比最好慢 ' + wd.toFixed(2) + ' 秒', 'Slowest stage: ' + TN(rows[worst].n) + ', ' + wd.toFixed(2) + ' s off its best') : ''].filter(Boolean).join(tx('；', '; ')) + '</div>'
       + (rankOn() && boardOf(L.id, L.diff) ? fs([[fmt(rec.best.score), tx('个人最好', 'Your best')], ['…', tx('全部最好', 'Best of all'), 'gtop'], ['…', tx('排名', 'Place'), 'grank']])
       + '<div class="tip">' + (hcOf(L.id, L.diff) ? tx('排行榜成绩 ' + fmt(score + hcOf(L.id, L.diff)) + '（' + DNAME[L.diff] + '加时 +' + hcOf(L.id, L.diff) + ' 秒，三档一起排）', 'Board time ' + fmt(score + hcOf(L.id, L.diff)) + ' (' + T(DNAME[L.diff]) + ' +' + hcOf(L.id, L.diff) + ' s; all three levels on one board)') : tx('排行榜成绩 ' + fmt(score) + '（难不加时，三档一起排）', 'Board time ' + fmt(score) + ' (Hard: nothing added; all three levels on one board)')) + '</div>' : fs([[fmt(rec.best.score), tx('个人最好', 'Your best')]]))
-      + '</div><div class="bt"><button class="p" data-a="again">' + tx('再来一局', 'Again') + '<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">' + tx('增加难度', 'Harder') + '</button>' : '') + '' + RG.cardButtons.map((b, i) => '<button data-cb="' + i + '">' + T(b.label) + (b.key ? '<kbd>' + b.key + '</kbd>' : '') + '</button>').join('') + '<button data-a="free">' + tx('继续滑', 'Ski on') + '<kbd>Esc</kbd></button></div>';
+      + '</div><div class="bt"><button class="p" data-a="again">' + tx('再来一局', 'Again') + '<kbd>⏎</kbd></button>' + (DNEXT[L.diff] ? '<button data-a="harder">' + tx('增加难度', 'Harder') + '</button>' : '') + '' + RG.cardButtons.map((b, i) => '<button data-cb="' + i + '">' + T(b.label) + (b.key ? '<kbd>' + b.key + '</kbd>' : '') + '</button>').join('') + (MB() && rankOn() && boardOf(L.id, L.diff) ? '<button data-a="board">' + tx('看排行榜', 'Board') + '</button>' : '') + '<button data-a="free">' + tx('继续滑', 'Ski on') + '<kbd>Esc</kbd></button></div>';
     emit('finish', { line: L.id, name: LINES[L.id].name, diff: L.diff, score, t: L.tEnd, bonus: p, missed: miss, passed: RG.passed, splits: L.split.slice(), names: L.names.slice(), isNew, segBest: segBest.slice(), ban: banTxt });
     board(score + hcOf(L.id, L.diff));
     // (用户 2026-11-20 08:44 UTC：刚过终点这些东西马上都弹出来了，让这个人先停下来、站稳，然后再弹出来) the card waits for the stop: it
@@ -964,13 +969,18 @@ const Rings = (() => {
   const TN = s => { const m = /^(\d+ )(.+)$/.exec(s || ''); return m ? m[1] + T(m[2]) : T(s); };          // (a station: '3 陡坡')
   const lab = (e, zh) => { if (typeof I18N !== 'undefined' && I18N.live) I18N.live(e, zh); else e.textContent = zh; };          // (words that follow a language change)
   const RING_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="5.6"/><path d="M10 1.8v1.6M10 16.6v1.6M1.8 10h1.6M16.6 10h1.6"/></svg>';
+  const MB = () => typeof UI !== 'undefined' && !!UI.mb;          // (菜单方案 B, 19_ui.js layoutB: web and 小红书, not the native apps)
   function syncLine() { const lid = chalOn() && LINES[Variants.val.rline] ? Variants.val.rline : null; if (lid !== L.id || (lid && diffKey() !== L.diff)) { L.id = lid; lineSetup(); } }
   function chalButton() {
     if (RG.cb || typeof document === 'undefined') return;
     const more = document.getElementById('more'); if (!more) return;
     const b = document.createElement('button'); b.type = 'button'; b.className = devOn() ? 'dev-only' : ''; b.innerHTML = RING_ICON + '<span></span>'; lab(b.lastChild, '挑战');
-    b.addEventListener('click', e => { e.stopPropagation(); pickOpen(true); });
-    more.insertBefore(b, more.firstChild); RG.cb = b;
+    b.addEventListener('click', e => { e.stopPropagation(); pickOpen(true); if (e.detail) b.blur(); });
+    // (菜单方案 B, 用户 2026-11-22: 自由滑和挑战两个一样大的入口) beside 自由滑, the same size and look, instead of in the small row
+    const go = MB() && document.getElementById('go');
+    if (go && go.parentNode) { b.id = 'go2'; b.className = ''; b.textContent = ''; lab(b, '挑战'); go.after(b); }
+    else more.insertBefore(b, more.firstChild);
+    RG.cb = b;
   }
   // (用户 2026-11-18 22:52 UTC: 滑到中间的时候，这个菜单我不能重新直接点挑战) the pause menu has 挑战 too, under 拍照: it goes back to the top
   // (as 回到山顶 does) and opens the same panel there, so a line can be started again or another one picked
@@ -979,18 +989,22 @@ const Rings = (() => {
     const ph = document.getElementById('m-photo'); if (!ph || !ph.parentNode) return;
     const b = document.createElement('button'); b.type = 'button'; b.id = 'm-chal'; lab(b, '挑战'); b.hidden = true;
     b.addEventListener('click', e => {
-      e.stopPropagation(); if (typeof UI === 'undefined' || !UI.toTop || UI.toTop() === false) return;
+      e.stopPropagation();
+      if (MB() && L.id && typeof UI !== 'undefined' && UI.state === 'run') { UI.menu(false); lineRestart(); return; }          // (菜单方案 B: during a line this is 重来这条线)
+      if (typeof UI === 'undefined' || !UI.toTop || UI.toTop() === false) return;
       const t0 = Date.now(), wait = () => { if (UI.state === 'title' && !UI.open) pickOpen(true); else if (Date.now() - t0 < 20000) setTimeout(wait, 100); };
       setTimeout(wait, 100);
     });
-    ph.parentNode.insertBefore(b, ph.nextSibling); RG.cmb = b;
+    const mg = MB() && document.getElementById('m-go');
+    if (mg && mg.parentNode) mg.after(b); else ph.parentNode.insertBefore(b, ph.nextSibling);
+    RG.cmb = b;
   }
   function pickUI() {
     if (RG.pk) return RG.pk;
     const d = document.createElement('div'); d.id = 'rpick';
     d.innerHTML = '<style>#rpick{--pkl:calc(var(--col) + max(clamp(200px,calc(var(--cw) * .24),300px),calc(var(--actw,190px) + 24px)));position:absolute;left:var(--pkl);top:calc(var(--gt) + (var(--ch) - var(--gt) - var(--gb)) / 2);transform:translate(-8px,-50%);opacity:0;width:min(320px,calc(var(--cw) - var(--pkl) - var(--gr) - 56px));box-sizing:border-box;max-height:calc(var(--ch) - var(--gt) - var(--gb));display:flex;flex-direction:column;overflow:hidden;z-index:5;pointer-events:none;background:rgba(5,8,13,.52);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-radius:12px;box-shadow:inset 0 0 0 1px var(--hair);padding:18px 18px 16px;color:var(--snow);font-family:var(--f-ui);font-size:12px;transition:opacity .35s ease,transform .45s cubic-bezier(.2,.6,.2,1)}'
       + '#rpick.on{opacity:1;transform:translate(0,-50%);pointer-events:auto}#rpick .sc{flex:0 1 auto;min-height:0;overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}#rpick .sc::-webkit-scrollbar{display:none}'
-      + '#app.pkopen #title .how,#app.pkopen #title .fine{opacity:0;visibility:hidden;transition:none}'          // (the title's foot lines run under the panel: they step aside while it is up)
+      + '#app.pkopen #title .how,#app.pkopen #title .fine{-webkit-clip-path:inset(0 0 100% 0);clip-path:inset(0 0 100% 0)}'          // (the title's foot lines run under the panel: they step aside while it is up, clipped, so they are back at once when it closes)
       + '#rpick h4{margin:0 0 12px;font-family:var(--f-lat);font-weight:500;font-size:10px;letter-spacing:.4em;color:var(--dim);white-space:nowrap}#rpick .l{display:flex;flex-direction:column;gap:6px}'
       + '#rpick button{appearance:none;-webkit-appearance:none;margin:0;border:0;font:inherit;color:var(--dim);cursor:pointer;box-sizing:border-box;text-align:left;border-radius:10px;padding:9px 12px;background:rgba(5,8,13,.25);box-shadow:inset 0 0 0 1px var(--hair);transition:color .2s,box-shadow .2s}'
       + '#rpick button.on{color:var(--sun);background:rgba(255,208,138,.08);box-shadow:inset 0 0 0 1px var(--sun)}@media (hover:hover){#rpick button:not(.on):hover{color:var(--snow);box-shadow:inset 0 0 0 1px rgba(244,247,251,.5)}}'
@@ -1006,7 +1020,16 @@ const Rings = (() => {
       + '#rpick .bk{align-self:flex-start;flex:none;margin:-6px 0 4px -10px;background:none;box-shadow:none;border-radius:10px;text-align:left}'          // (返回 at the layer's top left, as on every layer: 19_ui.js U.layer)
       + '#pkscrim{position:absolute;inset:0;background:rgba(5,8,13,.5);opacity:0;visibility:hidden;transition:opacity .25s ease,visibility 0s linear .25s}#app.pkopen #pkscrim{opacity:1;visibility:visible;transition:opacity .25s ease}</style>'
       + '<button class="bk" data-x="1" type="button"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5L7 10l5.5 5.5"/></svg><span>返回</span></button>'
-      + '<div class="sc"><h4></h4><div class="l"></div><div class="r d"></div><div class="t"></div></div><div class="bt"><button class="go" data-go="1">开始挑战</button></div>';
+      // (菜单方案 B, 用户 2026-11-22: 排行榜跟着挑战走) the board of the line picked stands in a column on the right, 小红书 only (#rpick.brd)
+      + '<style>#rpick .cols{display:flex;gap:18px;flex:1 1 auto;min-height:0}#rpick .lc{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;min-width:0}#rpick .rc{display:none}'
+      + '#rpick.brd{--pbw:min(820px,calc(var(--cw) - var(--gl) - var(--gr) - 16px));left:calc(var(--gl) + (var(--cw) - var(--gl) - var(--gr) - var(--pbw)) / 2);width:var(--pbw);height:calc(var(--ch) - var(--gt) - var(--gb))}'
+      + '#rpick.brd .lc{flex:0 0 min(300px,44%)}#rpick.brd .rc{display:flex;flex-direction:column;flex:1 1 0;min-width:0;min-height:0;border-left:1px solid var(--hair);padding-left:16px}'
+      + '#rpick .rc .p{display:flex;gap:6px;margin:0 0 8px}#rpick .rc .p button{flex:1;text-align:center;padding:0;height:32px;border-radius:10px;letter-spacing:.2em}'
+      + '#rpick .rc .me{margin:0 0 6px;font-size:12px;letter-spacing:.1em;color:var(--sun)}#rpick .rc ol{list-style:none;margin:0;padding:0;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch}#rpick .rc ol::-webkit-scrollbar{display:none}'
+      + '#rpick .rc li{display:flex;align-items:baseline;gap:10px;padding:5px 8px;border-radius:8px;font-size:13px;letter-spacing:.06em}#rpick .rc li b{width:2.2em;flex:none;text-align:right;font-family:var(--f-lat);font-weight:500;color:var(--dim)}#rpick .rc li.top b{color:var(--sun)}'
+      + '#rpick .rc li span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#rpick .rc li em{font-style:normal;font-family:var(--f-lat);font-variant-numeric:tabular-nums}#rpick .rc li.mine{background:rgba(255,208,138,.1);box-shadow:inset 0 0 0 1px rgba(255,208,138,.45)}#rpick .rc li.mine b,#rpick .rc li.mine span{color:var(--sun)}'
+      + '#rpick .rc li.none{color:var(--dim)}#rpick .rc .nt{flex:none;margin:8px 0 0;font-size:10.5px;line-height:1.6;letter-spacing:.06em;color:var(--faint)}#app.short #rpick .rc .nt{margin-top:4px;font-size:10px;line-height:1.45}#app.short #rpick .rc li{padding:3px 8px}</style>'
+      + '<div class="cols"><div class="lc"><div class="sc"><h4></h4><div class="l"></div><div class="r d"></div><div class="t"></div></div><div class="bt"><button class="go" data-go="1">开始挑战</button></div></div><div class="rc"></div></div>';
     // the page under the panel is dimmed and takes no tap: a tap there puts the panel away (it used to be 出发, a run started by mistake)
     const sc = document.createElement('div'); sc.id = 'pkscrim';
     sc.addEventListener('click', e => { e.stopPropagation(); pickOpen(false); });
@@ -1016,6 +1039,7 @@ const Rings = (() => {
       const b = e.target.closest('button'); if (!b) return;
       if (b.dataset.l) { RG.pkSel = b.dataset.l; pickDraw(); }
       else if (b.dataset.d) { Variants.set('ringdiff', b.dataset.d); pickDraw(); }
+      else if (b.dataset.per) { RG.pkPer = b.dataset.per; pickBoard(); }
       else if (b.dataset.go) chalGo();
       else if (b.dataset.x) pickOpen(false);
     });
@@ -1037,18 +1061,87 @@ const Rings = (() => {
     const sig = RG.pkSig = (RG.pkSig || 0) + 1;
     for (const sp of d.querySelectorAll('[data-rk]')) {
       const id = sp.dataset.rk, bd = boardOf(id, df);
-      if (!rankOn()) { sp.remove(); continue; }
+      if (!rankOn() || MB()) { sp.remove(); continue; }          // (菜单方案 B: the board column says it all)
       Rank.line(null, bd).then(r => { if (RG.pkSig !== sig || !sp.isConnected) return; sp.textContent = !r ? tx('排行榜暂时读不到', 'Board unavailable for now') : (r.top != null ? tx('第一 ', 'Top ') + fmt(r.top) : tx('还没有人上榜', 'No one on the board yet')) + (r.rank != null ? tx(' · 我 ', ' · me ') + (typeof r.rank === 'number' ? tx('第 ' + r.rank + ' 名', '#' + r.rank) : r.rank) : ''); });
     }
     d.querySelector('.d').innerHTML = ['a', 'b', 'c'].map(k => '<button data-d="' + k + '" class="' + (df === k ? 'on' : '') + '">' + T(DNAME[k]) + '</button>').join('');
     const hint = d.querySelector('.t');
-    hint.textContent = isEN() ? 'Each ring passed takes ' + BON[df] + ' s off' + (rankOn() && ids.some(k => boardOf(k, df)) ? ' · all three levels share one board, ' + (df === 'c' ? 'Hard adds nothing' : T(DNAME[df]) + ' adds ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => T(LINES[k].name) + ' +' + hcOf(k, df) + ' s').join(', ')) : '') + ' · counts down 3, 2, 1'
-      : '每穿过一个圈减 ' + BON[df] + ' 秒' + (rankOn() && ids.some(k => boardOf(k, df)) ? ' · 排行榜三档一起排，' + (df === 'c' ? '难不加时' : DNAME[df] + '加时 ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => LINES[k].name + ' +' + hcOf(k, df) + ' 秒').join('、')) : '') + ' · 开始后倒数 3、2、1';
+    hint.textContent = isEN() ? 'Each ring passed takes ' + BON[df] + ' s off' + (rankOn() && ids.some(k => boardOf(k, df)) ? ' · all three levels share one board, ' + (df === 'c' ? 'Hard adds nothing' : T(DNAME[df]) + ' adds ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => T(LINES[k].name) + (hcOf(k, df) ? ' +' + hcOf(k, df) + ' s' : ' nothing')).join(', ')) : '') + ' · counts down 3, 2, 1'
+      : '每穿过一个圈减 ' + BON[df] + ' 秒' + (rankOn() && ids.some(k => boardOf(k, df)) ? ' · 排行榜三档一起排，' + (df === 'c' ? '难不加时' : DNAME[df] + '加时 ' + ['a', 'x'].filter(k => ids.includes(k)).map(k => LINES[k].name + (hcOf(k, df) ? ' +' + hcOf(k, df) + ' 秒' : '不加')).join('、')) : '') + ' · 开始后倒数 3、2、1';
     const restart = document.createElement('span');
     restart.className = 'restart-key';
     restart.textContent = tx(' · 途中 Backspace 重来', ' · Backspace to restart');
     hint.appendChild(restart);
+    pickBoard();
   }
+  // the board column (菜单方案 B, 小红书 only): the line picked, today / this week / all time, this player's own row lit
+  function pickBoard() {
+    const d = RG.pk; if (!d) return;
+    const on = MB() && rankOn() && !d.classList.contains('none'); d.classList.toggle('brd', on); { const app = document.getElementById('app'); if (app) app.classList.toggle('pkbrd', on); }
+    const rc = d.querySelector('.rc'); if (!on) { rc.textContent = ''; return; }
+    const id = RG.pkSel, own = boardOf(id), bd = own || Rank.chalBoard('hanyan', id), per = RG.pkPer || 'day';
+    const PER = [['day', '今日'], ['week', '本周'], ['all', '总榜']];
+    rc.innerHTML = '<h4></h4><div class="p">' + PER.map(([k, n]) => '<button data-per="' + k + '" class="' + (k === per ? 'on' : '') + '">' + T(n) + '</button>').join('') + '</div><p class="me"></p><ol></ol><p class="nt"></p>';
+    const ln = (PICK.find(p => p[0] === id) || [, ''])[1];
+    rc.querySelector('h4').textContent = (own ? '' : tx('寒烟山 · ', 'Mt Cold Smoke · ')) + T(ln) + tx(' · 排行榜', ' · Board');
+    const hk = diffKey(), hv = hcOf(id, hk), hAll = !hcOf(id, 'a') && !hcOf(id, 'b');          // (the added time of this line at this level, said where it is seen: 用户 2026-11-23)
+    rc.querySelector('.nt').textContent = own ? tx('每穿过一个圈减 ' + BON[hk] + ' 秒。轻松、标准、难一起排，' + (hAll ? '三档都不加时' : DNAME[hk] + (hv ? '加 ' + hv + ' 秒' : '不加时')) + '，越少越靠前。今日和本周按北京时间零点重新开始。每人只留最好的一次。', 'Each ring passed takes ' + BON[hk] + ' s off. All three levels on one board, ' + (hAll ? 'no level adds time' : T(DNAME[hk]) + (hv ? ' adds ' + hv + ' s' : ' adds nothing')) + '; lowest wins. Today and This week restart at Beijing midnight. Only your best run counts.')
+      : tx('这座山的成绩不上榜，排行榜只算寒烟山。', 'Times on this mountain do not go on the board: only Mt Cold Smoke counts.');
+    const me = rc.querySelector('.me'), ol = rc.querySelector('ol'); me.textContent = tx('读取中…', 'Loading…');
+    const sig = RG.pbSig = (RG.pbSig || 0) + 1;
+    Rank.top(bd, per, 100).then(r => {
+      if (RG.pbSig !== sig || !rc.isConnected) return;
+      if (!r) { me.textContent = tx('排行榜暂时读不到', 'Board unavailable for now'); return; }
+      if (r.err) { me.textContent = T(r.err); return; }
+      me.textContent = r.me ? tx('我 · 第 ' + r.me.rank + ' 名 · ' + r.me.t, 'Me · #' + r.me.rank + ' · ' + r.me.t) : tx('还没有成绩，滑一趟就会上榜', 'No time yet: one run puts you on it');
+      const esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+      ol.innerHTML = r.rows.length ? r.rows.map(it => '<li class="' + (it.rank <= 3 ? 'top' : '') + (r.me && +r.me.rank === it.rank ? ' mine' : '') + '"><b>' + it.rank + '</b><span>' + esc(it.name) + '</span><em>' + it.t + '</em></li>').join('')
+        : '<li class="none">' + (per === 'day' ? tx('今天还没有人上榜，第一个就是你', 'No one yet today: be the first') : tx('还没有人上榜', 'No one on the board yet')) + '</li>';
+    });
+  }
+  // ---- the title's board card (菜单方案 B, 用户 2026-11-22: 一开始就看得到排行榜). Top right of the title page. 小红书: today's board of
+  // 寒烟山 · 速降线, the first three and this player's own place; a tap opens the 挑战 panel with its board. The web build has no public
+  // board, so there the card is this device's own bests on this mountain (none yet: no card). Redrawn every minute while the title is up
+  function teaseUI() {
+    if (RG.te) return RG.te;
+    const t = document.getElementById('title'); if (!t) return null;
+    const a = document.createElement('aside'); a.id = 'tease'; a.setAttribute('role', 'button'); a.tabIndex = 0;
+    a.innerHTML = '<style>#tease{position:absolute;right:calc(var(--gr) + 4px);top:calc(var(--gt) + 52px);width:clamp(200px,calc(var(--cw) * .24),270px);box-sizing:border-box;padding:12px 14px 10px;border-radius:14px;background:rgba(7,11,18,.6);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);box-shadow:inset 0 0 0 1px var(--hair);color:var(--snow);font-family:var(--f-ui);cursor:pointer;pointer-events:auto;opacity:0;transform:translateY(6px);transition:opacity 1s ease 2.2s,transform 1s cubic-bezier(.2,.6,.2,1) 2.2s}'
+      + '#title.on #tease.on{opacity:1;transform:none}#tease:not(.on),#title:not(.on) #tease{pointer-events:none;transition-delay:0s}#app.pkopen #tease{opacity:0;transition:none}'
+      + '#tease h5{margin:0 0 6px;font-family:var(--f-ui);font-weight:500;font-size:11px;letter-spacing:.22em;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#tease ol{list-style:none;margin:0;padding:0}'
+      + '#tease li{display:flex;align-items:baseline;gap:8px;padding:3px 6px;border-radius:7px;font-size:13px;letter-spacing:.05em}#tease li b{width:1.6em;flex:none;text-align:right;font-family:var(--f-lat);font-weight:500;color:var(--sun)}#tease li span{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'
+      + '#tease li em{font-style:normal;font-family:var(--f-lat);font-variant-numeric:tabular-nums}#tease li.mine{background:rgba(255,208,138,.1);box-shadow:inset 0 0 0 1px rgba(255,208,138,.45)}#tease li.mine span{color:var(--sun)}#tease li.none{color:var(--dim);font-size:12px}'
+      + '#tease .mo{margin:6px 0 0;text-align:right;font-size:12px;letter-spacing:.14em;color:var(--sun)}@media (hover:hover){#tease:hover{box-shadow:inset 0 0 0 1px rgba(255,208,138,.6)}}#app.short #tease{top:calc(var(--gt) + 46px);padding:9px 12px 8px}#app.short #tease li{padding:2px 6px}</style><div class="in"></div>';
+    const go = e => { e.stopPropagation(); if (e.type === 'keydown' && e.code !== 'Enter' && e.code !== 'Space') return; if (e.type === 'keydown') e.preventDefault(); pickOpen(true); };
+    a.addEventListener('click', go); a.addEventListener('keydown', go);
+    t.appendChild(a); RG.te = a; return a;
+  }
+  function teaseDraw() {
+    const a = teaseUI(); if (!a) return;
+    RG.teT = Date.now();
+    const box = a.querySelector('.in'), esc = v => String(v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const li = (r, n, t, mine) => '<li class="' + (mine ? 'mine' : '') + '"><b>' + r + '</b><span>' + esc(n) + '</span><em>' + t + '</em></li>';
+    if (rankOn()) {
+      const bd = Rank.chalBoard('hanyan', 'a'), sig = RG.teSig = (RG.teSig || 0) + 1;
+      Rank.top(bd, 'day', 3).then(r => {
+        if (RG.teSig !== sig) return;
+        if (!r || r.err) { a.classList.remove('on'); return; }
+        const inTop = r.me && r.rows.some(it => it.rank === +r.me.rank);
+        box.innerHTML = '<h5>' + tx('今日 · 寒烟山速降线', 'Today · Cold Smoke downhill') + '</h5><ol>'
+          + (r.rows.length ? r.rows.map(it => li(it.rank, it.name, it.t, inTop && it.rank === +r.me.rank)).join('') : '<li class="none">' + tx('今天还没有人上榜，第一个就是你', 'No one yet today: be the first') + '</li>')
+          + (r.me && !inTop ? li(r.me.rank, tx('我', 'Me'), r.me.t, true) : '') + '</ol><p class="mo">' + tx('看全部排行 ›', 'Full board ›') + '</p>';
+        a.classList.add('on');
+      });
+      return;
+    }
+    const df = diffKey(), ids = mapLines(), bests = ids.map(id => [id, bestOf(id, df)]).filter(x => x[1] != null);
+    if (!bests.length) { a.classList.remove('on'); return; }
+    box.innerHTML = '<h5>' + tx('我的最好 · ', 'My best · ') + esc(mapLabel()) + ' · ' + T(DNAME[df]) + '</h5><ol>'
+      + bests.map(([id, b]) => li('', T((PICK.find(p => p[0] === id) || [, id])[1]), fmt(b), false)).join('') + '</ol><p class="mo">' + tx('去挑战 ›', 'Challenge ›') + '</p>';
+    a.classList.add('on');
+  }
+  RG.teaseDraw = () => teaseDraw();          // (for tools/menu-review-shots.js)
+  if (typeof I18N !== 'undefined' && I18N.on) I18N.on(() => { if (RG.te) teaseDraw(); });
   if (typeof I18N !== 'undefined' && I18N.on) I18N.on(() => { if (RG.pkOpen) pickDraw(); });          // (the language changed while the panel is up)
   function pickOpen(on) {
     if (on && !(typeof UI !== 'undefined' && UI.state === 'title' && !UI.open)) return;
@@ -1085,12 +1178,14 @@ const Rings = (() => {
   function pickFrame() {
     if (typeof document === 'undefined') return;
     if (chalOn()) { chalButton(); chalMenuButton(); }
-    if (RG.cmb) { const sh = chalOn() && typeof UI !== 'undefined' && UI.state === 'run' && mapLines().length > 0; if (RG.cmb.hidden === sh) RG.cmb.hidden = !sh; }
+    if (RG.cmb) { const sh = chalOn() && typeof UI !== 'undefined' && UI.state === 'run' && mapLines().length > 0; if (RG.cmb.hidden === sh) RG.cmb.hidden = !sh;
+      if (MB()) { const w = L.id ? '重来这条线' : '挑战'; if (RG.cmb.dataset.zh !== w) lab(RG.cmb, w); } }
+    if (MB() && typeof UI !== 'undefined' && UI.state === 'title' && (!RG.teT || Date.now() - RG.teT > 60000 || RG.teMap !== (typeof Course !== 'undefined' ? Course.seed : 0) + diffKey())) { RG.teMap = (typeof Course !== 'undefined' ? Course.seed : 0) + diffKey(); teaseDraw(); }
     if (RG.pkOpen && !(typeof UI !== 'undefined' && UI.state === 'title' && !UI.open)) pickOpen(false);
   }
   RG.share = shareOn();          // (19b_rank.js: the challenge boards show on the share link too)
   RG.lipOf = lipOf; RG.kickerIn = kickerIn;          // (for test scripts)
-  RG.rules = { BON, HC };          // (the board's own note says how a time is scored, from these: 19b_rank.js)
+  RG.rules = { BON, HC, hcOf };          // (the board's own note says how a time is scored, from these: 19b_rank.js)
   RG.pickOpen = on => pickOpen(on); RG.finishNow = () => lineFinish();          // (for tools/layout-check.js: the panel and the result card without skiing a whole line)
   RG.line = L; if (typeof window !== 'undefined') window.__rings = RG;          // (for test scripts)
   const GS0 = typeof Game !== 'undefined' ? Game.start : null;

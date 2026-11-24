@@ -85,6 +85,7 @@ const Course = ((vn1, vn2, h2U) => {
     b: { L: 5.6, W: 5.0, H: 0.58, B0: 0.65, B1: 0.7, Q: 0.58, R: 0.7, J: 0.22, I: 1 },
     c: { L: 3.7, W: 4.0, H: 0.8, B0: 0.88, B1: 0.24, Q: 0.55, R: 0.6, J: 0.04, I: 1 },
   };
+  const FEATS = C.feats;      // (the module's own map; C.feats is swapped for a lap-aware view while the mountain loops: C.setLoop)
   const CH = 2048, NF = 20;       // metres per cache chunk, fields per metre
   const F = { baseY: 0, cx: 1, hw: 2, dish: 3, shoulder: 4, gul: 5, gw: 6, goff: 7, roll: 8, mog: 9, forest: 10, glade: 11, powder: 12, ridge: 13, wall: 14, rtail: 15, tilt: 16, bank: 17, enc: 18, gU: 19 };
   const chunks = new Map();
@@ -110,7 +111,7 @@ const Course = ((vn1, vn2, h2U) => {
   C.setSeed = function (n) {
     n = Math.floor(+n); if (n >= 1) C.seed = (n - 1) % 999999 + 1;
     KEY = hashU(C.seed) ^ hashU(HOME); KZ = Math.imul(KEY, 0x9e3779b1);
-    C.segs = []; C.feats.clear(); chunks.clear(); integ.clear(); rng = RNG(FIRST ^ KEY); planned = 0; lastTypes = []; deck = []; pairs = [];
+    C.segs = []; FEATS.clear(); chunks.clear(); integ.clear(); rng = RNG(FIRST ^ KEY); planned = 0; lastTypes = []; deck = []; pairs = [];
     nearbyCells.fill(undefined);
     hand = []; dealt = []; toss = RNG(KEY + TOSS);
     const tv = typeof Variants !== 'undefined' ? Variants.val : {};
@@ -366,7 +367,7 @@ const Course = ((vn1, vn2, h2U) => {
   C.offRun = function (x, z) { const s = -z, c = at(s, _py), u = x - c.cx; return edgeE(s, u, Math.abs(u) - c.hw, c.hw); };
   // anything already standing within [sa, sb] down the run and `room` metres of u across it?
   function busy(sa, sb, u, room) {
-    for (let b = Math.floor((sa - 30) / 32); b <= Math.floor(sb / 32); b++) for (const f of C.feats.get(b) || []) {
+    for (let b = Math.floor((sa - 30) / 32); b <= Math.floor(sb / 32); b++) for (const f of FEATS.get(b) || []) {
       const fa = f.s, fb2 = f.s + f.len, half = f.kind === 'rock' ? f.rad : (f.wid || 10) * 0.5;
       if (fb2 > sa && fa < sb && Math.abs(f.u - u) < room + half) return true;
     }
@@ -393,7 +394,7 @@ const Course = ((vn1, vn2, h2U) => {
   const dropLip = (f, du) => 1.6 * vnoise1(du / 3.3 + f.lip * 0.17, 81) + 0.6 * vnoise1(du / 1.1 + f.lip * 0.29, 82);
   // trees keep clear of a drop (its run-in, face and landing) and stand off a boulder
   function clearAt(s, u) {
-    const fb = C.feats.get(Math.floor(s / 32)); if (!fb) return 1;
+    const fb = FEATS.get(Math.floor(s / 32)); if (!fb) return 1;
     let k = 1;
     for (let i = 0; i < fb.length; i++) {
       const f = fb[i];
@@ -406,7 +407,7 @@ const Course = ((vn1, vn2, h2U) => {
   // rounded, wind-packed lip (bare rock on its face was tried and read as a dark slab)
   C.rockAt = function (x, z) {
     if (!LV) return 0;
-    const s = -z, fb = C.feats.get(Math.floor(s / 32)); if (!fb) return 0;
+    const s = -z, fb = FEATS.get(Math.floor(s / 32)); if (!fb) return 0;
     let u = null, k = 0;
     for (let i = 0; i < fb.length; i++) {
       const f = fb[i]; if (f.kind !== 'rock' || f.snow) continue;
@@ -425,7 +426,7 @@ const Course = ((vn1, vn2, h2U) => {
   }
   C.rockHit = function (x, z, o) {
     if (!LV) return null;
-    const s = -z, fb = C.feats.get(Math.floor(s / 32)); if (!fb) return null;
+    const s = -z, fb = FEATS.get(Math.floor(s / 32)); if (!fb) return null;
     const c = at(s, _py), u = x - c.cx;
     for (let i = 0; i < fb.length; i++) {
       const f = fb[i]; if (f.kind !== 'rock' || f.snow) continue;
@@ -439,7 +440,7 @@ const Course = ((vn1, vn2, h2U) => {
     }
     return null;
   };
-  function addFeat(f) { const b0 = Math.floor((f.s - 4) / 32), b1 = Math.floor((f.s + f.len + 30) / 32); for (let b = b0; b <= b1; b++) { let a = C.feats.get(b); if (!a) C.feats.set(b, a = []); a.push(f); } }
+  function addFeat(f) { const b0 = Math.floor((f.s - 4) / 32), b1 = Math.floor((f.s + f.len + 30) / 32); for (let b = b0; b <= b1; b++) { let a = FEATS.get(b); if (!a) FEATS.set(b, a = []); a.push(f); } }
 
   function segAt(s) {
     if (s < 0) return C.segs[0];
@@ -666,7 +667,7 @@ const Course = ((vn1, vn2, h2U) => {
     if (cell <= 5) h += 0.32 * vnoise2(x / 11.3, z / 11.3, 5);
     if (cell <= 1.2) h += 0.09 * vnoise2(x / 3.1, z / 6.3, 6) * (0.4 + c.powder);
     // kickers and other placed features
-    const fb = C.feats.get(Math.floor(s / 32));
+    const fb = FEATS.get(Math.floor(s / 32));
     if (fb) for (let i = 0; i < fb.length; i++) {
       const f = fb[i];
       if (f.kind === 'rock') {
@@ -799,7 +800,7 @@ const Course = ((vn1, vn2, h2U) => {
     k *= lerp(smooth(c.hw - 1, c.hw + 1.5, au), 1, smooth(0.3, 0.7, c.glade));
     if (c.mog > 0.05) k *= lerp(1, smooth(4.5, 8, Math.abs(u - 0.5 * c.hw * vnoise1(s / 105 + 7.3, C.seed + 31))), smooth(0.05, 0.3, c.mog));
     const b0 = Math.floor(s / 32);
-    for (let b = b0 - 1; b <= b0 + 2; b++) { const fb = C.feats.get(b); if (!fb) continue;
+    for (let b = b0 - 1; b <= b0 + 2; b++) { const fb = FEATS.get(b); if (!fb) continue;
       for (let i = 0; i < fb.length; i++) { const f = fb[i]; if (f.kind !== 'kicker') continue;
         if (s > f.s - (f.mark ? 60 : 25) && s < f.s + f.len + (f.mark ? 35 : 15)) k *= smooth(f.wid * 0.5 + (f.mark ? 3 : 2.5), f.wid * 0.5 + (f.mark ? 7 : 5), Math.abs(u - f.u)); } }
     return k;
@@ -843,7 +844,7 @@ const Course = ((vn1, vn2, h2U) => {
   C.markers = function (s0, s1, fn) {
     if (s1 >= planned) planTo(s1 + 3000);
     for (let b = Math.floor(s0 / 32); b <= Math.floor((s1 + 24) / 32); b++) {
-      const fb = C.feats.get(b); if (!fb) continue;
+      const fb = FEATS.get(b); if (!fb) continue;
       for (let i = 0; i < fb.length; i++) {
         const f = fb[i]; if (!f.mark) continue;
         const sl = f.s + f.len * 0.94; if (Math.floor(sl / 32) !== b) continue;      // (a jump lies in several buckets: counted in the one that holds its lip)
@@ -853,6 +854,77 @@ const Course = ((vn1, vn2, h2U) => {
       }
     }
   };
+
+  // ---- 一起滑: the mountain loops (owner, 2026-11-22 22:28 UTC: "这个应该是无缝衔接的…不需要出现雾，然后重新load一下" — reaching the
+  // bottom must not cover the picture and load the top again). From B on, the land is the land from A on again, moved as one piece (dX across,
+  // dY down, L along): the same snow, trees, jumps and rocks, so a skier who goes on past B is simply skiing the top again, with nothing to cut
+  // to. Over the last T metres before B the shapes ease from one into the other; the things that stand on the land (trees, jumps, rocks,
+  // stretches of run) change over at the middle of that, Bc. L is a whole number of 32 m feature buckets and of 4.5 m tree cells and dX of
+  // tree cells, so every one of those lands exactly on one of its own. Laps go on for ever (lap n: s - nL). C.loop = null: no loop
+  C.loop = null;
+  const RAW = { at, height: C.height, bumps: C.bumps, mountain: C.mountain, offRun: C.offRun, treeDensity: C.treeDensity, rockAt: C.rockAt, rockHit: C.rockHit,
+    treeInCell: C.treeInCell, markers: C.markers, segAt, paramsAt, ways: C.ways, waysK: C.waysK, mogChan: C.mogChan, yawAt: C.yawAt };
+  const LK = ['baseY', 'cx', 'hw', 'dish', 'shoulder', 'gul', 'gw', 'goff', 'roll', 'mog', 'forest', 'glade', 'powder', 'ridge', 'wall', 'rtail', 'tilt', 'bank', 'enc', 'gU'];
+  let WR = null; const _wb = {}, segC = new Map(), featC = new Map();
+  // lap n at s (s - nL lies in [A, B) from B on), the blend w at s1 = s - nL (above 0 only in [B - T, B)), and k: the lap whose things stand at s
+  function lapAt(s) { return s < WR.B ? 0 : Math.floor((s - WR.A) / WR.L); }
+  function wOf(s1) { return s1 < WR.b0 ? 0 : smoother(WR.b0, WR.B, s1); }
+  function kAt(s) { const n = lapAt(s); return n + (s - n * WR.L >= WR.Bc ? 1 : 0); }
+  // a number field of the land at (x, s): lap n there, eased into lap n + 1 over the blend
+  function blend2(x, s, f) { const n = lapAt(s), s1 = s - n * WR.L, w = wOf(s1), a = f(x - n * WR.dX, s1, n); return w > 0 ? a + (f(x - (n + 1) * WR.dX, s1 - WR.L, n + 1) - a) * w : a; }
+  C.setLoop = function (A, B) {
+    C.loop = WR = null; segC.clear(); featC.clear(); C.feats = FEATS;
+    Object.assign(C, { at: RAW.at, height: RAW.height, bumps: RAW.bumps, mountain: RAW.mountain, offRun: RAW.offRun, treeDensity: RAW.treeDensity, rockAt: RAW.rockAt, rockHit: RAW.rockHit,
+      treeInCell: RAW.treeInCell, markers: RAW.markers, segAt: RAW.segAt, paramsAt: RAW.paramsAt, ways: RAW.ways, waysK: RAW.waysK, mogChan: RAW.mogChan, yawAt: RAW.yawAt });
+    if (!(B > A + 600)) return null;
+    const T = 160, L = Math.max(288, Math.round((B - A) / 288) * 288); B = A + L;
+    const Bc = B - T / 2, ca = RAW.at(Bc, {}), cb = RAW.at(Bc - L, {});
+    const dX = Math.round((ca.cx - cb.cx) / TREE_CELL) * TREE_CELL, dY = ca.baseY - cb.baseY;
+    C.loop = WR = { A, B, L, T, Bc, b0: B - T, dX, dY };
+    C.at = function (s, out) {
+      if (s < WR.b0) return RAW.at(s, out);
+      const n = lapAt(s), s1 = s - n * L, w = wOf(s1), o = RAW.at(s1, out); o.cx += n * dX; o.baseY += n * dY;
+      if (w > 0) { const b = RAW.at(s1 - L, _wb); b.cx += (n + 1) * dX; b.baseY += (n + 1) * dY; for (const k of LK) o[k] += (b[k] - o[k]) * w; }
+      o.s = s; return o;
+    };
+    C.height = function (x, z, cell) { const s = -z; if (s < WR.b0) return RAW.height(x, z, cell); return blend2(x, s, (x1, s1, n) => RAW.height(x1, -s1, cell) + n * dY); };
+    for (const k of ['bumps', 'mountain', 'offRun', 'treeDensity', 'rockAt']) { const f = RAW[k]; C[k] = function (x, z) { const s = -z; if (s < WR.b0) return f(x, z); return blend2(x, s, (x1, s1) => f(x1, -s1)); }; }
+    C.rockHit = function (x, z, o) { const s = -z; if (s < WR.Bc) return RAW.rockHit(x, z, o); const k = kAt(s), r = RAW.rockHit(x - k * dX, z + k * L, o); if (r) { o.x += k * dX; o.z -= k * L; } return r; };
+    C.treeInCell = function (ci, cj, out) {
+      const s = -(cj + 0.5) * TREE_CELL; if (s < WR.Bc) return RAW.treeInCell(ci, cj, out);
+      const k = kAt(s), o = RAW.treeInCell(ci - Math.round(k * dX / TREE_CELL), cj + Math.round(k * L / TREE_CELL), out); if (o.ok) { o.x += k * dX; o.z -= k * L; } return o;
+    };
+    C.markers = function (s0, s1, fn) {
+      if (s1 < WR.Bc) return RAW.markers(s0, s1, fn);
+      for (let k = s0 < WR.Bc ? 0 : kAt(s0), ke = kAt(s1); k <= ke; k++) {
+        const a = k === 0 ? s0 : Math.max(s0, WR.Bc + (k - 1) * L), b = Math.min(s1, WR.Bc + k * L);
+        if (b > a) RAW.markers(a - k * L, b - k * L, (x, z, h, r) => fn(x + k * dX, z - k * L, h, r));
+      }
+    };
+    // (a stretch of run, a jump or a rock of a later lap: the same one, its distances moved on by whole laps)
+    const segK = (g, k) => { if (!k) return g; const key = g.idx * 4096 + k; let c = segC.get(key); if (!c) segC.set(key, c = Object.assign({}, g, { s0: g.s0 + k * L, lap: k })); return c; };
+    C.segAt = function (s) { if (s < WR.Bc) return RAW.segAt(s); const k = kAt(s); return segK(RAW.segAt(s - k * L), k); };
+    C.paramsAt = function (s, out) { if (s < WR.Bc) return RAW.paramsAt(s, out); return RAW.paramsAt(s - kAt(s) * L, out); };
+    for (const k of ['ways', 'waysK', 'yawAt']) { const f = RAW[k]; C[k] = function (s) { return s < WR.Bc ? f(s) : f(s - kAt(s) * L); }; }
+    C.mogChan = (s, hw) => RAW.mogChan(s < WR.Bc ? s : s - kAt(s) * L, hw);
+    const featK = (f, k) => { let m = featC.get(f); if (!m) featC.set(f, m = []); if (!m[k]) { const c = m[k] = Object.assign({}, f, { s: f.s + k * L, lap: k }); if (f.lip !== undefined) c.lip = f.lip + k * L; if (f.cs !== undefined) c.cs = f.cs + k * L; delete c.mx; delete c.mx0; } return m[k]; };
+    const NB = L / 32;
+    C.feats = { get(b) { const s = b * 32; if (s + 32 <= WR.Bc) return FEATS.get(b); const k = kAt(Math.max(s, WR.Bc)), a = FEATS.get(b - k * NB); return a && k ? a.map(f => featK(f, k)) : a; } };
+    return WR;
+  };
+  // a point of lap k moved back into lap 0, in place (for whoever compares places on the mountain across laps: other skiers, 99b_net.js)
+  C.lapShift = function (p, k) { if (!WR || !k) return p; p[0] -= k * WR.dX; p[1] -= k * WR.dY; p[2] += k * WR.L; return p; };
+  C.lapOf = s => WR ? lapAt(s) : 0;
+  // the loop as asked for (C.wantLoop = { A, segs }: from A to the end of the first `segs` stretches of run), laid again on every new mountain.
+  // Whoever changes it makes the land round the lens again (App.swap): what was made before it went on without the loop
+  C.wantLoop = null;
+  C.loopTo = function (want) {
+    C.wantLoop = want || null; if (!want) return C.setLoop(0, 0);
+    let s = 14, sg = RAW.segAt(s); const first = sg.idx;
+    for (let k = 0; k < 40 && sg.idx < first + want.segs; k++) { s = sg.s0 + sg.len + 0.5; sg = RAW.segAt(s); }
+    return C.setLoop(want.A, sg.s0);
+  };
+  { const set = C.setSeed; C.setSeed = C.reset = function (n) { if (WR) C.setLoop(0, 0); const r = set(n); if (C.wantLoop) C.loopTo(C.wantLoop); return r; }; }
   C.reset(C.seed);
   return C;
 })(vnoise1, vnoise2, hash2U);

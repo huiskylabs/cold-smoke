@@ -8,7 +8,7 @@
 // Run: node tools/build-xhs.js   (uses esbuild through npx for the syntax lowering; the first run downloads it)
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 const root = path.join(__dirname, '..'), out = path.join(root, 'dist-xhs');
-const SKIP = new Set(['20_director.js']);           // the trailer's director mode has no place in the package
+const SKIP = new Set(['20_director.js', '99b_net.js']);           // the trailer's director mode has no place in the package; nor 一起滑 (the 小工具 cannot go online)
 
 // ---- the game's code, as build.js puts it together, minus the web-font fetcher (the faces ship in fonts/)
 const files = fs.readdirSync(path.join(root, 'src')).filter(f => f.endsWith('.js') && !SKIP.has(f)).sort();
