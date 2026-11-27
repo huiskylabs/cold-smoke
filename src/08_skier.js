@@ -36,7 +36,7 @@ const Skier = (() => {
   // LEN is put back, the bind pose, the mesh and the shader's marks each kept per proportion, so a second switch costs nothing)
   const LEN0 = Object.assign({}, LEN), PROPB = { thigh: 0.415, shin: 0.41, ankle: 0.145, spine: 0.27, shD: 0.07 };
   if (typeof Variants !== 'undefined') Variants.def('prop', '身体比例', [['a', '原来'], ['b', '腿短、肩松'], ['c', '单板腿短、双板原来']], 'c');
-  const propV = () => { if (typeof Variants === 'undefined') return 'a'; const p = Variants.val.prop; return p === 'c' ? (Variants.val.ride === 'b' ? 'b' : 'a') : p === 'b' ? 'b' : 'a'; };
+  const propV = () => { if (typeof Variants === 'undefined') return 'a'; const p = Variants.val.prop; return p === 'c' ? (Variants.val.ride === 'b' || Variants.val.body === 'c' ? 'b' : 'a') : p === 'b' ? 'b' : 'a'; };
   let gfx, vb, vb2, ib, count = 0, pipe, pipeShadow, boneTex;
   const boneData = new Float32Array(4 * 32 * 4);
   let bind = null, invBind = [], propNow = null;
