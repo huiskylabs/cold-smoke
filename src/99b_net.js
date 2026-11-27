@@ -26,10 +26,6 @@ const Net = self.Net = (() => {
   const tx = (zh, en) => (typeof I18N !== 'undefined' && I18N.en() ? en : zh);
   const PL = self.COLD_SMOKE || {};
   const URL0 = QS.get('mp') || PL.mp || 'wss://mp.huisky.xyz/ski';
-  // (a second road, on the page's own host: huisky.xyz hands the connection on to the relay. Used when mp.huisky.xyz does not
-  // resolve on a player's machine — owner 2026-11-24, his Mac's resolver still remembered the name as missing for an hour)
-  const URLS = [URL0].concat(!QS.get('mp') && !PL.mp && /(^|\.)huisky\.xyz$/.test(location.hostname) ? ['wss://' + location.host + '/cold-smoke/mp/ski'] : []);
-  let via = 0;
   const HZ = 12, DELAY = 0.12, LOOP_SEGS = 6, R_BODY = 0.48, VERSION = 1;
   // names: small animals of the snow line; jacket colours: linear RGB, none of them the player's own orange
   const NAMES = ['雪狐', '松鸦', '岩羊', '雪兔', '雷鸟', '旱獭', '雪豹', '雪鸮', '星鸦', '麝鹿', '狍子', '貂熊', '鼠兔', '白鼬', '雪鹑', '岩鹨'];
@@ -231,7 +227,7 @@ const Net = self.Net = (() => {
     // (the mountain the player is on: outside dev that is the one mountain there is, 寒烟山. It was today's seed for the public room, a
     // mountain nobody otherwise sees, and a robot started on another day was on another one: owner 2026-11-24 "现在只有一座山啊")
     const seed = Course.seed || 1;
-    const U = URLS[via], url = U + (U.includes('?') ? '&' : '?') + 'room=' + encodeURIComponent(room) + '&seed=' + seed + '&name=' + encodeURIComponent(N.name()) + '&col=' + me.c + (N.isBot ? '&bot=1' : '');
+    const url = URL0 + (URL0.includes('?') ? '&' : '?') + 'room=' + encodeURIComponent(room) + '&seed=' + seed + '&name=' + encodeURIComponent(N.name()) + '&col=' + me.c + (N.isBot ? '&bot=1' : '');
     let ws; try { ws = new WebSocket(url); } catch (e) { N.state = 'error'; hud(); return; }
     ws.binaryType = 'arraybuffer'; N.ws = ws; N.state = 'connecting'; N.want = room; hud();
     // (a first try that never answers — the server down, or a network that swallows it — gives up after 8 s and says so, instead of 正在连接… for ever)
@@ -252,7 +248,6 @@ const Net = self.Net = (() => {
     };
     ws.onclose = () => {
       if (N.ws !== ws) return; N.ws = null; for (const id of [...N.peers.keys()]) drop(id);
-      if (N.on && N.want && N.fresh && via + 1 < URLS.length) { via++; connect(N.want); return; }
       if (N.on && N.want && N.fresh) { N.on = false; N.want = null; N.onHi = null; N.state = 'off'; hud(); say(tx('连不上一起滑的服务器，等一会儿再试', 'Can\'t reach the Together server, try again in a bit'), 4); return; }
       if (N.on && N.want) { N.state = 'retry'; N.retry = (N.retry || 0) + 1; setTimeout(() => { if (N.on && !N.ws) connect(N.want); }, Math.min(15000, 1000 * Math.pow(2, N.retry))); }
       else N.state = 'off';

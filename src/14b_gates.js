@@ -226,8 +226,10 @@ const Gates = (() => {
       const y = Course.height(x, z, 0.5), n = Course.normal(x, z, 0.3), sd = hash2(Math.round(x * 16), Math.round(z * 16)), lx = x + LOX, lz = z + LOZ;
       g.flags.push({ x, y, z, row, sd, gx: -n[0] / n[1], gz: -n[2] / n[1], b: [0, 0], bv: [0, 0], wash: 0, wy: 0, lx, ly: Course.height(lx, lz, 0.5) - LSINK, lz });
     };
-    flag(M[0][0], M[0][1], 2); flag(M[1][0], M[1][1], 2); flag(M[2][0], M[2][1], 1); flag(M[3][0], M[3][1], 1);
-    for (const sx of [-1, 1]) pre: for (const li of [0, -2, -4, 2]) for (const ds of [0, 3.5, -3.5, 7, -7, 10.5, -10.5, 14]) {
+    // (Variants 'jumps' b: the size shows in the flags. A medium kicker has its pair at the lip only; a large one all three pairs, as before)
+    flag(M[0][0], M[0][1], 2); flag(M[1][0], M[1][1], 2);
+    if (M.sz !== 'M') { flag(M[2][0], M[2][1], 1); flag(M[3][0], M[3][1], 1); }
+    if (M.sz !== 'M') for (const sx of [-1, 1]) pre: for (const li of [0, -2, -4, 2]) for (const ds of [0, 3.5, -3.5, 7, -7, 10.5, -10.5, 14]) {
       const sp = ss - 1 - G.pre + ds - (sx > 0 ? 0.5 : 0), c = Course.at(sp, pc), x = clamp(c.cx + du + sx * (mo + li), c.cx - c.hw + 1.5, c.cx + c.hw - 1.5);
       Course.nearTree(x, -sp, tn); if (tn.ok && !tn.soft && tn.d < Math.max(3.2, (tn.r || 0) + 1.3)) continue;
       flag(x, -sp, 0); break pre;
@@ -279,7 +281,7 @@ const Gates = (() => {
     seen++; let cur = [];
     // (asked far enough ahead that a jump is known while even its nearest flag, the pair up the hill, is still beyond `far`: every flag
     // then grows in over `band`, none arrives part grown)
-    (G.markers || Course.markers)(cs - G.back, cs + G.far + G.pre + 40, (x, z) => { cur.push([x, z]); if (cur.length === 4) { touch(cur); cur = []; } });
+    (G.markers || Course.markers)(cs - G.back, cs + G.far + G.pre + 40, (x, z, h, t, f) => { cur.push([x, z]); if (cur.length === 4) { cur.sz = f && f.sz; touch(cur); cur = []; } });
     for (const [k, g] of gates) if (g.seen !== seen) { slots[g.slot] = null; gates.delete(k); }
     const W = typeof App !== 'undefined' && App.state.wind ? [App.state.wind[0], App.state.wind[2]] : G.wind;       // (the same wind the snow smoke rides)
     const wl = Math.hypot(W[0], W[1]) || 1, wx = W[0] / wl, wz = W[1] / wl, wyaw = Math.atan2(wz, wx);

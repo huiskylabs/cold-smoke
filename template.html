@@ -646,7 +646,8 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
     <div class="mpane" id="mpane">
       <section class="dev-only" data-sec="sky"><h4>TIME · 天色<kbd>T</kbd></h4><div class="cards" id="sw-time"></div>
         <div class="gap"></div><div id="sw-wx" hidden><h4>WEATHER · 天气<kbd>X</kbd></h4><div class="cards wxc" id="sw-wxc"></div></div>
-        <p class="note">选中立刻生效，后面的画面会跟着变。「自动」让一天自己走下去，琥珀色小点是现在走到的时刻。</p>
+        <div class="gap"></div><h4>TIME-LAPSE · 延时<kbd>Y</kbd></h4><div class="chips" id="sw-lapse"></div>
+        <p class="note">选中立刻生效，后面的画面会跟着变。「自动」让一天自己走下去，琥珀色小点是现在走到的时刻。延时让一天快着走（60× 一秒一小时），天气也跟着一天自己变。</p>
         <div class="tune" id="sw-tune"></div></section>
       <section data-sec="view"><h4>VIEW · 视角<kbd>V</kbd></h4><div class="tiles" id="sw-view"></div>
         <p class="note"><span class="desk-only">滑的时候按 V 依次切换，Shift+V 往回；右键拖动或 I J K L 环顾四周。</span><span class="hand-only">滑的时候点「跳」上方的机位按钮依次切换；两指拖动环顾四周。</span></p></section>
@@ -665,13 +666,13 @@ body { background: var(--ink); color: var(--snow); overflow: hidden; overscroll-
         <div class="keys2 desk-only">
           <div class="keys"><b>← →　A D</b><span>转弯（按久了会切雪）</span><b>空格</b><span>跳，按住蓄力</span><b class="nofa">↓　S</b><span class="nofa">压低加速，慢的时候撑杖</span><b class="fa-only">↓　S</b><span class="fa-only">压刃：转弯时按住，人蹲得更低、板子立得更陡，弯拐得更急也咬得更稳；直滑时按住，重心坐到板尾</span><b class="fa-only">↑　W</b><span class="fa-only">压板头：板头吃雪、板尾甩出去搓雪，用来减速</span><b class="fa-only">Shift</b><span class="fa-only">压低加速，慢的时候撑杖</span><b>右键拖　I J K L</b><span>环顾四周</span></div>
           <div class="keys"><b>V</b><span>换视角</span><b>M　F</b><span>静音 · 全屏</span><b>Esc　H</b><span>菜单 · 这一页</span></div>
-          <div class="keys dev-only"><b>T　X</b><span>换时间 · 换天气</span><b>N</b><span>下一种路段</span><b>G　P</b><span>叫出动物 · 航班</span><b>R</b><span>换一座山</span><b>`</b><span>版本对比</span></div>
+          <div class="keys dev-only"><b>T　X</b><span>换时间 · 换天气</span><b>Y</b><span>延时（一天快着走）</span><b>N</b><span>下一种路段</span><b>G　P</b><span>叫出动物 · 航班</span><b>R</b><span>换一座山</span><b>`</b><span>版本对比</span></div>
         </div>
         <div class="keys hand-only"><b>左手 左右推</b><span>转弯。屏幕上任意处按住都行，推得越远转得越急</span><b class="fa-only">左手 往上推</b><span class="fa-only">前压：转弯时板尾甩出去搓雪，用来减速</span><b class="fa-only">左手 往下推</b><span class="fa-only">后压：转弯时压刃，弯拐得更急、咬得更稳</span><b class="fa-only">斜着推</b><span class="fa-only">转弯和前压 / 后压一起</span><b>倾斜手机</b><span>像方向盘一样左右倾也能转弯，可以和左手一起用</span><b>跳</b><span>按住蓄力，松开起跳</span><b>加速</b><span>按住压低，慢的时候自动撑杖</span><b>机位</b><span>换视角</span><b>两指拖动</b><span>环顾四周</span></div>
         <p class="note desk-only">Shift + 字母 往回切换。</p>
         <p class="note">暂停菜单里点「拍照」：时间全部停住，界面收起，自由移动镜头取景，再按快门存图。</p></section>
       <section data-sec="opt"><h4>SETTINGS · 设置<kbd>M</kbd><kbd>F</kbd></h4><div class="chips opts"><button type="button" id="o-snd" aria-pressed="true">声音 开</button><button type="button" id="o-fs" aria-pressed="false">全屏</button><button type="button" id="o-lang" lang="en">English</button><button type="button" id="o-q">画质 自动</button></div>
-        <p class="note">画面和声音全部由代码实时生成，戴上耳机更好。</p></section>
+        <p class="note">画面和声音全部由代码实时生成，戴上耳机更好。</p><div class="gap"></div><h4>GEAR · 滑具</h4><div class="chips" id="sw-gear"><button type="button" data-gear="a">双板</button><button type="button" data-gear="b">单板</button></div></section>
       <section class="dev-only" data-sec="vers"><div class="vhead"><h4>VERSIONS · 版本对比<kbd>`</kbd></h4><span class="note">给验收用，不是游戏的一部分 · 小圆点是推荐的版本</span><button type="button" class="pill vreset" id="sw-vreset" data-vreset="1">恢复推荐</button></div>
         <div class="vgrid" id="sw-vrows"></div></section>
     </div>

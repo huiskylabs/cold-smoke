@@ -491,6 +491,18 @@ const Spray = (() => {
   P.burst = P.slap;      // (the old name, from when this was a ring thrown out round one point)
   // a fall (into a tree): the skis are stopped but the snow they were ploughing is not: the same two fans, thrown on the way the skier WAS going
   P.fall = function (t, p, n, power) { P.slapKind = 'fall'; try { P.slap(t, p, [was[0] * 0.6, was[1] * 0.6, was[2] * 0.6], n, power); } finally { P.slapKind = null; } };
+  // a snowboarder's front hand trailed on the snow deep in a carve (08a_board.js, J.dragL): a thin rooster tail of fine snow kicked up behind the
+  // glove and a few grains, at a rate that goes with how deep the hand is in and how fast the rider goes (2026-11-22, the owner's 内手拖雪)
+  P.handDrag = function (t, dt, p, v, k) {
+    const sp = Math.hypot(v[0], v[1], v[2]); if (sp < 3 || k <= 0) return;
+    const y = Course.height(p[0], p[2], 0.5) + 0.02, n = Math.min(6, Math.floor(k * sp * dt * 9 + rnd()));
+    for (let i = 0; i < n; i++) {
+      const a = rnd() * TAU, c = 0.3 + 0.5 * rnd(), up = 0.6 + 1.2 * rnd(), tj = t - dt * rnd();
+      const vx = v[0] * 0.35 + Math.cos(a) * c, vz = v[2] * 0.35 + Math.sin(a) * c;
+      if (i % 2 === 0) P.puff(tj, p[0], y, p[2], vx, up, vz, 0.6 + 0.4 * rnd(), lerp(0.03, 0.06, rnd()), 1.6 * k, 1, 0.45, 0.4);
+      else P.grain(tj, p[0], y, p[2], vx * 1.4, up * 1.5, vz * 1.4, rnd(), 0.5 + 1.0 * rnd(), 0.6, 0.5);
+    }
+  };
   // a double-pole push: the two tips go in beside the skis, about level with the toes: a pinch of snow each, flicked back as the basket bites
   P.poles = function (t, root, stance) {
     const f = root.fwd, n = root.nrm, rx = f[1] * n[2] - f[2] * n[1], rz = f[0] * n[1] - f[1] * n[0], d = (stance || 0.3) * 0.5 + 0.24;

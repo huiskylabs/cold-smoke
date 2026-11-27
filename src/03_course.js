@@ -64,7 +64,13 @@ if (typeof Variants !== 'undefined') {
   // channel. b keeps those lines clear. a: as it was
   Variants.def('rclear', '雪道清障', [['a', '原来'], ['b', '雪道上无树']], 'b');
   // (a change lays the same mountain out again)
-  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'route' || n === 'rclear') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
+  // 跳台 (owner, 2026-11-26: "跳台可以多加几种错落开，就是可以有几个选择"). a: as it was, one line of flagged kickers down the middle of a
+  // kicker run, to the last bit. b: jumps in three sizes by how long they keep a rider in the air (small humps in a row, a medium and a
+  // large kicker), laid side by side in a kicker run as three lanes whose lips are staggered down the hill, merging after each group so a
+  // rider can change lane; and on the other runs a few jumps beside the main line (a side hit on the edge, a row of small humps, a medium
+  // kicker). Each has a way past it that does not jump. On a random stream of its own (jrng): nothing else on the mountain moves
+  Variants.def('jumps', '跳台', [['a', '原来'], ['b', '错落']], 'b');
+  Variants.on((n, v, init) => { if (!init && (n === 'terr' || n === 'tdiff' || n === 'slope' || n === 'route' || n === 'rclear' || n === 'jumps') && typeof App !== 'undefined' && App.ready && App.newMountain) App.newMountain(Course.seed); });
 }
 // slope scale and how much further a run of ~30 s then reaches (pace: the test pilot's distance over 30 s against a, 2026-11-14)
 const SLOPE_K = { a: { k: 1, pace: 1 }, b: { k: 0.75, pace: 0.89 }, c: { k: 0.6, pace: 0.69 } };
@@ -92,6 +98,7 @@ const Course = ((vn1, vn2, h2U) => {
   // Adjacent terrain texels query the same nine tree cells for ambient occlusion.
   const nearbyCells = new Array(64 * 64);
   let rng = RNG(C.seed), planned = 0, lastTypes = [], deck = [], pairs = [];
+  let jrng = rng;      // (Variants 'jumps' b) the stream the staggered jumps are drawn from
   let LV = null, trng = rng;      // the richer mountain: its level (TERR_LV) or null for the mountain as it was, and its own random stream
   // running integrals carried across chunks
   const integ = new Map();   // chunkIndex -> {baseY, rollPh, gPh} at chunk start
@@ -118,6 +125,7 @@ const Course = ((vn1, vn2, h2U) => {
     C.lv = TERR_LV[tv.tdiff] ? tv.tdiff : 'b'; LV = tv.terr === 'b' ? TERR_LV[C.lv] : null; C.rich = !!LV; C.isl = LV ? LV.isl : 1;
     trng = RNG((KEY ^ 0x7e4a11) + 131 * C.lv.charCodeAt(0));
     C.route = tv.route === 'b'; C.rclear = tv.rclear === 'b';
+    C.jb = tv.jumps === 'b'; jrng = RNG((KEY ^ 0x51a7e3) + 977);
     planTo(4000);
     return C.seed;
   };
@@ -235,19 +243,70 @@ const Course = ((vn1, vn2, h2U) => {
         if (st.enc) p.enc = st.enc;
         if (st.U) { p.gU = 1; p.gul = 6 * (0.92 + 0.16 * rng()); p.gw = 10; p.gAmp = 8; p.forest = 0.9; p.enc = 0.5; }
       }
+      if (C.jb && p.kick > 0) p.hw = Math.max(p.hw, 31);      // (three lanes side by side need the room)
       const seg = { type, s0: planned, len, p, idx: C.segs.length, seed: (rng() * 1e9) | 0 };
       if (st) { seg.st = st; seg.ph = rng() < 0.5 ? 0 : PI; }
       C.segs.push(seg);
       if (p.kick > 0) {   // a line of jumps down the middle, alternating sides slightly; a pair of young spruce marks each lip (mark)
-        const n = Math.floor((len - 160) / 105);
-        for (let i = 0; i < n; i++) addFeat({ s: seg.s0 + 90 + i * 105 + rng() * 20, u: (rng() - 0.5) * 14, len: 17 + rng() * 4, wid: 11.5 + rng() * 3, h: 2.0 + rng() * 0.7, kind: 'kicker', mark: true });
+        const n = Math.floor((len - 160) / 105), old = [];
+        for (let i = 0; i < n; i++) old.push({ s: seg.s0 + 90 + i * 105 + rng() * 20, u: (rng() - 0.5) * 14, len: 17 + rng() * 4, wid: 11.5 + rng() * 3, h: 2.0 + rng() * 0.7, kind: 'kicker', mark: true });
+        // (drawn either way, so what rng draws after them is the same; with 'jumps' b the three lanes stand there instead)
+        if (C.jb) jumpZones(seg, len); else for (const f of old) addFeat(f);
       }
       if (type === 'rollers' || type === 'powder' || type === 'bowl' && C.segs.length > 1) {
         const n = 1 + Math.floor(rng() * 2);
         for (let i = 0; i < n; i++) addFeat({ s: seg.s0 + 120 + rng() * (len - 240), u: (rng() - 0.5) * 30, len: 12, wid: 10, h: 1.1 + rng() * 0.6, kind: 'kicker' });
       }
+      if (C.jb && !p.kick && C.segs.length > 1) roadside(seg, type, len);
       if (LV) enrich(seg, type);
       planned += len;
+    }
+  }
+  // ---- (Variants 'jumps' b) the sizes, by the air they give a rider going over them at a kicker run's pace (16-20 m/s; measured with
+  // tools/jump-air.js): S a row of small humps, 0.4-0.7 s, a shifty or a 180; M a flagged kicker, about a second, grabs, a 360, a flip;
+  // L a big flagged kicker with a longer landing, 1.4 s and more with the jump held, for the 540s and 720. sz rides on the feature
+  // (Gates puts one pair of flags on an M and three on an L; the rings pick a lane by 光圈难度)
+  const JS = {
+    S: r => ({ len: 8, wid: 5.5, h: 0.85 + 0.25 * r() }),
+    M: r => ({ len: 14 + 2 * r(), wid: 8 + 1.5 * r(), h: 1.5 + 0.3 * r(), mark: true }),
+    L: r => ({ len: 22 + 3 * r(), wid: 10 + 2 * r(), h: 2.9 + 0.4 * r(), mark: true, land: 1.6 }),
+  };
+  let zoneN = 0;
+  // (beside the main line of a fast run, 18-21 m/s, a hump of the kicker run's size gave 0.3 s: there they are a fifth longer and higher)
+  function jumpS(seg, s, u, r, zone, n) {      // a row of n small humps from s, 11-13 m apart; the last one is where a ring can hang
+    const k = zone ? 1 : 1.2;
+    for (let i = 0; i < n; i++) { const f = JS.S(r); f.len *= k; f.h *= k; addFeat(Object.assign({ s: s + i * (11 + 2 * r()) * k, u: u + (r() - 0.5) * 1.2, kind: 'kicker', sz: 'S', zone, last: i === n - 1 }, f)); }
+  }
+  // a kicker run: groups of three lanes, 16 m apart, the big one on one side (which side, by the seed, and now and then swapped for a
+  // group), the medium down the middle. The lips are staggered 30-55 m down the hill, so from the chase lens all three can be seen
+  // coming, and none stands abreast of another; after each group 40 m or more of open snow where the lanes meet
+  function jumpZones(seg, len) {
+    const r = jrng, side = r() < 0.5 ? -1 : 1, end = seg.s0 + len - 100;
+    for (let s = seg.s0 + 70; s + 150 < end; s += 165 + 25 * r()) {
+      const sg = side * (r() < 0.3 ? -1 : 1), zone = ++zoneN, uS = -sg * 16 + (r() - 0.5) * 2, uM = (r() - 0.5) * 2, uL = sg * 16 + (r() - 0.5) * 2;
+      // (the order the three lips come in down the hill: any of the six)
+      const ord = [0, 1, 2]; for (let i = 2; i > 0; i--) { const j = Math.floor(r() * (i + 1)), t = ord[i]; ord[i] = ord[j]; ord[j] = t; }
+      const at = [0, 30 + 15 * r(), 0]; at[2] = at[1] + 30 + 15 * r();
+      for (let k = 0; k < 3; k++) {
+        const w = ord[k], s1 = s + at[k];
+        if (w === 0) jumpS(seg, s1 - 20, uS, r, zone, 3 + (r() < 0.5 ? 1 : 0));
+        else { const z = w === 1 ? 'M' : 'L', f = JS[z](r); addFeat(Object.assign({ s: s1 - f.len, u: w === 1 ? uM : uL, kind: 'kicker', sz: z, zone }, f)); }
+      }
+    }
+  }
+  // the other runs: a jump or two beside the main line, never on it. The bowl and the powder: a side hit (a kicker near the edge turned
+  // to throw the rider back in toward the middle); the bowl: a medium kicker off to one side; and anywhere else a row of small humps
+  // toward an edge (rollers, powder, ridge). Not on the steeps, the moguls, the gully, the glade or the forest lanes
+  function roadside(seg, type, len) {
+    const r = jrng, p = seg.p, hw = p.hw, from = seg.s0 + 80, span = len - 180; if (span < 60) return;
+    const n = { rollers: 1 + (r() < 0.5 ? 1 : 0), bowl: 1 + (r() < 0.6 ? 1 : 0), powder: 1 + (r() < 0.4 ? 1 : 0), ridge: 1 }[type] || 0;
+    for (let i = 0; i < n; i++) {
+      const s = from + span * (i + 0.15 + 0.7 * r()) / n, sd = r() < 0.5 ? -1 : 1;
+      // (a side hit on the rollers was thrown off a crest into the next trough: 2-2.7 s and a hard landing. It stands on the smooth runs)
+      const q = r();
+      if ((type === 'bowl' || type === 'powder') && q < 0.45) addFeat({ s, u: sd * (hw - 9), len: 9, wid: 6.5, h: 0.9 + 0.2 * r(), yaw: -sd * 0.2, kind: 'kicker', sz: 'side' });
+      else if (type === 'bowl' && q < 0.8) { const f = JS.M(r); addFeat(Object.assign({ s, u: sd * Math.min(14, hw * 0.45), kind: 'kicker', sz: 'M' }, f)); }
+      else jumpS(seg, s, sd * Math.min(type === 'ridge' ? 7 : 14, hw * 0.5), r, 0, type === 'ridge' ? 2 : 3);
     }
   }
   // ---- the richer mountain (Variants 'terr' b): what one run gets, all drawn from trng
@@ -683,16 +742,18 @@ const Course = ((vn1, vn2, h2U) => {
         const d = s - f.lip - dropLip(f, du), k = d < 0 ? smooth(f.s - f.lip, -4, d) : d < 1.4 ? 1 - 0.65 * smooth(0, 1.4, d) : 0.35 * (1 - smooth(1.4, 13, d));
         h += f.h * k * lat; continue;
       }
-      const t = (s - f.s) / f.len; if (t < -0.2 || t > 2.6) continue;
+      let dsf = s - f.s, duf = u - f.u;
+      if (f.yaw) { const cy = Math.cos(f.yaw), sy = Math.sin(f.yaw), a = dsf * cy + duf * sy; duf = duf * cy - dsf * sy; dsf = a; }      // (a side hit: turned on the snow, its own along and across)
+      const t = dsf / f.len; if (t < -0.2 || t > 2.6) continue;
       // (a marked jump is a built wedge, half as wide as the hump it replaces: its sides are shovelled and packed to a batter of about 45-55
       // degrees, rounded over at the shoulder and run out into the snow at the toe, as a park crew shapes them. The sides are what the eye
       // finds from above)
-      const lat = f.mark ? smooth(f.wid * 0.5 + 3.3, f.wid * 0.5 - 0.3, Math.abs(u - f.u)) : smooth(f.wid, f.wid * 0.45, Math.abs(u - f.u)); if (lat <= 0) continue;
+      const lat = f.mark ? smooth(f.wid * 0.5 + 3.3, f.wid * 0.5 - 0.3, Math.abs(duf)) : smooth(f.wid, f.wid * 0.45, Math.abs(duf)); if (lat <= 0) continue;
       let k;
       // run-in ramp. A marked jump is a built takeoff: it steepens all the way to its lip, so that with the sun ahead its face is in shade and
       // its edge is drawn against the lit snow beyond (the others are rounded humps that only unweight the skis)
       if (t < 1) k = t <= 0 ? 0 : f.mark ? Math.pow(t, 1.9) : t * t * (3 - 2 * t) * (0.55 + 0.45 * t);
-      else { const q = (t - 1) * f.len, qb = f.mark ? 3.4 : 1.4; k = q < qb ? 1 - smooth(0, qb, q) * 1.25 : -0.25 * (1 - smooth(qb, 20, q)); }   // lip, then a dug-out landing (a marked one's back is packed to a slope too, not a wall)
+      else { const q = (t - 1) * f.len, qb = f.mark ? 3.4 : 1.4; k = q < qb ? 1 - smooth(0, qb, q) * 1.25 : -0.25 * (1 - smooth(qb, 20 * (f.land || 1), q)); }   // lip, then a dug-out landing (a marked one's back is packed to a slope too, not a wall)
       h += f.h * k * lat;
     }
     return h;
@@ -849,8 +910,8 @@ const Course = ((vn1, vn2, h2U) => {
         const f = fb[i]; if (!f.mark) continue;
         const sl = f.s + f.len * 0.94; if (Math.floor(sl / 32) !== b) continue;      // (a jump lies in several buckets: counted in the one that holds its lip)
         if (f.mx === undefined) { f.mx = at(sl, _py).cx + f.u; f.mx0 = at(f.s + 1, _py).cx + f.u; f.mo = f.wid * 0.5 + 3.4; f.mh = 3.5 + 0.7 * ((f.s * 0.37) % 1); }
-        fn(f.mx - f.mo, -sl, f.mh, f.s * 1.3); fn(f.mx + f.mo, -sl + 0.6, f.mh * 0.9, f.s * 2.9);
-        fn(f.mx0 - f.mo, -f.s - 1, f.mh * 0.82, f.s * 4.1); fn(f.mx0 + f.mo, -f.s - 1.5, f.mh * 0.95, f.s * 5.3);
+        fn(f.mx - f.mo, -sl, f.mh, f.s * 1.3, f); fn(f.mx + f.mo, -sl + 0.6, f.mh * 0.9, f.s * 2.9, f);
+        fn(f.mx0 - f.mo, -f.s - 1, f.mh * 0.82, f.s * 4.1, f); fn(f.mx0 + f.mo, -f.s - 1.5, f.mh * 0.95, f.s * 5.3, f);
       }
     }
   };

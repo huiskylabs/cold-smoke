@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------- loading page, title page, and the little that is on screen during a run
 const UI = (() => {
-  const U = { state: 'load', segIdx: -1, hintT: 0, hintKind: null, acc: 0, shown: { spd: -1, drop: -1 }, tod: 'auto', open: false };
+  const U = { state: 'load', segIdx: -1, hintT: 0, hintKind: null, acc: 0, shown: { spd: -1, drop: -1 }, tod: 'auto', lapse: 1, open: false };
   const $ = id => document.getElementById(id);
   const T = s => I18N.t(s), EN = () => I18N.en();          // (the words shown: see 00a_i18n.js)
   const SEG_EN = { bowl: 'OPEN BOWL', steeps: 'THE STEEPS', glade: 'GLADE', rollers: 'ROLLERS', gully: 'GULLY', kickers: 'KICKERS', powder: 'DEEP POWDER', ridge: 'RIDGE', moguls: 'MOGULS', corridor: 'FOREST LANE' };
@@ -63,6 +63,16 @@ const UI = (() => {
       const row = document.createElement('div'); row.className = 'chips mbgo';
       for (const [sec, zh] of [['keys', '操作说明'], ['mt', '滑过的山']]) { const b = document.createElement('button'); b.type = 'button'; b.dataset.gosec = sec; I18N.live(b, zh); row.appendChild(b); }
       opt.appendChild(row);
+    }
+    // 滑具 (owner, 2026-11-26 "要加上单双板切换？…普通模式，可以有吗？"): skis or a snowboard, in 设置 for everyone, not only in the developer's
+    // 版本对比 (it is Variants 'ride'; chosen here it is kept like any other setting, on this device)
+    const gear = $('sw-gear');
+    if (gear && typeof Variants !== 'undefined') {
+      const sync = () => { for (const b of gear.children) { b.classList.toggle('on', b.dataset.gear === (Variants.val.ride || 'a')); b.setAttribute('aria-pressed', b.classList.contains('on')); } };
+      for (const b of gear.children) I18N.live(b, b.textContent);
+      gear.addEventListener('click', e => { e.stopPropagation(); const b = e.target.closest('button[data-gear]'); if (!b) return; if (Variants.val.ride !== b.dataset.gear) Variants.set('ride', b.dataset.gear); sync(); if (e.detail) b.blur(); });
+      if (Variants.on) Variants.on(n => { if (n === 'ride') sync(); });
+      sync();
     }
     // and each of those two pages has its way back to 设置
     for (const sec of ['keys', 'mt']) {
@@ -129,7 +139,7 @@ const UI = (() => {
       else if (e.code === 'KeyF') U.fullscreen();
       else if (U.state === 'title' || U.state === 'run') {
         const d = e.shiftKey ? -1 : 1;
-        if (e.code === 'KeyT') { if (U.dev) U.nextTime(d); } else if (e.code === 'KeyN' && U.dev) U.nextKind(d); else if (e.code === 'KeyG') { if (U.dev) U.animal(); } else if (e.code === 'KeyP') { if (U.dev) U.plane(); }
+        if (e.code === 'KeyT') { if (U.dev) U.nextTime(d); } else if (e.code === 'KeyY' && U.dev) U.nextLapse(d); else if (e.code === 'KeyN' && U.dev) U.nextKind(d); else if (e.code === 'KeyG') { if (U.dev) U.animal(); } else if (e.code === 'KeyP') { if (U.dev) U.plane(); }
         else if (e.code === 'KeyR' && U.dev) U.newMountain(); else if (e.code === 'Escape') U.menu(true);
         else if (e.code === 'KeyH') U.menu('keys'); else if (e.code === 'Backquote') { if (U.dev) U.menu('vers'); }
       }
@@ -254,7 +264,7 @@ const UI = (() => {
     } catch (e) { } /*}web*/
   };
   // pushing off, from the gate or from wherever a switch has just put the skier
-  function launch() { Game.start(); Sound.kick(); }
+  function launch() { Game.start({ stand: true }); Sound.kick(); }      // (on the board the run starts standing across the slope: 07_game.js, boardStand)
   U.go = async function () {
     if (U.state !== 'title') return; U.state = 'starting';
     Sound.unlock();
@@ -383,7 +393,7 @@ const UI = (() => {
     const S = Game.s, p = S.p, run = Game.mode === 'run';
     // sunset and sunrise, as the day reaches them by itself. A clock turned or held by a switch is not the day going by: a mark counts only
     // once the clock has run on its own for a second before it (so neither a switch nor letting the clock go again on the mark brings a card)
-      { const ck = Sky.clock, C = Sky.cycle || 1440, own = run && Sky.rate !== 0 && U.tod === 'auto' && !ease;
+      { const ck = Sky.clock, C = Sky.cycle || 1440, own = run && Sky.rate > 0 && Sky.rate <= 1 && U.tod === 'auto' && !ease;          // (延时 brings no card: a day sped up passes its marks every few seconds)
       if (!own || SP.clock == null || ck < SP.clock || ck - SP.clock > 2) SP.nat = ck;
       else for (const rise of [false, true]) {
         const m0 = rise ? Sky.times.sunrise : Sky.times.sunset, m = m0 + C * Math.floor((ck - m0) / C);
@@ -529,6 +539,7 @@ const UI = (() => {
   function initSwitch() {
     el.time.appendChild(iconBtn('time', 'auto', TIME_ICON.auto, T('自动'))); for (const [id, name] of TIMES) el.time.appendChild(iconBtn('time', id, TIME_ICON[id] || TIME_ICON.day, T(name)));
     for (const k of Object.keys(SEG_TYPES)) el.kinds.appendChild(mkBtn(T(SEG_NAMES[k] || k), 'seg', k));
+    el.lapse = $('sw-lapse'); if (el.lapse) for (const x of LAPSES) el.lapse.appendChild(mkBtn(x === 1 ? T('正常') : x + '×', 'lapse', String(x)));
     el.mn.addEventListener('click', e => { e.stopPropagation(); U.menu(); if (e.detail) el.mn.blur(); });
     el.more.addEventListener('click', e => { e.stopPropagation(); const b = e.target.closest('button'); if (!b) return; if (b.dataset.board) { if (self.__rings && __rings.pickOpen) __rings.pickOpen(true); if (e.detail) b.blur(); return; } if (b.dataset.daily) { U.daily(); if (e.detail) b.blur(); } else U.menu(b.dataset.sec); });
     // the column on the left: a part to open, or one of the ways out
@@ -545,7 +556,7 @@ const UI = (() => {
       else if (b === el.oSnd) U.sound(!Sound.on); else if (b === el.oFs) U.fullscreen(); else if (b === el.oLang) I18N.set(EN() ? 'zh' : 'en'); else if (b === el.oQ) { Quality.cycle(); paint(); }
       else if (d.vn) { const V = varMod(); if (V) try { V.set(d.vn, d.vid); } catch (err) { console.warn(err); } paint(); }
       else if (d.vreset) { const V = varMod(); if (V && V.reset) try { V.reset(); } catch (err) { console.warn(err); } paint(); }
-      else if (d.wx) U.setWeather(d.wx);
+      else if (d.wx) U.setWeather(d.wx); else if (d.lapse) U.setLapse(+d.lapse);
       if (e.detail) b.blur();          // chosen with a pointer: the keys go on belonging to the skier
     });
     // the one part of the page that scrolls: the page's own guard against it (on #app) is kept out of the pane
@@ -646,6 +657,7 @@ const UI = (() => {
     const now = U.tod === 'auto' ? hour() : null, kind = Course.segAt(-Game.s.p[2]).type;
     for (const b of el.time.children) { b.classList.toggle('on', b.dataset.time === U.tod); b.classList.toggle('now', b.dataset.time === now); }
     for (const b of el.kinds.children) b.classList.toggle('on', b.dataset.seg === kind);
+    if (el.lapse) for (const b of el.lapse.children) b.classList.toggle('on', +b.dataset.lapse === U.lapse && U.tod === 'auto');
     const F = fauna(), ks = F && F.kinds && F.kinds.length ? F.kinds : [{ id: '', name: '鹿' }], sig = ks.map(k => k.id + ':' + k.name).join();
     if (sig !== evSig) {
       evSig = sig; el.ev.textContent = '';
@@ -675,6 +687,7 @@ const UI = (() => {
   function relang() {
     for (const b of el.time.children) b.lastChild.textContent = T(b.dataset.time === 'auto' ? '自动' : (TIMES.find(q => q[0] === b.dataset.time) || [, b.dataset.time])[1]);
     for (const b of el.kinds.children) b.textContent = T(SEG_NAMES[b.dataset.seg] || b.dataset.seg);
+    if (el.lapse) for (const b of el.lapse.children) b.textContent = +b.dataset.lapse === 1 ? T('正常') : b.dataset.lapse + '×';
     evSig = vwSig = vSig = wxSig = null;
     U.layout();
     const run = U.state === 'run'; el.mk.textContent = T(run ? 'PAUSED · 暂停' : 'MENU · 菜单'); el.mGo.textContent = T(run ? '继续滑' : '自由滑');
@@ -688,7 +701,7 @@ const UI = (() => {
   // ---- the hour. It is turned to, not cut to: the clock is run the short way round to the hour asked for in a second or two (the sun
   // keeps its bearing all day, so run backwards a sunset is simply a sunrise), and held there until the day is let go again
   U.setTime = function (id) {
-    if (id === 'auto') { U.tod = 'auto'; ease = null; Sky.rate = 1; }
+    if (id === 'auto') { U.tod = 'auto'; ease = null; Sky.rate = U.lapse; }
     else {
       const to = Sky.times[id]; if (to == null) return;
       const C = Sky.cycle; let d = (((to - Sky.clock) % C) + C) % C; if (d > C / 2) d -= C;
@@ -696,6 +709,17 @@ const UI = (() => {
     }
     paint(); say('时间', id === 'auto' ? '自动' : (TIMES.find(q => q[0] === id) || [])[1]);
   };
+  // ---- 延时 (developer mode, for recording): the day runs LAPSES[i] times as fast, the hours and the day's own weather going by in a
+  // minute or two (60×: one real second is an hour, the whole day in 24 s). Any press lets the day go again (a held hour is let go)
+  // and, coming from 1×, hands the weather back to the day, so what goes by is the day's own run of spells. 1× is the day as it always was
+  const LAPSES = [1, 10, 30, 60];
+  U.setLapse = function (x) {
+    x = LAPSES.includes(+x) ? +x : 1; const from = U.lapse; U.lapse = x;
+    if (x > 1 && from === 1) { const W = wxMod(); if (W && W.setAuto && !W.auto) W.setAuto(true); }
+    U.tod = 'auto'; ease = null; Sky.rate = x;
+    paint(); say('延时', x === 1 ? '正常' : x + '×');
+  };
+  U.nextLapse = function (dir) { const i = Math.max(0, LAPSES.indexOf(U.lapse)); U.setLapse(LAPSES[(i + (dir || 1) + LAPSES.length) % LAPSES.length]); };
   U.nextTime = function (dir) { const i = TIMES.findIndex(q => q[0] === (U.tod === 'auto' ? hour() : U.tod)); U.setTime(TIMES[(i + (dir || 1) + TIMES.length) % TIMES.length][0]); };
 
   // ---- the weather (Weather, where this build has it: its own levels, eased by itself), beside the hour; X steps through it

@@ -6,9 +6,12 @@
 //   GET /ski?room=pub&seed=<n>&name=<s>&col=<0..15>   public: the first room of that mountain with room in it (ROOM_MAX people)
 //   GET /ski?room=<code>&seed=<n>&...                 a friends' room: whoever comes with the same code; the first one's seed is the room's
 //   GET /health                                       how many rooms and people, as JSON
+//   GET /stats                                        each day's most real people (robots not counted) on at once, as a page
+//   GET /stats.json                                   the same, as JSON (STATS_KEY set: both want ?key=<it>)
 //   GET /                                             the game (play/index.html beside this file), pointed at this relay: a test link
 // Text frames from the server (JSON): {t:'hi', id, room, seed, peers:[{id,name,col}]} to the one who came, {t:'join', id, name, col} and
-// {t:'bye', id} to the others. Binary from the server: [id u8][the sender's frame as it was]. Nothing is stored; nothing outlives the room.
+// {t:'bye', id} to the others. Binary from the server: [id u8][the sender's frame as it was]. Nothing a player says is stored; the one
+// thing kept is a count per day (owner 2026-11-26: "记录每天最高真人在线数"): see STATS below.
 'use strict';
 const http = require('http'), crypto = require('crypto');
 const LAG = +(process.env.LAG_MS || 0);          // (tests: hold every frame this long before passing it on, as a far-away player's would be)
@@ -17,6 +20,48 @@ const CONN_MAX = +(process.env.CONN_MAX || 400), PER_IP = +(process.env.PER_IP |
 const perIpTotal = () => { let n = 0; for (const v of perIp.values()) n += v; return n; };
 const rooms = new Map();          // key -> { key, seed, members: Map<id, client> }
 let served = 0;
+
+// ---- STATS: for each day, the most real people on at once (robots, ?bot=1 from tools/mp-bots.js, are not counted), when that was, and how
+// many times a real person came. Kept in STATS_FILE (a JSON file, written a moment after it changes) so a restart does not lose it.
+// A day is a day in STATS_TZ (default Asia/Shanghai: the players' day).
+const fs = require('fs'), path = require('path');
+const STATS_FILE = process.env.STATS_FILE || path.join(__dirname, 'stats', 'daily.json'), STATS_TZ = process.env.STATS_TZ || 'Asia/Shanghai';
+const STATS_KEY = process.env.STATS_KEY || '';
+const dayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: STATS_TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: STATS_TZ, hour: '2-digit', minute: '2-digit', hour12: false });
+const dayOf = t => dayFmt.format(new Date(t));
+let stats = {}; try { stats = JSON.parse(fs.readFileSync(STATS_FILE, 'utf8')).days || {}; } catch (e) { }
+let statsTimer = null;
+function saveStats() {
+  if (statsTimer) return;
+  statsTimer = setTimeout(() => {
+    statsTimer = null;
+    try { fs.mkdirSync(path.dirname(STATS_FILE), { recursive: true }); const tmp = STATS_FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify({ tz: STATS_TZ, days: stats }, null, 1)); fs.renameSync(tmp, STATS_FILE); }
+    catch (e) { console.log('stats: cannot write ' + STATS_FILE + ': ' + e.message); }
+  }, 2000);
+}
+function humansNow() { let n = 0; for (const r of rooms.values()) for (const c of r.members.values()) if (!c.bot) n++; return n; }
+// (called whenever someone comes or goes, and once a minute so a new day starts with whoever is already on)
+function countHumans(came) {
+  const t = Date.now(), d = dayOf(t), n = humansNow(); let e = stats[d], ch = false;
+  if (!e) { e = stats[d] = { peak: 0, at: '', visits: 0 }; ch = true; }
+  if (came) { e.visits++; ch = true; }
+  if (n > e.peak) { e.peak = n; e.at = timeFmt.format(new Date(t)); ch = true; }
+  if (ch) saveStats();
+}
+function statsRows() { return Object.keys(stats).sort().reverse().map(d => ({ day: d, peak: stats[d].peak, at: stats[d].at, visits: stats[d].visits })); }
+function statsPage() {
+  const rows = statsRows(), max = Math.max(1, ...rows.map(r => r.peak)), esc = s => String(s).replace(/[<>&]/g, '');
+  const tr = rows.map(r => '<tr><td>' + esc(r.day) + '</td><td class=n>' + r.peak + '</td><td><span class=b style="width:' + (r.peak / max * 100).toFixed(1) + '%"></span></td><td>' + esc(r.at) + '</td><td class=n>' + r.visits + '</td></tr>').join('');
+  return '<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>一起滑 每日在线</title>' +
+    '<style>body{font:15px/1.5 system-ui,sans-serif;margin:24px 16px;color:#111;background:#fff}h1{font-size:20px;margin:0 0 4px}p{color:#666;margin:0 0 16px}' +
+    'table{border-collapse:collapse;width:100%;max-width:640px}td,th{padding:6px 8px;border-bottom:1px solid #eee;text-align:left;white-space:nowrap}th{font-weight:600;color:#666;font-size:13px}' +
+    '.n{text-align:right;font-variant-numeric:tabular-nums}td:nth-child(3){width:40%}.b{display:block;height:10px;background:#d33;border-radius:2px;min-width:1px}' +
+    '@media(prefers-color-scheme:dark){body{background:#111;color:#eee}td,th{border-color:#333}}</style>' +
+    '<h1>一起滑 每日最高真人在线</h1><p>现在在线：' + humansNow() + ' 人（不算机器人）。按 ' + esc(STATS_TZ) + ' 的日子算。</p>' +
+    '<table><tr><th>日期</th><th class=n>最高同时在线</th><th></th><th>出现时间</th><th class=n>进来次数</th></tr>' + (tr || '<tr><td colspan=5>还没有记录</td></tr>') + '</table>';
+}
+setInterval(() => countHumans(false), 60000).unref();
 
 function frame(op, payload) {
   const n = payload.length, h = n < 126 ? Buffer.from([0x80 | op, n]) : n < 65536 ? Buffer.from([0x80 | op, 126, n >> 8, n & 255]) : null;
@@ -48,6 +93,7 @@ function leave(c) {
   if (r.members.get(c.id) === c) r.members.delete(c.id);
   for (const o of r.members.values()) sendJSON(o, { t: 'bye', id: c.id });
   if (!r.members.size) rooms.delete(r.key);
+  if (!c.bot) countHumans(false);
 }
 
 function onMessage(c, op, data) {
@@ -97,9 +143,14 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' }); res.end(html); return;
     }
   }
+  if (u.pathname.endsWith('/stats') || u.pathname.endsWith('/stats.json')) {
+    if (STATS_KEY && u.searchParams.get('key') !== STATS_KEY) { res.writeHead(403); res.end(); return; }
+    if (u.pathname.endsWith('.json')) { res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-cache' }); res.end(JSON.stringify({ tz: STATS_TZ, now: humansNow(), days: statsRows() })); return; }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' }); res.end(statsPage()); return;
+  }
   if (u.pathname.endsWith('/health')) {
     let people = 0; for (const r of rooms.values()) people += r.members.size;
-    res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' }); res.end(JSON.stringify({ ok: true, rooms: rooms.size, people, served })); return;
+    res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' }); res.end(JSON.stringify({ ok: true, rooms: rooms.size, people, humans: humansNow(), served })); return;
   }
   res.writeHead(404); res.end();
 });
@@ -121,6 +172,7 @@ server.on('upgrade', (req, sock) => {
   sendJSON(c, { t: 'hi', id: c.id, room: room.key.startsWith('pub:') ? 'pub' : want, seed: room.seed, max: ROOM_MAX, peers: [...room.members.values()].map(o => ({ id: o.id, name: o.name, col: o.col, b: o.bot })) });
   for (const o of room.members.values()) sendJSON(o, { t: 'join', id: c.id, name, col, b: c.bot });
   room.members.set(c.id, c);
+  if (!c.bot) countHumans(true);
   const rd = reader(c); sock.on('data', d => { c.seen = Date.now(); rd(d); });
   sock.on('close', () => leave(c)); sock.on('error', () => leave(c)); sock.on('end', () => leave(c));
 });

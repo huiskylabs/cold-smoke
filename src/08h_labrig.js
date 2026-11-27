@@ -207,7 +207,9 @@ function LabRig(H, Skier) {
     d = sdF.smin(d, c(x, y, z, 0.0, -0.062, 0.0, 0.0, 0.016, 0.0, 0.041, 0.035), 0.012);          // the glove's cuff, reaching back inside the gauntlet (which ends 3 cm short of the wrist)
     // the four fingers, each three bones bent a little at each joint toward the palm (about 20, 30 and 15 deg, as a relaxed hand) and fanned a few degrees
     const FZ = [-0.027, -0.009, 0.009, 0.026], FL = [[0.042, 0.026, 0.021], [0.046, 0.029, 0.022], [0.043, 0.027, 0.021], [0.034, 0.021, 0.018]];
-    const CURL = [20, 30, 15], FAN = [-6, -2, 2, 7], R = [0.0108, 0.0102, 0.0094];
+    // (cold-smoke: owner 2026-11-24 21:52 UTC "平时滑的时候…手半握的这个姿势": a rider's hand is held half closed, not open. The game bends each
+    // finger by K.gloveCurl when it is set (08a_board.js), the lab's own 20/30/15 otherwise. NOTE: a local change to this exported copy)
+    const CURL = (K.gloveCurl || [20, 30, 15]), FAN = [-6, -2, 2, 7], R = [0.0108, 0.0102, 0.0094];
     for (let i = 0; i < 4; i++) { let p = [0.0, 0.092, FZ[i]], a = 0; const fa = FAN[i] * Math.PI / 180;
       for (let j = 0; j < 3; j++) { a += CURL[j] * Math.PI / 180; const L = FL[i][j], dir = [-Math.sin(a), Math.cos(a) * Math.cos(fa), Math.cos(a) * Math.sin(fa)];
         const q = [p[0] + dir[0] * L, p[1] + dir[1] * L, p[2] + dir[2] * L];
@@ -232,7 +234,7 @@ function LabRig(H, Skier) {
   // the pose the board rider's body is built in: the game's bind pose with the arms as the lab's riding stance carries them (elbows bent 20-40 deg,
   // not the bind's 100 deg round a pole's grip). Built bent and straightened by the skin, a sleeve bunches into a lump at the point of the elbow
   // (the owner, 2026-11-17 18:18); see lab/game_patches.js for how the mesh is made in this pose and taken back to the bind's
-  let BR = null;
+  let BR = null; if (K.propHooks) K.propHooks.push(() => { BO = BA = BR = null; });      /* (身体比例 c: a new bind pose when the ride switches) */
   K.bindRide = (solve, P0) => {
     if (BR) return BR;
     const s = fromLab(H.Skeleton.pose(sk, JSON.parse(JSON.stringify(H.Motion.sbOf(sk).P.ride)))), b = K.bind, Ci = m4.invert(s.F[B.chest]), Cb = b.F[B.chest];
@@ -252,7 +254,11 @@ function LabRig(H, Skier) {
         const P = add(o, T(x, y, z)), Nn = n(T(m.verts[p + 3], m.verts[p + 4], m.verts[p + 5])), q = (base + i) * 10;
         const h = 0.006, ao = Math.max(0.3, Math.min(1, 0.35 + 0.65 * openGloveSD(x + m.verts[p + 3] * h, y + m.verts[p + 4] * h, z + m.verts[p + 5] * h) / h));
         V[q] = P[0]; V[q + 1] = P[1]; V[q + 2] = P[2]; V[q + 3] = Nn[0]; V[q + 4] = Nn[1]; V[q + 5] = Nn[2]; V[q + 6] = 2; V[q + 7] = ao; V[q + 8] = 0.5; V[q + 9] = y;
-        const wb = (base + i) * 4; W[wb] = side ? B.handL : B.handR; W[wb + 1] = side ? B.handL : B.handR; W[wb + 2] = 1; W[wb + 3] = 0; }
+        // (owner 2026-11-26 21:08 UTC, "wtf" at a glove hanging 3-11 cm off its sleeve: the glove rode wholly on the hand while the body's cuff under it
+        // goes over from the forearm to the hand between 7.5 and 1.5 cm short of the wrist (08_skier.js boneWeights, id 2), so every bend of the wrist
+        // opened the two apart. The glove now takes the same share as the cuff it lies on, measured the same way, along the bind hand's own axis)
+        const ly = dot(sub(P, [Fh[12], Fh[13], Fh[14]]), n([Fh[4], Fh[5], Fh[6]])), u = Math.max(0, Math.min(1, (ly + 0.075) / 0.06)), hw = u * u * (3 - 2 * u);
+        const wb = (base + i) * 4; W[wb] = side ? B.handL : B.handR; W[wb + 1] = side ? B.farmL : B.farmR; W[wb + 2] = hw; W[wb + 3] = 0; }
       for (let t = 0; t < m.ni; t += 3) { const b = side * m.ni + t; I[b] = m.idx[t] + base; I[b + 1] = m.idx[t + (flip ? 2 : 1)] + base; I[b + 2] = m.idx[t + (flip ? 1 : 2)] + base; }
     }
     return { V, W, I, nv: nv * 2, ni: m.ni * 2 };

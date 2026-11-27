@@ -36,7 +36,11 @@ const Rings = (() => {
   // ---- where the rings go
   function lipOf(f) { const xk = s => Course.at(s, pc).cx + f.u, hgt = s => Course.height(xk(s), -s, 0.5); let sc = f.s + f.len, best = 1e9; for (let s = f.s + 2; s <= f.s + f.len + 6; s += 0.5) { const c = hgt(s + 0.5) + hgt(s - 0.5) - 2 * hgt(s); if (c < best) { best = c; sc = s; } } return { s: sc, y: hgt(sc), x: xk(sc) }; }
   const kUsed = new Set();
-  function kickerAhead(s0, s1) { for (let b = Math.floor((s0 - 40) / 32); b <= Math.floor(s1 / 32); b++) for (const f of Course.feats.get(b) || []) if (f.mark && !kUsed.has(f) && f.s + f.len + 14 > s0 + 6 && f.s < s1) return f; return null; }
+  // (Variants 'jumps' b: a kicker run's groups have three lanes; the ring hangs past one of them, by 光圈难度: 轻松 the row of small humps
+  // (past its last one), 标准 the medium kicker, 难 the large. The jumps beside the main line on other runs get none)
+  let kWant = 'M';
+  const kOK = f => f.zone ? f.sz === kWant && (f.sz !== 'S' || f.last) : f.mark && !f.sz;
+  function kickerAhead(s0, s1) { for (let b = Math.floor((s0 - 40) / 32); b <= Math.floor(s1 / 32); b++) for (const f of Course.feats.get(b) || []) if (kOK(f) && !kUsed.has(f) && f.s + f.len + 14 > s0 + 6 && f.s < s1) return f; return null; }
   function kickerIn(s0, s1) { for (let b = Math.floor((s0 - 40) / 32); b <= Math.floor(s1 / 32); b++) for (const f of Course.feats.get(b) || []) if (f.mark && f.s + f.len > s0 && f.s < s1) return f; return null; }
   function clear(s, u, hw, lim = hw - 4) { for (const d of [0, -2.5, 2.5, -5, 5, -7.5, 7.5]) { const uu = cl(u + d, -lim, lim), x = Course.at(s, pc).cx + uu; let ok = true; for (const dz of [-6, 0, 6]) { Course.nearTree(x, -s + dz, tn); if (tn.ok && !tn.soft && tn.d < 5.5) ok = false; } if (Course.rockHit && Course.rockHit(x, -s, rk)) ok = false; if (ok) return uu; } return null; }
   // ---- how the rings are laid out (用户 05:43 UTC: 三档大小按难度定，再想想圈怎么排布). Each station of the designed run (Course.ROUTE,
@@ -165,13 +169,14 @@ const Rings = (() => {
     // air ring, on every level: the first kicker not yet given one whose ring (14 m past the lip) is still ahead of the last ring, up to
     // where this ring could end up after the terrain moves it. The old window (from 10 m past the last ring) lost a kicker the ring
     // before stood just in front of, and 简单 had none at all
+    kWant = easyL(dk) ? 'S' : dk === 'a' ? 'M' : 'L';
     const f = kickerAhead(s0, s + 60);
     const lvAir = cl(D.off, 0, 2);
     // (用户 20:47 UTC: 跳台的圈离跳台远一点，必须真的跳出一定距离和高度才穿得过去，而不是顺着跳台滑过去就一定通过). Measured on the run's three
     // kickers (tools/kicker-air.js, 15-18 m/s at the lip): 14 m past the lip, skiing flat over it the body is 2.6-4.9 m below the lip,
     // with the jump held it is 0.1-2.2 m below. So the ring hangs there, its centre 1 m below the lip, and is small (1.9 / 1.6 / 1.35 m
     // by 光圈难度; 简单 2.5 m, 1.3 m below the lip: a small hop is enough): only a real jump goes through it
-    if (f) { kUsed.add(f); const lip = lipOf(f), sr = lip.s + 14, c = Course.at(sr, pc), z = SIZES[lvAir], ez = easyL(dk), ra = ez ? 2.5 : [1.9, 1.6, 1.35][lvAir]; RG.rings.push({ id: serial++, s: sr, u: f.u, x: c.cx + f.u, y: floatY(c.cx + f.u, sr, ra, lip.y - (ez ? 1.3 : 1.0)), r: ra, tag: (ra * 2).toFixed(1) + ' 米', air: true, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sr, u: f.u }; return; }
+    if (f) { kUsed.add(f); const lip = lipOf(f), sr = lip.s + (f.sz === 'S' ? 9 : 14), c = Course.at(sr, pc), z = SIZES[lvAir], ez = easyL(dk), ra = ez ? 2.5 : [1.9, 1.6, 1.35][lvAir]; RG.rings.push({ id: serial++, s: sr, u: f.u, x: c.cx + f.u, y: floatY(c.cx + f.u, sr, ra, lip.y - (ez ? 1.3 : 1.0)), r: ra, tag: (ra * 2).toFixed(1) + ' 米', air: true, born: lastT, grow: -1, pass: -1, hit: 0, splash: -1 }); cursor = { s: sr, u: f.u }; return; }
     if (pl.how === 'none') { cursor = { s, u: u0 }; RG.rings.push({ id: serial++, s, skip: true }); return; }
     const c0 = Course.at(s, pc), hw = c0.hw || 14;
     let u, tech = false;

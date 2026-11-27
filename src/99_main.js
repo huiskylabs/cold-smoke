@@ -177,7 +177,10 @@ function tick(dt, draw) {
   Tracks.step(Game.root, Game.pose, S);
   Render.updateOrigin(cp);
   if (draw !== false) Terrain.update(cp[0], cp[2]);
-  Skier.update(Game.root, Game.pose, Render.origin);
+  { const sr = Skier.update(Game.root, Game.pose, Render.origin);
+    // (snowboard, deep carve: the front hand on the snow throws a little spray, Spray.handDrag)
+    // (either hand: on 真人表 the back hand is the one that rests on the snow on a toe turn, and the solver reports each hand's own contact, J.dragL / J.dragR)
+    if (sr && sr.J && !S.air && typeof Board !== 'undefined' && Board.on() && Skier.toWorld) for (const [dk, gk] of [['dragL', 'gripL'], ['dragR', 'gripR']]) if (sr.J[dk] > 0.3) { const q = Skier.toWorld(sr.J[gk]), o = Render.origin; Spray.handDrag(App.t, dt, [q[0] + o[0], q[1] + o[1], q[2] + o[2]], S.v, sr.J[dk]); } }
   Trees.update(Render.cam, Render.origin, Render.W / Render.H, Game.root.pos, dt);
   Gates.update(Render.cam, Render.origin, Game.root.pos, dt, App.t);
   Deer.update(dt, App.t);
@@ -370,7 +373,7 @@ App.swap = function (place, now = QS.has('manual')) {
   tick(1 / 60, false);                           // body, lens and all that follows them are where they belong before anything is shown
   { const pl = Sky.plane, c = Render.cam.pos; if (pl && pl.on) { pl.x += c[0] - x0; pl.z += c[2] - z0; } }
   Terrain.rebuild(Render.cam.pos[0], Render.cam.pos[2]);
-  if (now) { Terrain.rebuildStep(); if (sw.run) Game.start(); return; }
+  if (now) { Terrain.rebuildStep(); if (sw.run) Game.start({ stand: true }); return; }
   App.swapping = sw; if (veil) { veil.style.transition = 'opacity .2s ease-in'; veil.classList.remove('lift'); }
 };
 // a change of mogul shape (Variants 'mogf') remakes the ground under the skier, as another place would
@@ -380,7 +383,7 @@ App.onTick.push(() => {
   Gov.acc = /*native{*/Gov.work = /*}native*/Gov.n = Gov.ownT = Gov.ownN = Gov.slow = 0;                // (these frames say nothing about how fast this machine draws)
   if (!sw.lift) { if (Terrain.rebuildStep(24) && t - sw.t0 >= 230) sw.lift = 1; }      // drawn again from this frame on: the new place is on the screen before the veil thins
   else if (sw.lift === 1) { sw.lift = 2; sw.t0 = t; const veil = document.getElementById('veil'); if (veil) { veil.style.transition = 'opacity .65s ease-out'; veil.classList.add('lift'); } }
-  else if (t - sw.t0 > 260) { App.swapping = null; if (sw.run && Game.mode === 'title') Game.start(); }      // the push-off is seen: it waits for the veil to thin
+  else if (t - sw.t0 > 260) { App.swapping = null; if (sw.run && Game.mode === 'title') Game.start({ stand: true }); }      // the push-off is seen: it waits for the veil to thin
 });
 // (while the terrain is being made the last picture stays up: nothing is drawn)
 { const draw = Render.render; Render.render = function () { const sw = App.swapping; if (!sw || sw.lift) draw(); }; }
@@ -479,5 +482,5 @@ if (Par.W) { }          // (a background thread of the start-up: it only answers
 else if (QS.has('manual') && !QS.has('ui')) document.getElementById('app').classList.add('bare');
 else {
   UI.init();
-  boot(UI.stage).then(() => { UI.ready(); lastT = performance.now(); requestAnimationFrame(loop); if (QS.has('autostart')) UI.go(); }).catch(e => { if (!retryOnWebGL2(e)) reportError(e); });
+  boot(UI.stage).then(() => { UI.ready(); lastT = performance.now(); requestAnimationFrame(loop); if (QS.has('autostart') || (self.COLD_SMOKE && self.COLD_SMOKE.autostart)) UI.go(); }).catch(e => { if (!retryOnWebGL2(e)) reportError(e); });
 }

@@ -163,9 +163,10 @@ const Weather = (() => {
     // toward the chosen weather, at an even pace: the cloud leads, the snowfall follows (and on the way back the snow eases before the sky clears)
     const prev = W._ck; W._ck = typeof Sky !== 'undefined' ? Sky.clock : 0;
     autoStep();
-    const m = mixOf(W.level), rp = Math.max(0.05, W.auto ? W.tune.ramp : W.ramp);
+    const lapse = typeof Sky !== 'undefined' && Sky.rate > 1 ? Sky.rate : 1;          // (a day sped up (延时): its own weather comes and goes as much faster, down to a second and a half)
+    const m = mixOf(W.level), rp = Math.max(0.05, W.auto ? Math.max(Math.min(1.5, W.tune.ramp), W.tune.ramp / lapse) : W.ramp);
     // a clock wound by hand (a time of day chosen) shows the weather of that hour at once; a clock that runs by itself eases there
-    const jumped = primed && prev != null && Math.abs(W._ck - prev) > Math.max(0.05, dt) * 3;
+    const jumped = primed && prev != null && Math.abs(W._ck - prev) > Math.max(0.05, dt) * 3 * lapse;
     const step = (cur, tgt) => cur === tgt ? cur : tgt > cur ? Math.min(tgt, cur + dt / rp) : Math.max(tgt, cur - dt / rp);
     if (jumped && W.auto) { W.k = m[0]; W.dust = m[1]; } else { W.k = step(W.k, m[0]); W.dust = step(W.dust, m[1]); }
     W.mix();

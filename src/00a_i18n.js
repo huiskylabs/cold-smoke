@@ -77,7 +77,7 @@ const I18N = (() => {
     '鹿': 'Deer', '雪兔': 'Snow hare', '狐狸': 'Fox', '北山羊': 'Ibex', '金雕': 'Golden eagle', '动物': 'Animal', '航班': 'Airliner',
     // ---- what a key changed, said for a moment
     '时间': 'Time', '天气': 'Weather', '路段': 'Runs', '山': 'Mountain', '偶遇': 'Encounters',
-    'say:时间': 'TIME', 'say:天气': 'WEATHER', 'say:路段': 'RUN', 'say:山': 'MOUNTAIN', 'say:偶遇': 'ENCOUNTER', 'say:视角': 'VIEW',
+    'say:时间': 'TIME', 'say:延时': 'TIME-LAPSE', '正常': 'Normal', '延时（一天快着走）': 'Time-lapse', 'say:天气': 'WEATHER', 'say:路段': 'RUN', 'say:山': 'MOUNTAIN', 'say:偶遇': 'ENCOUNTER', 'say:视角': 'VIEW',
     '航班 · 还在天上': 'Airliner · still up there', '航班 · 看左上方': 'Airliner · look up to the left', '航班 · 看右上方': 'Airliner · look up to the right',
     // ---- the menu
     'PAUSED · 暂停': 'PAUSED', 'MENU · 菜单': 'MENU', '继续滑': 'Ski on',

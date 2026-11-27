@@ -75,7 +75,8 @@ const Solver = (() => {
   // note is built, step 8).
   const STEP = 1 / 60, NMAX = 6, OUT = 12, APART = 0.08, NEAR = 0.05, SOFT = 0.12, RISE = 24, AHEADL = 0.3;
   K.ground = (cur, root, Y, toW, sec, dt) => {
-    if (Variants.val.solver !== 'b' || typeof Course === 'undefined' || (K.boardOn && K.boardOn())) { sec.gs = null; return null; }
+    const brd = !!(K.boardOn && K.boardOn());
+    if (Variants.val.solver !== 'b' || typeof Course === 'undefined' || (brd && Variants.val.sbsol === 'a')) { sec.gs = null; return null; }      // (the board too, under 单板求解器 b: one bar under its length, 2026-11-22)
     const q = sec.gs || (sec.gs = new Array(32).fill(null)), on = cur.onSnow == null ? (cur.air || 0) < 0.5 : cur.onSnow > 0, out = [0, 0, 0, 0, 0];
     if (!(dt > 0)) { q[30] = q[31] = null; for (let k = 0; k < 8; k++) q[k] = null; for (let k = 18; k < 22; k++) q[k] = null; }
     // (the physics has the skis at root.pos, sunk into soft snow as far as it says: the snow is read relative to that, so the sinking stays)
@@ -85,7 +86,7 @@ const Solver = (() => {
     // frame they land, at 10 m/s they are 18 cm on in a frame, and counts it as its own sink from then on. Pushed up before that, they were dropped
     // again a frame later: 134 jolts at the landings of three runs)
     const ref = !on ? SOFT : cur.sink == null ? Course.height(root.pos[0], root.pos[2], 0.5) - root.pos[1] : cur.sink, iy = 1 / Math.max(Y[1], 0.3);
-    const st = cur.stance == null ? 0.31 : cur.stance, ld = cur.lead || 0;
+    const st = brd ? 0 : cur.stance == null ? 0.31 : cur.stance, ld = brd ? 0 : cur.lead || 0;
     read(EL, -st / 2, ld, toW, ref, iy); read(ER, st / 2, -ld, toW, ref, iy); for (let i = 0; i < ZS.length; i++) EC[i] = Math.max(EL[i], ER[i]);
     // A landing: the skis come down at up to 10 m/s and are in the snow by more than the game's count of it in the frame they arrive (measured:
     // 7 to 10 cm more, for four frames). Snow hit that hard gives way; it does not throw the skis back up in a frame. How far they are in when they
