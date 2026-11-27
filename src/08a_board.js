@@ -818,12 +818,12 @@ const Board = (() => {
           // arms the same way twice: at each edge change each arm takes a new way to be held (out, forward, elbow) inside his spread, and the muscles
           // take it there; no noise frame to frame)
           cO += X('AVO', 0.25) * avH(side, 1); cF += X('AVF', 0.3) * avH(side, 2);
-          cO = lerp(cO, X('AS0', 0.16), wS) + X('AAO', 0.45) * aAir + X('ALND', 0) * lndE + (g < 0.1 ? 0.35 * gM * aAir : 0); cF = lerp(cF, X('AS1', 0.08), wS) + X('AAF', 0.15) * aAir;
+          cO = lerp(cO, X('AS0', 0.24), wS) + X('AAO', 0.45) * aAir + X('ALND', 0) * lndE + (g < 0.1 ? 0.35 * gM * aAir : 0); cF = lerp(cF, X('AS1', 0.0), wS) + X('AAF', 0.15) * aAir;
           cO = lerp(cO, X('ATO', 0.22), wT); cF = lerp(cF, X('ATF', 0.8), wT); cT = lerp(cT, 0, wT);
           let ua = v3.norm(v3.add(v3.add(v3.norm(v3.lerp(dn0, dTr, wTr)), v3.mul(Oh, cO)), v3.add(v3.mul(Fh, cF), v3.mul(Tb, cT))));
           // (and never into the body: not across the chest's middle by more than a few degrees, not behind the back)
           { let c = v3.dot(ua, Oc); if (c < -0.1) ua = v3.norm(v3.mad(ua, Oc, -0.1 - c)); c = v3.dot(ua, Fc); if (c < -0.3) ua = v3.norm(v3.mad(ua, Fc, -0.3 - c)); }
-          const fx = aFx(side), bd = v3.add(v3.add(Fc, v3.mul(Oc, -X(F0 ? 'ABIF' : 'ABIB', X('ABI', 0.3)))), v3.mul(dn0, -(X(F0 ? 'ABUF' : 'ABUB', X('ABU', 0.25)) + 0.4 * wT))), b0 = v3.sub(bd, v3.mul(ua, v3.dot(bd, ua))), b = v3.len(b0) > 1e-4 ? v3.norm(b0) : Tb,
+          const fx = aFx(side), bd = v3.add(v3.add(Fc, v3.mul(Oc, -X(F0 ? 'ABIF' : 'ABIB', X('ABI', 0.3)) * (1 - 0.7 * wS))), v3.mul(dn0, -(X(F0 ? 'ABUF' : 'ABUB', X('ABU', 0.25)) * (1 - 0.7 * wS) + 0.4 * wT))), b0 = v3.sub(bd, v3.mul(ua, v3.dot(bd, ua))), b = v3.len(b0) > 1e-4 ? v3.norm(b0) : Tb,
             fv = v3.add(v3.mul(ua, Math.cos(fx)), v3.mul(b, Math.sin(fx))), el = v3.mad(sh, ua, L.uarm), wr = v3.mad(el, fv, L.farm + L.grip);
           tT = wr;
           const pl = v3.sub(el, v3.mul(v3.add(sh, wr), 0.5)); if (v3.len(pl) > 1e-4) { let q = v3.norm(pl); if (K.ez && sec.pfDt > 0) { const kp = F0 ? 'bpoF' : 'bpoB'; q = v3.norm([K.ez(sec, kp + 0, q[0], 8), K.ez(sec, kp + 1, q[1], 8), K.ez(sec, kp + 2, q[2], 8)]); } PO = q; } }

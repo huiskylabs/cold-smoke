@@ -1012,22 +1012,56 @@ const Skier = (() => {
   K.meshes = {};
   // (and a snowboard instead of skis and poles, Variants 'ride' b: 08a_board.js hands over the board, K.boardPart, built in the left foot's frame)
   const rideV = () => K.boardPart && K.boardOn() ? (K.alp && K.alp() ? 'SA' : 'S') : '';      // ('SA': 单板风格 b, the bindings turned forward, so the board hangs on the left foot at another angle)
-  // (and the glove: 'H' = the fine glove closed round the grip, Variants 'hand' b; on the new body and on skis only: a rider's hands hold no pole)
+  // (and the glove: 'H' = the fine glove closed round the grip, Variants 'hand' b; Tripo mesh already has sculpted gloves built in)
   const handV = (v, rd) => (v || bodyV()) === 'b' && Variants.val.hand === 'b' && typeof Fpv !== 'undefined' && Fpv.gloveSD ? 'H' : '';
+  const bindMeshCache = {};
+  function bindingMesh(sb) {
+    const k = sb ? 'sb' : 'sk'; if (bindMeshCache[k]) return bindMeshCache[k];
+    const sq = Math.sqrt, smin = sd.smin;
+    const rbx = (x, y, z, cx, cy, cz, hx, hy, hz, r) => { const qx = Math.abs(x - cx) - hx + r, qy = Math.abs(y - cy) - hy + r, qz = Math.abs(z - cz) - hz + r; return sq(Math.max(qx, 0) ** 2 + Math.max(qy, 0) ** 2 + Math.max(qz, 0) ** 2) + Math.min(Math.max(qx, qy, qz), 0) - r; };
+    const E = (x, y, z, cx, cy, cz, rx, ry, rz) => { const px = (x - cx) / rx, py = (y - cy) / ry, pz = (z - cz) / rz, k0 = sq(px * px + py * py + pz * pz), ax = px / rx, ay = py / ry, az = pz / rz, k1 = sq(ax * ax + ay * ay + az * az); return k1 > 1e-9 ? k0 * (k0 - 1) / k1 : -Math.min(rx, ry, rz); };
+    const f = sb ? (a, b, d) => {
+      let n = rbx(a, b, d, 0, 0.012, -0.01, 0.074, 0.012, 0.162, 0.006);
+      const hb = b < 0.06 ? 0.06 : b > 0.30 ? 0.30 : b, cz = 0.032 - 0.32 * (hb - 0.10), R = 0.092 + 0.012 * smooth(0.15, 0.30, b);
+      const hk = Math.max(Math.abs(sq(a * a + (d - cz) * (d - cz)) - R) - 0.0065, cz - 0.006 - d, b - 0.30, 0.004 - b);
+      const rail = Math.max(Math.abs(Math.abs(a) - 0.080) - 0.0055, b - 0.075, 0.004 - b, d - 0.04, -0.075 - d);
+      const ek = (cb, ra, rb) => sq(a * a / (ra * ra) + (b - cb) * (b - cb) / (rb * rb)) - 1;
+      const an = Math.max(Math.abs(ek(0.088, 0.076, 0.106)) * 0.074 - 0.009, Math.abs(d + 0.035) - 0.030, 0.05 - b);
+      const to = Math.max(Math.abs(ek(0.058, 0.068, 0.062)) * 0.064 - 0.0055, Math.abs(d + 0.135) - 0.019, 0.04 - b);
+      return Math.min(n, hk, rail, an, to);
+    } : (a, b, d) => {
+      let n = rbx(a, b, d, 0, 0.034, -0.03, 0.034, 0.014, 0.25, 0.006);
+      n = smin(n, rbx(a, b, d, 0, 0.066, -0.218, 0.036, 0.030, 0.042, 0.014), 0.008);
+      n = smin(n, rbx(a, b, d, 0, 0.075, 0.185, 0.037, 0.040, 0.052, 0.014), 0.008);
+      return smin(n, E(a, b, d, 0, 0.105, 0.235, 0.026, 0.022, 0.04), 0.008);
+    };
+    const m = meshSDF(f, sb ? [-0.11, -0.01, -0.20] : [-0.07, 0.0, -0.30], sb ? [0.11, 0.32, 0.17] : [0.07, 0.16, 0.30], 0.011, { stride: 4, attr: (x, y, z, nx, ny, nz, o) => { o[0] = 11; o[1] = 1; o[2] = 0; o[3] = 0; } });
+    return (bindMeshCache[k] = m);
+  }
   const lrV = rd => rd && K.bindRide && K.labOn && K.labOn() ? 'L' : '';
   K.build = function (v) {
-    v = v === 'a' || v === 'b' ? v : (Variants.val.body === 'a' ? 'a' : 'b');
+    v = v === 'a' || v === 'b' || v === 'c' ? v : bodyV();
+    if (v === 'c' && typeof TripoSkin === 'undefined') v = 'b';
     syncProp(); const rd = rideV(), hv = handV(v, rd), lr = lrV(rd), key = v + rd + hv + lr + propNow;      // (lr: the lab's rider, 08i_labride.js: its board body is built in the lab's arms)
     if (K.meshes[key]) return (K.mesh = K.meshes[key]);
     mkBind();
-    const bb = lr ? K.bindRide(solve, P0) : bind, nb = v === 'b', hb = hv === 'H', body = buildBody(bb, nb, !!rd, hb);
+    const bb = lr ? K.bindRide(solve, P0) : bind, nb = v === 'b', hb = hv === 'H';
     const t0 = performance.now();
-    const m = meshSDF(body.f, [-0.44, 0.0, -0.66], [0.44, 1.80, 0.38], 0.0135, { stride: 4, attr: body.attr });
-    K.meshMs = performance.now() - t0;
-    const bw0 = boneWeights(m, bb, body, nb);
-    const sp = splitMaterials(m, bw0), bw = sp.bw; m.verts = sp.verts; m.nv = sp.nv;
-    // skis and poles, rigid on their bones (built in bone-local space, then moved to the bind pose)
+    let m, bw;
+    if (v === 'c') {
+      const fr = TripoSkin.buildFor(bb, m4, v3);
+      m = { verts: fr.verts, idx: fr.idx, nv: fr.nv, ni: fr.ni }; bw = fr.bw;
+      K.meshMs = performance.now() - t0;
+    } else {
+      const body = buildBody(bb, nb, !!rd, hb);
+      m = meshSDF(body.f, [-0.44, 0.0, -0.66], [0.44, 1.80, 0.38], 0.0135, { stride: 4, attr: body.attr });
+      K.meshMs = performance.now() - t0;
+      const bw0 = boneWeights(m, bb, body, nb);
+      const sp = splitMaterials(m, bw0); bw = sp.bw; m.verts = sp.verts; m.nv = sp.nv;
+    }
+    // skis, poles, and bindings (for Tripo skin, add sculpted bindings on footL/footR!), rigid on their bones
     const parts = rd ? [[K.boardPart(), B.footL]] : [[skiMesh(0), B.footL], [skiMesh(0), B.footR], [poleMesh(), B.poleL], [poleMesh(), B.poleR]];
+    if (v === 'c') { const bm = bindingMesh(!!rd); parts.push([bm, B.footL], [bm, B.footR]); }
     const gm = hb ? (rd && K.openGlove ? K.openGlove(bind) : gloveMesh(bind)) : null;
     let nv = m.nv + (gm ? gm.nv : 0), ni = m.ni + (gm ? gm.ni : 0); for (const [pm] of parts) { nv += pm.nv; ni += pm.ni; }
     const V = new Float32Array(nv * 10), W = new Float32Array(nv * 4), I = new Uint32Array(ni); V.set(m.verts); W.set(bw); I.set(m.idx);
@@ -1060,14 +1094,14 @@ const Skier = (() => {
   K.adopt = function (m) {
     if (!m) return;
     syncProp(); const rd = rideV(), hv = handV(m.v, rd), lr = lrV(rd), key = m.v + rd + hv + lr + propNow;
-    if (m.v !== (Variants.val.body === 'a' ? 'a' : 'b') || m.ride !== rd || m.hand !== hv || m.lr !== lr || m.prop !== propNow || K.meshes[key]) return;
+    if (m.v !== bodyV() || m.ride !== rd || m.hand !== hv || m.lr !== lr || m.prop !== propNow || K.meshes[key]) return;
     mkBind();
     K.mesh = K.meshes[key] = m;
   };
 
   K.init = function (g) {
     gfx = g;
-    useBody(K.mesh && K.mesh.v === Variants.val.body && K.mesh.ride === rideV() && K.mesh.hand === handV() && K.mesh.prop === propV() ? K.mesh : K.build());
+    useBody(K.mesh && K.mesh.v === bodyV() && K.mesh.ride === rideV() && K.mesh.hand === handV() && K.mesh.prop === propV() ? K.mesh : K.build());
     boneTex = gfx.texture({ w: 4, h: 32, format: 'rgba32f', filter: 'nearest' });
     pipe = pipes[propNow] = mkPipe();
     pipeShadow = gfx.pipeline({
@@ -1124,7 +1158,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     const P = gfx.pipeline({
       name: 'skier', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SKIN_SSL, SKIER_SSL, headSSL], buffers,
       varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', bn: 'vec3f', mat: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', s: 'vec4f', c: 'vec4f' },
-      textures: { tBones: 'fetch', tDetail: '2d', tShadow: 'shadow', tSky: '2d' },
+      textures: { tBones: 'fetch', tDetail: '2d', tShadow: 'shadow', tSky: '2d', tSkin: '2d', tSkinN: '2d', tSkinM: '2d' },
       vs: `fn vert(a: VIn) -> VOut { var v: VOut; let s: SkinV = skinVertex(a.pos, a.nrm, a.bw); v.wp = s.wp; v.nrm = s.n; v.bp = a.pos; v.bn = a.nrm; v.mat = a.mat; v.clip = U.viewProj * vec4f(s.wp, 1.0); return v; }`,
       fs: SKIER_FS.replace('/*MARKS*/', marks),
     });
@@ -1229,7 +1263,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   // of the clock on the wall, not the game's (the choice is made in a panel, also with the game stopped); after a pause in the drawing it is simply there.
   // (the third number: how freely the hem moves: the heavy cloth of c moves less)
   const CLOTH = { a: [0, 0, 0], b: [1, 1, 1], c: [1.7, 1, 0.7] }, clo = { p: [0, 0, 0, 0], q: [0, 0, 1, 1], h: 1, t: -1 }, HEMP = [0, 0.08, 0.05];
-  Variants.def('body', '人物模型', [['a', '原来'], ['b', '新的']], 'b');
+  Variants.def('body', '人物模型', [['a', '原来'], ['b', '新的'], ['c', 'Tripo 精模']], 'c');
   Variants.def('cloth', '衣服', [['a', '平整'], ['b', '自然'], ['c', '厚实']], 'b');
   // (the glove: a = the squarish fist of the body's own mesh; b = a glove with fingers closed round the grip, see gloveMesh)
   Variants.def('hand', '手套', [['a', '原来'], ['b', '手指握杖']], 'b');
@@ -1362,7 +1396,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   // (K.lensCut, set by the first-person view (07d_fpv.js): [from, to] m from the lens, the figure fades out inside it; 0: nothing is cut)
   const CUT0 = [0, 0, 0, 0]; K.lensCut = null;
   // (the body asked for in the panel: built at the first draw that wants it, then swapped in at once)
-  const bodyV = () => Variants.val.body === 'a' ? 'a' : 'b';
+  const bodyV = () => (Variants.val.body === 'a' || Variants.val.body === 'b' || Variants.val.body === 'c') ? Variants.val.body : (typeof TripoSkin !== 'undefined' ? 'c' : 'b');
   function useBody(m) {
     if (!m.gpu) m.gpu = { vb: gfx.buffer(m.V, 'vertex'), vb2: gfx.buffer(m.W, 'vertex'), ib: gfx.buffer(m.I, 'index') };
     if (K.ready && m.prop && pipe !== (pipes[m.prop] || (pipes[m.prop] = mkPipe()))) { pipe = K.pipes[0] = pipes[m.prop]; }
@@ -1375,7 +1409,10 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     clo.q[2] += (want[1] - clo.q[2]) * e; clo.q[3] += (want[0] - clo.q[3]) * e; clo.h += (want[2] - clo.h) * e;
     nite[0] = typeof Sky !== 'undefined' && Sky.night === Sky.night ? smooth(0.35, 1, Sky.night) : 0;
     nite[3] = Variants.val.kit === 'b' && nite[1] > 0 ? 1 : 0;      // (the finer details of the clothes, Variants 'kit' b: new body only)      // (from deep dusk on: dusk itself stays as it was)
-    gfx.draw(pipe, { u: { p: clo.p, q: clo.q, r: nite, s: K.lensCut || CUT0, c: COL0 }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count });
+    const skinTex = typeof TripoSkin !== 'undefined' ? TripoSkin.texture(gfx) : Tex.detail;
+    const skinNrm = typeof TripoSkin !== 'undefined' && TripoSkin.normalTex ? TripoSkin.normalTex(gfx) : Tex.detail;
+    const skinOrm = typeof TripoSkin !== 'undefined' && TripoSkin.ormTex ? TripoSkin.ormTex(gfx) : Tex.detail;
+    gfx.draw(pipe, { u: { p: clo.p, q: clo.q, r: nite, s: K.lensCut || CUT0, c: COL0 }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex, tSkin: skinTex, tSkinN: skinNrm, tSkinM: skinOrm }, vb: [vb, vb2], ib, count });
   };
   K.drawShadow = function () { wantBody(); gfx.draw(pipeShadow, { u: { p: [0, 0, 0, 0] }, tex: { tBones: boneTex }, vb: [vb, vb2], ib, count }); };
   // ---- 一起滑 (99b_net.js): the other skiers on the mountain are this same figure, drawn again from bones that came over the network.
@@ -1385,23 +1422,66 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   K.otherTex = () => gfx ? gfx.texture({ w: 4, h: 32, format: 'rgba32f', filter: 'nearest' }) : null;
   K.otherBones = function (tex, R, M) { if (!gfx || !tex) return; for (let i = 0; i < K.NB; i++) oData.set(m4.mul(R, M[i]), i * 16); gfx.updateTexture(tex, 0, 0, 4, 32, oData); };
   K.drawOthers = function (list, shadowTex, skyTex) { if (!pipe || !count || !list.length) return; wantBody(); OCLO.q[2] = clo.q[2]; OCLO.q[3] = clo.q[3];
-    for (const o of list) gfx.draw(pipe, { u: { p: OCLO.p, q: OCLO.q, r: nite, s: CUT0, c: o.col }, tex: { tBones: o.tex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex }, vb: [vb, vb2], ib, count }); };
+    const skinTex = typeof TripoSkin !== 'undefined' ? TripoSkin.texture(gfx) : Tex.detail;
+    const skinNrm = typeof TripoSkin !== 'undefined' && TripoSkin.normalTex ? TripoSkin.normalTex(gfx) : Tex.detail;
+    const skinOrm = typeof TripoSkin !== 'undefined' && TripoSkin.ormTex ? TripoSkin.ormTex(gfx) : Tex.detail;
+    for (const o of list) gfx.draw(pipe, { u: { p: OCLO.p, q: OCLO.q, r: nite, s: CUT0, c: o.col }, tex: { tBones: o.tex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex, tSkin: skinTex, tSkinN: skinNrm, tSkinM: skinOrm }, vb: [vb, vb2], ib, count }); };
   K.drawOthersShadow = function (list) { if (!pipeShadow || !count) return; for (const o of list) gfx.draw(pipeShadow, { u: { p: [0, 0, 0, 0] }, tex: { tBones: o.tex }, vb: [vb, vb2], ib, count }); };
   return K;
 })();
 
 // (bw: two bones and the share of the first; w carries a third bone and its share as whole number + fraction, 0 = none)
+// Dual Quaternion Skinning (DQS): preserves limb volume on deep 100-120 deg knee/elbow/hip bends with zero LBS collapse.
 const SKIN_SSL = `
 fn boneM(i: f32) -> mat4x4f { let r: i32 = i32(i + 0.5); return mat4x4f(texFetch(tBones, vec2i(0, r), 0), texFetch(tBones, vec2i(1, r), 0), texFetch(tBones, vec2i(2, r), 0), texFetch(tBones, vec2i(3, r), 0)); }
+struct DQ { r: vec4f, d: vec4f, }
+fn matToDQ(m: mat4x4f) -> DQ {
+  let m00: f32 = m[0].x; let m10: f32 = m[0].y; let m20: f32 = m[0].z;
+  let m01: f32 = m[1].x; let m11: f32 = m[1].y; let m21: f32 = m[1].z;
+  let m02: f32 = m[2].x; let m12: f32 = m[2].y; let m22: f32 = m[2].z;
+  let tr: f32 = m00 + m11 + m22;
+  var r: vec4f = vec4f(0.0, 0.0, 0.0, 1.0);
+  if (tr > 0.0) {
+    let s: f32 = sqrt(max(tr + 1.0, 1e-8)) * 2.0;
+    r = vec4f((m21 - m12) / s, (m02 - m20) / s, (m10 - m01) / s, 0.25 * s);
+  } else if (m00 > m11 && m00 > m22) {
+    let s: f32 = sqrt(max(1.0 + m00 - m11 - m22, 1e-8)) * 2.0;
+    r = vec4f(0.25 * s, (m01 + m10) / s, (m02 + m20) / s, (m21 - m12) / s);
+  } else if (m11 > m22) {
+    let s: f32 = sqrt(max(1.0 + m11 - m00 - m22, 1e-8)) * 2.0;
+    r = vec4f((m01 + m10) / s, 0.25 * s, (m12 + m21) / s, (m02 - m20) / s);
+  } else {
+    let s: f32 = sqrt(max(1.0 + m22 - m00 - m11, 1e-8)) * 2.0;
+    r = vec4f((m02 + m20) / s, (m12 + m21) / s, 0.25 * s, (m10 - m01) / s);
+  }
+  r = normalize(r);
+  let t: vec3f = m[3].xyz;
+  let d: vec4f = vec4f(
+    0.5 * ( t.x * r.w + t.y * r.z - t.z * r.y),
+    0.5 * (-t.x * r.z + t.y * r.w + t.z * r.x),
+    0.5 * ( t.x * r.y - t.y * r.x + t.z * r.w),
+   -0.5 * ( t.x * r.x + t.y * r.y + t.z * r.z)
+  );
+  var q: DQ; q.r = r; q.d = d; return q;
+}
 struct SkinV { wp: vec3f, n: vec3f, }
 fn skinVertex(pos: vec3f, nrm: vec3f, bw: vec4f) -> SkinV {
   var s: SkinV;
   let b2: f32 = floor(bw.w); let w2: f32 = bw.w - b2;
-  let m0: mat4x4f = boneM(bw.x); let m1: mat4x4f = boneM(bw.y); let m2: mat4x4f = boneM(b2);
-  let p0: vec4f = m0 * vec4f(pos, 1.0); let p1: vec4f = m1 * vec4f(pos, 1.0); let p2: vec4f = m2 * vec4f(pos, 1.0);
-  s.wp = mix(mix(p1.xyz, p0.xyz, bw.z), p2.xyz, w2);
-  let n0: vec4f = m0 * vec4f(nrm, 0.0); let n1: vec4f = m1 * vec4f(nrm, 0.0); let n2: vec4f = m2 * vec4f(nrm, 0.0);
-  s.n = normalize(mix(mix(n1.xyz, n0.xyz, bw.z), n2.xyz, w2));
+  let w0: f32 = bw.z * (1.0 - w2); let w1: f32 = (1.0 - bw.z) * (1.0 - w2);
+  let q0: DQ = matToDQ(boneM(bw.x));
+  let q1: DQ = matToDQ(boneM(bw.y));
+  let q2: DQ = matToDQ(boneM(b2));
+  let s1: f32 = select(1.0, -1.0, dot(q0.r, q1.r) < 0.0);
+  let s2: f32 = select(1.0, -1.0, dot(q0.r, q2.r) < 0.0);
+  var r: vec4f = q0.r * w0 + q1.r * (w1 * s1) + q2.r * (w2 * s2);
+  var d: vec4f = q0.d * w0 + q1.d * (w1 * s1) + q2.d * (w2 * s2);
+  let il: f32 = 1.0 / max(length(r), 1e-6);
+  r *= il; d *= il;
+  let rp: vec3f = pos + 2.0 * cross(r.xyz, cross(r.xyz, pos) + r.w * pos);
+  let tr: vec3f = 2.0 * (r.w * d.xyz - d.w * r.xyz + cross(r.xyz, d.xyz));
+  s.wp = rp + tr;
+  s.n = normalize(nrm + 2.0 * cross(r.xyz, cross(r.xyz, nrm) + r.w * nrm));
   return s;
 }
 `;
@@ -1763,6 +1843,112 @@ fn frag(v: VOut) -> FOut {
     alb = mix(${V(L.pole.alb)}, ${V(L.poleGrip.alb)}, step(-0.105, v.mat.z));
     alb = mix(alb, ${V(L.poleBasket.alb)}, step(v.mat.z, -1.025) * step(-1.06, v.mat.z));   // baskets: dark (in a tuck they point straight back at the lens, and pale ones read as a pair of eyes)
     specS = ${F(L.pole.specS)}; specP = ${F(L.pole.specP)}; gloss = ${F(L.pole.gloss)};
+  } else if (id > 14.5) {    // Tripo3D Full PBR (Albedo + 1024px NormalGL + Metallic/Roughness ORM + Sky/Snow IBL reflection)
+    let uvS: vec2f = vec2f(v.mat.z, v.mat.w);
+    let ts: vec4f = tex(tSkin, uvS);
+    let orm: vec4f = tex(tSkinM, uvS);
+    let pRough: f32 = clamp(orm.g, 0.08, 0.96);
+    let pMetal: f32 = orm.b;
+    alb = pow(max(ts.rgb, vec3f(0.0001)), vec3f(2.2)) * (0.62 + 0.38 * v.mat.y);
+    let nm: vec3f = tex(tSkinN, uvS).xyz * 2.0 - 1.0;
+    let dp1: vec3f = dpdx(v.wp); let dp2: vec3f = dpdy(v.wp);
+    let duv1: vec2f = dpdx(uvS); let duv2: vec2f = dpdy(uvS);
+    let dp2p: vec3f = cross(dp2, N); let dp1p: vec3f = cross(N, dp1);
+    let T: vec3f = dp2p * duv1.x + dp1p * duv2.x;
+    let B: vec3f = dp2p * duv1.y + dp1p * duv2.y;
+    let invM: f32 = 1.0 / max(sqrt(max(dot(T, T), dot(B, B))), 1e-6);
+    N = normalize(N * nm.z + (T * nm.x - B * nm.y) * (invM * 1.75));
+    // Drive specular sharpness, strength, and IBL environment reflection directly from PBR Roughness & Metallic!
+    let smoothK: f32 = 1.0 - pRough;
+    specP = mix(14.0, 160.0, smoothK * smoothK);
+    specS = mix(0.03, 0.55, smoothK * smoothK) + pMetal * 0.65;
+    gloss = max(smoothK * smoothK * 0.28, pMetal * 0.55);
+    glossTint = mix(vec3f(1.0), alb, pMetal);
+    sheen = mix(0.42, 0.08, smoothK) * (1.0 - pMetal);
+    cloth = (1.0 - pMetal) * smoothstep(0.25, 0.65, pRough);
+    shell = 0.38 * (1.0 - pMetal);
+    sd = 1.0;
+    // Head styling: orange ribbed beanie + sleek dark goggle strap + iridium gold-orange mirror goggles + cool slate-grey technical gaiter
+    let inHead: f32 = step(length(hd3), 0.19);
+    let beanieCut: f32 = mix(0.020, -0.028, smoothstep(-0.02, 0.05, hd3.z));
+    let gogStrap: f32 = inHead * smoothstep(0.018, 0.012, abs(hd3.y - 0.002)) * step(-0.03, hd3.z) * smoothstep(0.32, 0.22, max(ts.r, max(ts.g, ts.b)));
+    let isBeanie: f32 = inHead * smoothstep(beanieCut - 0.005, beanieCut + 0.007, hd3.y) * smoothstep(0.32, 0.22, max(ts.r, max(ts.g, ts.b))) * (1.0 - gogStrap);
+    let isGogLens: f32 = inHead * step(hd3.z, -0.055) * smoothstep(-0.088, -0.082, hd3.y) * smoothstep(0.018, 0.012, hd3.y) * step(abs(hd3.x), 0.088) * smoothstep(0.22, 0.28, ts.r) * smoothstep(0.62, 0.54, ts.r) * step(abs(ts.r - ts.b), 0.09);
+    let isGaiter: f32 = inHead * smoothstep(beanieCut + 0.002, beanieCut - 0.010, hd3.y) * step(-0.145, hd3.y) * smoothstep(0.26, 0.18, max(ts.r, max(ts.g, ts.b))) * (1.0 - isGogLens) * (1.0 - gogStrap);
+    if (isBeanie > 0.02) {
+      let bLum: f32 = dot(ts.rgb, vec3f(0.30, 0.59, 0.11));
+      let bRib: f32 = clamp(0.42 + bLum * 3.8, 0.35, 1.15);
+      let bCol: vec3f = orange * bRib * (0.62 + 0.38 * v.mat.y);
+      alb = mix(alb, bCol, isBeanie);
+      sheen = mix(sheen, 0.55, isBeanie);
+      specS = mix(specS, 0.03, isBeanie);
+    }
+    if (gogStrap > 0.02) {
+      let sStripe: f32 = smoothstep(0.004, 0.0015, abs(hd3.y - 0.002));
+      let sCol: vec3f = mix(vec3f(0.020, 0.022, 0.028), vec3f(0.38, 0.40, 0.44), sStripe * 0.65);
+      alb = mix(alb, sCol, gogStrap);
+      specS = mix(specS, 0.06, gogStrap);
+    }
+    if (isGaiter > 0.02) {
+      let gCol: vec3f = vec3f(0.24, 0.27, 0.33) * (0.65 + 0.35 * v.mat.y);
+      alb = mix(alb, gCol, isGaiter);
+      sheen = mix(sheen, 0.45, isGaiter);
+      specS = mix(specS, 0.03, isGaiter);
+    }
+    if (isGogLens > 0.02) {
+      alb = mix(alb, vec3f(0.12, 0.032, 0.010), isGogLens);
+      gloss = mix(gloss, 0.92, isGogLens);
+      glossTint = mix(glossTint, vec3f(1.0, 0.44, 0.10), isGogLens);
+      lensK = max(lensK, isGogLens);
+      lensV = clamp((hd3.y + 0.035) * 15.0, -1.0, 1.0);
+      specS = mix(specS, 1.4, isGogLens);
+      specP = mix(specP, 200.0, isGogLens);
+      cloth = mix(cloth, 0.0, isGogLens);
+    }
+    // Detect the flat brown Tripo backpack shell on the back (tl.z > 0.095) and upgrade to matte dark ballistic technical freeride pack
+    let isBrownPack: f32 = step(0.095, tl.z) * smoothstep(0.38, 0.48, ts.r) * smoothstep(0.82, 0.72, ts.r) * smoothstep(0.14, 0.22, ts.b) * smoothstep(0.50, 0.40, ts.r - ts.b);
+    // Crisp Gore-Tex fabric micro-folds & woven texture
+    let fGrid: f32 = sin(bp.x * 260.0) * sin(bp.y * 260.0) * saturate(1.4 - px * 180.0);
+    fold = 0.0024 * skN(bp.xy * 16.0 + bp.zz * vec2f(12.0, 10.0)) * saturate(1.6 - px * 50.0) + 0.00045 * fGrid;
+    // Subtle snow dusting at pant cuffs above the boots
+    let cuffSnow: f32 = smoothstep(0.32, 0.16, bp.y) * smoothstep(0.50, 0.85, weave.z * 0.65 + skN(bp.xz * 22.0) * 0.6 + 0.35);
+    alb = mix(alb, vec3f(0.80, 0.85, 0.92), cuffSnow * 0.30 * (1.0 - isBrownPack));
+    if (isBrownPack > 0.05) {
+      // Matte charcoal-navy ripstop ballistic nylon pack with top lid, lower stash pocket, compression straps, buckles & reflective piping
+      let rip: f32 = (step(0.82, fract(tl.x * 95.0)) + step(0.82, fract(tl.y * 95.0))) * 0.5 * saturate(1.5 - px * 140.0);
+      var pAlb: vec3f = vec3f(0.024, 0.030, 0.044) * (0.90 + 0.18 * rip) * (0.72 + 0.28 * v.mat.y);
+      // Top lid seam + waterproof zipper + pale reflective piping
+      let lidD: f32 = abs(tl.y - 0.055 + 0.14 * tl.x * tl.x);
+      let lidZip: f32 = smoothstep(0.0055, 0.0020, lidD) * step(abs(tl.x), 0.105);
+      let pipeL: f32 = smoothstep(0.0032, 0.0010, abs(lidD - 0.009)) * step(abs(tl.x), 0.098);
+      pAlb = mix(pAlb, vec3f(0.008, 0.009, 0.012), lidZip);
+      pAlb = mix(pAlb, vec3f(0.55, 0.58, 0.62), pipeL * 0.75);
+      // Lower front stash pocket + vertical center zip + orange zipper pull
+      let pkB: vec2f = abs(vec2f(tl.x, tl.y + 0.095)) - vec2f(0.068, 0.072);
+      let pkEdge: f32 = abs(length(max(pkB, vec2f(0.0))) + min(max(pkB.x, pkB.y), 0.0));
+      let pkSeam: f32 = smoothstep(0.0045, 0.0015, pkEdge);
+      let inPk: f32 = step(length(max(pkB, vec2f(0.0))) + min(max(pkB.x, pkB.y), 0.0), 0.0);
+      pAlb = mix(pAlb, vec3f(0.034, 0.042, 0.060), inPk * 0.65);
+      pAlb = mix(pAlb, vec3f(0.008, 0.010, 0.014), pkSeam * 0.85);
+      let cZip: f32 = smoothstep(0.0035, 0.0012, abs(tl.x)) * step(-0.155, tl.y) * step(tl.y, -0.035);
+      let zPull: f32 = smoothstep(0.009, 0.004, length(vec2f(tl.x, tl.y + 0.045)));
+      pAlb = mix(pAlb, vec3f(0.010, 0.010, 0.012), cZip);
+      pAlb = mix(pAlb, vec3f(0.95, 0.28, 0.03), zPull);
+      // Two vertical webbing compression straps + dark buckles
+      let stD: f32 = abs(abs(tl.x) - 0.078);
+      let strap: f32 = smoothstep(0.012, 0.008, stD) * step(-0.22, tl.y) * step(tl.y, 0.14);
+      let bkl: f32 = smoothstep(0.015, 0.010, stD) * smoothstep(0.016, 0.011, abs(tl.y + 0.01));
+      let daisy: f32 = strap * step(0.75, fract(tl.y * 32.0));
+      pAlb = mix(pAlb, vec3f(0.014, 0.017, 0.024), strap * 0.9);
+      pAlb = mix(pAlb, vec3f(0.10, 0.11, 0.13), bkl);
+      pAlb = mix(pAlb, vec3f(0.06, 0.07, 0.09), daisy * 0.6);
+      let pFold: f32 = 0.0022 * strap + 0.0030 * bkl - 0.0025 * lidZip - 0.0020 * pkSeam + 0.0005 * rip;
+      alb = mix(alb, pAlb, isBrownPack);
+      fold = mix(fold, pFold, isBrownPack);
+      specS = mix(specS, 0.14 + 0.25 * bkl, isBrownPack);
+      specP = mix(specP, 48.0, isBrownPack);
+      sheen = mix(sheen, 0.18, isBrownPack);
+    }
   } else {                   // bindings: black housings on a grey plate, the heel lever in the jacket's orange
     alb = mix(vec3f(0.035, 0.037, 0.042), vec3f(0.30, 0.32, 0.34), step(bp.y, 0.047));
     alb = mix(alb, orange, step(0.212, bp.z) * step(0.086, bp.y));
