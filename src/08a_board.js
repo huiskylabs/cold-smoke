@@ -251,7 +251,7 @@ const Board = (() => {
   // and each edge change gives each arm a wider new way to be held (AVO, AVF, AVE). Gate 0.98 -> 1.00, jolts 28 -> 15)
   // (2026-11-26 清洗 Steep 尺子后重调：剔除 QA 失败/高抖动/腾空帧、同视频前脚投票后，Steep 真实的前肩领航 yawS ≈ -24° 浅弯 / -33° 脚尖深弯 / -21° 脚跟深弯、
   // 后膝略深于前膝、前后手位置不对称、小臂自然下垂都恢复了；拆开 SBS 的 skid/mid/carve 三档速度并加入起跳蓄力/抓板/落地缓冲参数)
-  const SBNS = { KOFF: 0, FWC: 0.33, KLD: 70, KLDS: 0.6, KLDT: 0.6, TW0: 0.11, PRL: -0.525, Y0: -0.32, YL: -0.05, TT0: -0.24, TT1: 0.84, TH0: 0.45, TH1: 0.25, CB: 0.06, HTR: 1, HHT: 0.42, SRR: 0.11, SRT: 0.725, AF0: 0.54, AFT: 0.08, AFH: 0.04, FF0: 0.08, TFH: 0.16, WTF: 0.52, AB0: 0.54, ABT: 0.25, ABQ: 0.75, FB0: -0.10, TBH: 0.48, WTB: 0.38, FX0: 50, FXD: -10, ABIF: 0.48, ABIB: 0.35, ABUF: 0.42, ABUB: -0.15, YR: 0, TWL: 0, TWR: 0, AVO: 0.35, AVF: 0.35, AVE: 30, FWY: -0.85, KCHG: 50, FCHG: 0.36, KGRB: 102, FGRB: 0.88, FXA: 0, KLND: 26, FLND: 0.58, ALND: 0.24 };
+  const SBNS = { KOFF: 0, FWC: 0.33, KLD: 70, KLDS: 0.6, KLDT: 0.6, TW0: 0.11, PRL: -0.525, Y0: -0.32, YL: -0.05, TT0: -0.24, TT1: 0.84, TH0: 0.45, TH1: 0.25, CB: 0.06, HTR: 1, HHT: 0.42, SRR: 0.11, SRT: 0.725, AF0: 0.54, AFT: 0.08, AFH: 0.04, FF0: 0.08, TFH: 0.16, WTF: 0.52, AB0: 0.54, ABT: 0.25, ABQ: 0.75, FB0: -0.10, TBH: 0.48, WTB: 0.38, FX0: 50, FXD: -10, ABIF: 0.48, ABIB: 0.35, ABUF: 0.42, ABUB: -0.15, YR: 0, TWL: 0, TWR: 0, AVO: 0.35, AVF: 0.35, AVE: 30, FWY: -0.85, KCHG: 50, FCHG: 0.26, KGRB: 102, FGRB: 0.88, FXA: 0, KLND: 30, FLND: 0.85, ALND: 0.24 };
   const SBS = JSON.parse(JSON.stringify(SBF));
   {
     SBS.glide.k = [42, 46];
@@ -332,7 +332,11 @@ const Board = (() => {
     let xa = Math.sign(edge) * angu;
     if (K.ez && sec.pfDt > 0) xa = K.ez(sec, 'bang', xa, 18 + 20 * air);
     const edgeB = clamp(edge + xa, -1.45, 1.45);
-    const bb = basis(0, edgeB, gp), O = [0, BD.hw * Math.abs(Math.sin(edgeB)) + gy, 0];
+    // (抓板时板面 tweak：method 拉起后刃、japan 竖提板、nose/tail 抬板头/板尾、melon/stalefish 略提后刃，让 8 种抓板轮廓在空中一眼可辨)
+    const gAtw = tab && X('GRB', 1) > 0 ? Math.max(gM, smooth(0, 1, p.grabA || 0)) * air : 0;
+    const gEdge = gAtw * (gKH === 4 ? -0.48 : gKH === 8 ? 0.42 : gKH === 3 || gKH === 5 ? -0.22 : gKH === 1 || gKH === 2 ? 0.15 : 0);
+    const gPitch = gAtw * (gKH === 6 ? 0.32 : gKH === 7 ? -0.32 : gKH === 4 ? 0.20 : gKH === 8 ? -0.18 : 0);
+    const bb = basis(gKH === 4 ? -0.36 * gAtw : gKH === 8 ? 0.28 * gAtw : 0, clamp(edgeB + gEdge, -1.45, 1.45), gp + gPitch), O = [0, BD.hw * Math.abs(Math.sin(edgeB)) + gy, 0];
     const fbL = yawIn(bb, BD.yawF), fbR = yawIn(bb, BD.yawB);
     J.footL = v3.mad(O, bb.X, -BD.half); J.footR = v3.mad(O, bb.X, BD.half);
     // (the ankle stands lower on a board than in ski boots: the shared figure's 16 cm is a ski boot's sole on a binding's stack on a ski; a
@@ -423,7 +427,7 @@ const Board = (() => {
       // (the hips start high and come down until the legs are as bent as the table says, so the table sets the knees: before, they started at a fixed
       // height and on a 50-60 deg carve the legs were already shorter than that, knees 79/97 against the owner's 57/70 (board_gate.js). A deep crouch
       // (charging a jump) and a tuck still fold them further; a landing still drops the hips)
-      { const ex = 30 * Math.max(0, c - 0.5) + Math.max(25 * tuck, X('KCHG', 50) * chE) + X('KLND', 0) * lndE + X('KWB', 70) * wB; const kCap = lndE > 0.1 ? 102 : 128; kTab = [Math.min(kTab[0] + ex, Math.max(kTab[0], kCap)), Math.min(kTab[1] + ex, Math.max(kTab[1], kCap))]; }      /* (no deeper than 128 deg from the sinking; landing cushion capped at 102 deg per Steep jump ruler) */
+      { const ex = 30 * Math.max(0, c - 0.5) + Math.max(25 * tuck, X('KCHG', 50) * chE) + X('KLND', 0) * lndE + X('KWB', 70) * wB; const kCap = lndE > 0.1 ? 92 : 128; kTab = [Math.min(kTab[0] + ex, Math.max(kTab[0], kCap)), Math.min(kTab[1] + ex, Math.max(kTab[1], kCap))]; }      /* (no deeper than 128 deg from the sinking; landing cushion capped at 92 deg per Steep jump ruler & splay guard) */
       // (and the knee targets themselves are eased (w 10): where the table's front/back leg swap at an edge change and a tuck comes in, they kinked
       // and the knees jolted 1.5-3 deg (scorer F1, Mac gate round 1: 38-91 jolts a minute against b's 0); w 50 (was 16 while the hip ease was accidentally off), so the rise at an edge change is not left behind)
       // (GRB, owner 2026-11-25 单板空中动作: in the air the legs are drawn up, as the Steep footage rides it: knees about KAIR deg in a plain flight and
@@ -814,7 +818,7 @@ const Board = (() => {
           // arms the same way twice: at each edge change each arm takes a new way to be held (out, forward, elbow) inside his spread, and the muscles
           // take it there; no noise frame to frame)
           cO += X('AVO', 0.25) * avH(side, 1); cF += X('AVF', 0.3) * avH(side, 2);
-          cO = lerp(cO, X('AS0', 0.16), wS) + X('AAO', 0.45) * aAir + X('ALND', 0) * lndE; cF = lerp(cF, X('AS1', 0.08), wS) + X('AAF', 0.15) * aAir;
+          cO = lerp(cO, X('AS0', 0.16), wS) + X('AAO', 0.45) * aAir + X('ALND', 0) * lndE + (g < 0.1 ? 0.35 * gM * aAir : 0); cF = lerp(cF, X('AS1', 0.08), wS) + X('AAF', 0.15) * aAir;
           cO = lerp(cO, X('ATO', 0.22), wT); cF = lerp(cF, X('ATF', 0.8), wT); cT = lerp(cT, 0, wT);
           let ua = v3.norm(v3.add(v3.add(v3.norm(v3.lerp(dn0, dTr, wTr)), v3.mul(Oh, cO)), v3.add(v3.mul(Fh, cF), v3.mul(Tb, cT))));
           // (and never into the body: not across the chest's middle by more than a few degrees, not behind the back)
@@ -891,12 +895,18 @@ const Board = (() => {
           if (a > a0) { const a1 = (a0 + ALS * Math.tanh((a - a0) / ALS)) * Math.PI / 180, pp = v3.sub(v3.mul(d, 1 / l), v3.mul(dn, Math.cos(a * Math.PI / 180))), pl = v3.len(pp);
             if (pl > 1e-4) t = v3.add(sh, v3.mul(v3.add(v3.mul(dn, Math.cos(a1)), v3.mul(pp, Math.sin(a1) / pl)), l)); } } }
       }
-      if (g > 0) t = v3.lerp(t, v3.add(O, fr(bb, side < 0 ? -0.36 : 0.0, 0.035, -BD.hw - 0.02)), g);
+      // (8 种单板抓板精确手位：1 indy、2 mute、3 melon、4 method、5 stalefish、6 nose、7 tail、8 japan 前手绕前膝抓脚尖刃；保证在臂长内不穿大腿)
+      if (g > 0) {
+        const GP = { 1: [0.02, 0.035, -BD.hw - 0.015], 2: [-0.16, 0.035, -BD.hw - 0.015], 3: [-0.08, 0.045, BD.hw + 0.02], 4: [-0.12, 0.045, BD.hw + 0.02], 5: [0.06, 0.045, BD.hw + 0.02], 6: [-0.42, 0.045, -BD.hw - 0.02], 7: [0.40, 0.045, -BD.hw - 0.02], 8: [-0.22, 0.04, -BD.hw - 0.02] };
+        const gp0 = GP[gKH] || (side < 0 ? [-0.36, 0.035, -BD.hw - 0.02] : [0.0, 0.035, -BD.hw - 0.02]);
+        t = v3.lerp(t, v3.add(O, fr(bb, gp0[0], gp0[1], gp0[2])), g);
+        if (gKH === 3 || gKH === 4 || gKH === 5) PO = v3.norm(v3.lerp(PO, fr(hl, side * 0.6, 0.2, 0.8), g));
+      }
       // (kept clear of the snow: a hand on the snow touches it, it does not go in)
       t = offSnow(t, lerp(lerp(0.06, 0.008, dFl), 0.03, Math.max(air, sat(tuck * 2))), 0.02, sfR, snk(t));      // (in the air and a tuck the hands come down by the board: the old 3 cm there)
       // (真人表: the arm's length taken most of the way to ARM0's, both ways, not only as a floor: the front fist's target lies past the reach, so
       // the front elbow sat on the reach limit at 141-145 deg all turn. The owner's open to 145-155 in the turn and close to 120 at the edge change)
-      if (tab && !(ALP() && X('ALC', 1) > 0 && g <= 0)) { const dq = v3.sub(t, sh), lq = v3.len(dq); if (lq > 1e-4) t = v3.mad(sh, dq, lerp(lq, Math.max(A0, lerp(A0, lq, dF)), 0.9) / lq); }      /* (alpine's chest-held hands keep their own distance) */
+      if (tab && !(ALP() && X('ALC', 1) > 0 && g <= 0) && g < 0.99) { const dq = v3.sub(t, sh), lq = v3.len(dq); if (lq > 1e-4) t = v3.mad(sh, dq, lerp(lq, Math.max(A0, lerp(A0, lq, dF)), 0.9 * (1 - g)) / lq); }      /* (alpine's chest-held hands keep their own distance; grabbing hand reaches all the way to the board) */
       t = rclT(t, sh, F0 ? 0 : aTc);
       // (kept clear of the thighs: a hand or forearm went into the back thigh by up to 11 cm, scorer 2026-11-22. The thigh as a capsule of 9 cm,
       // the hand pushed out of it sideways, away from the leg's line)

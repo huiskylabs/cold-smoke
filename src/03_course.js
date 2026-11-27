@@ -277,20 +277,30 @@ const Course = ((vn1, vn2, h2U) => {
     const k = zone ? 1 : 1.2;
     for (let i = 0; i < n; i++) { const f = JS.S(r); f.len *= k; f.h *= k; addFeat(Object.assign({ s: s + i * (11 + 2 * r()) * k, u: u + (r() - 0.5) * 1.2, kind: 'kicker', sz: 'S', zone, last: i === n - 1 }, f)); }
   }
-  // a kicker run: groups of three lanes, 16 m apart, the big one on one side (which side, by the seed, and now and then swapped for a
-  // group), the medium down the middle. The lips are staggered 30-55 m down the hill, so from the chase lens all three can be seen
-  // coming, and none stands abreast of another; after each group 40 m or more of open snow where the lanes meet
+  // a kicker run: three flow lanes (14 m apart) built for chaining consecutive jumps (2026-11-26):
+  //   S lane: 4-5 rapid rhythm humps;
+  //   M lane (middle): continuous flow line of medium kickers ~64 m lip-to-lip (land -> ~1.5 s run-in -> next lip);
+  //   L lane (big side): continuous flow line of big kickers ~92 m lip-to-lip (big air -> ~2 s run-in -> next big lip).
+  // Staggered down the hill with open snow between lanes so riders can chain a lane non-stop or cruise past cleanly.
   function jumpZones(seg, len) {
-    const r = jrng, side = r() < 0.5 ? -1 : 1, end = seg.s0 + len - 100;
-    for (let s = seg.s0 + 70; s + 150 < end; s += 165 + 25 * r()) {
-      const sg = side * (r() < 0.3 ? -1 : 1), zone = ++zoneN, uS = -sg * 16 + (r() - 0.5) * 2, uM = (r() - 0.5) * 2, uL = sg * 16 + (r() - 0.5) * 2;
-      // (the order the three lips come in down the hill: any of the six)
-      const ord = [0, 1, 2]; for (let i = 2; i > 0; i--) { const j = Math.floor(r() * (i + 1)), t = ord[i]; ord[i] = ord[j]; ord[j] = t; }
-      const at = [0, 30 + 15 * r(), 0]; at[2] = at[1] + 30 + 15 * r();
-      for (let k = 0; k < 3; k++) {
-        const w = ord[k], s1 = s + at[k];
-        if (w === 0) jumpS(seg, s1 - 20, uS, r, zone, 3 + (r() < 0.5 ? 1 : 0));
-        else { const z = w === 1 ? 'M' : 'L', f = JS[z](r); addFeat(Object.assign({ s: s1 - f.len, u: w === 1 ? uM : uL, kind: 'kicker', sz: z, zone }, f)); }
+    const r = jrng, side = r() < 0.5 ? -1 : 1, end = seg.s0 + len - 60;
+    const sg = side, uS = -sg * 15, uM = 0, uL = sg * 15;
+    let sM = seg.s0 + 55, sL = seg.s0 + 75, sS = seg.s0 + 60;
+    while (sM + 45 < end || sL + 60 < end) {
+      const zone = ++zoneN;
+      if (sS + 55 < end) {
+        jumpS(seg, sS, uS + (r() - 0.5) * 1.6, r, zone, 4 + (r() < 0.5 ? 1 : 0));
+        sS += 95 + 15 * r();
+      }
+      if (sM + 45 < end) {
+        const f = JS.M(r);
+        addFeat(Object.assign({ s: sM, u: uM + (r() - 0.5) * 2.2, kind: 'kicker', sz: 'M', zone }, f));
+        sM += 62 + 8 * r();
+      }
+      if (sL + 60 < end) {
+        const f = JS.L(r);
+        addFeat(Object.assign({ s: sL, u: uL + (r() - 0.5) * 2.0, kind: 'kicker', sz: 'L', zone }, f));
+        sL += 90 + 12 * r();
       }
     }
   }
@@ -305,7 +315,7 @@ const Course = ((vn1, vn2, h2U) => {
       // (a side hit on the rollers was thrown off a crest into the next trough: 2-2.7 s and a hard landing. It stands on the smooth runs)
       const q = r();
       if ((type === 'bowl' || type === 'powder') && q < 0.45) addFeat({ s, u: sd * (hw - 9), len: 9, wid: 6.5, h: 0.9 + 0.2 * r(), yaw: -sd * 0.2, kind: 'kicker', sz: 'side' });
-      else if (type === 'bowl' && q < 0.8) { const f = JS.M(r); addFeat(Object.assign({ s, u: sd * Math.min(14, hw * 0.45), kind: 'kicker', sz: 'M' }, f)); }
+      else if (type === 'bowl' && q < 0.8) { const f = JS.M(r), u0 = sd * Math.min(14, hw * 0.45); addFeat(Object.assign({ s, u: u0, kind: 'kicker', sz: 'M' }, f)); if (s + 85 < seg.s0 + len - 60) { const f2 = JS.M(r); addFeat(Object.assign({ s: s + 64 + 6 * r(), u: u0 + (r() - 0.5) * 2, kind: 'kicker', sz: 'M' }, f2)); } }
       else jumpS(seg, s, sd * Math.min(type === 'ridge' ? 7 : 14, hw * 0.5), r, 0, type === 'ridge' ? 2 : 3);
     }
   }
