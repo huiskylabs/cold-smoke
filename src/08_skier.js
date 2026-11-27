@@ -472,8 +472,14 @@ const Skier = (() => {
         }
         t = v3.lerp(nT, g2, dpw); d = nlerp(nD, d2, dpw); planted *= dpw; low = Math.max(low * dpw, planted);
       }
-      // grab: the hand goes down the outside of the shin and takes the ski by its edge just ahead of the toe piece
-      if (g > 0) { const ft = side < 0 ? J.footL : J.footR, b = side < 0 ? fbl : fbr, tg = v3.add(ft, fr(b, side * 0.092, 0.036, -0.335)); t = v3.lerp(t, tg, g); d = nlerp(d, v3.norm(fr(b, side * 0.30, 0.20, 0.93)), g); }
+      // grab: 1/0 safety (outside edge ahead of toe), 2 mute (cross-hand ahead of knees to opposite ski shovel), 3 tail (outside behind heel), 4 nose (ski tip), 5 truckdriver (both hands)
+      if (g > 0) {
+        const gk = p.grabK || 0, cross = gk === 2, opp = cross ? -side : side;
+        const ft = opp < 0 ? J.footL : J.footR, b = opp < 0 ? fbl : fbr;
+        const offG = gk === 2 ? [side * 0.04, 0.075, -0.44] : gk === 3 ? [opp * 0.145, 0.055, 0.22] : gk === 4 ? [opp * 0.10, 0.05, -0.44] : [opp * 0.095, 0.038, -0.335];
+        const tg = v3.add(ft, fr(b, offG[0], offG[1], offG[2]));
+        t = v3.lerp(t, tg, g); d = nlerp(d, v3.norm(fr(b, side * (cross ? 0.55 : 0.34), 0.22, 0.88)), g);
+      }
       // nothing goes through the body: the fist is kept outside legs, hips and trunk, then within reach of the shoulder
       // (...nor so close to it that the arm has nowhere to fold: it gives way forward and down, the more the closer it is pressed)
       const inReach = q => { const dv = v3.sub(q, sh), l = v3.len(dv); return l > reach ? v3.mad(sh, dv, reach / l) : l < 0.21 ? v3.mad(sh, v3.norm(v3.add(dv, v3.mul(fr(hl, side * 0.02, -0.02, -0.03), sat((0.21 - l) / 0.05)))), 0.21) : q; };

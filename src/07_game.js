@@ -733,11 +733,19 @@ const Game = (() => {
   function clearQ(q) { q.own = q.c = q.tuck = q.sep = q.head = q.st = q.lead = q.lL = q.lR = q.pL = q.pR = q.gL = q.gR = q.rL = q.rR = q.air = q.fore = q.yaw = q.flip = q.roll = q.dip = q.ax = q.ay = q.az = q.bx = q.by = q.bz = q.gk = q.gA = 0; return q; }
   const hands = (q, out, y, z, k) => { q.ax -= out * k; q.ay += y * k; q.az += z * k; q.bx += out * k; q.by += y * k; q.bz += z * k; };
   const hand = (q, side, out, y, z, k) => { if (side < 0) { q.ax -= out * k; q.ay += y * k; q.az += z * k; } else { q.bx += out * k; q.by += y * k; q.bz += z * k; } };
-  // a hand on the ski beside the binding, knees drawn up to meet it, the free arm out for balance, that ski tipped up
-  function grabShape(q, u, d, a, b) {
+  // a hand on the ski (kind: 1 safety, 2 mute cross-ski, 3 tail, 4 nose/tip, 5 truckdriver both hands), knees drawn up to meet it, free arm out for balance
+  function grabShape(q, u, d, a, b, kind = 1) {
     const g = bell(a, a + 0.14, b - 0.14, b, u) * (fl.rem != null ? smooth(0.1, 0.25, fl.rem) : 1), kn = bell(a - 0.14, a + 0.08, b - 0.06, b + 0.12, u);
-    if (d < 0) { q.gL = g; q.lL = 0.12 * kn; q.pL = 0.3 * kn; q.pR = -0.12 * kn; } else { q.gR = g; q.lR = 0.12 * kn; q.pR = 0.3 * kn; q.pL = -0.12 * kn; }
-    q.c = Math.max(q.c, 0.93); q.own = Math.max(q.own, kn); q.tuck += 0.3 * kn; q.st -= 0.05 * kn; hand(q, -d, 0.2, 0.2, 0.06, kn);
+    q.gk = kind;
+    if (kind === 5) {
+      q.gL = g; q.gR = g; q.lL = q.lR = 0.12 * kn; q.pL = q.pR = 0.28 * kn; q.st -= 0.06 * kn;
+    } else {
+      const pG = kind === 3 ? -0.38 : kind === 4 ? 0.44 : 0.30, pO = kind === 3 ? 0.18 : -0.12;
+      if (d < 0) { q.gL = g; q.lL = 0.12 * kn; q.pL = pG * kn; q.pR = pO * kn; } else { q.gR = g; q.lR = 0.12 * kn; q.pR = pG * kn; q.pL = pO * kn; }
+      if (kind === 2) { q.rL = 0.14 * kn; q.rR = -0.14 * kn; q.lead = d * 0.10 * kn; }
+      q.st -= 0.05 * kn; hand(q, -d, 0.22, 0.22, 0.06, kn);
+    }
+    q.c = Math.max(q.c, 0.93); q.own = Math.max(q.own, kn); q.tuck = Math.max(q.tuck, 0.3 * kn);
   }
   // a spin of n half turns about the body's own axis (base: half turns already made, i.e. starting from switch)
   // (the least air a spin is done in, as a share of its own least (TRICKS, below): and the slowest it may be hurried to)
@@ -773,15 +781,25 @@ const Game = (() => {
     },
     // knees bent back until the tails of the skis reach for the shoulders, back arched, arms up
     scratch(q, u) { const b = bell(0.06, 0.32, 0.58, 0.92, u); q.pL = q.pR = -0.8 * b; q.c = 0.55; q.own = b; q.fore = 0.6 * b; q.air = 0.65 * b; hands(q, 0.06, 0.2, 0.12, b); },
-    grab(q, u, d) { grabShape(q, u, d, 0.2, 0.8); },
+    grab(q, u, d) { grabShape(q, u, d, 0.18, 0.82, 1); },
+    mute(q, u, d) { grabShape(q, u, d, 0.16, 0.84, 2); },
+    tail(q, u, d) { grabShape(q, u, d, 0.16, 0.84, 3); },
+    nose(q, u, d) { grabShape(q, u, d, 0.16, 0.84, 4); },
+    truck(q, u, d) { grabShape(q, u, d, 0.16, 0.84, 5); },
+    japan(q, u, d) { grabShape(q, u, d, 0.16, 0.84, 2); q.roll = d * 0.24 * bell(0.14, 0.34, 0.66, 0.86, u); },
     180(q, u, d, tr) { spinShape(q, u, d, 1, tr.base || 0, 0.5); },
     360(q, u, d) { spinShape(q, u, d, 2, 0, 0.68); },
-    540(q, u, d) { spinShape(q, u, d, 3, 0, 0.8); },
-    720(q, u, d) { spinShape(q, u, d, 4, 0, 0.82); },
-    '360grab'(q, u, d) { spinShape(q, u, d, 2, 0, 0.7); grabShape(q, u, d, 0.26, 0.74); },
-    // a backward somersault, tucked: the tips come up and over
-    flip(q, u) { const b = bell(0.06, 0.28, 0.66, 0.93, u); q.flip = TAU * turn(u, 0.18, 0.2); q.c = 0.92; q.own = bell(0.02, 0.22, 0.7, 0.95, u); q.tuck = 0.3 * b; hands(q, -0.04, -0.14, -0.03, b); },
-    flipgrab(q, u, d) { SHAPES.flip(q, u); q.ax = q.ay = q.az = q.bx = q.by = q.bz = 0; grabShape(q, u, d, 0.24, 0.76); },
+    540(q, u, d) { spinShape(q, u, d, 3, 0, 0.8); grabShape(q, u, d, 0.24, 0.76, 1); },
+    720(q, u, d) { spinShape(q, u, d, 4, 0, 0.84); grabShape(q, u, d, 0.22, 0.78, 2); },
+    '360grab'(q, u, d) { spinShape(q, u, d, 2, 0, 0.7); grabShape(q, u, d, 0.24, 0.76, 2); },
+    // backward & forward somersaults with smooth flip easing, plus off-axis freeski misty/rodeo/cork
+    flip(q, u) { const b = bell(0.06, 0.28, 0.66, 0.93, u); q.flip = TAU * turn(u, 0.24, 0.24); q.c = 0.92; q.own = bell(0.02, 0.22, 0.7, 0.95, u); q.tuck = 0.3 * b; hands(q, -0.04, -0.14, -0.03, b); },
+    front(q, u, d) { const b = bell(0.06, 0.28, 0.66, 0.93, u); q.flip = -TAU * turn(u, 0.24, 0.24); q.c = 0.92; q.own = bell(0.02, 0.22, 0.7, 0.95, u); q.tuck = 0.3 * b; grabShape(q, u, d, 0.24, 0.76, 1); },
+    flipgrab(q, u, d) { SHAPES.flip(q, u); q.ax = q.ay = q.az = q.bx = q.by = q.bz = 0; grabShape(q, u, d, 0.22, 0.78, 3); },
+    misty540(q, u, d) { spinShape(q, u, d, 3, 0, 0.88); q.flip = -TAU * turn(u, 0.24, 0.24); q.roll = d * 0.42 * Math.sin(PI * u); grabShape(q, u, d, 0.20, 0.80, 2); },
+    rodeo540(q, u, d) { spinShape(q, u, d, 3, 0, 0.88); q.flip = TAU * turn(u, 0.24, 0.24); q.roll = -d * 0.46 * Math.sin(PI * u); grabShape(q, u, d, 0.20, 0.80, 1); },
+    cork720(q, u, d) { spinShape(q, u, d, 4, 0, 0.90); q.flip = -0.56 * PI * Math.sin(PI * u); q.roll = d * 0.50 * Math.sin(PI * u); grabShape(q, u, d, 0.18, 0.82, 2); },
+    cork900(q, u, d) { spinShape(q, u, d, 5, 0, 0.92); q.flip = -0.62 * PI * Math.sin(PI * u); q.roll = d * 0.54 * Math.sin(PI * u); grabShape(q, u, d, 0.18, 0.82, 3); },
     // (riding switch after a half turn: a quick pivot on the snow brings the skier round to face the hill again)
     // (owner 2026-11-18: "它一下就转过去了，不可能，转正应该有一个过程". It was half a turn at a constant 444 deg/s, begun from nothing. Now PIVOT_T long and in
     // three parts: a sink with the shoulders and head going round first (the wind-up, skis still on their line), the legs pushed long and the
@@ -793,10 +811,16 @@ const Game = (() => {
       q.dip = 0.2 * bell(0, 0.2, 0.24, 0.46, u) - 0.05 * bell(0.26, 0.44, 0.56, 0.74, u) + 0.16 * bell(0.66, 0.84, 0.86, 1, u);
     },
   };
-  // the least usable air each needs (seconds), how often it is chosen, and how much air to spare it bears before it is a small thing
-  // lost in a big flight (a tweak fills a hop; the biggest air goes to the turns, the somersaults and the combinations)
-  const TRICKS = { 180: [0.5, 1.6, 0.25], 360: [0.62, 4, 0.4], 540: [1.05, 1.4, 0.8], 720: [1.25, 2.8, 1], shifty: [0.34, 3, 0.2], tuck: [0.34, 2, 0.2], spread: [0.42, 2.2, 0.22], daffy: [0.5, 2.2, 0.22], scratch: [0.5, 1.2, 0.22], twist: [0.66, 1.5, 0.25], grab: [0.6, 3, 0.3], '360grab': [0.9, 3, 0.8], flip: [0.9, 2.4, 0.7], flipgrab: [1.15, 2.2, 1], eagle: [0.75, 2.4, 0.45] };
-  const PAIRS = ['shifty', 'tuck', 'spread', 'daffy', 'scratch', 'grab'];
+  // the least usable air each needs (seconds), how often it is chosen, how much spare air it bears, and min takeoff speed (m/s)
+  const TRICKS = {
+    180: [0.50, 1.8, 0.26, 8], 360: [0.68, 3.6, 0.42, 11], 540: [0.96, 2.8, 0.68, 14], 720: [1.18, 3.2, 0.88, 16],
+    '360grab': [0.84, 3.4, 0.70, 12],
+    shifty: [0.34, 2.8, 0.22, 0], tuck: [0.34, 1.6, 0.18, 0], spread: [0.42, 2.0, 0.22, 0], daffy: [0.50, 2.2, 0.24, 0], scratch: [0.50, 1.4, 0.22, 0], twist: [0.64, 1.6, 0.26, 0], eagle: [0.72, 2.4, 0.42, 0],
+    grab: [0.56, 2.2, 0.28, 0], mute: [0.56, 2.8, 0.32, 0], tail: [0.58, 2.6, 0.32, 0], nose: [0.58, 2.2, 0.30, 0], truck: [0.62, 2.6, 0.36, 0], japan: [0.62, 2.4, 0.36, 0],
+    flip: [0.98, 2.6, 0.68, 14], front: [1.02, 2.2, 0.68, 14], flipgrab: [1.12, 2.8, 0.88, 15],
+    misty540: [1.14, 3.2, 0.85, 16], rodeo540: [1.14, 3.4, 0.85, 16], cork720: [1.26, 3.8, 1.0, 18], cork900: [1.46, 4.0, 1.2, 21]
+  };
+  const PAIRS = ['shifty', 'tuck', 'spread', 'daffy', 'scratch', 'grab', 'mute', 'tail', 'nose'];
   // ---- 单板的空中动作 (owner 2026-11-25 "单板空中的模式就这些动作都加进去", design doc https://claude.ai/artifact/Vxzqp2c4GYygaxoXNbkPpu, "按建议来做"):
   // the board took the skis' list, half of which a board cannot do (legs apart, a stride, the eagle) and one grab. Its own list now, as the
   // Steep footage rides it: small and tight in the air, knees drawn up, one hand on the board, held, the other out; spins and flips grabbed.
@@ -851,7 +875,7 @@ const Game = (() => {
   // a small shape at most; a big air off the terrain may turn, but only whole turns, so it always comes down facing forward; and off the terrain
   // there is one trick at most every HOP_GAP seconds of the game's time. Spun on every bump, landing backwards and pivoting round on the snow,
   // the figure turned round every few seconds and read as a glitch, not as style. Off a marked jump anything goes, as before)
-  const HOP = { grab: 1, scratch: 1, spread: 1, tuck: 1, daffy: 1 }, HOP_GAP = 6, _kc = {};
+  const HOP = { grab: 1, mute: 1, tail: 1, nose: 1, scratch: 1, spread: 1, tuck: 1, daffy: 1 }, HOP_GAP = 6, _kc = {};
   // (seen from inside the helmet, first person or the ski tips: only shapes that keep the body upright and facing the way the lens looks. A spin or a
   // somersault would turn the figure away under a lens that keeps looking down the valley; a helmet camera that spun with it is no way to ride. And
   // ones that read from in there: the spread and the eagle fling the skis out of the picture, and in a grab the head is folded out over the ski
@@ -874,32 +898,30 @@ const Game = (() => {
     const st0 = Math.abs(S.u) > 0.14 ? S.u : (Math.abs(S.lean) > 0.12 ? S.lean : 0), fa0 = S.fa || 0;
     const mk = id => { const n = (parseInt(id) / 180 || 0) + (NB[id] || 0); return { gk: BRD() && (n > 1 || id === 'back' || id === 'front') ? GSPIN[Math.floor(rnd() * GSPIN.length)] : null, id, n, spin: n > 0, base: 0, dir: Math.abs(st0) > 0.12 ? sign(st0) : rnd() < 0.5 ? -1 : 1, amp: 0.72 + 0.33 * rnd(), min: TRICKS[id] ? TRICKS[id][0] : 0 }; };
     if (G.forceTrick) { const ids = String(G.forceTrick).split('+').filter(id => SHP()[id]); if (ids.length === 2) { const t = mk(ids[0]); t.id = ids.join('+'); t.seq = ids; t.spin = false; t.n = 0; t.min = 0; return t; } if (ids.length) { const t = mk(ids[0]); t.min = 0; return t; } }
-    if (big && U >= 1.1 && !BRD() && rnd() < 0.35) {            // two shapes, one after the other (skis only; on board big air always throws spins/flips/rodeos/corks)
+    if (big && U >= 1.1 && !BRD() && Math.abs(st0) < 0.14 && Math.abs(fa0) < 0.22 && rnd() < 0.18) {            // two shapes in a row when straight off a big jump
       const TT = TRK(), ok = PAIRS.filter(id => TT[id][0] * 0.9 <= U / 2 && fpOK(id)), a = ok[Math.floor(rnd() * ok.length)], rest = ok.filter(id => id !== a), b = rest[Math.floor(rnd() * rest.length)];
       if (a && b && a + '+' + b !== fl.last) { const t = mk(a); t.id = a + '+' + b; t.seq = [a, b]; t.min = 1.0; return t; }
     }
     let tot = 0; const c = [];
     const TT = TRK(), sp0 = Math.hypot(S.v[0], S.v[1], S.v[2]), hist = fl.hist || [];
-    const B_COOL = { 360: 1, 540: 1, 720: 1, back: 1, front: 1, misty540: 1, rodeo540: 1, cork720: 1, cork900: 1, method: 1, japan: 1 };
-    const B_SPIN = { 180: 1, 360: 1, 540: 1, 720: 1, shifty: 1, misty540: 1, rodeo540: 1, cork720: 1, cork900: 1 };
-    const B_BACK = { back: 1, rodeo540: 1 }, B_FRONT = { front: 1, misty540: 1 };
+    const COOL = { 360: 1, '360grab': 1, 540: 1, 720: 1, back: 1, front: 1, flip: 1, flipgrab: 1, misty540: 1, rodeo540: 1, cork720: 1, cork900: 1, method: 1, japan: 1, truck: 1, eagle: 1 };
+    const SPIN = { 180: 1, 360: 1, '360grab': 1, 540: 1, 720: 1, shifty: 1, twist: 1, misty540: 1, rodeo540: 1, cork720: 1, cork900: 1 };
+    const BACK = { back: 1, flip: 1, flipgrab: 1, rodeo540: 1 }, FRONT = { front: 1, misty540: 1 };
     const steerK = smooth(0.14, 0.45, Math.abs(st0)), backK = smooth(0.22, 0.65, -fa0), frontK = smooth(0.22, 0.65, fa0);
     for (const id in TT) {
       const m = TT[id][0], minSp = TT[id][3] || 0;
       if (m > U || sp0 < minSp || (!big && !hopOK(id)) || (ODD(id) && !oddOK(id, big)) || !fpOK(id) || (id === 'eagle' && SOLV())) continue;
-      // (单板按起跳速度、滞空高度与起跳转向意图给概率权重：
+      // (单/双板统一按起跳速度、滞空高度与起跳转向意图给概率权重：
       //  - 起跳瞬时往左/右拐：强烈倾向朝该方向转体（180/360/540/720/Rodeo/Misty/Cork），方向严格跟随转向；
       //  - 起跳前压/后压：倾向对应前/后空翻或斜轴空翻；
       //  - 直滑起跳：中低空以帅气抓板/tweak为主，高速高空按概率出转体与大招；低速/低跳不出急促空翻)
-      const hiBoost = BRD() && B_COOL[id] ? lerp(1, 2.4, smooth(0.85, 1.35, U) * smooth(13, 21, sp0)) : 1;
-      const hiFade = BRD() && !B_COOL[id] ? lerp(1, 0.15, smooth(0.90, 1.25, U)) : 1;
+      const hiBoost = COOL[id] ? lerp(1, 2.4, smooth(0.85, 1.35, U) * smooth(13, 21, sp0)) : 1;
+      const hiFade = !COOL[id] ? lerp(1, 0.18, smooth(0.90, 1.25, U)) : 1;
       let intent = 1;
-      if (BRD()) {
-        if (steerK > 0.01) intent *= B_SPIN[id] ? lerp(1, 4.0, steerK) : lerp(1, 0.18, steerK);
-        else intent *= B_SPIN[id] ? 0.72 : 1.35;      // (straight off the lip: slightly more stylish grabs & tweaks)
-        if (backK > 0.01 && B_BACK[id]) intent *= lerp(1, 3.5, backK);
-        if (frontK > 0.01 && B_FRONT[id]) intent *= lerp(1, 3.5, frontK);
-      }
+      if (steerK > 0.01) intent *= SPIN[id] ? lerp(1, 4.0, steerK) : lerp(1, 0.18, steerK);
+      else intent *= SPIN[id] ? 0.72 : 1.35;      // (straight off the lip: slightly more stylish grabs & tweaks)
+      if (backK > 0.01 && BACK[id]) intent *= lerp(1, 3.5, backK);
+      if (frontK > 0.01 && FRONT[id]) intent *= lerp(1, 3.5, frontK);
       // (4 连跳防重复记忆：刚做过的极低概率，近 4 个做过的降权，连续跳台每个动作都不重样)
       const idx = hist.indexOf(id), rep = idx === 0 ? 0.02 : idx === 1 ? 0.18 : idx === 2 ? 0.45 : idx === 3 ? 0.7 : 1;
       const wt = TT[id][1] * hiBoost * hiFade * intent * sat((U - m) / 0.18 + 0.35) * Math.exp(-Math.max(0, U - m - 0.18) / TT[id][2]) * rep;
@@ -910,7 +932,7 @@ const Game = (() => {
   }
   // (what was planned on the way in stands while it suits the air there is: with too little for it, or a good deal more than it was
   // chosen to fill, something else is picked; a turn keeps the side it has been wound up to)
-  const planFor = (U, old, pred) => { const big = bigAir(pred), stB = BRD() ? (Math.abs(S.u) > 0.14 ? S.u : (Math.abs(S.lean) > 0.14 ? S.lean : 0)) : 0, keepOld = old && !(BRD() && Math.abs(stB) > 0.14 && (!old.spin || old.dir !== sign(stB))); if (keepOld && old.min <= U && U - old.U < 0.25 && (big === 2 || (big && (!ODD(old.id) || oddOK(old.id, big))) || hopOK(old.id) || G.forceTrick) && (fpOK(old.id) || G.forceTrick) && (!G.forceTrick || old.id === String(G.forceTrick))) return old; const t = pickTrick(U, big); if (t) { t.U = U; t.big = big; t.k = /\d|flip|grab/.test(t.id) ? 1 : clamp((t.seq ? U / 2 : U) / 0.62, 0.5, 1); if (old && old.spin && t.spin && !(BRD() && Math.abs(stB) > 0.14)) t.dir = old.dir; } return t; };
+  const planFor = (U, old, pred) => { const big = bigAir(pred), stB = Math.abs(S.u) > 0.14 ? S.u : (Math.abs(S.lean) > 0.14 ? S.lean : 0), keepOld = old && !(Math.abs(stB) > 0.14 && (!old.spin || old.dir !== sign(stB))); if (keepOld && old.min <= U && U - old.U < 0.25 && (big === 2 || (big && (!ODD(old.id) || oddOK(old.id, big))) || hopOK(old.id) || G.forceTrick) && (fpOK(old.id) || G.forceTrick) && (!G.forceTrick || old.id === String(G.forceTrick))) return old; const t = pickTrick(U, big); if (t) { t.U = U; t.big = big; t.k = /\d|flip|grab|front|back/.test(t.id) ? 1 : clamp((t.seq ? U / 2 : U) / 0.62, 0.5, 1); if (old && old.spin && t.spin && !(Math.abs(stB) > 0.14)) t.dir = old.dir; } return t; };
   const SOLV = () => Variants.val.solver === 'b', PRE_T = 0.13, PRE_U = 0.10, SPIN_LEAN = 0.22;     // (SPIN_LEAN: a spin is thrown from a flat, square stance. Leaving the lip banked over 35 deg in a turn, a 360 swapped the bent leg for the straight one a quarter turn in; from there another trick is taken)
   function startTrick(tr) { fl.tr = tr; fl.ph = 0; fl.swT = 0; if (tr.id !== 'pivot' && !tr.base) { fl.last2 = fl.last; fl.last = tr.id; fl.hist = [tr.id, ...(fl.hist || []).filter(x => x !== tr.id)].slice(0, 4); G.events.push({ type: 'trick', id: tr.id, dir: tr.dir }); } }
   function flightReset() {
@@ -952,7 +974,7 @@ const Game = (() => {
         // (新求解器, owner 2026-11-18: "跳起来突然就转圈…转圈肯定是起的那一下要带一下的". A body in the air cannot start to turn: the turn is thrown
         // on the snow. A spin is only done when it was begun before the skis left (fl.pre, below); found in the air with nothing thrown, the
         // trick is one of the shapes that need no turn)
-        else { let tr = planFor(U, fl.plan, fl.pred); if (SOLV() && !BRD() && tr && tr.spin) { tr = null; for (let i = 0; i < 8 && !tr; i++) { const t2 = pickTrick(U, bigAir(fl.pred)); if (t2 && !t2.spin) { t2.U = U; tr = t2; } } } if (tr) { startTrick(tr); fl.took = true; if (tr.big < 2) fl.hopT = G.t; } }
+        else { let tr = planFor(U, fl.plan, fl.pred); const steered = Math.abs(S.u) > 0.14 || Math.abs(S.lean) > 0.14; if (SOLV() && !BRD() && !steered && bigAir(fl.pred) < 2 && tr && tr.spin) { tr = null; for (let i = 0; i < 8 && !tr; i++) { const t2 = pickTrick(U, bigAir(fl.pred)); if (t2 && !t2.spin) { t2.U = U; tr = t2; } } } if (tr) { startTrick(tr); fl.took = true; if (tr.big < 2) fl.hopT = G.t; } }
       }
     }
     // the lip ahead, while on the snow and moving
