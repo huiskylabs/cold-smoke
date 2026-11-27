@@ -1910,6 +1910,16 @@ fn frag(v: VOut) -> FOut {
     // Crisp Gore-Tex fabric micro-folds & woven texture
     let fGrid: f32 = sin(bp.x * 260.0) * sin(bp.y * 260.0) * saturate(1.4 - px * 180.0);
     fold = 0.0024 * skN(bp.xy * 16.0 + bp.zz * vec2f(12.0, 10.0)) * saturate(1.6 - px * 50.0) + 0.00045 * fGrid;
+    // Extend freeride jacket hem cleanly down to mid-buttock (real ski/snowboard shell length, ~6 cm lower than Tripo's cropped hem)
+    let jHemY: f32 = pl.y + 0.115 - 0.018 * saturate((pl.z + 0.02) / 0.14);
+    let inExtHem: f32 = smoothstep(-0.004, 0.005, jHemY) * smoothstep(0.08, 0.01, pl.y) * step(abs(pl.x), 0.23) * smoothstep(0.32, 0.24, max(ts.r, max(ts.g, ts.b))) * (1.0 - isBrownPack);
+    let hemShadow: f32 = smoothstep(0.002, -0.005, jHemY) * smoothstep(-0.032, -0.005, jHemY) * step(abs(pl.x), 0.23) * (1.0 - isBrownPack);
+    if (inExtHem > 0.02) {
+      let jCol: vec3f = orange * (0.62 + 0.38 * v.mat.y) * (1.0 - 0.18 * smoothstep(0.012, 0.002, jHemY));
+      alb = mix(alb, jCol, inExtHem);
+      fold += inExtHem * 0.0020 * smoothstep(0.010, 0.002, jHemY);
+    }
+    alb *= (1.0 - 0.32 * hemShadow);
     // Subtle snow dusting at pant cuffs above the boots
     let cuffSnow: f32 = smoothstep(0.32, 0.16, bp.y) * smoothstep(0.50, 0.85, weave.z * 0.65 + skN(bp.xz * 22.0) * 0.6 + 0.35);
     alb = mix(alb, vec3f(0.80, 0.85, 0.92), cuffSnow * 0.30 * (1.0 - isBrownPack));
