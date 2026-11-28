@@ -1157,9 +1157,44 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
 `;
     const P = gfx.pipeline({
       name: 'skier', lib: [SL.common, SL.hash, SL.fog, SL.shadow, SKIN_SSL, SKIER_SSL, headSSL], buffers,
-      varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', bn: 'vec3f', mat: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', s: 'vec4f', c: 'vec4f' },
+      varyings: { wp: 'vec3f', nrm: 'vec3f', bp: 'vec3f', bn: 'vec3f', mat: 'vec4f' }, uniforms: { p: 'vec4f', q: 'vec4f', r: 'vec4f', s: 'vec4f', c: 'vec4f', w: 'vec4f' },
       textures: { tBones: 'fetch', tDetail: '2d', tShadow: 'shadow', tSky: '2d', tSkin: '2d', tSkinN: '2d', tSkinM: '2d' },
-      vs: `fn vert(a: VIn) -> VOut { var v: VOut; let s: SkinV = skinVertex(a.pos, a.nrm, a.bw); v.wp = s.wp; v.nrm = s.n; v.bp = a.pos; v.bn = a.nrm; v.mat = a.mat; v.clip = U.viewProj * vec4f(s.wp, 1.0); return v; }`,
+      vs: `fn vert(a: VIn) -> VOut {
+  var v: VOut; let s: SkinV = skinVertex(a.pos, a.nrm, a.bw);
+  var wp: vec3f = s.wp; var wn: vec3f = s.n;
+  let wAmp: f32 = M.w.w;
+  if (wAmp > 0.005) {
+    let mid: f32 = a.mat.x;
+    var cm: f32 = 0.0; var hemK: f32 = 0.0;
+    if (mid < 1.5) {
+      cm = 1.0;
+      hemK = exp(-pow((a.pos.y - 0.86) / 0.14, 2.0));
+    } else if (mid > 11.5) {
+      let y0: f32 = a.pos.y;
+      let isClothY: f32 = smoothstep(0.30, 0.42, y0) * (1.0 - smoothstep(1.34, 1.44, y0));
+      let isPack: f32 = smoothstep(0.10, 0.15, a.pos.z) * smoothstep(0.94, 1.01, y0) * (1.0 - smoothstep(1.38, 1.45, y0)) * (1.0 - smoothstep(0.15, 0.20, abs(a.pos.x)));
+      hemK = exp(-pow((y0 - 0.84) / 0.13, 2.0));
+      let sleeveK: f32 = smoothstep(0.18, 0.27, abs(a.pos.x)) * smoothstep(0.88, 1.00, y0);
+      cm = isClothY * (1.0 - isPack) * (0.55 + 0.75 * hemK + 0.35 * sleeveK);
+    }
+    if (cm > 0.005) {
+      let t: f32 = U.camPos.w;
+      let wDir: vec3f = M.w.xyz;
+      let ph1: f32 = t * 32.0 + a.pos.y * 24.0 + a.pos.x * 18.0;
+      let ph2: f32 = t * 13.0 + a.pos.y * 10.0 - a.pos.z * 14.0;
+      let quick: f32 = sin(ph1);
+      let lazy: f32 = sin(ph2);
+      let lee: f32 = 0.50 + 0.50 * saturate(dot(s.n, wDir));
+      let nDisp: f32 = (0.65 * quick + 0.35 * lazy) * 0.012;
+      let trail: f32 = (0.007 + 0.011 * hemK) * (0.45 + 0.55 * lazy);
+      wp += (s.n * nDisp + wDir * trail) * cm * wAmp * lee;
+      let rDeriv: f32 = (0.65 * cos(ph1) + 0.25 * cos(ph2)) * 0.13 * cm * wAmp * lee;
+      let tang: vec3f = normalize(cross(s.n, vec3f(0.0, 1.0, 0.0) + wDir * 0.35) + vec3f(1e-4, 0.0, 0.0));
+      wn = normalize(s.n + tang * rDeriv);
+    }
+  }
+  v.wp = wp; v.nrm = wn; v.bp = a.pos; v.bn = a.nrm; v.mat = a.mat; v.clip = U.viewProj * vec4f(wp, 1.0); return v;
+}`,
       fs: SKIER_FS.replace('/*MARKS*/', marks),
     });
     return P;
@@ -1324,7 +1359,12 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
       else if (dt > 0) { const n = v3.add(H.v, v3.mul(v3.sub(u, H.v), 1 - Math.exp(-dt * 18))), a = v3.mul(v3.sub(n, H.v), 1 / dt), ax = clamp(v3.dot(a, X), -14, 14), af = clamp(-v3.dot(a, Z), -14, 14), w = sat((-v3.dot(n, Z) - 4) / 22); sec.latA = ax;
         H.v = n; spr(H.p, g * (0.11 * w * w * (3 - 2 * w) + clamp(af * 0.008, -0.02, 0.06)), 14, 0.32, dt); spr(H.r, g * clamp(-ax * 0.007, -0.09, 0.09), 12, 0.3, dt); }
       const w = sat((-v3.dot(H.v, Z) - 6) / 20), fl = g * w * (0.022 * Math.sin(now * 47) + 0.014 * Math.sin(now * 29 + 1.3) + 0.01 * Math.sin(now * 71 + 0.4));
-      H.o[0] = clamp(H.p[0] + fl, -0.02, 0.2); H.o[1] = clamp(H.r[0] + 0.6 * fl * Math.sin(now * 13), -0.12, 0.12); }
+      H.o[0] = clamp(H.p[0] + fl, -0.02, 0.2); H.o[1] = clamp(H.r[0] + 0.6 * fl * Math.sin(now * 13), -0.12, 0.12);
+      // (2026-11-28 bfcm.shop clothWind: crisp Gore-Tex shell flutter balanced for 30-70 km/h)
+      const spd = v3.len(H.v), wTgt = Math.pow(clamp((spd - 3.5) / 14.5, 0, 1.25), 1.4) * clo.h + 0.35 * sat(cur.lnd || 0);
+      const aE = cut ? 1 : 1 - Math.exp(-Math.max(dt, 0) / 0.20);
+      cw[3] += (wTgt - cw[3]) * aE;
+      if (spd > 0.5) { cw[0] = -H.v[0] / spd; cw[1] = -H.v[1] / spd; cw[2] = -H.v[2] / spd; } else { cw[0] = Z[0]; cw[1] = Z[1]; cw[2] = Z[2]; } }
     st.t = now; st.pose = pose; st.root = root; st.pos[0] = root.pos[0]; st.pos[1] = root.pos[1]; st.pos[2] = root.pos[2];
     if (dt > 0) { spr(st.lean, cur.lean, 11, 0.8, dt); spr(st.crouch, cur.crouch, 7, 1, dt); spr(st.cf, cur.crouch, 40, 1, dt); }
     const dl = st.lean[0] - cur.lean, dc = cur.crouch - st.crouch[0], quiet = 1 - sat(cur.tuck * 1.5);
@@ -1392,7 +1432,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
   // model-space point -> render space (for effects that attach to the body)
   K.toWorld = function (p) { return m4.tp(K.world.root, p); };
   K.sec = st.sec;      // (what update last handed to solve besides the pose: tests draw a figure from it)
-  const nite = [0, 0, 0, 0];      // (x: how far into the night it is: Sky.night)
+  const nite = [0, 0, 0, 0], cw = [0, 0, 1, 0];      // (nite.x: Sky.night; cw: world-space clothWind dir xyz + amplitude w)
   // (K.lensCut, set by the first-person view (07d_fpv.js): [from, to] m from the lens, the figure fades out inside it; 0: nothing is cut)
   const CUT0 = [0, 0, 0, 0]; K.lensCut = null;
   // (the body asked for in the panel: built at the first draw that wants it, then swapped in at once)
@@ -1412,7 +1452,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     const skinTex = typeof TripoSkin !== 'undefined' ? TripoSkin.texture(gfx) : Tex.detail;
     const skinNrm = typeof TripoSkin !== 'undefined' && TripoSkin.normalTex ? TripoSkin.normalTex(gfx) : Tex.detail;
     const skinOrm = typeof TripoSkin !== 'undefined' && TripoSkin.ormTex ? TripoSkin.ormTex(gfx) : Tex.detail;
-    gfx.draw(pipe, { u: { p: clo.p, q: clo.q, r: nite, s: K.lensCut || CUT0, c: COL0 }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex, tSkin: skinTex, tSkinN: skinNrm, tSkinM: skinOrm }, vb: [vb, vb2], ib, count });
+    gfx.draw(pipe, { u: { p: clo.p, q: clo.q, r: nite, s: K.lensCut || CUT0, c: COL0, w: cw }, tex: { tBones: boneTex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex, tSkin: skinTex, tSkinN: skinNrm, tSkinM: skinOrm }, vb: [vb, vb2], ib, count });
   };
   K.drawShadow = function () { wantBody(); gfx.draw(pipeShadow, { u: { p: [0, 0, 0, 0] }, tex: { tBones: boneTex }, vb: [vb, vb2], ib, count }); };
   // ---- 一起滑 (99b_net.js): the other skiers on the mountain are this same figure, drawn again from bones that came over the network.
@@ -1425,7 +1465,7 @@ fn hdBuff(p: vec3f) -> f32 { return skMin(skMin(skEll(p, ${E3(H.face, 0)}, ${E3(
     const skinTex = typeof TripoSkin !== 'undefined' ? TripoSkin.texture(gfx) : Tex.detail;
     const skinNrm = typeof TripoSkin !== 'undefined' && TripoSkin.normalTex ? TripoSkin.normalTex(gfx) : Tex.detail;
     const skinOrm = typeof TripoSkin !== 'undefined' && TripoSkin.ormTex ? TripoSkin.ormTex(gfx) : Tex.detail;
-    for (const o of list) gfx.draw(pipe, { u: { p: OCLO.p, q: OCLO.q, r: nite, s: CUT0, c: o.col }, tex: { tBones: o.tex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex, tSkin: skinTex, tSkinN: skinNrm, tSkinM: skinOrm }, vb: [vb, vb2], ib, count }); };
+    for (const o of list) gfx.draw(pipe, { u: { p: OCLO.p, q: OCLO.q, r: nite, s: CUT0, c: o.col, w: CUT0 }, tex: { tBones: o.tex, tDetail: Tex.detail, tShadow: shadowTex, tSky: skyTex, tSkin: skinTex, tSkinN: skinNrm, tSkinM: skinOrm }, vb: [vb, vb2], ib, count }); };
   K.drawOthersShadow = function (list) { if (!pipeShadow || !count) return; for (const o of list) gfx.draw(pipeShadow, { u: { p: [0, 0, 0, 0] }, tex: { tBones: o.tex }, vb: [vb, vb2], ib, count }); };
   return K;
 })();

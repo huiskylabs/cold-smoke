@@ -331,7 +331,8 @@ const Board = (() => {
     // board lag the legs: worst leg jolt on a carve 9.4 -> 13.1 mm)
     let xa = Math.sign(edge) * angu;
     if (K.ez && sec.pfDt > 0) xa = K.ez(sec, 'bang', xa, 18 + 20 * air);
-    const edgeB = clamp(edge + xa, -1.45, 1.45);
+    const edgeCht = tab ? (sec.bChtE || 0) : 0;
+    const edgeB = clamp(edge + xa + edgeCht, -1.45, 1.45);
     // (抓板时板面 tweak：method 拉起后刃、japan 竖提板、nose/tail 抬板头/板尾、melon/stalefish 略提后刃，让 8 种抓板轮廓在空中一眼可辨)
     const gAtw = tab && X('GRB', 1) > 0 ? Math.max(gM, smooth(0, 1, p.grabA || 0)) * air : 0;
     const gEdge = gAtw * (gKH === 4 ? -0.48 : gKH === 8 ? 0.42 : gKH === 3 || gKH === 5 ? -0.22 : gKH === 1 || gKH === 2 ? 0.15 : 0);
@@ -443,6 +444,40 @@ const Board = (() => {
       // (KLDT: and the hips fold with them, KLDT rad per g, so the chest goes down and forward over the knees as a rider's does, not straight down)
       sec.bLd = 0; { const g = X('KLD', 0); if (g && K.ez && sec.pfDt > 0) { const v = Math.max(1 - X('KLDC', 0.2), Math.min(1 + X('KLDC', 0.2), p.load == null ? 1 : p.load)), sl = K.ez(sec, 'bldS', v, X('KLDS', 1.2)), fa = K.ez(sec, 'bldF', v, X('KLDF', 10));
           sec.bLd = Math.max(-X('KLDM', 0.4), Math.min(X('KLDM', 0.4), fa - sl)) * (1 - air); const kc = g * sec.bLd; kTab = [kTab[0] + kc, kTab[1] + kc]; } }
+      // (2026-11-27 真实感升级 #1: 高速刻滑离心 G-load 压腿 + 换刃轻量化弹起 — 弯心速度越快/倾角越深腿部越有压迫感，过平刃快速换刃时双腿顺势向上释放)
+      { const vG = smooth(5, 18, vB), gOn = (1 - air) * (1 - stand);
+        const cg0 = smooth(0.32, 0.95, Math.abs(lean)) * vG * gOn * (1 - 0.45 * wSk);
+        const pop0 = (1 - smooth(0.10, 0.42, Math.abs(lean))) * smooth(0.6, 2.6, Math.abs(lrS)) * smooth(4, 14, vB) * gOn;
+        sec.bKG = K.ez && sec.pfDt > 0 ? sat(K.ez(sec, 'bkG', cg0, 9)) : cg0;
+        sec.bPop = K.ez && sec.pfDt > 0 ? sat(K.ez(sec, 'bpop', pop0, 12)) : pop0;
+        const dkG = 11 * sec.bKG - 10 * sec.bPop;
+        kTab = [clamp(kTab[0] + dkG, 10, 128), clamp(kTab[1] + dkG, 10, 128)]; }
+      // (2026-11-27 真实感升级 #2: 前后腿独立地形避震 — 采样板头/板尾起伏与板面动态俯仰的高通分量，前腿先吸震、后腿延迟跟进，骨盆与头部保持稳定)
+      sec.bGpD = 0; sec.bDhL = 0; sec.bDhR = 0;
+      if (K.ez && sec.pfDt > 0) {
+        const sW = smooth(3, 10, vB) * (1 - air) * (1 - stand);
+        const gpS = K.ez(sec, 'bgps', gp, 2.0), gpF = K.ez(sec, 'bgpf', gp, 16);
+        sec.bGpD = clamp(gpF - gpS, -0.28, 0.28) * sW;
+        if (snY) {
+          const rL = clamp(snY(J.footL) - J.footL[1], -0.09, 0.09), rR = clamp(snY(J.footR) - J.footR[1], -0.09, 0.09);
+          const lS = K.ez(sec, 'bdls', rL, 2.0), lF = K.ez(sec, 'bdlf', rL, 16);
+          const rS = K.ez(sec, 'bdrs', rR, 2.0), rF = K.ez(sec, 'bdrf', rR, 16);
+          sec.bDhL = clamp(lF - lS, -0.075, 0.075) * sW;
+          sec.bDhR = clamp(rF - rS, -0.075, 0.075) * sW;
+        }
+        const kF_s = 130 * sec.bDhL + 48 * sec.bGpD, kB_s = 130 * sec.bDhR - 48 * sec.bGpD;
+        kTab = [clamp(kTab[0] + kF_s, 10, 128), clamp(kTab[1] + kB_s, 10, 128)];
+      }
+      // (2026-11-28 bfcm.shop 借鉴: 搓雪/硬刃切雪高频微震 brakeChatter + 站立 3 频正弦微晃)
+      { const tC = (sec.btp ? sec.btp.c : 0) + (sec.pfDt || 0);
+        const cht0 = (smooth(0.22, 0.75, bt) * smooth(4, 14, vB) + 0.42 * smooth(10, 22, vB) * smooth(0.45, 0.95, Math.abs(lean))) * (1 - air) * (1 - stand);
+        const cht = K.ez && sec.pfDt > 0 ? sat(K.ez(sec, 'bcht', cht0, 16)) : cht0;
+        const w1 = 0.6 * Math.sin(tC * 42) + 0.4 * Math.sin(tC * 67 + 1.1);
+        const w2 = 0.6 * Math.sin(tC * 42 + 1.4) + 0.4 * Math.sin(tC * 67 + 2.5);
+        sec.bChtE = 0.009 * cht * w1;
+        const sw3 = (0.50 * Math.sin(tC * 1.15) + 0.30 * Math.sin(tC * 1.87 + 1.3) + 0.20 * Math.sin(tC * 2.73 + 2.4)) * stand * (1 - air);
+        sec.bIdleS = sw3;
+        kTab = [clamp(kTab[0] + 2.4 * cht * w1 + 1.8 * sw3, 8, 128), clamp(kTab[1] + 2.4 * cht * w2 - 1.4 * sw3, 8, 128)]; }
       if (X('GRB', 1) > 0) { const fly0 = 1 - (p.onSnow == null ? 1 : p.onSnow), fly = K.ez && sec.pfDt > 0 ? sat(K.ez(sec, 'bfly', fly0, fly0 > 0.5 ? X('FLYI', 6) : X('FLYO', 14))) : fly0,
           gk = gKH, kA = X('KAIR', 92), kG = X('KGRB', 145), kF = kG - (gk === 7 ? X('KGNS', 10) : 0), kB = kG - (gk === 6 ? X('KGNS', 10) : 0),      // (a tail grab: the back knee up, the front leg let out, so the tail comes up to the hand; a nose grab the other way round)
         gA = Math.max(gM, smooth(0, 1, p.grabA || 0));      // (on the legs-up weight, which starts before the hand: on gM alone the knees were still coming up as the grab let go, the hand 0.3-0.6 m off the board)
@@ -452,7 +487,7 @@ const Board = (() => {
     // ---- 5 (first, its tilt does not hang on the hips) the trunk: leaned with the body. Toes: the chest goes over with the lean and folds low
     // over the front knee. Heels: it leans back with the body but less, and folds a little forward to hold the seat (the chest stays tall)
     let fold = (0.12 + 0.24 * c) * (1 - 0.6 * stand) + 0.16 * ts * (0.8 + 0.2 * k) + 0.10 * hs + 0.55 * tuck + (tab ? X('FGRB', 0.8) : 0.25) * gM + (tab ? X('FCHG', 0) * chE + X('FLND', 0) * lndE : 0) + (id ? id.up : 0);
-    fold += X('KLDT', 0) * (sec.bLd || 0);
+    fold += X('KLDT', 0) * (sec.bLd || 0) + (tab ? 0.08 * (sec.bKG || 0) - 0.06 * (sec.bPop || 0) + 0.016 * (sec.bIdleS || 0) : 0);
     let tilt = lean > 0 ? 0.80 * lean : 0.62 * lean;                        // (toward the toes is +, in the board's roll)
     let hinge = fold + tilt, trA = 0, trB = 0;
     // (真人表: the trunk measured against the leg line, ankles to pelvis (the owner's video, 'trk-L'): on the heels the legs lean back but the chest
@@ -550,7 +585,8 @@ const Board = (() => {
     // nothing too and the hips rode level; the owner's front hip is 5-14 deg lower through a fast heel turn (the pelvis, turned toward the nose,
     // leans with the legs). So PRH of the heel-side lean goes into that roll, eased (PRW): unEased, the hip line swung 340 deg/s at the edge change)
     const prh0 = tab && X('PRH', 0) ? X('PRH', 0) * 0.5 * (tilt - Math.sqrt(tilt * tilt + 0.01)) : 0, prh = prh0 && K.ez && sec.pfDt > 0 ? K.ez(sec, 'bprh', prh0, X('PRW', 8)) : prh0;
-    const pbP = clamp(0.55 * fold + 0.85 * tilt, -1.2, 1.3), pb = basis(yawP, pbP, -0.08 * fa + (tab ? X('PRL', 0) * Math.sin(yawP) * Math.sin(pbP + prh) : 0));
+    const pbP = clamp(0.55 * fold + 0.85 * tilt, -1.2, 1.3), pbSusp = tab ? -0.45 * (sec.bGpD || 0) - 0.40 * ((sec.bDhL || 0) - (sec.bDhR || 0)) / (2 * BD.half) : 0;
+    const pb = basis(yawP, pbP, -0.08 * fa + pbSusp + (tab ? X('PRL', 0) * Math.sin(yawP) * Math.sin(pbP + prh) : 0));
     let t1 = basis((yawP + yawC) * 0.5, hinge, rollT), t2 = basis(yawC, up2, rollT * 0.8);
     // (真人表: the pitch and roll, in the chest's turned frame, that lay the trunk over by trA toward the toes and trB toward the nose)
     if (tab) { const tb = (y, a, b, r0) => { const th = Math.hypot(a, b), st = Math.sin(th), Yd = th > 1e-5 ? [-st * b / th, Math.cos(th), -st * a / th] : [0, 1, 0];
@@ -588,7 +624,7 @@ const Board = (() => {
     for (let oi = 0; ; oi++) {
       for (let it = 0; it < (tab ? 40 : 12); it++) {
       const cy = 0.85 * H + up[1] + 0.15 * aM[1];
-      const tz = -Math.tan(clamp(lean + (tab ? X('CB', 0) * eT : 0), -1.3, 1.3)) * Math.max(0.05, cy - E0[1]), tx = (tab ? -X('TXG', 0) * (1 - air) * clamp(gD[0] / Math.max(0.5, -gD[1]), -0.7, 0.7) * Math.max(0.05, cy - E0[1]) : 0) - 0.07 * fa + X('TXT', -0.05) * ts + X('TXB', 0) * hs + (tab ? X('TX0', 0) + (sideT === 'toe' ? X('TXK', 0.006) : X('TXH', 0)) * eT * (kTab[1] - kTab[0]) : 0);      // (真人表: the hips over the more bent leg; on a deep heel carve (past 35-55 deg) the other way: the owner's two knees there are within 8 deg of each other, 62-70 behind; ours bent the back one to 87-90, Mac round 9)
+      const tz = -Math.tan(clamp(lean + (tab ? X('CB', 0) * eT : 0), -1.3, 1.3)) * Math.max(0.05, cy - E0[1]), tx = (tab ? -X('TXG', 0) * (1 - air) * clamp(gD[0] / Math.max(0.5, -gD[1]), -0.7, 0.7) * Math.max(0.05, cy - E0[1]) - 0.08 * (sec.bGpD || 0) : 0) - 0.07 * fa + X('TXT', -0.05) * ts + X('TXB', 0) * hs + (tab ? X('TX0', 0) + (sideT === 'toe' ? X('TXK', 0.006) : X('TXH', 0)) * eT * (kTab[1] - kTab[0]) : 0);      // (真人表: the hips over the more bent leg; on a deep heel carve (past 35-55 deg) the other way: the owner's two knees there are within 8 deg of each other, 62-70 behind; ours bent the back one to 87-90, Mac round 9)
       // (真人表: the trunk's fold toward the nose is not all paid for by the hips going back: the owner's knees on a deep heel carve are within 8 deg of
       // each other; balanced in full, the hips sat over the back foot and bent the back knee to 85-90, Mac round 9)
       pel = [(tx - (tab ? lerp(0.4, 0, eT * hs) : 1) * up[0] - 0.15 * aM[0]) / 0.85, H, (tz - up[2] - 0.15 * aM[2]) / 0.85];
@@ -661,14 +697,20 @@ const Board = (() => {
     // swings about the collarbone: the shifts are kept as that swing, the shoulder held at its own distance from the neck)
     if (tab) { const L0 = Math.hypot(L.shW, L.shD); for (const k of ['shL', 'shR']) { const d = v3.sub(J[k], J.neck), l = v3.len(d); if (l > 1e-4) J[k] = v3.mad(J.neck, d, L0 / l); } }
     // head: eyes nearer level than the body (a rider's head is the steadiest part), looking down the run over the front shoulder
-    const yawH = -1.12 + 0.18 * ts - 0.15 * hs + (p.headYaw || 0) * 0.5 + (id ? id.hy : 0), hp = 0.10 + 0.08 * c + 0.22 * Math.max(tilt, 0) + (id ? id.hp : 0);      // (eyes kept near level: round 1 had the head hanging down at the snow on the toes)
+    // (2026-11-27 真实感升级 #2/#3: 视线预判提前 0.25-0.3s 望向下一个弯心 + 空中旋转 spotting 盯落点 + 地平线水平稳定)
+    const sH = tab && K.ez && sec.pfDt > 0 ? K.ez(sec, 'bhst', stand, 6) : stand;
+    const hLA0 = tab ? clamp(0.26 * lrS * TS, -0.36, 0.36) * (1 - air) * (1 - sH) : 0;
+    const hLA = tab && K.ez && sec.pfDt > 0 ? K.ez(sec, 'bhla', hLA0, 12) : hLA0;
+    const hSpot = (p.headYaw || 0) * lerp(0.5, 1.05, air), hpAir = tab ? 0.18 * air : 0;
+    const yawH = -1.12 + 0.18 * ts - 0.15 * hs + hLA + hSpot + 0.035 * (sec.bIdleS || 0) + (id ? id.hy : 0), hp = 0.10 + 0.08 * c + 0.22 * Math.max(tilt, 0) + hpAir + (id ? id.hp : 0);      // (eyes kept near level: round 1 had the head hanging down at the snow on the toes)
     // (真人表, standing: the head upright and turned less, Mac round 3 2026-11-23: with the chest side-on and the head still turned 64 deg over the
     // front shoulder, its riding nod read as the head and neck tipped sideways downhill, 6-8 deg off the trunk)
     // (eased: 'stand' steps with the air flag, and raw the head turned 7-10 deg in a frame at take-offs and landings, Mac round 4)
-    const sH = tab && K.ez && sec.pfDt > 0 ? K.ez(sec, 'bhst', stand, 6) : stand;
-    let hb = tab ? basis(lerp(yawH, -0.80, sH) + X('HY0', 0) + X('HYL', 0) * clamp(lean, -1, 1), hp * (1 - 0.85 * sH) + X('HP0', 0), 0.04 * fa) : basis(yawH, hp, 0.04 * fa);
-    // (the head rides in line with the trunk as it tips into the turn: its own up drawn HTR of the way to the chest's, the face kept where it looks)
-    if (tab && X('HTR', 0) > 0) { const Y = v3.norm(v3.add(v3.norm(v3.lerp(hb.Y, t2.Y, X('HTR', 0) * (1 - 0.8 * sH))), [0, 0, -Math.tan(X('HHT', 0) * hs * (1 - air)) ])),      /* (HHT: on the heels the head goes a little further toward the toes than the chest, chin forward over the board: the owner's is 9-16 deg past his trunk there) */ Z0 = v3.sub(hb.Z, v3.mul(Y, v3.dot(hb.Z, Y))), Z = v3.norm(Z0), Xh = v3.cross(Y, Z); hb = { X: Xh, Y, Z }; }
+    const hRoll = 0.04 * fa - (tab ? 0.35 * (sec.bGpD || 0) : 0);
+    let hb = tab ? basis(lerp(yawH, -0.80, sH) + X('HY0', 0) + X('HYL', 0) * clamp(lean, -1, 1), hp * (1 - 0.85 * sH) + X('HP0', 0), hRoll) : basis(yawH, hp, 0.04 * fa);
+    // (the head rides in line with the trunk as it tips into the turn, while keeping eyes ~35% closer to the horizon on active carves and bumps)
+    if (tab && X('HTR', 0) > 0) { const htrW = X('HTR', 0) * (1 - 0.8 * sH) * (1 - 0.35 * smooth(0.15, 0.7, Math.abs(lean)) * (1 - air));
+      const Y = v3.norm(v3.add(v3.norm(v3.lerp(hb.Y, t2.Y, htrW)), [0, 0, -Math.tan(X('HHT', 0) * hs * (1 - air)) ])),      /* (HHT: on the heels the head goes a little further toward the toes than the chest, chin forward over the board: the owner's is 9-16 deg past his trunk there) */ Z0 = v3.sub(hb.Z, v3.mul(Y, v3.dot(hb.Z, Y))), Z = v3.norm(Z0), Xh = v3.cross(Y, Z); hb = { X: Xh, Y, Z }; }
     const nY = v3.norm(v3.add(t2.Y, hb.Y));
     J.skull = v3.mad(J.neck, nY, L.neck); J.head = v3.add(v3.mad(J.skull, hb.Y, L.head), v3.mul(hb.Z, -0.015));
     // ---- 6 the arms. Targets are given from each shoulder in a frame that leans with the body but does not turn with the chest (hl): x toward the
